@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'pages/nowplaying.dart';
-import 'pages/search.dart';
+//import 'pages/search.dart';
+//临时把search页面注释掉，监视 login 页面
 import 'pages/roam.dart';
+import 'pages/login.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,7 +22,9 @@ class _MyAppState extends State<MyApp> {
   // 准备所有页面
   final List<Widget> _pages = [
     const NowPlaying(),
-    const Search(),
+    const Login(),
+    //const Search(),
+    //临时把search页面注释掉，监视 login 页面
     const Roam(),
   ];
 

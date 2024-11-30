@@ -33,7 +33,7 @@ class ListDemo extends StatelessWidget {
       children: <Widget>[
         ListTile(
           leading: CircleAvatar(child: Text('今')),
-          title: Text('\"Kisses from my muses, Truses for the bruises.\"', style: TextStyle(fontSize: 16, height: 0.95),),
+          title: Text('"Kisses from my muses, Truses for the bruises."', style: TextStyle(fontSize: 16, height: 0.95),),
           subtitle: Text('Note'),
         ),
         Divider(height: 0),
@@ -52,7 +52,7 @@ class ListDemo extends StatelessWidget {
         Divider(height: 0),
         ListTile(
           leading: CircleAvatar(child: Text('初')),
-          title: Text('\"I feel like I\'m soaked in water, in Miami.\"', style: TextStyle(fontSize: 16, height: 0.95),),
+          title: Text('"I feel like I\'m soaked in water, in Miami."', style: TextStyle(fontSize: 16, height: 0.95),),
           subtitle: Text('Note'),
         ),
         Divider(height: 0),

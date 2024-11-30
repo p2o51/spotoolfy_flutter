@@ -99,28 +99,3 @@ class _RatingsState extends State<Ratings> {
     );
   }
 }
-
-class AdvancedListView extends StatelessWidget {
-  final List<String> items = List<String>.generate(20, (i) => 'Item $i');
-
-  AdvancedListView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: items.length,
-        itemBuilder: (context, index) {
-          return Card(
-            margin: EdgeInsets.all(8),
-            child: ListTile(
-              title: Text(items[index]),
-              subtitle: Text('This is a subtitle'),
-              leading: CircleAvatar(
-                child: Text('${index + 1}'),
-              ),
-            ),
-          );
-        },
-    );
-  }
-}
