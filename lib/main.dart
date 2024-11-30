@@ -19,9 +19,9 @@ class _MyAppState extends State<MyApp> {
   
   // 准备所有页面
   final List<Widget> _pages = [
-    NowPlaying(),
-    Search(),
-    Roam(),
+    const NowPlaying(),
+    const Search(),
+    const Roam(),
   ];
 
   @override
@@ -29,12 +29,12 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Spotoolfy',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.greenAccent),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
       home: Scaffold(
         appBar: AppBar(
-          title: Row(
+          title: const Row(
             children: [
               Icon(Icons.music_note),
               SizedBox(width: 8),
@@ -42,8 +42,8 @@ class _MyAppState extends State<MyApp> {
             ],
           ),
           actions: [
-            IconButton.filledTonal(onPressed: (){}, icon: Icon(Icons.person_outlined),),
-            SizedBox(width: 8,),
+            IconButton.filledTonal(onPressed: (){}, icon: const Icon(Icons.person_outlined),),
+            const SizedBox(width: 8,),
           ],
 
         ),

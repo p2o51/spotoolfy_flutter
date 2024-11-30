@@ -1,3 +1,4 @@
+//roam.dart
 import 'package:flutter/material.dart';
 
 class Roam extends StatelessWidget {
@@ -5,6 +6,6 @@ class Roam extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Text('Roam');
+    return const Center(child: Text('Roam', style: TextStyle(fontSize: 20),));
   }
 }
