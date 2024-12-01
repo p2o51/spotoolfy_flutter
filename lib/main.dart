@@ -6,15 +6,21 @@ import 'pages/roam.dart';
 import 'pages/login.dart';
 import 'test_widget/test_spotify.dart';
 import 'package:provider/provider.dart';
+import 'providers/spotify_provider.dart';
 
 void main() {
-  runApp(MaterialApp(
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      useMaterial3: true,
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => SpotifyProvider(),
+      child: MaterialApp(
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+        ),
+        home: const MyApp(),
+      ),
     ),
-    home: const MyApp()
-  ));
+  );
 }
 
 class MyApp extends StatefulWidget {

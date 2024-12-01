@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/spotify_provider.dart';
 
 class Login extends StatelessWidget {
   const Login({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 获取 SpotifyProvider
+    final spotifyProvider = Provider.of<SpotifyProvider>(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -24,11 +29,40 @@ class Login extends StatelessWidget {
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             ),
-            onPressed: () {
-              // TODO: 实现 Spotify 授权逻辑
-            },
-            child: const Text('Authorize Spotify'),
+            onPressed: spotifyProvider.isLoading || spotifyProvider.username != null
+              ? null 
+              : () async {
+                  try {
+                    await spotifyProvider.login();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('登录成功！')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('登录失败: $e')),
+                      );
+                    }
+                  }
+                },
+            child: spotifyProvider.isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Authorize Spotify'),
           ),
+          if (spotifyProvider.username != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '欢迎你，${spotifyProvider.username}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           const SizedBox(height: 16),
           const Text('and',
             style: TextStyle(
