@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:spotoolfy_flutter/widgets/player.dart';
 import 'package:spotoolfy_flutter/widgets/notes.dart';
 import 'package:spotoolfy_flutter/widgets/materialui.dart';
+import 'package:spotoolfy_flutter/widgets/add_note.dart';
+
 class NowPlaying extends StatelessWidget {
   const NowPlaying({super.key});
 
@@ -22,7 +24,13 @@ class NowPlaying extends StatelessWidget {
       ),
 
       floatingActionButton: FloatingActionButton(
-        onPressed: (){}, 
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => const AddNoteSheet(),
+          );
+        }, 
         child: const Icon(Icons.add),
       ),
     );

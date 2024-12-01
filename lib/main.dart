@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'pages/nowplaying.dart';
-//import 'pages/search.dart';
-//临时把search页面注释掉，监视 login 页面
+import 'pages/search.dart';
 import 'pages/roam.dart';
 import 'pages/login.dart';
-import 'test_widget/test_spotify.dart';
 import 'package:provider/provider.dart';
 import 'providers/spotify_provider.dart';
 import 'providers/auth_provider.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'providers/firestore_provider.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -22,11 +23,25 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => SpotifyProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider2<AuthProvider, SpotifyProvider, FirestoreProvider>(
+          create: (context) => FirestoreProvider(
+            context.read<AuthProvider>(),
+            context.read<SpotifyProvider>(),
+          ),
+          update: (context, auth, spotify, previous) =>
+              previous ?? FirestoreProvider(auth, spotify),
+        ),
       ],
       child: MaterialApp(
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+            systemOverlayStyle: SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: Colors.transparent,
+            ),
+          ),
         ),
         home: const MyApp(),
       ),
@@ -47,15 +62,14 @@ class _MyAppState extends State<MyApp> {
   // 准备所有页面
   final List<Widget> _pages = [
     const NowPlaying(),
-    TestSpotify(),
-    //const Search(),
-    //临时把search页面注释掉，监视 login 页面
+    const Search(),
     const Roam(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       appBar: AppBar(
         title: const Row(
           children: [

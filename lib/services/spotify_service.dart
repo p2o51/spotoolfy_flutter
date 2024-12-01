@@ -499,4 +499,26 @@ Future<SpotifyAuthResponse> login({List<String>? scopes}) async {
       rethrow;
     }
   }
+
+  Future<void> refreshAccessToken(String refreshToken) async {
+    try {
+      final result = await _appAuth.token(
+        TokenRequest(
+          clientId,
+          redirectUrl,
+          serviceConfiguration: _serviceConfiguration,
+          refreshToken: refreshToken,
+          grantType: 'refresh_token',
+        ),
+      );
+
+      if (result == null) throw Exception('Failed to refresh token');
+      
+      var accessToken = result.accessToken;
+      
+    } catch (e) {
+      print('刷新 token 失败: $e');
+      rethrow;
+    }
+  }
 }
