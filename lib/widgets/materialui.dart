@@ -37,19 +37,27 @@ class IconHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 16),
-            const SizedBox(width: 8),
-            Text(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+            icon,
+            color: Theme.of(context).colorScheme.primary,
+            size: 16
+        ),
+        const SizedBox(width: 8),
+        Flexible(  // 添加 Flexible 来允许文本在需要时换行或收缩
+          child: Text(
             text,
             style: TextStyle(
               color: Theme.of(context).colorScheme.primary,
               letterSpacing: 2.0,
-              ),
             ),
-            ],
-          );
+
+          ),
+        ),
+      ],
+    );
   }
 }
 

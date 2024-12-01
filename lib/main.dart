@@ -4,9 +4,17 @@ import 'pages/nowplaying.dart';
 //临时把search页面注释掉，监视 login 页面
 import 'pages/roam.dart';
 import 'pages/login.dart';
+import 'test_widget/test_spotify.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MaterialApp(
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+      useMaterial3: true,
+    ),
+    home: const MyApp()
+  ));
 }
 
 class MyApp extends StatefulWidget {
@@ -22,7 +30,7 @@ class _MyAppState extends State<MyApp> {
   // 准备所有页面
   final List<Widget> _pages = [
     const NowPlaying(),
-    const Login(),
+    TestSpotify(),
     //const Search(),
     //临时把search页面注释掉，监视 login 页面
     const Roam(),
@@ -30,29 +38,37 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Spotoolfy',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Row(
-            children: [
-              Icon(Icons.music_note),
-              SizedBox(width: 8),
-              Text('Spotoolfy')
-            ],
-          ),
-          actions: [
-            IconButton.filledTonal(onPressed: (){}, icon: const Icon(Icons.person_outlined),),
-            const SizedBox(width: 8,),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.music_note),
+            SizedBox(width: 8),
+            Text('Spotoolfy')
           ],
-
         ),
-        body: _pages[_selectedIndex], // 直接切换页面
-        bottomNavigationBar: NavigationBar(
+        actions: [
+          IconButton.filledTonal(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                constraints: const BoxConstraints(
+                  minWidth: 400,
+                ),
+                builder: (BuildContext context) {
+                  return const Login();
+                },
+              );
+            },
+            icon: const Icon(Icons.person_outlined),
+          ),
+          const SizedBox(width: 8,),
+        ],
+      ),
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (int index) {
           setState(() {
@@ -73,7 +89,6 @@ class _MyAppState extends State<MyApp> {
             label: 'Roam',
           ),
         ],
-        ),
       ),
     );
   }

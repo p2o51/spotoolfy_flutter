@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 
-class Login extends StatefulWidget {
+class Login extends StatelessWidget {
   const Login({super.key});
-  @override
-  State<Login> createState() => _LoginState();
-}
 
-class _LoginState extends State<Login> {
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return Container(
+      padding: const EdgeInsets.all(16),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          IconButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.close),
+          ),
           const Welcome(),
           const SizedBox(height: 40),
           FilledButton(
@@ -27,13 +31,13 @@ class _LoginState extends State<Login> {
           ),
           const SizedBox(height: 16),
           const Text('and',
-          style: TextStyle(
-            fontFamily: 'Derivia',
-            fontSize: 64,
-            height: 0.9,
+            style: TextStyle(
+              fontFamily: 'Derivia',
+              fontSize: 64,
+              height: 0.9,
+            ),
           ),
-          ),
-           const SizedBox(height: 16),
+          const SizedBox(height: 16),
           FilledButton.tonal(
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),

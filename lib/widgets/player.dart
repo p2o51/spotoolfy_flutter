@@ -19,27 +19,18 @@ class _PlayerState extends State<Player> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
-        children: [
-          Padding(
+          children: [
+          Positioned(child: Padding(
             padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16.0),
               child: Image.asset('assets/examples/CXOXO.png'),
             ),
-          ),
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-              IconHeader(icon: Icons.music_note, text: 'NOWPLAYING'),
-            ],),
-          ),
+          ),),
+
           Positioned(
             bottom: 64,
-            right: 0,
+            right: 10,
             child: PlayButton(
               isPlaying: isPlaying,
               onPressed: () {
