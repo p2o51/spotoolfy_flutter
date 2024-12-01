@@ -6,6 +6,13 @@ class Search extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('Search', style: TextStyle(fontSize: 20),));
+    return const Center(child: Text(
+      'Search',
+      style: TextStyle(
+        fontFamily: 'Derivia',
+        fontSize: 64,
+        height: 0.9,
+      ),
+    ),);
   }
 }

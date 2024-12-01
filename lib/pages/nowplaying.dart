@@ -19,10 +19,10 @@ class NowPlaying extends StatelessWidget {
             Ratings(),
             SizedBox(height: 16),
             NotesDisplay(),
+            SizedBox(height: 80),
           ],
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           showModalBottomSheet(
