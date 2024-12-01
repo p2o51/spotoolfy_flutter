@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
+import '../providers/auth_provider.dart';
 
 class Login extends StatelessWidget {
   const Login({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 获取 SpotifyProvider
     final spotifyProvider = Provider.of<SpotifyProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -36,13 +37,13 @@ class Login extends StatelessWidget {
                     await spotifyProvider.login();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('登录成功！')),
+                        const SnackBar(content: Text('Spotify 登录成功！')),
                       );
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('登录失败: $e')),
+                        SnackBar(content: Text('Spotify 登录失败: $e')),
                       );
                     }
                   }
@@ -76,11 +77,40 @@ class Login extends StatelessWidget {
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             ),
-            onPressed: () {
-              // TODO: 实现 Google 登录逻辑
-            },
-            child: const Text('Login with Google'),
+            onPressed: authProvider.isLoading || authProvider.isSignedIn
+              ? null
+              : () async {
+                  try {
+                    final credential = await authProvider.signInWithGoogle();
+                    if (context.mounted && credential != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Google 登录成功！')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Google 登录失败: $e')),
+                      );
+                    }
+                  }
+                },
+            child: authProvider.isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Login with Google'),
           ),
+          if (authProvider.userDisplayName != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '欢迎你，${authProvider.userDisplayName}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
         ],
       ),
     );
