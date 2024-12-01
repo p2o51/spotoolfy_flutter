@@ -71,6 +71,10 @@ class SpotifyAuthService {
     'user-read-email',
     'playlist-read-private',
     'user-library-read',
+    'user-library-modify',
+    'user-read-currently-playing',
+    'user-read-playback-state',
+    'user-modify-playback-state',
   ];
 
   /// 检查是否已认证
@@ -91,7 +95,7 @@ class SpotifyAuthService {
       return false;
     }
   }
-  
+
 Future<SpotifyAuthResponse> login({List<String>? scopes}) async {
   try {
     print('准备 OAuth 请求...');
@@ -278,6 +282,220 @@ Future<SpotifyAuthResponse> login({List<String>? scopes}) async {
       return json.decode(response.body);
     } catch (e) {
       print('获取用户信息失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取当前正在播放的曲目
+  Future<Map<String, dynamic>?> getCurrentlyPlayingTrack() async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/player/currently-playing'),
+        headers: headers,
+      );
+
+      // 如果返回204表示当前没有播放内容
+      if (response.statusCode == 204) {
+        return null;
+      }
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取当前播放曲目失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      print('获取当前播放曲目时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取播放状态
+  Future<Map<String, dynamic>> getPlaybackState() async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/player'),
+        headers: headers,
+      );
+
+      // 如果返回204表示当前没有活动设备
+      if (response.statusCode == 204) {
+        return {};
+      }
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取播放状态失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      print('获取播放状态时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 播放/暂停切换
+  Future<void> togglePlayPause() async {
+    try {
+      final playbackState = await getPlaybackState();
+      final isPlaying = playbackState['is_playing'] ?? false;
+      final headers = await getAuthenticatedHeaders();
+      
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player/${isPlaying ? 'pause' : 'play'}'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 202 && 
+          response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '${isPlaying ? '暂停' : '播放'}失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('播放/暂停切换时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 下一首
+  Future<void> skipToNext() async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.post(
+        Uri.parse('https://api.spotify.com/v1/me/player/next'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 202 && 
+          response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '跳转下一首失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('跳转下一首时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 上一首
+  Future<void> skipToPrevious() async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.post(
+        Uri.parse('https://api.spotify.com/v1/me/player/previous'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 202 && 
+          response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '跳转上一首失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('跳转上一首时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 检查歌曲是否已保存到用户的音乐库
+  Future<bool> isTrackSaved(String trackId) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/tracks/contains?ids=$trackId'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '检查歌曲保存状态失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      final List<dynamic> results = json.decode(response.body);
+      return results.isNotEmpty ? results[0] : false;
+    } catch (e) {
+      print('检查歌曲保存状态时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 将歌曲保存到用户的音乐库
+  Future<void> saveTrack(String trackId) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/tracks'),
+        headers: headers,
+        body: json.encode({'ids': [trackId]}),
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 201) {
+        throw SpotifyAuthException(
+          '保存歌曲失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('保存歌曲时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 从用户的音乐库中移除歌曲
+  Future<void> removeTrack(String trackId) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.delete(
+        Uri.parse('https://api.spotify.com/v1/me/tracks'),
+        headers: headers,
+        body: json.encode({'ids': [trackId]}),
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '移除歌曲失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('移除歌曲时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 切换歌曲的保存状态
+  Future<bool> toggleTrackSave(String trackId) async {
+    try {
+      final isSaved = await isTrackSaved(trackId);
+      if (isSaved) {
+        await removeTrack(trackId);
+        return false;
+      } else {
+        await saveTrack(trackId);
+        return true;
+      }
+    } catch (e) {
+      print('切换歌曲保存状态时出错: $e');
       rethrow;
     }
   }
