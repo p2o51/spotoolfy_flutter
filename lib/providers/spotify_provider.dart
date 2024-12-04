@@ -13,7 +13,9 @@ class SpotifyProvider extends ChangeNotifier {
   SpotifyProvider() : _spotifyService = SpotifyAuthService(
     clientId: '64103961829a42328a6634fb80574191',
     clientSecret: '2d1ae3a42dc94650887f4c73ab6926d1',
-    redirectUrl: 'spotoolfy://callback',
+    redirectUrl: kIsWeb 
+        ? 'http://localhost:8080/spotify_callback.html'
+        : 'spotoolfy://callback',
   );
 
   void startTrackRefresh() {

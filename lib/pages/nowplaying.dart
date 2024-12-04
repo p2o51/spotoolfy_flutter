@@ -10,19 +10,50 @@ class NowPlaying extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 检查屏幕宽度：大屏幕
+    bool isLargeScreen = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
-      body: const SingleChildScrollView(
-        child: Column(
-          children: [
-            Player(),
-            SizedBox(height: 16),
-            Ratings(),
-            SizedBox(height: 16),
-            NotesDisplay(),
-            SizedBox(height: 80),
-          ],
-        ),
-      ),
+      body: isLargeScreen
+          ? Row(
+              children: [
+                // 左侧固定部分
+                Expanded(
+                  flex: 1,
+                  child: Column(
+                    children: const [
+                      Player(),
+                      SizedBox(height: 16),
+                      Ratings(),
+                    ],
+                  ),
+                ),
+                // 右侧可滚动部分
+                Expanded(
+                  flex: 1,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: const [
+                        NotesDisplay(),
+                        SizedBox(height: 80),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : const SingleChildScrollView(
+              child: Column(
+                children: [
+                  Player(),
+                  SizedBox(height: 16),
+                  Ratings(),
+                  SizedBox(height: 16),
+                  NotesDisplay(),
+                  SizedBox(height: 80),
+                ],
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           showModalBottomSheet(
@@ -30,7 +61,7 @@ class NowPlaying extends StatelessWidget {
             isScrollControlled: true,
             builder: (context) => const AddNoteSheet(),
           );
-        }, 
+        },
         child: const Icon(Icons.add),
       ),
     );

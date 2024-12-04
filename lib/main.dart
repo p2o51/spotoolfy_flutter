@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'providers/firestore_provider.dart';
 import 'package:flutter/services.dart';
+import 'providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => SpotifyProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProxyProvider2<AuthProvider, SpotifyProvider, FirestoreProvider>(
           create: (context) => FirestoreProvider(
             context.read<AuthProvider>(),
@@ -32,24 +34,33 @@ void main() async {
               previous ?? FirestoreProvider(auth, spotify),
         ),
       ],
-      child: MaterialApp(
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              systemNavigationBarColor: Colors.transparent,
-              systemNavigationBarDividerColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-              statusBarBrightness: Brightness.light,
-            ),
-          ),
-        ),
-        home: const MyApp(),
-      ),
+      child: const MyThemedApp(),
     ),
   );
+}
+
+class MyThemedApp extends StatelessWidget {
+  const MyThemedApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: ThemeData(
+        colorScheme: context.watch<ThemeProvider>().colorScheme,
+        useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+          ),
+        ),
+      ),
+      home: const MyApp(),
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -71,6 +82,9 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    // 检查屏幕宽度
+    bool isLargeScreen = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -81,6 +95,14 @@ class _MyAppState extends State<MyApp> {
           ],
         ),
         actions: [
+          if (isLargeScreen) ...[
+            IconButton(
+              onPressed: () {
+                // 添加更多的导航选项或信息
+              },
+              icon: const Icon(Icons.info_outline),
+            ),
+          ],
           IconButton.filledTonal(
             onPressed: () {
               showModalBottomSheet(
@@ -100,8 +122,37 @@ class _MyAppState extends State<MyApp> {
           const SizedBox(width: 8,),
         ],
       ),
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
+      body: Row(
+        children: [
+          if (isLargeScreen)
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (int index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.music_note),
+                  label: Text('NowPlaying'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.search),
+                  label: Text('Search'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.radio),
+                  label: Text('Roam'),
+                ),
+              ],
+            ),
+          Expanded(
+            child: _pages[_selectedIndex],
+          ),
+        ],
+      ),
+      bottomNavigationBar: isLargeScreen ? null : NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (int index) {
           setState(() {

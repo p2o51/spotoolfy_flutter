@@ -43,6 +43,7 @@ dependencies:
   firebase_auth: ^5.3.3
   cloud_firestore: ^5.5.0
   google_sign_in: ^6.2.2
+  palette_generator: ^0.3.3+5
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import '../providers/spotify_provider.dart';
+import '../providers/theme_provider.dart';
 
 class Player extends StatelessWidget {
   const Player({super.key});
@@ -11,6 +12,7 @@ class Player extends StatelessWidget {
   Widget build(BuildContext context) {
     final spotify = context.watch<SpotifyProvider>();
     final track = spotify.currentTrack?['item'];
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
     return Center(
       child: Column(
@@ -31,6 +33,17 @@ class Player extends StatelessWidget {
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               return Image.asset('assets/examples/CXOXO.png');
+                            },
+                            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                              if (frame != null) {
+                                // 图片加载完成后更新主题
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  themeProvider.updateThemeFromImage(
+                                    NetworkImage(track['album']['images'][0]['url'])
+                                  );
+                                });
+                              }
+                              return child;
                             },
                           )
                         : Image.asset('assets/examples/CXOXO.png'),

@@ -31,6 +31,19 @@
 
   <title>spotoolfy_flutter</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- 添加 Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js" type="module"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js" type="module"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js" type="module"></script>
+
+  <!-- 修改 CSP 头，允许加载 Firebase -->
+  <meta http-equiv="Content-Security-Policy" 
+        content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: gap: https://ssl.gstatic.com https://www.gstatic.com;
+                 script-src * 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com;
+                 style-src * 'self' 'unsafe-inline';
+                 img-src * 'self' data: content:;
+                 connect-src * 'self' ws: wss:;">
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
