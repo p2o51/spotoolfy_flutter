@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Spotify Auth Callback</title>
+</head>
+<body>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    
+    if (code) {
+      window.opener.postMessage('code=' + code, '*');
+    }
+    
+    window.close();
+  </script>
+</body>
+</html>
