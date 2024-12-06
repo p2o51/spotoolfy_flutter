@@ -33,7 +33,7 @@ class SpotifyProvider extends ChangeNotifier {
     
     if (username != null) {
       refreshCurrentTrack();
-      _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         refreshCurrentTrack();
       });
     }

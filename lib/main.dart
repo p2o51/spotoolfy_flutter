@@ -121,6 +121,37 @@ class _MyAppState extends State<MyApp> {
           ),
           const SizedBox(width: 8,),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(4.0),
+          child: Consumer<SpotifyProvider>(
+            builder: (context, provider, child) {
+              final currentTrack = provider.currentTrack;
+              if (currentTrack == null || currentTrack['item'] == null) {
+                return const SizedBox.shrink();
+              }
+              
+              final progress = currentTrack['progress_ms'] ?? 0;
+              final duration = currentTrack['item']['duration_ms'] ?? 1;
+              final value = progress / duration;
+              
+              return TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: value),
+                duration: const Duration(milliseconds: 650), // 动画持续时间
+                curve: Curves.easeInOut, // 使用缓动曲线
+                builder: (context, animatedValue, child) {
+                  return LinearProgressIndicator(
+                    value: animatedValue,
+                    minHeight: 4.0,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
       ),
       body: Row(
         children: [

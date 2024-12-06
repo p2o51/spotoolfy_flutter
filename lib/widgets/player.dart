@@ -11,7 +11,6 @@ class Player extends StatefulWidget {
   @override
   State<Player> createState() => _PlayerState();
 }
-
 class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
   final _dragDistanceNotifier = ValueNotifier<double>(0.0);
   double? _dragStartX;
