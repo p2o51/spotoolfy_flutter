@@ -325,9 +325,9 @@ class _TestSpotifyState extends State<TestSpotify> {
         _startTrackRefresh();
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('登录成功！'),
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -349,7 +349,7 @@ class _TestSpotifyState extends State<TestSpotify> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('操作失败'),
+                const Text('操作失败'),
                 Text('错误类型: ${e.runtimeType}'),
                 Text('错误信息: $e'),
               ],

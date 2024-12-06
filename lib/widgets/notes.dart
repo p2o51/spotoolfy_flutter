@@ -50,7 +50,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
           else
             Card(
               elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -84,7 +84,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             ),
             Card(
               elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),

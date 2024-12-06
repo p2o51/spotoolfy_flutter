@@ -56,7 +56,7 @@ class SpotifyAuthService {
     required this.redirectUrl,
     FlutterAppAuth? appAuth,
     FlutterSecureStorage? secureStorage,
-  }) : _appAuth = appAuth ?? FlutterAppAuth(),
+  }) : _appAuth = appAuth ?? const FlutterAppAuth(),
         _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   /// 配置服务端点
@@ -143,10 +143,6 @@ class SpotifyAuthService {
       );
 
       print('收到授权响应');
-      if (authResult == null) {
-        print('授权失败: 收到空响应');
-        throw SpotifyAuthException('Authorization failed: No response received');
-      }
 
       print('授权成功，开始获取令牌...');
 
@@ -161,10 +157,6 @@ class SpotifyAuthService {
           clientSecret: clientSecret,
         ),
       );
-
-      if (tokenResult == null) {
-        throw SpotifyAuthException('Token exchange failed: No response received');
-      }
 
       final response = SpotifyAuthResponse(
         accessToken: tokenResult.accessToken!,
@@ -206,10 +198,6 @@ class SpotifyAuthService {
           grantType: 'refresh_token',
         ),
       );
-
-      if (result == null) {
-        throw SpotifyAuthException('Token refresh failed: No response received');
-      }
 
       final response = SpotifyAuthResponse(
         accessToken: result.accessToken!,
@@ -516,8 +504,6 @@ class SpotifyAuthService {
           grantType: 'refresh_token',
         ),
       );
-
-      if (result == null) throw Exception('Failed to refresh token');
       
       var accessToken = result.accessToken;
       

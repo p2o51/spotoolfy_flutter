@@ -15,13 +15,13 @@ class NowPlaying extends StatelessWidget {
 
     return Scaffold(
       body: isLargeScreen
-          ? Row(
+          ? const Row(
               children: [
                 // 左侧固定部分
                 Expanded(
                   flex: 1,
                   child: Column(
-                    children: const [
+                    children: [
                       Player(),
                       SizedBox(height: 16),
                       Ratings(),
@@ -33,7 +33,7 @@ class NowPlaying extends StatelessWidget {
                   flex: 1,
                   child: SingleChildScrollView(
                     child: Column(
-                      children: const [
+                      children: [
                         NotesDisplay(),
                         SizedBox(height: 80),
                       ],
