@@ -5,7 +5,7 @@ import 'package:spotoolfy_flutter/widgets/notes.dart';
 import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
-
+import 'package:spotoolfy_flutter/widgets/lyrics.dart';
 class NowPlaying extends StatelessWidget {
   const NowPlaying({super.key});
 
@@ -15,7 +15,7 @@ class NowPlaying extends StatelessWidget {
 
     return Scaffold(
       body: DefaultTabController(
-        length: 2,
+        length: 4,
         child: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
@@ -34,6 +34,8 @@ class NowPlaying extends StatelessWidget {
                     tabs: [
                       Tab(text: 'THOUGHTS'),
                       Tab(text: 'QUEUE'),
+                      Tab(text: 'LYRICS'),
+                      Tab(text: 'CREDITS'),
                     ],
                   ),
                 ),
@@ -81,6 +83,13 @@ class NowPlaying extends StatelessWidget {
               // QUEUE 内容
               const SingleChildScrollView(
                 child: QueueDisplay(),
+              ),
+              // LYRICS 内容
+              LyricsWidget(currentLineIndex: 2),
+              
+              // CREDITS 内容
+              const Center(
+                child: Text('Credits Coming Soon'),
               ),
             ],
           ),
