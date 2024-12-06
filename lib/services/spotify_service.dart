@@ -526,4 +526,74 @@ class SpotifyAuthService {
       rethrow;
     }
   }
+
+  /// 获取播放队列
+  Future<Map<String, dynamic>> getPlaybackQueue() async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/player/queue'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取播放队列失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      print('获取播放队列时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 设置循环模式
+  /// mode: "track" - 单曲循环, "context" - 列表循环, "off" - 关闭循环
+  Future<void> setRepeatMode(String mode) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player/repeat?state=$mode'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 202 && 
+          response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '设置循环模式失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('设置循环模式时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 设置随机播放状态
+  Future<void> setShuffle(bool state) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player/shuffle?state=$state'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 202 && 
+          response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '设置随机播放失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('设置随机播放时出错: $e');
+      rethrow;
+    }
+  }
 }
