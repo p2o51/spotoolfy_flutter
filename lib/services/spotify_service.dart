@@ -76,6 +76,7 @@ class SpotifyAuthService {
     'user-read-currently-playing',
     'user-read-playback-state',
     'user-modify-playback-state',
+    'user-read-recently-played',
   ];
 
   /// 检查是否已认证
@@ -579,6 +580,75 @@ class SpotifyAuthService {
       }
     } catch (e) {
       print('设置随机播放时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取最近播放记录
+  Future<Map<String, dynamic>> getRecentlyPlayed({int limit = 50}) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/player/recently-played?limit=$limit'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取最近播放记录失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      print('获取最近播放记录时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取播放列表详情
+  Future<Map<String, dynamic>> getPlaylist(String playlistId) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/playlists/$playlistId'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取播放列表详情失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      print('获取播放列表详情时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取专辑详情
+  Future<Map<String, dynamic>> getAlbum(String albumId) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/albums/$albumId'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取专辑详情失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      print('获取专辑详情时出错: $e');
       rethrow;
     }
   }

@@ -206,11 +206,15 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  List<Map<String, dynamic>> upcomingTracks = [];
+
   Future<void> refreshPlaybackQueue() async {
     try {
       final queue = await _spotifyService.getPlaybackQueue();
-      nextTrack = queue['queue'].isNotEmpty ? queue['queue'][0] : null;
-      // 获取队列后立即预加载图片
+      // 获取整个队列
+      upcomingTracks = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
+      // 仍然保留获取下一首的逻辑
+      nextTrack = upcomingTracks.isNotEmpty ? upcomingTracks[0] : null;
       await _preloadQueueImages();
       notifyListeners();
     } catch (e) {
@@ -294,6 +298,77 @@ class SpotifyProvider extends ChangeNotifier {
     if (previousTrack != null) {
       final prevImageUrl = previousTrack!['album']?['images']?[0]?['url'];
       await _preloadImage(prevImageUrl);
+    }
+  }
+
+  // 存储最近播放的播放列表和专辑
+  final List<Map<String, dynamic>> _recentPlaylists = [];
+  final List<Map<String, dynamic>> _recentAlbums = [];
+  
+  List<Map<String, dynamic>> get recentPlaylists => _recentPlaylists;
+  List<Map<String, dynamic>> get recentAlbums => _recentAlbums;
+
+  // 刷新最近播放记录
+  Future<void> refreshRecentlyPlayed() async {
+    try {
+      final data = await _spotifyService.getRecentlyPlayed(limit: 50);
+      final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+      
+      // 用于去重的 Set
+      final playlistUris = <String>{};
+      final albumUris = <String>{};
+      final List<Map<String, dynamic>> uniquePlaylists = [];
+      final List<Map<String, dynamic>> uniqueAlbums = [];
+      
+      for (var item in items) {
+        final context = item['context'];
+        if (context != null) {
+          final uri = context['uri'] as String;
+          final type = context['type'] as String;
+          
+          // 处理播放列表
+          if (type == 'playlist' && !playlistUris.contains(uri)) {
+            playlistUris.add(uri);
+            final playlistId = uri.split(':').last;
+            try {
+              final playlist = await _spotifyService.getPlaylist(playlistId);
+              uniquePlaylists.add(playlist);
+              if (uniquePlaylists.length >= 10) {
+                break;
+              }
+            } catch (e) {
+              print('获取播放列表 $playlistId 详情失败: $e');
+            }
+          }
+          
+          // 处理专辑
+          else if (type == 'album' && !albumUris.contains(uri)) {
+            albumUris.add(uri);
+            final albumId = uri.split(':').last;
+            try {
+              final album = await _spotifyService.getAlbum(albumId);
+              uniqueAlbums.add(album);
+              if (uniqueAlbums.length >= 10) {
+                break;
+              }
+            } catch (e) {
+              print('获取专辑 $albumId 详情失败: $e');
+            }
+          }
+        }
+      }
+      
+      _recentPlaylists
+        ..clear()
+        ..addAll(uniquePlaylists);
+        
+      _recentAlbums
+        ..clear()
+        ..addAll(uniqueAlbums);
+      
+      notifyListeners();
+    } catch (e) {
+      print('刷新最近播放记录失败: $e');
     }
   }
 }
