@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/theme_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/physics.dart';
 
 class Player extends StatefulWidget {
   const Player({super.key});
@@ -11,29 +13,69 @@ class Player extends StatefulWidget {
   @override
   State<Player> createState() => _PlayerState();
 }
-class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
+class _PlayerState extends State<Player> with TickerProviderStateMixin {
   final _dragDistanceNotifier = ValueNotifier<double>(0.0);
   double? _dragStartX;
   late AnimationController _fadeController;
+  late AnimationController _transitionController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+  Map<String, dynamic>? _lastTrack;
+  late AnimationController _indicatorController;
+  String? _lastImageUrl;
+  bool _isThemeUpdating = false;
   
   @override
   void initState() {
     super.initState();
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 150),
       vsync: this,
     )..value = 0.0;
+    
+    _transitionController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..value = 0.0;
+    
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(
+      CurvedAnimation(parent: _transitionController, curve: Curves.easeOutCubic)
+    );
+    
+    _opacityAnimation = Tween<double>(begin: 1.0, end: 0.6).animate(
+      CurvedAnimation(parent: _transitionController, curve: Curves.easeOutCubic)
+    );
+    
+    _indicatorController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    )..value = 0.0;
+    
+    if (_lastImageUrl != null) {
+      _prefetchImage(_lastImageUrl!);
+    }
+  }
+
+  Future<void> _prefetchImage(String imageUrl) async {
+    final imageProvider = CachedNetworkImageProvider(
+      imageUrl,
+      maxWidth: MediaQuery.sizeOf(context).width.toInt(),
+    );
+    await precacheImage(imageProvider, context);
   }
 
   @override
   void dispose() {
     _dragDistanceNotifier.dispose();
     _fadeController.dispose();
+    _transitionController.dispose();
+    _indicatorController.dispose();
     super.dispose();
   }
   
   void _handleHorizontalDragStart(DragStartDetails details) {
     _fadeController.value = 1.0;
+    _indicatorController.value = 0.0;
     _dragStartX = details.globalPosition.dx;
     _dragDistanceNotifier.value = 0.0;
   }
@@ -41,33 +83,69 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
   void _handleHorizontalDragUpdate(DragUpdateDetails details) {
     if (_dragStartX == null) return;
     _dragDistanceNotifier.value = details.globalPosition.dx - _dragStartX!;
+    
+    final progress = (_dragDistanceNotifier.value.abs() / 100).clamp(0.0, 1.0);
+    _transitionController.value = progress;
   }
 
   void _handleHorizontalDragEnd(DragEndDetails details, SpotifyProvider spotify) async {
     if (_dragStartX == null) return;
     
     final velocity = details.velocity.pixelsPerSecond.dx;
-    const threshold = 1000.0;
+    const threshold = 800.0;
     final distance = _dragDistanceNotifier.value;
     
-    if (velocity.abs() > threshold || distance.abs() > 100) {
+    if (velocity.abs() > threshold || distance.abs() > 80) {
+      _indicatorController.forward();
+      
+      final spring = SpringDescription.withDampingRatio(
+        mass: 1.0,
+        stiffness: 500.0,
+        ratio: 1.1,
+      );
+      
+      final simulation = SpringSimulation(spring, _transitionController.value, 1.0, velocity / 1500);
+      await _transitionController.animateWith(simulation);
+      
       if (distance > 0) {
         spotify.skipToPrevious();
       } else {
         spotify.skipToNext();
       }
+      
+      await _transitionController.reverse();
+    } else {
+      _indicatorController.forward();
+      
+      final spring = SpringDescription.withDampingRatio(
+        mass: 1.0,
+        stiffness: 500.0,
+        ratio: 0.9,
+      );
+      
+      final simulation = SpringSimulation(spring, _transitionController.value, 0.0, velocity / 1500);
+      await _transitionController.animateWith(simulation);
     }
     
-    await _fadeController.animateTo(0.0);
     _dragStartX = null;
     _dragDistanceNotifier.value = 0.0;
+    _fadeController.reverse();
   }
 
   @override
   Widget build(BuildContext context) {
-    final spotify = context.watch<SpotifyProvider>();
-    final track = spotify.currentTrack?['item'];
+    final track = context.select<SpotifyProvider, Map<String, dynamic>?>(
+      (provider) => provider.currentTrack?['item']
+    );
     
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    
+    if (track != null) {
+      _lastTrack = track;
+    }
+    
+    final displayTrack = track ?? _lastTrack;
+
     return RepaintBoundary(
       child: Center(
         child: Column(
@@ -75,13 +153,13 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
           children: [
             Stack(
               children: [
-                _buildMainContent(track, spotify),
+                _buildMainContent(displayTrack, spotifyProvider),
                 Positioned(
                   bottom: 64,
                   right: 10,
                   child: PlayButton(
-                    isPlaying: spotify.currentTrack?['is_playing'] ?? false,
-                    onPressed: () => spotify.togglePlayPause(),
+                    isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
+                    onPressed: () => spotifyProvider.togglePlayPause(),
                   ),
                 ),
                 Positioned(
@@ -91,8 +169,8 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
                     width: 64,
                     height: 64,
                     radius: 20,
-                    icon: _getPlayModeIcon(spotify.currentMode),
-                    onPressed: () => spotify.togglePlayMode(),
+                    icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
+                    onPressed: () => spotifyProvider.togglePlayMode(),
                   ),
                 ),
                 _buildDragIndicators(),
@@ -109,20 +187,21 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
                     children: [
                       Expanded(
                         child: HeaderAndFooter(
-                          header: track?['name'] ?? 'Godspeed',
-                          footer: track != null 
-                              ? (track['artists'] as List?)
+                          header: displayTrack?['name'] ?? 'Godspeed',
+                          footer: displayTrack != null 
+                              ? (displayTrack['artists'] as List?)
                                   ?.map((artist) => artist['name'] as String)
                                   .join(', ') ?? 'Unknown Artist'
                               : 'Camila Cabello',
                         ),
                       ),
                       IconButton.filledTonal(
-                        onPressed: spotify.username != null && track != null
-                          ? () => spotify.toggleTrackSave()
+                        onPressed: spotifyProvider.username != null && track != null
+                          ? () => spotifyProvider.toggleTrackSave()
                           : null,
                         icon: Icon(
-                          spotify.isCurrentTrackSaved ?? false
+                          context.select<SpotifyProvider, bool>((provider) => 
+                            provider.isCurrentTrackSaved ?? false)
                               ? Icons.favorite
                               : Icons.favorite_outline_rounded,
                           color: Theme.of(context).colorScheme.primary,
@@ -140,7 +219,17 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildMainContent(Map<String, dynamic>? track, SpotifyProvider spotify) {
-    return Positioned(
+    return AnimatedBuilder(
+      animation: _transitionController,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Opacity(
+            opacity: _opacityAnimation.value,
+            child: child,
+          ),
+        );
+      },
       child: GestureDetector(
         onHorizontalDragStart: _handleHorizontalDragStart,
         onHorizontalDragUpdate: _handleHorizontalDragUpdate,
@@ -156,33 +245,56 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildAlbumArt(Map<String, dynamic>? track) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    bool hasUpdatedTheme = false;
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final displayTrack = track ?? _lastTrack;
+    final String? currentImageUrl = displayTrack?['album']?['images']?[0]?['url'];
+
+    if (currentImageUrl != null && currentImageUrl != _lastImageUrl) {
+      _prefetchImage(currentImageUrl);
+      
+      if (!_isThemeUpdating) {
+        _isThemeUpdating = true;
+        _lastImageUrl = currentImageUrl;
+        
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && currentImageUrl == _lastImageUrl) {
+            final imageProvider = CachedNetworkImageProvider(
+              currentImageUrl,
+              maxWidth: MediaQuery.sizeOf(context).width.toInt(),
+            );
+            themeProvider.updateThemeFromImage(imageProvider);
+          }
+          _isThemeUpdating = false;
+        });
+      }
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16.0),
-      child: track != null && 
-             track['album']?['images'] != null &&
-             (track['album']['images'] as List).isNotEmpty
-          ? Image.network(
-              track['album']['images'][0]['url'],
+      child: displayTrack != null && 
+             displayTrack['album']?['images'] != null &&
+             (displayTrack['album']['images'] as List).isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: currentImageUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Image.asset('assets/examples/CXOXO.png');
-              },
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (frame != null && !hasUpdatedTheme) {
-                  hasUpdatedTheme = true;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    themeProvider.updateThemeFromImage(
-                      NetworkImage(track['album']['images'][0]['url'])
-                    );
-                  });
-                }
-                return child;
-              },
+              fadeInDuration: const Duration(milliseconds: 150),
+              fadeOutDuration: const Duration(milliseconds: 150),
+              placeholderFadeInDuration: const Duration(milliseconds: 150),
+              memCacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
+              maxWidthDiskCache: (MediaQuery.of(context).size.width * 1.5).toInt(),
+              placeholder: (context, url) => Container(
+                color: Theme.of(context).colorScheme.surface,
+                child: _lastTrack != null && _lastImageUrl != null
+                  ? Image(
+                      image: CachedNetworkImageProvider(_lastImageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+              ),
+              errorWidget: (context, url, error) => 
+                Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
             )
-          : Image.asset('assets/examples/CXOXO.png'),
+          : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
     );
   }
 
@@ -194,6 +306,7 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
         return DragIndicator(
           dragDistance: dragDistance,
           fadeAnimation: _fadeController,
+          indicatorAnimation: _indicatorController,
           isNext: dragDistance < 0,
         );
       },
@@ -217,11 +330,13 @@ class _PlayerState extends State<Player> with SingleTickerProviderStateMixin {
 class DragIndicator extends StatelessWidget {
   final double dragDistance;
   final Animation<double> fadeAnimation;
+  final Animation<double> indicatorAnimation;
   final bool isNext;
 
   const DragIndicator({
     required this.dragDistance,
     required this.fadeAnimation,
+    required this.indicatorAnimation,
     required this.isNext,
     super.key,
   });
@@ -244,23 +359,35 @@ class DragIndicator extends StatelessWidget {
       child: RepaintBoundary(
         child: FadeTransition(
           opacity: fadeAnimation,
-          child: Container(
-            width: width,
-            height: height,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.horizontal(
-                left: isNext ? const Radius.circular(16) : Radius.zero,
-                right: isNext ? Radius.zero : const Radius.circular(16),
-              ),
-            ),
-            child: Opacity(
-              opacity: (width / maxWidth).clamp(0.0, 1.0),
-              child: Icon(
-                isNext ? Icons.skip_next_rounded : Icons.skip_previous_rounded,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
+          child: AnimatedBuilder(
+            animation: indicatorAnimation,
+            builder: (context, child) {
+              final slideOffset = maxWidth * indicatorAnimation.value;
+              return Transform.translate(
+                offset: Offset(
+                  isNext ? slideOffset : -slideOffset,
+                  0,
+                ),
+                child: Container(
+                  width: width,
+                  height: height,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.horizontal(
+                      left: isNext ? const Radius.circular(16) : Radius.zero,
+                      right: isNext ? Radius.zero : const Radius.circular(16),
+                    ),
+                  ),
+                  child: Opacity(
+                    opacity: (width / maxWidth).clamp(0.0, 1.0),
+                    child: Icon(
+                      isNext ? Icons.skip_next_rounded : Icons.skip_previous_rounded,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),

@@ -44,6 +44,7 @@ dependencies:
   cloud_firestore: ^5.5.0
   google_sign_in: ^6.2.2
   palette_generator: ^0.3.3+5
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:
