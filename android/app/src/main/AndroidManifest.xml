@@ -5,7 +5,7 @@
     <application
         android:name="${applicationName}"
         android:label="spotoolfy_flutter"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true">
         
