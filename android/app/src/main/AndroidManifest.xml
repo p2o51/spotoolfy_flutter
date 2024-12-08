@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.gojyuplusone.spotoolfy.spotoolfy_flutter">
-    
+
+    <!-- Add necessary permissions -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:name="${applicationName}"
-        android:label="spotoolfy_flutter"
-        android:icon="@mipmap/ic_launcher"
+        android:label="Spotoolfy"
+        android:icon="@mipmap/launcher_icon"
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true">
-        
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -17,21 +20,17 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            
+
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
-                
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
 
-        <!-- Add the redirect receiver activity correctly at the application level -->
-        <activity
-            android:name="net.openid.appauth.RedirectUriReceiverActivity"
-            android:exported="true">
+            <!-- Add Spotify callback handling -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

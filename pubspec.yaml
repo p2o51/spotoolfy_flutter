@@ -45,11 +45,14 @@ dependencies:
   google_sign_in: ^6.2.2
   palette_generator: ^0.3.3+5
   cached_network_image: ^3.4.1
+  spotify_sdk: ^3.0.2
+  logger: ^2.5.0
+  flutter_launcher_icons: ^0.14.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^5.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

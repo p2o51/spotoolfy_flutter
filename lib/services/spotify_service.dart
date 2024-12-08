@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'package:spotify_sdk/spotify_sdk.dart';
 
 /// Spotify 认证响应模型
 class SpotifyAuthResponse {
@@ -68,6 +69,7 @@ class SpotifyAuthService {
 
   /// 获取默认的 scope 列表
   List<String> get defaultScopes => [
+    'app-remote-control',
     'user-read-private',
     'user-read-email',
     'playlist-read-private',
@@ -98,82 +100,31 @@ class SpotifyAuthService {
     }
   }
 
-  Future<SpotifyAuthResponse> login({List<String>? scopes}) async {
-    return _mobileLogin(scopes: scopes);
-  }
-
-  Future<SpotifyAuthResponse> _mobileLogin({List<String>? scopes}) async {
+  Future<String?> login({List<String>? scopes}) async {
     try {
-      print('准备 OAuth 请求...');
+      print('准备连接到 Spotify...');
       print('配置信息:');
       print('- clientId: $clientId');
-      print('- clientSecret: ${clientSecret.substring(0, 4)}...');
       print('- redirectUrl: $redirectUrl');
       print('- scopes: ${scopes ?? defaultScopes}');
-      print('- authEndpoint: $_authEndpoint');
-      print('- tokenEndpoint: $_tokenEndpoint');
 
-      final request = AuthorizationTokenRequest(
-        clientId,
-        redirectUrl,
-        clientSecret: clientSecret,
-        serviceConfiguration: _serviceConfiguration,
-        scopes: scopes ?? defaultScopes,
-        promptValues: ['login'],
-        additionalParameters: {
-          'show_dialog': 'true',
-          'response_type': 'code',
-          'access_type': 'offline',
-        },
+      final String accessToken = await SpotifySdk.getAccessToken(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+        scope: (scopes ?? defaultScopes).join(','),
       );
 
-      print('创建授权请求对象成功，准备发送请求...');
-      
-      // 使用分步授权方式
-      final authResult = await _appAuth.authorize(
-        AuthorizationRequest(
-          clientId,
-          redirectUrl,
-          serviceConfiguration: _serviceConfiguration,
-          scopes: scopes ?? defaultScopes,
-          promptValues: ['login'],
-          additionalParameters: {
-            'show_dialog': 'true',
-          },
-        ),
-      );
+      print('连接成功，获取到访问令牌');
 
-      print('收到授权响应');
+      final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
 
-      print('授权成功，开始获取令牌...');
+      print('开始保存访问令牌...');
+      await _saveAuthResponse(accessToken, expirationDateTime);
+      print('访问令牌保存完成');
 
-      // 使用授权码获取令牌
-      final tokenResult = await _appAuth.token(
-        TokenRequest(
-          clientId,
-          redirectUrl,
-          authorizationCode: authResult.authorizationCode,
-          codeVerifier: authResult.codeVerifier,
-          serviceConfiguration: _serviceConfiguration,
-          clientSecret: clientSecret,
-        ),
-      );
-
-      final response = SpotifyAuthResponse(
-        accessToken: tokenResult.accessToken!,
-        refreshToken: tokenResult.refreshToken,
-        expirationDateTime: tokenResult.accessTokenExpirationDateTime ??
-            DateTime.now().add(const Duration(hours: 1)),
-        tokenType: tokenResult.tokenType ?? 'Bearer',
-      );
-
-      print('开始保存认证响应...');
-      await _saveAuthResponse(response);
-      print('认证响应保存完成');
-      
-      return response;
+      return accessToken;
     } catch (e, stack) {
-      print('OAuth 错误详情:');
+      print('连接 Spotify 错误详情:');
       print('错误类型: ${e.runtimeType}');
       print('错误消息: $e');
       print('堆栈跟踪:');
@@ -183,33 +134,21 @@ class SpotifyAuthService {
   }
 
   /// 刷新访问令牌
-  Future<SpotifyAuthResponse?> refreshToken() async {
+  Future<String?> refreshToken() async {
     try {
       final storedRefreshToken = await _secureStorage.read(key: _refreshTokenKey);
-      if (storedRefreshToken == null) {
-        throw SpotifyAuthException('No refresh token available');
-      }
 
-      final result = await _appAuth.token(
-        TokenRequest(
-          clientId,
-          redirectUrl,
-          serviceConfiguration: _serviceConfiguration,
-          refreshToken: storedRefreshToken,
-          grantType: 'refresh_token',
-        ),
+      // Spotify SDK 没有直接的刷新令牌方法，需要重新获取
+      final accessToken = await SpotifySdk.getAccessToken(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+        scope: defaultScopes.join(','),
       );
 
-      final response = SpotifyAuthResponse(
-        accessToken: result.accessToken!,
-        refreshToken: result.refreshToken ?? storedRefreshToken,
-        expirationDateTime: result.accessTokenExpirationDateTime ??
-            DateTime.now().add(const Duration(hours: 1)),
-        tokenType: result.tokenType ?? 'Bearer',
-      );
+      final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
 
-      await _saveAuthResponse(response);
-      return response;
+      await _saveAuthResponse(accessToken, expirationDateTime);
+      return accessToken;
     } catch (e) {
       // 如果刷新失败，清除存储的令牌
       await logout();
@@ -218,14 +157,12 @@ class SpotifyAuthService {
   }
 
   /// 保存认证响应到安全存储
-  Future<void> _saveAuthResponse(SpotifyAuthResponse response) async {
+  Future<void> _saveAuthResponse(String accessToken, DateTime expirationDateTime) async {
     await Future.wait([
-      _secureStorage.write(key: _accessTokenKey, value: response.accessToken),
-      if (response.refreshToken != null)
-        _secureStorage.write(key: _refreshTokenKey, value: response.refreshToken),
+      _secureStorage.write(key: _accessTokenKey, value: accessToken),
       _secureStorage.write(
         key: _expirationKey,
-        value: response.expirationDateTime.toIso8601String(),
+        value: expirationDateTime.toIso8601String(),
       ),
     ]);
   }

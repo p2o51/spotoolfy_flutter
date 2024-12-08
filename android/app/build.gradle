@@ -28,9 +28,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        
+
         manifestPlaceholders += [
-            'appAuthRedirectScheme': 'spotoolfy'
+                'appAuthRedirectScheme': 'spotoolfy',
+                'redirectHostName': 'callback',
+                'redirectSchemeName': 'spotoolfy'
         ]
     }
 
@@ -38,9 +40,30 @@ android {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig signingConfigs.debug
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+dependencies {
+    implementation "com.spotify.android:auth:2.1.1"
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    implementation 'com.google.code.gson:gson:2.8.9'
+    // Jackson dependencies
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.13.5'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.5'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.13.5'
+    // Add Jetify annotations instead of Spotify annotations
+    implementation 'androidx.annotation:annotation:1.7.1'
+    // Keep other existing dependencies
+}
+
+repositories {
+    maven { url "https://jitpack.io" }
+    maven { url 'https://maven.google.com' }
+    // Keep other existing repositories
 }
 
 flutter {
