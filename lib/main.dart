@@ -23,10 +23,14 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
+  final spotifyProvider = SpotifyProvider();
+  // 尝试自动登录
+  await spotifyProvider.autoLogin();
+  
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => SpotifyProvider()),
+        ChangeNotifierProvider.value(value: spotifyProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProxyProvider2<AuthProvider, SpotifyProvider, FirestoreProvider>(
