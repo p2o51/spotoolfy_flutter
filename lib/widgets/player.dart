@@ -298,30 +298,50 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16.0),
-      child: displayTrack != null && 
-             displayTrack['album']?['images'] != null &&
-             (displayTrack['album']['images'] as List).isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: currentImageUrl!,
-              fit: BoxFit.cover,
-              fadeInDuration: const Duration(milliseconds: 150),
-              fadeOutDuration: const Duration(milliseconds: 150),
-              placeholderFadeInDuration: const Duration(milliseconds: 150),
-              memCacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
-              maxWidthDiskCache: (MediaQuery.of(context).size.width * 1.5).toInt(),
-              placeholder: (context, url) => Container(
-                color: Theme.of(context).colorScheme.surface,
-                child: _lastTrack != null && _lastImageUrl != null
-                  ? Image(
-                      image: CachedNetworkImageProvider(_lastImageUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: animation.drive(
+                Tween<double>(begin: 0.95, end: 1.0)
+                  .chain(CurveTween(curve: Curves.easeOutCubic))
               ),
-              errorWidget: (context, url, error) => 
-                Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
-            )
-          : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+              child: child,
+            ),
+          );
+        },
+        child: displayTrack != null && 
+               displayTrack['album']?['images'] != null &&
+               (displayTrack['album']['images'] as List).isNotEmpty
+            ? CachedNetworkImage(
+                key: ValueKey(currentImageUrl),
+                imageUrl: currentImageUrl!,
+                fit: BoxFit.cover,
+                fadeInDuration: Duration.zero,
+                fadeOutDuration: Duration.zero,
+                placeholderFadeInDuration: Duration.zero,
+                memCacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
+                maxWidthDiskCache: (MediaQuery.of(context).size.width * 1.5).toInt(),
+                placeholder: (context, url) => Container(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: _lastTrack != null && _lastImageUrl != null
+                    ? Image(
+                        image: CachedNetworkImageProvider(_lastImageUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+                ),
+                errorWidget: (context, url, error) => 
+                  Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+              )
+            : Image.asset(
+                'assets/examples/CXOXO.png',
+                key: const ValueKey('default_image'),
+                fit: BoxFit.cover,
+              ),
+      ),
     );
   }
 

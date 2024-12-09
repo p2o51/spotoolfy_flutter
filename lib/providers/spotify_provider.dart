@@ -62,7 +62,10 @@ class SpotifyProvider extends ChangeNotifier {
     
     try {
       final track = await _spotifyService.getCurrentlyPlayingTrack();
-      if (track != null) {
+      if (track != null && 
+          (currentTrack == null || 
+           track['item']?['id'] != currentTrack!['item']?['id'] ||
+           track['is_playing'] != currentTrack!['is_playing'])) {
         currentTrack = track;
         notifyListeners();
         await checkCurrentTrackSaveState();
@@ -128,30 +131,36 @@ class SpotifyProvider extends ChangeNotifier {
       // 保存当前歌曲作为上一首
       previousTrack = currentTrack?['item'];
       
-      // 如果已经有下一首的信息，先更新UI
-      if (nextTrack != null) {
-        final tempTrack = currentTrack;
-        currentTrack = {'item': nextTrack, 'is_playing': true};
-        notifyListeners();
-      }
+      // 预先准备下一首歌的信息
+      final targetTrack = nextTrack;
       
-      // 执行切歌操作
+      // 执行切歌操作，但不立即更新UI
       await _spotifyService.skipToNext();
+      
+      // 等待一小段时间确保 Spotify 已经切换
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // 获取实际的新曲目信息
       final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
       
+      // 只在确认切歌成功后更新一次UI
       if (newTrack != null) {
         currentTrack = newTrack;
         notifyListeners();
+        
+        // 如果新曲目与预期的下一首不同，更新队列
+        if (targetTrack != null && newTrack['item']?['id'] != targetTrack['id']) {
+          await refreshPlaybackQueue();
+        }
       }
-      
-      // 刷新并预加载新的队列
-      await refreshPlaybackQueue();
       
     } catch (e) {
       print('下一首失败: $e');
       // 如果失败，恢复到原来的状态
-      currentTrack = {'item': previousTrack};
-      notifyListeners();
+      if (previousTrack != null) {
+        currentTrack = {'item': previousTrack, 'is_playing': true};
+        notifyListeners();
+      }
     } finally {
       _isSkipping = false;
     }
@@ -211,14 +220,41 @@ class SpotifyProvider extends ChangeNotifier {
   Future<void> refreshPlaybackQueue() async {
     try {
       final queue = await _spotifyService.getPlaybackQueue();
-      // 获取整个队列
-      upcomingTracks = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
-      // 仍然保留获取下一首的逻辑
-      nextTrack = upcomingTracks.isNotEmpty ? upcomingTracks[0] : null;
-      await _preloadQueueImages();
+      final rawQueue = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
+      
+      // 限制队列长度，例如最多10个
+      upcomingTracks = rawQueue.take(10).toList();
+      
+      // 更安全地获取下一首歌曲
+      nextTrack = upcomingTracks.isNotEmpty 
+          ? upcomingTracks.first 
+          : null;
+      
+      // 批量缓存所有队列图片
+      await _cacheQueueImages();
+      
       notifyListeners();
     } catch (e) {
       print('刷新播放队列失败: $e');
+      upcomingTracks = [];
+      nextTrack = null;
+      notifyListeners();
+    }
+  }
+
+  // 批量缓存队列图片
+  Future<void> _cacheQueueImages() async {
+    try {
+      final imagesToCache = upcomingTracks
+        .map((track) => track['album']?['images']?[0]?['url'])
+        .where((url) => url != null)
+        .toList();
+
+      for (var imageUrl in imagesToCache) {
+        await _preloadImage(imageUrl);
+      }
+    } catch (e) {
+      print('批量缓存队列图片失败: $e');
     }
   }
 
@@ -286,18 +322,6 @@ class SpotifyProvider extends ChangeNotifier {
       _imageCache[imageUrl] = imageUrl;
     } catch (e) {
       print('预加载图片失败: $e');
-    }
-  }
-
-  // 预加载队列中的歌曲图片
-  Future<void> _preloadQueueImages() async {
-    if (nextTrack != null) {
-      final nextImageUrl = nextTrack!['album']?['images']?[0]?['url'];
-      await _preloadImage(nextImageUrl);
-    }
-    if (previousTrack != null) {
-      final prevImageUrl = previousTrack!['album']?['images']?[0]?['url'];
-      await _preloadImage(prevImageUrl);
     }
   }
 
