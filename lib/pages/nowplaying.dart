@@ -6,6 +6,7 @@ import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
+import 'package:spotoolfy_flutter/widgets/credits.dart';
 class NowPlaying extends StatelessWidget {
   const NowPlaying({super.key});
 
@@ -88,9 +89,7 @@ class NowPlaying extends StatelessWidget {
               LyricsWidget(currentLineIndex: 2),
               
               // CREDITS 内容
-              const Center(
-                child: Text('Credits Coming Soon'),
-              ),
+              const CreditsWidget(),
             ],
           ),
         ),

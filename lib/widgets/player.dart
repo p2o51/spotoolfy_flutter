@@ -24,6 +24,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   late AnimationController _indicatorController;
   String? _lastImageUrl;
   bool _isThemeUpdating = false;
+  late AnimationController _playStateController;
+  late Animation<double> _playStateScaleAnimation;
+  late Animation<double> _playStateOpacityAnimation;
   
   @override
   void initState() {
@@ -51,6 +54,19 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       vsync: this,
     )..value = 0.0;
     
+    _playStateController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    
+    _playStateScaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+      CurvedAnimation(parent: _playStateController, curve: Curves.easeOutCubic)
+    );
+    
+    _playStateOpacityAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _playStateController, curve: Curves.easeOutCubic)
+    );
+    
     if (_lastImageUrl != null) {
       _prefetchImage(_lastImageUrl!);
     }
@@ -70,6 +86,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     _fadeController.dispose();
     _transitionController.dispose();
     _indicatorController.dispose();
+    _playStateController.dispose();
     super.dispose();
   }
   
@@ -219,13 +236,23 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   }
 
   Widget _buildMainContent(Map<String, dynamic>? track, SpotifyProvider spotify) {
+    final isPlaying = context.select<SpotifyProvider, bool>(
+      (provider) => provider.currentTrack?['is_playing'] ?? false
+    );
+    
+    if (isPlaying) {
+      _playStateController.forward();
+    } else {
+      _playStateController.reverse();
+    }
+
     return AnimatedBuilder(
-      animation: _transitionController,
+      animation: Listenable.merge([_transitionController, _playStateController]),
       builder: (context, child) {
         return Transform.scale(
-          scale: _scaleAnimation.value,
+          scale: _scaleAnimation.value * _playStateScaleAnimation.value,
           child: Opacity(
-            opacity: _opacityAnimation.value,
+            opacity: _opacityAnimation.value * _playStateOpacityAnimation.value,
             child: child,
           ),
         );
