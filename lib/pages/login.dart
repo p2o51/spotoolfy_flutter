@@ -29,21 +29,33 @@ class Login extends StatelessWidget {
           FilledButton(
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              backgroundColor: spotifyProvider.username != null 
+                  ? Theme.of(context).colorScheme.error
+                  : null,
             ),
-            onPressed: spotifyProvider.isLoading || spotifyProvider.username != null
+            onPressed: spotifyProvider.isLoading
               ? null 
               : () async {
                   try {
-                    await spotifyProvider.login();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Spotify 登录成功！')),
-                      );
+                    if (spotifyProvider.username != null) {
+                      await spotifyProvider.logout();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已退出 Spotify')),
+                        );
+                      }
+                    } else {
+                      await spotifyProvider.login();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Spotify 登录成功！')),
+                        );
+                      }
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Spotify 登录失败: $e')),
+                        SnackBar(content: Text('操作失败: $e')),
                       );
                     }
                   }
@@ -54,7 +66,9 @@ class Login extends StatelessWidget {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Authorize Spotify'),
+              : Text(spotifyProvider.username != null 
+                  ? 'Logout from Spotify' 
+                  : 'Authorize Spotify'),
           ),
           if (spotifyProvider.username != null)
             Padding(
@@ -76,21 +90,33 @@ class Login extends StatelessWidget {
           FilledButton.tonal(
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              backgroundColor: authProvider.isSignedIn 
+                  ? Theme.of(context).colorScheme.errorContainer 
+                  : null,
             ),
-            onPressed: authProvider.isLoading || authProvider.isSignedIn
+            onPressed: authProvider.isLoading
               ? null
               : () async {
                   try {
-                    final credential = await authProvider.signInWithGoogle();
-                    if (context.mounted && credential != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Google 登录成功！')),
-                      );
+                    if (authProvider.isSignedIn) {
+                      await authProvider.signOut();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已退出 Google 账号')),
+                        );
+                      }
+                    } else {
+                      final credential = await authProvider.signInWithGoogle();
+                      if (context.mounted && credential != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Google 登录成功！')),
+                        );
+                      }
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Google 登录失败: $e')),
+                        SnackBar(content: Text('操作失败: $e')),
                       );
                     }
                   }
@@ -101,7 +127,9 @@ class Login extends StatelessWidget {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Login with Google'),
+              : Text(authProvider.isSignedIn 
+                  ? 'Logout from Google' 
+                  : 'Login with Google'),
           ),
           if (authProvider.userDisplayName != null)
             Padding(
@@ -130,21 +158,21 @@ class Welcome extends StatelessWidget {
             fontSize: 96,
             height: 0.9,
           ),
-          ),
-          Text('for',
+        ),
+        Text('for',
           style: TextStyle(
             fontFamily: 'Derivia',
             fontSize: 64,
             height: 0.9,
           ),
-          ),
-          Text('Music.',
+        ),
+        Text('Music.',
           style: TextStyle(
             fontFamily: 'Derivia',
             fontSize: 112,
             height: 0.9,
           ),
-          ),
+        ),
       ],
     );
   }

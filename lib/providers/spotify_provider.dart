@@ -395,4 +395,54 @@ class SpotifyProvider extends ChangeNotifier {
       print('刷新最近播放记录失败: $e');
     }
   }
+
+  // 添加自动登录检查
+  Future<bool> autoLogin() async {
+    try {
+      isLoading = true;
+      notifyListeners();
+
+      // 检查是否有有效的 token
+      if (await _spotifyService.isAuthenticated()) {
+        final userProfile = await _spotifyService.getUserProfile();
+        username = userProfile['display_name'];
+        startTrackRefresh();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('自动登录失败: $e');
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // 在 SpotifyProvider 类中添加 logout 方法
+  Future<void> logout() async {
+    try {
+      isLoading = true;
+      notifyListeners();
+
+      // 清除 token 和用户信息
+      await _spotifyService.logout();
+      username = null;
+      currentTrack = null;
+      previousTrack = null;
+      nextTrack = null;
+      isCurrentTrackSaved = null;
+      
+      // 停止刷新计时器
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+
+    } catch (e) {
+      print('退出登录失败: $e');
+      rethrow;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 }
