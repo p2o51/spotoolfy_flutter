@@ -59,6 +59,14 @@
 				<string>spotoolfy</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.403346297857-fuu90sg1tcbe458vri6aleo6i5f9sjkt</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

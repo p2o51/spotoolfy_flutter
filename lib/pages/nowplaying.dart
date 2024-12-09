@@ -47,17 +47,22 @@ class NowPlaying extends StatelessWidget {
             children: [
               // THOUGHTS 内容
               isLargeScreen
-                  ? const Row(
+                  ? Row(
                       children: [
                         Expanded(
                           flex: 1,
                           child: Column(
                             children: [
-                              Ratings(),
+                              Ratings(
+                                initialRating: 'good',
+                                onRatingChanged: (rating) {
+                                  // Handle rating change if needed
+                                },
+                              ),
                             ],
                           ),
                         ),
-                        Expanded(
+                        const Expanded(
                           flex: 1,
                           child: SingleChildScrollView(
                             child: Column(
@@ -70,14 +75,19 @@ class NowPlaying extends StatelessWidget {
                         ),
                       ],
                     )
-                  : const SingleChildScrollView(
+                  : SingleChildScrollView(
                       child: Column(
                         children: [
-                          SizedBox(height: 24),
-                          Ratings(),
-                          SizedBox(height: 16),
-                          NotesDisplay(),
-                          SizedBox(height: 80),
+                          const SizedBox(height: 24),
+                          Ratings(
+                            initialRating: 'good',
+                            onRatingChanged: (rating) {
+                              // Handle rating change if needed
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          const NotesDisplay(),
+                          const SizedBox(height: 80),
                         ],
                       ),
                     ),

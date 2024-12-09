@@ -16,8 +16,7 @@ class CreditsWidget extends StatelessWidget {
         ?.map((artist) => artist['name'] as String)
         .toList() ?? ['Unknown Artist'];
 
-    return Card(
-      child: Padding(
+    return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,7 +47,6 @@ class CreditsWidget extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 

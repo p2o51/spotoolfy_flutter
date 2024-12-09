@@ -81,14 +81,35 @@ class HeaderAndFooter extends StatelessWidget {
 
 
 class Ratings extends StatefulWidget {
-  const Ratings({super.key});
+  final String initialRating;
+  final Function(int) onRatingChanged;
+
+  const Ratings({
+    super.key, 
+    required this.initialRating,
+    required this.onRatingChanged,
+  });
 
   @override
   State<Ratings> createState() => _RatingsState();
 }
 
 class _RatingsState extends State<Ratings> {
-  int selectedIndex = 0;
+  late int selectedIndex;
+  
+  @override
+  void initState() {
+    super.initState();
+    selectedIndex = _getRatingIndex(widget.initialRating);
+  }
+
+  int _getRatingIndex(String rating) {
+    switch (rating) {
+      case 'bad': return 0;
+      case 'fire': return 2;
+      default: return 1; // 'good'
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -102,6 +123,7 @@ class _RatingsState extends State<Ratings> {
       onSelectionChanged: (Set<int> newSelection) {
         setState(() {
           selectedIndex = newSelection.first;
+          widget.onRatingChanged(selectedIndex);
         });
       },
     );
