@@ -31,7 +31,7 @@ class FirestoreProvider extends ChangeNotifier {
 
   // 获取当前歌曲的想法
   Future<void> fetchThoughts() async {
-    if (_authProvider.currentUser == null || 
+    if (_authProvider.currentUser == null ||
         _spotifyProvider.currentTrack == null) return;
 
     try {
@@ -53,6 +53,9 @@ class FirestoreProvider extends ChangeNotifier {
         'id': doc.id,
         ...doc.data(),
         'createdAt': (doc.data()['createdAt'] as Timestamp).toDate().toString(),
+        'timestamp': doc.data()['timestamp'] ?? '',
+        'album': doc.data()['album'] ?? '',
+        'imageUrl': doc.data()['imageUrl'] ?? '',
       }).toList();
 
       // 获取同名歌曲的想法
@@ -67,6 +70,9 @@ class FirestoreProvider extends ChangeNotifier {
         'id': doc.id,
         ...doc.data(),
         'createdAt': (doc.data()['createdAt'] as Timestamp).toDate().toString(),
+        'timestamp': doc.data()['timestamp'] ?? '',
+        'album': doc.data()['album'] ?? '',
+        'imageUrl': doc.data()['imageUrl'] ?? '',
       }).toList();
 
       notifyListeners();
@@ -82,24 +88,31 @@ class FirestoreProvider extends ChangeNotifier {
   Future<void> addThought({
     required String content,
   }) async {
-    if (_authProvider.currentUser == null || 
+    if (_authProvider.currentUser == null ||
         _spotifyProvider.currentTrack == null) return;
 
     try {
       final userId = _authProvider.currentUser!.uid;
       final track = _spotifyProvider.currentTrack!['item'];
-      
+      final progressMs = _spotifyProvider.currentTrack!['progress_ms'];
+      final timestamp = progressMs;
+      final album = track['album']['name'];
+      final imageUrl = track['album']['images'][0]['url'];
+
       await _firestore
           .collection('users/$userId/thoughts')
           .add({
             'content': content,
-            'rating': 'good',  // 暂时固定为 'good'
+            'rating': 'good',
             'trackId': track['id'],
             'trackName': track['name'],
             'artistName': (track['artists'] as List)
                 .map((artist) => artist['name'])
                 .join(', '),
             'createdAt': FieldValue.serverTimestamp(),
+            'timestamp': timestamp,
+            'album': album,
+            'imageUrl': imageUrl,
           });
 
       await fetchThoughts();  // 刷新列表
@@ -118,7 +131,7 @@ class FirestoreProvider extends ChangeNotifier {
       notifyListeners();
 
       final userId = _authProvider.currentUser!.uid;
-      
+
       // 获取所有笔记
       final thoughtsSnap = await _firestore
           .collection('users/$userId/thoughts')
@@ -131,11 +144,14 @@ class FirestoreProvider extends ChangeNotifier {
         final random = thoughtsSnap.docs[
           DateTime.now().millisecondsSinceEpoch % thoughtsSnap.docs.length
         ];
-        
+
         randomThought = {
           'id': random.id,
           ...random.data(),
           'createdAt': (random.data()['createdAt'] as Timestamp).toDate().toString(),
+          'timestamp': random.data()['timestamp'] ?? '',
+          'album': random.data()['album'] ?? '',
+          'imageUrl': random.data()['imageUrl'] ?? '',
         };
       }
 
