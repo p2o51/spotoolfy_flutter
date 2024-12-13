@@ -202,11 +202,16 @@ class _MyAppState extends State<MyApp> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.music_note),
-            SizedBox(width: 8),
-            Text('Spotoolfy')
+            Image.asset(
+              'assets/icons/adaptive_icon_monochrome.png',
+              width: 40,  // 设置合适的宽度
+              height: 40, // 设置合适的高度
+              color: Theme.of(context).colorScheme.onSurface, // 使图标颜色与主题匹配
+            ),
+            const SizedBox(width: 8),
+            const Text('Spotoolfy')
           ],
         ),
         actions: [

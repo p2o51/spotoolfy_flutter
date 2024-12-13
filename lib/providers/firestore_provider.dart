@@ -18,6 +18,9 @@ class FirestoreProvider extends ChangeNotifier {
   String _currentRating = 'good';
   String get currentRating => _currentRating;
 
+  List<Map<String, dynamic>> _recentPlayContexts = [];
+  List<Map<String, dynamic>> get recentPlayContexts => _recentPlayContexts;
+
   void setRating(String rating) {
     _currentRating = rating;
     notifyListeners();
@@ -27,6 +30,7 @@ class FirestoreProvider extends ChangeNotifier {
 
   FirestoreProvider(this._authProvider, this._spotifyProvider) {
     _spotifyProvider.addListener(_onTrackChanged);
+    fetchRecentPlayContexts();
   }
 
   void _onTrackChanged() {
@@ -176,6 +180,78 @@ class FirestoreProvider extends ChangeNotifier {
       randomThought = null;
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // 存储播放上下文到 Firestore
+  Future<void> savePlayContext({
+    required String trackId,
+    required Map<String, dynamic> context,
+    required DateTime timestamp,
+  }) async {
+    if (_authProvider.currentUser == null) return;
+
+    try {
+      final userId = _authProvider.currentUser!.uid;
+      final contextUri = context['uri'] as String;
+      
+      // 先检查是否已存在相同的 context
+      final existingDocs = await _firestore
+          .collection('users/$userId/playContexts')
+          .where('uri', isEqualTo: contextUri)
+          .get();
+
+      if (existingDocs.docs.isNotEmpty) {
+        // 如果存在，更新时间戳
+        await existingDocs.docs.first.reference.update({
+          'timestamp': timestamp,
+        });
+      } else {
+        // 如果不存在，创建新文档
+        await _firestore
+            .collection('users/$userId/playContexts')
+            .doc()
+            .set({
+          'context': context,
+          'timestamp': timestamp,
+          'type': context['type'],
+          'uri': contextUri,
+          'name': context['name'],
+          'images': context['images'],
+          'external_urls': context['external_urls'],
+        });
+      }
+
+      await fetchRecentPlayContexts();
+
+    } catch (e) {
+      print('保存播放上下文失败: $e');
+    }
+  }
+
+  // 获取最近的播放上下文
+  Future<void> fetchRecentPlayContexts() async {
+    if (_authProvider.currentUser == null) return;
+
+    try {
+      final userId = _authProvider.currentUser!.uid;
+      
+      final snapshot = await _firestore
+          .collection('users/$userId/playContexts')
+          .orderBy('timestamp', descending: true)
+          .limit(50)  // 限制获取数量
+          .get();
+
+      _recentPlayContexts = snapshot.docs
+          .map((doc) => doc.data())
+          .toList();
+      
+      notifyListeners();
+
+    } catch (e) {
+      print('获取播放上下文失败: $e');
+      _recentPlayContexts = [];
       notifyListeners();
     }
   }

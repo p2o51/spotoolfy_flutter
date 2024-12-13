@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
+import '../providers/firestore_provider.dart';
 import '../widgets/materialui.dart';
 
 class Search extends StatefulWidget {
@@ -14,20 +15,75 @@ class Search extends StatefulWidget {
 class _SearchState extends State<Search> {
   bool showPlaylists = true;
   bool showAlbums = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (_isLoading || !mounted) return;
+    setState(() => _isLoading = true);
+    
+    try {
+      final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
+      await firestoreProvider.fetchRecentPlayContexts();
+      if (!mounted) return;
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SpotifyProvider>(
-      builder: (context, provider, child) {
+    return Consumer2<SpotifyProvider, FirestoreProvider>(
+      builder: (context, spotifyProvider, firestoreProvider, child) {
+        final recentContexts = firestoreProvider.recentPlayContexts ?? [];
+
+        final playlists = recentContexts
+            .where((context) => context['type'] == 'playlist')
+            .toList();
+            
+        final albums = recentContexts
+            .where((context) => context['type'] == 'album')
+            .toList();
+
         final items = [
-          if (showPlaylists) ...provider.recentPlaylists.map((p) => ({...p, 'type': 'playlist'})),
-          if (showAlbums) ...provider.recentAlbums.map((a) => ({...a, 'type': 'album'})),
+          if (showPlaylists) 
+            ...playlists.where((p) {
+              final hasImage = p['images']?[0]?['url'] != null || 
+                              p['context']?['images']?[0]?['url'] != null;
+              return hasImage;
+            }).map((p) => ({
+              ...p, 
+              'type': 'playlist',
+              'images': p['images'] ?? p['context']?['images'],
+              'name': p['name'] ?? p['context']?['name'] ?? 'Unknown Playlist',
+            })),
+          if (showAlbums) 
+            ...albums.where((a) {
+              final hasImage = a['images']?[0]?['url'] != null || 
+                              a['context']?['images']?[0]?['url'] != null;
+              return hasImage;
+            }).map((a) => ({
+              ...a, 
+              'type': 'album',
+              'images': a['images'] ?? a['context']?['images'],
+              'name': a['name'] ?? a['context']?['name'] ?? 'Unknown Album',
+            })),
         ];
 
         return RefreshIndicator(
-          onRefresh: () async {
-            await provider.refreshRecentlyPlayed();
-          },
+          onRefresh: _loadData,
           child: ListView(
             children: [
               Padding(
@@ -161,61 +217,37 @@ class MyCarouselView extends StatefulWidget {
 
 class _MyCarouselViewState extends State<MyCarouselView> {
   List<Map<String, dynamic>> allItems = [];
-  List<Map<String, dynamic>> _newItems = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _loadInitialItems();
-    // 静默更新数据
-    _refreshItemsSilently();
   }
 
   void _loadInitialItems() {
-    final provider = Provider.of<SpotifyProvider>(context, listen: false);
+    if (!mounted) return;
+    final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
+    final recentContexts = firestoreProvider.recentPlayContexts ?? [];
+    
     setState(() {
-      allItems = [
-        ...provider.recentAlbums,
-        ...provider.recentPlaylists,
-      ];
+      allItems = List.from(recentContexts);
       if (allItems.isNotEmpty) {
         allItems.shuffle();
       }
     });
   }
 
-  Future<void> _refreshItemsSilently() async {
-    if (_isLoading) return;
-    _isLoading = true;
-
-    try {
-      final provider = Provider.of<SpotifyProvider>(context, listen: false);
-      await provider.refreshRecentlyPlayed();
-      
-      if (!mounted) return;
-
-      // 准备新数据但不立即显示
-      _newItems = [
-        ...provider.recentAlbums,
-        ...provider.recentPlaylists,
-      ];
-
-      // 只有当有新数据且与当前数据不同时才更新
-      if (_newItems.isNotEmpty && _newItems.length != allItems.length) {
-        _newItems.shuffle();
-        setState(() {
-          allItems = _newItems;
-        });
-      }
-    } finally {
-      _isLoading = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (allItems.isEmpty) {
+    // Filter out items without valid images
+    final validItems = allItems.where((item) {
+      final hasImage = item['images']?[0]?['url'] != null || 
+                      item['context']?['images']?[0]?['url'] != null;
+      return hasImage;
+    }).toList();
+
+    if (validItems.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -226,13 +258,15 @@ class _MyCarouselViewState extends State<MyCarouselView> {
           itemExtent: 190,
           shrinkExtent: 10,
           itemSnapping: true,
-          children: allItems.map((item) {
+          children: validItems.map((item) {
+            final imageUrl = item['images']?[0]?['url'] ?? 
+                           item['context']?['images']?[0]?['url'];
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.network(
-                  item['images'][0]['url'],
+                  imageUrl!,
                   width: double.infinity,
                   fit: BoxFit.cover,
                 ),

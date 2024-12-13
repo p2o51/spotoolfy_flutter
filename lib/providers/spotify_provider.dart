@@ -4,6 +4,8 @@ import 'dart:async';
 import '../services/spotify_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
+import 'package:provider/provider.dart';
+import '../providers/firestore_provider.dart';
 
 
 enum PlayMode {
@@ -58,21 +60,83 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> refreshCurrentTrack() async {
-    if (_isSkipping) return;  // 如果正在切歌，跳过刷新
+    if (_isSkipping) return;
     
     try {
       final track = await _spotifyService.getCurrentlyPlayingTrack();
       if (track != null && 
-          (currentTrack == null || 
-           track['item']?['id'] != currentTrack!['item']?['id'] ||
-           track['is_playing'] != currentTrack!['is_playing'])) {
+          (currentTrack == null || track['item']?['id'] != currentTrack!['item']?['id'])) {
+        
+        // 获取 FirestoreProvider 实例
+        final firestoreProvider = Provider.of<FirestoreProvider>(
+          navigatorKey.currentContext!, 
+          listen: false
+        );
+
+        // 如果有播放上下文，获取完整信息后保存到 Firestore
+        if (track['context'] != null) {
+          final context = track['context'];
+          final type = context['type'];
+          final uri = context['uri'] as String;
+          
+          Map<String, dynamic> enrichedContext = {
+            ...context,
+            'name': '未知${type == 'playlist' ? '播放列表' : '专辑'}',
+            'images': [{'url': 'https://via.placeholder.com/300'}],
+          };
+          
+          try {
+            if (type == 'album') {
+              final albumId = uri.split(':').last;
+              final fullAlbum = await _spotifyService.getAlbum(albumId);
+              if (fullAlbum != null) {
+                enrichedContext.addAll({
+                  'name': fullAlbum['name'],
+                  'images': fullAlbum['images'],
+                  'external_urls': fullAlbum['external_urls'],
+                });
+              }
+            } else if (type == 'playlist') {
+              final playlistId = uri.split(':').last;
+              final fullPlaylist = await _spotifyService.getPlaylist(playlistId);
+              if (fullPlaylist != null) {
+                enrichedContext.addAll({
+                  'name': fullPlaylist['name'],
+                  'images': fullPlaylist['images'],
+                  'external_urls': fullPlaylist['external_urls'],
+                  'owner': fullPlaylist['owner'],
+                  'public': fullPlaylist['public'],
+                  'collaborative': fullPlaylist['collaborative'],
+                });
+              }
+            }
+          } catch (e) {
+            print('获取完整上下文信息失败: $e');
+            // 使用默认值，确保至少显示一些内容
+          }
+
+          // 确保必要的字段存在
+          enrichedContext['images'] ??= [{'url': 'https://via.placeholder.com/300'}];
+          enrichedContext['name'] ??= '未知${type == 'playlist' ? '播放列表' : '专辑'}';
+
+          await firestoreProvider.savePlayContext(
+            trackId: track['item']['id'],
+            context: enrichedContext,
+            timestamp: DateTime.now(),
+          );
+        }
+
+        previousTrack = currentTrack;
         currentTrack = track;
+        
+        if (track['item'] != null) {
+          isCurrentTrackSaved = await _spotifyService.isTrackSaved(track['item']['id']);
+        }
+        
         notifyListeners();
-        await checkCurrentTrackSaveState();
-        await refreshPlaybackQueue();
       }
     } catch (e) {
-      print('刷新播放状态失败: $e');
+      print('刷新当前播放失败: $e');
     }
   }
 
@@ -338,17 +402,31 @@ class SpotifyProvider extends ChangeNotifier {
       final data = await _spotifyService.getRecentlyPlayed(limit: 50);
       final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
       
-      // 用于去重的 Set
       final playlistUris = <String>{};
       final albumUris = <String>{};
       final List<Map<String, dynamic>> uniquePlaylists = [];
       final List<Map<String, dynamic>> uniqueAlbums = [];
+      
+      // 获取 FirestoreProvider 实例
+      final firestoreProvider = Provider.of<FirestoreProvider>(
+        navigatorKey.currentContext!, 
+        listen: false
+      );
       
       for (var item in items) {
         final context = item['context'];
         if (context != null) {
           final uri = context['uri'] as String;
           final type = context['type'] as String;
+          final trackId = item['track']?['id'];
+          final playedAt = DateTime.parse(item['played_at']);
+          
+          // 保存播放上下文到 Firestore
+          await firestoreProvider.savePlayContext(
+            trackId: trackId,
+            context: context,
+            timestamp: playedAt,
+          );
           
           // 处理播放列表
           if (type == 'playlist' && !playlistUris.contains(uri)) {
@@ -357,9 +435,7 @@ class SpotifyProvider extends ChangeNotifier {
             try {
               final playlist = await _spotifyService.getPlaylist(playlistId);
               uniquePlaylists.add(playlist);
-              if (uniquePlaylists.length >= 10) {
-                break;
-              }
+              if (uniquePlaylists.length >= 10) break;
             } catch (e) {
               print('获取播放列表 $playlistId 详情失败: $e');
             }
@@ -372,9 +448,7 @@ class SpotifyProvider extends ChangeNotifier {
             try {
               final album = await _spotifyService.getAlbum(albumId);
               uniqueAlbums.add(album);
-              if (uniqueAlbums.length >= 10) {
-                break;
-              }
+              if (uniqueAlbums.length >= 10) break;
             } catch (e) {
               print('获取专辑 $albumId 详情失败: $e');
             }
@@ -382,13 +456,8 @@ class SpotifyProvider extends ChangeNotifier {
         }
       }
       
-      _recentPlaylists
-        ..clear()
-        ..addAll(uniquePlaylists);
-        
-      _recentAlbums
-        ..clear()
-        ..addAll(uniqueAlbums);
+      _recentPlaylists..clear()..addAll(uniquePlaylists);
+      _recentAlbums..clear()..addAll(uniqueAlbums);
       
       notifyListeners();
     } catch (e) {
