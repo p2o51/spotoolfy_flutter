@@ -8,7 +8,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/physics.dart';
 
 class Player extends StatefulWidget {
-  const Player({super.key});
+  final bool isLargeScreen;
+
+  const Player({
+    super.key,
+    this.isLargeScreen = false,
+  });
 
   @override
   State<Player> createState() => _PlayerState();
@@ -99,7 +104,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   void _handleHorizontalDragUpdate(DragUpdateDetails details) {
     if (_dragStartX == null) return;
-    _dragDistanceNotifier.value = details.globalPosition.dx - _dragStartX!;
+    
+    final dragDistance = details.globalPosition.dx - _dragStartX!;
+    _dragDistanceNotifier.value = widget.isLargeScreen ? dragDistance / 2 : dragDistance;
     
     final progress = (_dragDistanceNotifier.value.abs() / 100).clamp(0.0, 1.0);
     _transitionController.value = progress;
@@ -109,10 +116,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     if (_dragStartX == null) return;
     
     final velocity = details.velocity.pixelsPerSecond.dx;
-    const threshold = 800.0;
+    final threshold = widget.isLargeScreen ? 400.0 : 800.0;
     final distance = _dragDistanceNotifier.value;
     
-    if (velocity.abs() > threshold || distance.abs() > 80) {
+    final triggerDistance = widget.isLargeScreen ? 40.0 : 80.0;
+    
+    if (velocity.abs() > threshold || distance.abs() > triggerDistance) {
       _indicatorController.forward();
       
       final spring = SpringDescription.withDampingRatio(
@@ -145,8 +154,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
     
     _dragStartX = null;
-    _dragDistanceNotifier.value = 0.0;
-    _fadeController.reverse();
+    _fadeController.reverse().then((_) {
+      _dragDistanceNotifier.value = 0.0;
+    });
   }
 
   @override
@@ -165,71 +175,76 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
     return RepaintBoundary(
       child: Center(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                _buildMainContent(displayTrack, spotifyProvider),
-                Positioned(
-                  bottom: 64,
-                  right: 10,
-                  child: PlayButton(
-                    isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
-                    onPressed: () => spotifyProvider.togglePlayPause(),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 64,
-                  child: MyButton(
-                    width: 64,
-                    height: 64,
-                    radius: 20,
-                    icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
-                    onPressed: () => spotifyProvider.togglePlayMode(),
-                  ),
-                ),
-                _buildDragIndicators(),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(48, 0, 48, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: widget.isLargeScreen ? 600 : double.infinity,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: HeaderAndFooter(
-                          header: displayTrack?['name'] ?? 'Godspeed',
-                          footer: displayTrack != null 
-                              ? (displayTrack['artists'] as List?)
-                                  ?.map((artist) => artist['name'] as String)
-                                  .join(', ') ?? 'Unknown Artist'
-                              : 'Camila Cabello',
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        onPressed: spotifyProvider.username != null && track != null
-                          ? () => spotifyProvider.toggleTrackSave()
-                          : null,
-                        icon: Icon(
-                          context.select<SpotifyProvider, bool>((provider) => 
-                            provider.isCurrentTrackSaved ?? false)
-                              ? Icons.favorite
-                              : Icons.favorite_outline_rounded,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
+                  _buildMainContent(displayTrack, spotifyProvider),
+                  Positioned(
+                    bottom: 64,
+                    right: 10,
+                    child: PlayButton(
+                      isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
+                      onPressed: () => spotifyProvider.togglePlayPause(),
+                    ),
                   ),
+                  Positioned(
+                    bottom: 0,
+                    left: 64,
+                    child: MyButton(
+                      width: 64,
+                      height: 64,
+                      radius: 20,
+                      icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
+                      onPressed: () => spotifyProvider.togglePlayMode(),
+                    ),
+                  ),
+                  _buildDragIndicators(),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(48, 0, 48, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: HeaderAndFooter(
+                            header: displayTrack?['name'] ?? 'Godspeed',
+                            footer: displayTrack != null 
+                                ? (displayTrack['artists'] as List?)
+                                    ?.map((artist) => artist['name'] as String)
+                                    .join(', ') ?? 'Unknown Artist'
+                                : 'Camila Cabello',
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          onPressed: spotifyProvider.username != null && track != null
+                            ? () => spotifyProvider.toggleTrackSave()
+                            : null,
+                          icon: Icon(
+                            context.select<SpotifyProvider, bool>((provider) => 
+                              provider.isCurrentTrackSaved ?? false)
+                                ? Icons.favorite
+                                : Icons.favorite_outline_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -349,12 +364,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     return ValueListenableBuilder<double>(
       valueListenable: _dragDistanceNotifier,
       builder: (context, dragDistance, _) {
-        if (dragDistance == 0) return const SizedBox.shrink();
         return DragIndicator(
           dragDistance: dragDistance,
           fadeAnimation: _fadeController,
           indicatorAnimation: _indicatorController,
           isNext: dragDistance < 0,
+          isLargeScreen: widget.isLargeScreen,
         );
       },
     );
@@ -379,12 +394,14 @@ class DragIndicator extends StatelessWidget {
   final Animation<double> fadeAnimation;
   final Animation<double> indicatorAnimation;
   final bool isNext;
+  final bool isLargeScreen;
 
   const DragIndicator({
     required this.dragDistance,
     required this.fadeAnimation,
     required this.indicatorAnimation,
     required this.isNext,
+    this.isLargeScreen = false,
     super.key,
   });
 
@@ -393,52 +410,109 @@ class DragIndicator extends StatelessWidget {
     const maxWidth = 80.0;
     final width = (dragDistance.abs() / 100.0).clamp(0.0, 1.0) * maxWidth;
     
-    final maxHeight = MediaQuery.of(context).size.height - 64;
-    final minHeight = maxHeight * 0.8;
-    final heightProgress = (width / maxWidth).clamp(0.0, 1.0);
-    final height = minHeight + (maxHeight - minHeight) * heightProgress;
-    
-    return Positioned(
-      top: 32 + (maxHeight - height) / 2,
-      bottom: 32 + (maxHeight - height) / 2,
-      right: isNext ? 0 : null,
-      left: isNext ? null : 0,
-      child: RepaintBoundary(
-        child: FadeTransition(
-          opacity: fadeAnimation,
-          child: AnimatedBuilder(
-            animation: indicatorAnimation,
-            builder: (context, child) {
-              final slideOffset = maxWidth * indicatorAnimation.value;
-              return Transform.translate(
-                offset: Offset(
-                  isNext ? slideOffset : -slideOffset,
-                  0,
-                ),
-                child: Container(
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.horizontal(
-                      left: isNext ? const Radius.circular(16) : Radius.zero,
-                      right: isNext ? Radius.zero : const Radius.circular(16),
+    if (isLargeScreen) {
+      // 大屏幕模式：居中圆形指示器
+      return Center(
+        child: RepaintBoundary(
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: AnimatedBuilder(
+              animation: indicatorAnimation,
+              builder: (context, child) {
+                final scale = 1.0 + (1.0 - indicatorAnimation.value) * 0.2;
+                return Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: width,
+                    height: width,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          blurRadius: 16,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Opacity(
+                        opacity: (width / maxWidth).clamp(0.0, 1.0),
+                        child: Icon(
+                          isNext ? Icons.skip_next_rounded : Icons.skip_previous_rounded,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          size: 32,
+                        ),
+                      ),
                     ),
                   ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    } else {
+      // 小屏幕模式
+      final maxHeight = MediaQuery.of(context).size.height - 64;
+      final minHeight = maxHeight * 0.8;
+      final heightProgress = (width / maxWidth).clamp(0.0, 1.0);
+      final height = minHeight + (maxHeight - minHeight) * heightProgress;
+      
+      return Positioned(
+        top: 32 + (MediaQuery.of(context).size.height - 64 - height) / 2,
+        bottom: 32 + (MediaQuery.of(context).size.height - 64 - height) / 2,
+        right: isNext ? 0 : null,
+        left: isNext ? null : 0,
+        child: RepaintBoundary(
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: AnimatedBuilder(
+              animation: indicatorAnimation,
+              builder: (context, child) {
+                final slideOffset = maxWidth * indicatorAnimation.value;
+                return Transform.translate(
+                  offset: Offset(
+                    isNext ? slideOffset : -slideOffset,
+                    0,
+                  ),
+                  child: child,
+                );
+              },
+              child: Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.9),
+                  borderRadius: BorderRadius.horizontal(
+                    left: isNext ? const Radius.circular(16) : Radius.zero,
+                    right: isNext ? Radius.zero : const Radius.circular(16),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                      blurRadius: 16,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Center(
                   child: Opacity(
                     opacity: (width / maxWidth).clamp(0.0, 1.0),
                     child: Icon(
                       isNext ? Icons.skip_next_rounded : Icons.skip_previous_rounded,
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      size: 24,
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
   }
 }
 

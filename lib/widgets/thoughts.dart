@@ -12,47 +12,14 @@ class ThoughtsView extends StatefulWidget {
 }
 
 class ThoughtsViewState extends State<ThoughtsView> {
-  int _currentRating = 1;
-
-  int get currentRating => _currentRating;
-
   String _getRatingString(int rating) {
     switch (rating) {
-      case 0: return 'bad';
-      case 1: return 'good';
-      case 2: return 'fire';
-      default: return 'good';
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
-    firestoreProvider.addListener(_updateRatingFromLatestThought);
-  }
-
-  @override
-  void dispose() {
-    final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
-    firestoreProvider.removeListener(_updateRatingFromLatestThought);
-    super.dispose();
-  }
-
-  void _updateRatingFromLatestThought() {
-    final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
-    
-    if (firestoreProvider.currentTrackThoughts.isNotEmpty) {
-      final latestThought = firestoreProvider.currentTrackThoughts.first;
-      final ratingMap = {
-        'bad': 0,
-        'good': 1,
-        'fire': 2
-      };
-      
-      setState(() {
-        _currentRating = ratingMap[latestThought['rating']] ?? 1;
-      });
+      case 0:
+        return 'bad';
+      case 2:
+        return 'fire';
+      default:
+        return 'good';
     }
   }
 
@@ -61,13 +28,18 @@ class ThoughtsViewState extends State<ThoughtsView> {
     return SingleChildScrollView(
       child: Column(
         children: [
-          Ratings(
-            initialRating: _getRatingString(_currentRating),
-            onRatingChanged: (rating) {
-              setState(() {
-                _currentRating = rating;
-                print('Current rating: $_currentRating');
-              });
+          Consumer<FirestoreProvider>(
+            builder: (context, firestoreProvider, child) {
+              print("Current rating in FirestoreProvider: ${firestoreProvider.currentRating}");
+              return Ratings(
+                initialRating: firestoreProvider.currentRating,
+                onRatingChanged: (rating) {
+                  String ratingString = _getRatingString(rating);
+                  setState(() {
+                    firestoreProvider.setRating(ratingString);
+                  });
+                },
+              );
             },
           ),
           const SizedBox(height: 16),

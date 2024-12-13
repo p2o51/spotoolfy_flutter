@@ -14,107 +14,160 @@ class NowPlaying extends StatelessWidget {
   Widget build(BuildContext context) {
     bool isLargeScreen = MediaQuery.of(context).size.width > 800;
 
-    return Scaffold(
-      body: DefaultTabController(
-        length: 4,
-        child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverToBoxAdapter(
+    if (isLargeScreen) {
+      // 大屏幕布局：左右分栏
+      return Scaffold(
+        body: Row(
+          children: [
+            // 左侧 Player
+            const Expanded(
+              flex: 1,
+              child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    const Player(),
-                    const SizedBox(height: 16),
+                    Player(isLargeScreen: true),
+                    SizedBox(height: 16),
                   ],
                 ),
               ),
-              const SliverPersistentHeader(
-                pinned: true,
-                delegate: _SliverAppBarDelegate(
-                  TabBar(
-                    tabs: [
-                      Tab(text: 'THOUGHTS'),
-                      Tab(text: 'QUEUE'),
-                      Tab(text: 'LYRICS'),
-                      Tab(text: 'CREDITS'),
-                    ],
-                  ),
-                ),
-              ),
-            ];
-          },
-          body: TabBarView(
-            children: [
-              // THOUGHTS 内容
-              isLargeScreen
-                  ? Row(
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: Column(
-                            children: [
-                              Ratings(
-                                initialRating: 'good',
-                                onRatingChanged: (rating) {
-                                  // Handle rating change if needed
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Expanded(
-                          flex: 1,
-                          child: SingleChildScrollView(
+            ),
+            // 右侧 TabView
+            Expanded(
+              flex: 1,
+              child: DefaultTabController(
+                length: 4,
+                child: Column(
+                  children: [
+                    const TabBar(
+                      tabs: [
+                        Tab(text: 'THOUGHTS'),
+                        Tab(text: 'QUEUE'),
+                        Tab(text: 'LYRICS'),
+                        Tab(text: 'CREDITS'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          // THOUGHTS 内容
+                          SingleChildScrollView(
                             child: Column(
                               children: [
-                                NotesDisplay(),
-                                SizedBox(height: 80),
+                                const SizedBox(height: 24),
+                                Ratings(
+                                  initialRating: 'good',
+                                  onRatingChanged: (rating) {
+                                    // Handle rating change if needed
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                const NotesDisplay(),
+                                const SizedBox(height: 80),
                               ],
                             ),
                           ),
-                        ),
-                      ],
-                    )
-                  : SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 24),
-                          Ratings(
-                            initialRating: 'good',
-                            onRatingChanged: (rating) {
-                              // Handle rating change if needed
-                            },
+                          // QUEUE 内容
+                          const SingleChildScrollView(
+                            child: QueueDisplay(),
                           ),
-                          const SizedBox(height: 16),
-                          const NotesDisplay(),
-                          const SizedBox(height: 80),
+                          // LYRICS 内容
+                          LyricsWidget(currentLineIndex: 2),
+                          // CREDITS 内容
+                          const CreditsWidget(),
                         ],
                       ),
                     ),
-              // QUEUE 内容
-              const SingleChildScrollView(
-                child: QueueDisplay(),
+                  ],
+                ),
               ),
-              // LYRICS 内容
-              LyricsWidget(currentLineIndex: 2),
-              
-              // CREDITS 内容
-              const CreditsWidget(),
-            ],
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              builder: (context) => const AddNoteSheet(),
+            );
+          },
+          child: const Icon(Icons.add),
+        ),
+      );
+    } else {
+      // 小屏幕布局：保持原来的垂直布局
+      return Scaffold(
+        body: DefaultTabController(
+          length: 4,
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      const Player(isLargeScreen: false),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+                const SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SliverAppBarDelegate(
+                    TabBar(
+                      tabs: [
+                        Tab(text: 'THOUGHTS'),
+                        Tab(text: 'QUEUE'),
+                        Tab(text: 'LYRICS'),
+                        Tab(text: 'CREDITS'),
+                      ],
+                    ),
+                  ),
+                ),
+              ];
+            },
+            body: TabBarView(
+              children: [
+                // THOUGHTS 内容
+                SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 24),
+                      Ratings(
+                        initialRating: 'good',
+                        onRatingChanged: (rating) {
+                          // Handle rating change if needed
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const NotesDisplay(),
+                      const SizedBox(height: 80),
+                    ],
+                  ),
+                ),
+                // QUEUE 内容
+                const SingleChildScrollView(
+                  child: QueueDisplay(),
+                ),
+                // LYRICS 内容
+                LyricsWidget(currentLineIndex: 2),
+                // CREDITS 内容
+                const CreditsWidget(),
+              ],
+            ),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            builder: (context) => const AddNoteSheet(),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              builder: (context) => const AddNoteSheet(),
+            );
+          },
+          child: const Icon(Icons.add),
+        ),
+      );
+    }
   }
 }
 

@@ -15,6 +15,14 @@ class FirestoreProvider extends ChangeNotifier {
   
   Map<String, dynamic>? randomThought;
   
+  String _currentRating = 'good';
+  String get currentRating => _currentRating;
+
+  void setRating(String rating) {
+    _currentRating = rating;
+    notifyListeners();
+  }
+
   bool get isLoading => _isLoading;
 
   FirestoreProvider(this._authProvider, this._spotifyProvider) {
@@ -75,6 +83,13 @@ class FirestoreProvider extends ChangeNotifier {
         'imageUrl': doc.data()['imageUrl'] ?? '',
       }).toList();
 
+      if (currentTrackThoughts.isNotEmpty) {
+        _currentRating = currentTrackThoughts.first['rating'];
+        print("Fetched rating: $_currentRating");
+      } else {
+        _currentRating = 'good';
+      }
+
       notifyListeners();
     } catch (e) {
       print('获取想法失败: $e');
@@ -103,7 +118,7 @@ class FirestoreProvider extends ChangeNotifier {
           .collection('users/$userId/thoughts')
           .add({
             'content': content,
-            'rating': 'good',
+            'rating': _currentRating,
             'trackId': track['id'],
             'trackName': track['name'],
             'artistName': (track['artists'] as List)

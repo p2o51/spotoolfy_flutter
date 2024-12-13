@@ -22,17 +22,19 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
   }
 
   Future<void> _handleSubmit(BuildContext context) async {
-    final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
+    final firestoreProvider =
+        Provider.of<FirestoreProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    
-    if (authProvider.currentUser == null || 
-        spotifyProvider.currentTrack == null || 
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+
+    if (authProvider.currentUser == null ||
+        spotifyProvider.currentTrack == null ||
         _controller.text.isEmpty) return;
 
     try {
       setState(() => _isSubmitting = true);
-      
+
       await firestoreProvider.addThought(
         content: _controller.text,
       );
@@ -74,7 +76,9 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
             Row(
               children: [
                 IconButton(
-                  onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                  onPressed: _isSubmitting
+                      ? null
+                      : () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
                 ),
                 Expanded(
@@ -85,16 +89,16 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
                   ),
                 ),
                 IconButton(
-                  onPressed: _isSubmitting || _controller.text.isEmpty 
-                    ? null 
-                    : () => _handleSubmit(context),
-                  icon: _isSubmitting 
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check),
+                  onPressed: _isSubmitting || _controller.text.isEmpty
+                      ? null
+                      : () => _handleSubmit(context),
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check),
                 ),
               ],
             ),

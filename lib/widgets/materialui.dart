@@ -79,8 +79,7 @@ class HeaderAndFooter extends StatelessWidget {
   }
 }
 
-
-class Ratings extends StatefulWidget {
+class Ratings extends StatelessWidget {
   final String initialRating;
   final Function(int) onRatingChanged;
 
@@ -90,19 +89,6 @@ class Ratings extends StatefulWidget {
     required this.onRatingChanged,
   });
 
-  @override
-  State<Ratings> createState() => _RatingsState();
-}
-
-class _RatingsState extends State<Ratings> {
-  late int selectedIndex;
-  
-  @override
-  void initState() {
-    super.initState();
-    selectedIndex = _getRatingIndex(widget.initialRating);
-  }
-
   int _getRatingIndex(String rating) {
     switch (rating) {
       case 'bad': return 0;
@@ -110,9 +96,10 @@ class _RatingsState extends State<Ratings> {
       default: return 1; // 'good'
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
+    final selectedIndex = _getRatingIndex(initialRating);
     return SegmentedButton<int>(
       segments: const [
         ButtonSegment(value: 0, icon: Icon(Icons.thumb_down_outlined)),
@@ -121,10 +108,7 @@ class _RatingsState extends State<Ratings> {
       ],
       selected: {selectedIndex},
       onSelectionChanged: (Set<int> newSelection) {
-        setState(() {
-          selectedIndex = newSelection.first;
-          widget.onRatingChanged(selectedIndex);
-        });
+        onRatingChanged(newSelection.first);
       },
     );
   }
