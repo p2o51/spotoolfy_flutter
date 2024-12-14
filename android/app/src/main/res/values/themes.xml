@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="WidgetBackground">
+        <item name="android:background">@color/md_theme_primary</item>
+    </style>
+
+    <style name="WidgetText">
+        <item name="android:textColor">@color/md_theme_onPrimary</item>
+    </style>
+</resources>

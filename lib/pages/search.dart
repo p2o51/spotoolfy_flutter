@@ -82,126 +82,145 @@ class _SearchState extends State<Search> {
             })),
         ];
 
-        return RefreshIndicator(
-          onRefresh: _loadData,
-          child: ListView(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: SearchBar(
-                  hintText: 'Search songs, albums, artists...',
-                  leading: const Icon(Icons.search),
-                  elevation: MaterialStatePropertyAll(0),
-                  backgroundColor: MaterialStatePropertyAll(Colors.transparent),
-                  side: MaterialStatePropertyAll(
-                    BorderSide(
-                      color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                    ),
-                  ),
-                  padding: const MaterialStatePropertyAll<EdgeInsets>(
-                    EdgeInsets.symmetric(horizontal: 16.0),
-                  ),
-                  onTap: () {
-                    // TODO: 处理搜索点击事件
-                  },
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: MyCarouselView(),
-              ),
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(
-                  child: IconHeader(
-                    icon: Icons.history,
-                    text: "RECENTLY PLAYED",
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    FilterChip(
-                      selected: showPlaylists,
-                      label: const Text('Playlists'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          showPlaylists = selected;
-                        });
-                      },
-                    ),
-                    FilterChip(
-                      selected: showAlbums,
-                      label: const Text('Albums'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          showAlbums = selected;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (items.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 0.75,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: items.length,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 1,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                item['images'][0]['url'],
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final isWideScreen = screenWidth > 600;
+            final maxContentWidth = isWideScreen ? 1200.0 : screenWidth;
+            final gridCrossAxisCount = switch (screenWidth) {
+              > 1200 => 6,
+              > 900 => 5,
+              > 600 => 4,
+              _ => 3,
+            };
+
+            return RefreshIndicator(
+              onRefresh: _loadData,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
+                  child: ListView(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: SearchBar(
+                          hintText: 'Search songs, albums, artists...',
+                          leading: const Icon(Icons.search),
+                          elevation: MaterialStatePropertyAll(0),
+                          backgroundColor: MaterialStatePropertyAll(Colors.transparent),
+                          side: MaterialStatePropertyAll(
+                            BorderSide(
+                              color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item['name'],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
+                          padding: const MaterialStatePropertyAll<EdgeInsets>(
+                            EdgeInsets.symmetric(horizontal: 16.0),
                           ),
-                          Text(
-                            item['type'] == 'playlist' ? 'Playlist' : 'Album',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                          onTap: () {
+                            // TODO: 处理搜索点击事件
+                          },
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: MyCarouselView(),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(
+                          child: IconHeader(
+                            icon: Icons.history,
+                            text: "RECENTLY PLAYED",
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Wrap(
+                          spacing: 8,
+                          children: [
+                            FilterChip(
+                              selected: showPlaylists,
+                              label: const Text('Playlists'),
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  showPlaylists = selected;
+                                });
+                              },
                             ),
+                            FilterChip(
+                              selected: showAlbums,
+                              label: const Text('Albums'),
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  showAlbums = selected;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (items.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: gridCrossAxisCount,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                            itemCount: items.length,
+                            itemBuilder: (context, index) {
+                              final item = items[index];
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AspectRatio(
+                                    aspectRatio: 1,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        item['images'][0]['url'],
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item['name'],
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  Text(
+                                    item['type'] == 'playlist' ? 'Playlist' : 'Album',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
-                        ],
-                      );
-                    },
+                        ),
+                      if (items.isEmpty)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('No recently played items'),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              if (items.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('No recently played items'),
-                  ),
-                ),
-            ],
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -240,7 +259,6 @@ class _MyCarouselViewState extends State<MyCarouselView> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter out items without valid images
     final validItems = allItems.where((item) {
       final hasImage = item['images']?[0]?['url'] != null || 
                       item['context']?['images']?[0]?['url'] != null;
@@ -251,30 +269,38 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       return const SizedBox.shrink();
     }
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 190),
-        child: CarouselView(
-          itemExtent: 190,
-          shrinkExtent: 10,
-          itemSnapping: true,
-          children: validItems.map((item) {
-            final imageUrl = item['images']?[0]?['url'] ?? 
-                           item['context']?['images']?[0]?['url'];
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  imageUrl!,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final carouselHeight = screenWidth > 900 ? 300.0 : 190.0;
+        final itemExtent = screenWidth > 900 ? 300.0 : 190.0;
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: carouselHeight),
+            child: CarouselView(
+              itemExtent: itemExtent,
+              shrinkExtent: 10,
+              itemSnapping: true,
+              children: validItems.map((item) {
+                final imageUrl = item['images']?[0]?['url'] ?? 
+                               item['context']?['images']?[0]?['url'];
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      imageUrl!,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
     );
   }
 }

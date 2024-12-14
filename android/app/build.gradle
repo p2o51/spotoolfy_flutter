@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.gojyuplusone.spotoolfy.spotoolfy_flutter"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -25,7 +25,7 @@ android {
     defaultConfig {
         applicationId = "com.gojyuplusone.spotoolfy.spotoolfy_flutter"
         minSdkVersion 31
-        targetSdk = flutter.targetSdkVersion
+        targetSdkVersion 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
@@ -38,8 +38,6 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig signingConfigs.debug
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -48,22 +46,33 @@ android {
 }
 
 dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.palette:palette-ktx:1.0.0'
+    implementation 'com.github.bumptech.glide:glide:4.12.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.12.0'
+    
+    // Spotify SDK
     implementation "com.spotify.android:auth:2.1.1"
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
     implementation 'com.google.code.gson:gson:2.8.9'
+    
     // Jackson dependencies
     implementation 'com.fasterxml.jackson.core:jackson-core:2.13.5'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.5'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.13.5'
-    // Add Jetify annotations instead of Spotify annotations
+    
+    // Jetify annotations
     implementation 'androidx.annotation:annotation:1.7.1'
-    // Keep other existing dependencies
 }
 
 repositories {
     maven { url "https://jitpack.io" }
     maven { url 'https://maven.google.com' }
-    // Keep other existing repositories
+    google()
+    mavenCentral()
 }
 
 flutter {

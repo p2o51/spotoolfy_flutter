@@ -6,6 +6,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
 import 'package:provider/provider.dart';
 import '../providers/firestore_provider.dart';
+import 'package:flutter/services.dart';
+import 'dart:io';
 
 
 enum PlayMode {
@@ -65,7 +67,8 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       final track = await _spotifyService.getCurrentlyPlayingTrack();
       if (track != null && 
-          (currentTrack == null || track['item']?['id'] != currentTrack!['item']?['id'])) {
+          (currentTrack == null || track['item']?['id'] != currentTrack!['item']?['id'] ||
+           track['is_playing'] != currentTrack!['is_playing'])) {
         
         // 获取 FirestoreProvider 实例
         final firestoreProvider = Provider.of<FirestoreProvider>(
@@ -133,6 +136,9 @@ class SpotifyProvider extends ChangeNotifier {
           isCurrentTrackSaved = await _spotifyService.isTrackSaved(track['item']['id']);
         }
         
+        // 更新小部件
+        await updateWidget();
+        
         notifyListeners();
       }
     } catch (e) {
@@ -167,6 +173,9 @@ class SpotifyProvider extends ChangeNotifier {
       
       startTrackRefresh();
       
+      // 登录后更新小部件
+      await updateWidget();
+      
     } catch (e) {
       print('登录失败: $e');
       username = null;
@@ -181,6 +190,8 @@ class SpotifyProvider extends ChangeNotifier {
       await _spotifyService.togglePlayPause();
       await refreshCurrentTrack();
       await refreshPlaybackQueue();
+      // 更新小部件
+      await updateWidget();
     } catch (e) {
       print('播放/暂停切换失败: $e');
     }
@@ -210,6 +221,8 @@ class SpotifyProvider extends ChangeNotifier {
       // 只在确认切歌成功后更新一次UI
       if (newTrack != null) {
         currentTrack = newTrack;
+        // 更新小部件
+        await updateWidget();
         notifyListeners();
         
         // 如果新曲目与预期的下一首不同，更新队列
@@ -223,6 +236,8 @@ class SpotifyProvider extends ChangeNotifier {
       // 如果失败，恢复到原来的状态
       if (previousTrack != null) {
         currentTrack = {'item': previousTrack, 'is_playing': true};
+        // 更新小部件
+        await updateWidget();
         notifyListeners();
       }
     } finally {
@@ -242,6 +257,8 @@ class SpotifyProvider extends ChangeNotifier {
       // 如果已经有上一首的信息，先更新UI
       if (previousTrack != null) {
         currentTrack = {'item': previousTrack, 'is_playing': true};
+        // 更新小部件
+        await updateWidget();
         notifyListeners();
       }
       
@@ -251,6 +268,8 @@ class SpotifyProvider extends ChangeNotifier {
       
       if (newTrack != null) {
         currentTrack = newTrack;
+        // 更新小部件
+        await updateWidget();
         notifyListeners();
       }
       
@@ -261,6 +280,8 @@ class SpotifyProvider extends ChangeNotifier {
       print('上一首失败: $e');
       // 如果失败，恢复到原来的状态
       currentTrack = {'item': nextTrack};
+      // 更新小部件
+      await updateWidget();
       notifyListeners();
     } finally {
       _isSkipping = false;
@@ -506,12 +527,43 @@ class SpotifyProvider extends ChangeNotifier {
       _refreshTimer?.cancel();
       _refreshTimer = null;
 
+      // 登出后更新小部件为默认状态
+      if (Platform.isAndroid) {
+        const platform = MethodChannel('com.gojyuplusone.spotoolfy/widget');
+        try {
+          await platform.invokeMethod('updateWidget', {
+            'songName': '',
+            'artistName': '',
+            'albumArtUrl': '',
+            'isPlaying': false,
+          });
+        } catch (e) {
+          print('更新 widget 失败: $e');
+        }
+      }
+
     } catch (e) {
       print('退出登录失败: $e');
       rethrow;
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> updateWidget() async {
+    if (Platform.isAndroid) {
+      const platform = MethodChannel('com.gojyuplusone.spotoolfy/widget');
+      try {
+        await platform.invokeMethod('updateWidget', {
+          'songName': currentTrack?['item']?['name'] ?? '未在播放',
+          'artistName': currentTrack?['item']?['artists']?[0]?['name'] ?? '',
+          'albumArtUrl': currentTrack?['item']?['album']?['images']?[0]?['url'] ?? '',
+          'isPlaying': currentTrack?['is_playing'] ?? false,
+        });
+      } catch (e) {
+        print('更新 widget 失败: $e');
+      }
     }
   }
 }
