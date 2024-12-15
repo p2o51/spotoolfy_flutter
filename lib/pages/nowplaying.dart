@@ -71,7 +71,7 @@ class NowPlaying extends StatelessWidget {
                             child: QueueDisplay(),
                           ),
                           // LYRICS 内容
-                          LyricsWidget(currentLineIndex: 2),
+                          LyricsWidget(),
                           // CREDITS 内容
                           const CreditsWidget(),
                         ],
@@ -149,7 +149,7 @@ class NowPlaying extends StatelessWidget {
                   child: QueueDisplay(),
                 ),
                 // LYRICS 内容
-                LyricsWidget(currentLineIndex: 2),
+                LyricsWidget(),
                 // CREDITS 内容
                 const CreditsWidget(),
               ],

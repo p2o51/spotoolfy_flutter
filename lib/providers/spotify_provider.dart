@@ -23,6 +23,8 @@ class SpotifyProvider extends ChangeNotifier {
   Map<String, dynamic>? currentTrack;
   bool? isCurrentTrackSaved;
   Timer? _refreshTimer;
+  Timer? _progressTimer;
+  DateTime? _lastProgressUpdate;
   bool isLoading = false;
   Map<String, dynamic>? previousTrack;
   Map<String, dynamic>? nextTrack;
@@ -43,13 +45,29 @@ class SpotifyProvider extends ChangeNotifier {
 
   void startTrackRefresh() {
     _refreshTimer?.cancel();
+    _progressTimer?.cancel();
     
     if (username != null) {
       refreshCurrentTrack();
+      
+      // API 刷新计时器 - 每5秒从服务器获取一次
       _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        // 如果正在切换歌曲，跳过这次刷新
         if (!_isSkipping) {
           refreshCurrentTrack();
+        }
+      });
+      
+      // 本地进度计时器 - 每100毫秒更新一次
+      _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+        if (!_isSkipping && currentTrack != null && currentTrack!['is_playing']) {
+          final now = DateTime.now();
+          if (_lastProgressUpdate != null) {
+            final elapsed = now.difference(_lastProgressUpdate!).inMilliseconds;
+            currentTrack!['progress_ms'] = 
+                (currentTrack!['progress_ms'] as int) + elapsed;
+            notifyListeners();
+          }
+          _lastProgressUpdate = now;
         }
       });
     }
@@ -58,6 +76,7 @@ class SpotifyProvider extends ChangeNotifier {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _progressTimer?.cancel();
     super.dispose();
   }
 
@@ -66,84 +85,107 @@ class SpotifyProvider extends ChangeNotifier {
     
     try {
       final track = await _spotifyService.getCurrentlyPlayingTrack();
-      if (track != null && 
-          (currentTrack == null || track['item']?['id'] != currentTrack!['item']?['id'] ||
-           track['is_playing'] != currentTrack!['is_playing'])) {
-        
-        // 获取 FirestoreProvider 实例
-        final firestoreProvider = Provider.of<FirestoreProvider>(
-          navigatorKey.currentContext!, 
-          listen: false
-        );
+      if (track != null) {
+        final newId = track['item']?['id'];
+        final oldId = currentTrack?['item']?['id'];
+        final isPlaying = track['is_playing'];
+        final oldIsPlaying = currentTrack?['is_playing'];
+        final progress = track['progress_ms'];
 
-        // 如果有播放上下文，获取完整信息后保存到 Firestore
-        if (track['context'] != null) {
-          final context = track['context'];
-          final type = context['type'];
-          final uri = context['uri'] as String;
+        // 检查是否需要更新状态
+        if (currentTrack == null || 
+            newId != oldId || 
+            isPlaying != oldIsPlaying) {
           
-          Map<String, dynamic> enrichedContext = {
-            ...context,
-            'name': '未知${type == 'playlist' ? '播放列表' : '专辑'}',
-            'images': [{'url': 'https://via.placeholder.com/300'}],
-          };
+          // 重置进度更新时间
+          _lastProgressUpdate = DateTime.now();
           
-          try {
-            if (type == 'album') {
-              final albumId = uri.split(':').last;
-              final fullAlbum = await _spotifyService.getAlbum(albumId);
-              if (fullAlbum != null) {
-                enrichedContext.addAll({
-                  'name': fullAlbum['name'],
-                  'images': fullAlbum['images'],
-                  'external_urls': fullAlbum['external_urls'],
-                });
-              }
-            } else if (type == 'playlist') {
-              final playlistId = uri.split(':').last;
-              final fullPlaylist = await _spotifyService.getPlaylist(playlistId);
-              if (fullPlaylist != null) {
-                enrichedContext.addAll({
-                  'name': fullPlaylist['name'],
-                  'images': fullPlaylist['images'],
-                  'external_urls': fullPlaylist['external_urls'],
-                  'owner': fullPlaylist['owner'],
-                  'public': fullPlaylist['public'],
-                  'collaborative': fullPlaylist['collaborative'],
-                });
-              }
+          // 只有在歌曲ID改变时才刷新播放队列
+          if (currentTrack == null || newId != oldId) {
+            await refreshPlaybackQueue();
+            
+            // 获取 FirestoreProvider 实例并保存播放上下文
+            if (track['context'] != null) {
+              final firestoreProvider = Provider.of<FirestoreProvider>(
+                navigatorKey.currentContext!, 
+                listen: false
+              );
+              
+              final enrichedContext = await _enrichPlayContext(track['context']);
+              await firestoreProvider.savePlayContext(
+                trackId: track['item']['id'],
+                context: enrichedContext,
+                timestamp: DateTime.now(),
+              );
             }
-          } catch (e) {
-            print('获取完整上下文信息失败: $e');
-            // 使用默认值，确保至少显示一些内容
           }
 
-          // 确保必要的字段存在
-          enrichedContext['images'] ??= [{'url': 'https://via.placeholder.com/300'}];
-          enrichedContext['name'] ??= '未知${type == 'playlist' ? '播放列表' : '专辑'}';
-
-          await firestoreProvider.savePlayContext(
-            trackId: track['item']['id'],
-            context: enrichedContext,
-            timestamp: DateTime.now(),
-          );
+          previousTrack = currentTrack;
+          currentTrack = track;
+          
+          if (track['item'] != null) {
+            isCurrentTrackSaved = await _spotifyService.isTrackSaved(track['item']['id']);
+          }
+          
+          // 更新小部件
+          await updateWidget();
+          
+          notifyListeners();
+        } else {
+          // 即使只是进度变化，也更新服务器的进度值
+          currentTrack!['progress_ms'] = progress;
         }
-
-        previousTrack = currentTrack;
-        currentTrack = track;
-        
-        if (track['item'] != null) {
-          isCurrentTrackSaved = await _spotifyService.isTrackSaved(track['item']['id']);
-        }
-        
-        // 更新小部件
-        await updateWidget();
-        
-        notifyListeners();
       }
     } catch (e) {
       print('刷新当前播放失败: $e');
     }
+  }
+
+  // 辅助方法：丰富播放上下文信息
+  Future<Map<String, dynamic>> _enrichPlayContext(Map<String, dynamic> context) async {
+    final type = context['type'];
+    final uri = context['uri'] as String;
+    
+    Map<String, dynamic> enrichedContext = {
+      ...context,
+      'name': '未知${type == 'playlist' ? '播放列表' : '专辑'}',
+      'images': [{'url': 'https://via.placeholder.com/300'}],
+    };
+    
+    try {
+      if (type == 'album') {
+        final albumId = uri.split(':').last;
+        final fullAlbum = await _spotifyService.getAlbum(albumId);
+        if (fullAlbum != null) {
+          enrichedContext.addAll({
+            'name': fullAlbum['name'],
+            'images': fullAlbum['images'],
+            'external_urls': fullAlbum['external_urls'],
+          });
+        }
+      } else if (type == 'playlist') {
+        final playlistId = uri.split(':').last;
+        final fullPlaylist = await _spotifyService.getPlaylist(playlistId);
+        if (fullPlaylist != null) {
+          enrichedContext.addAll({
+            'name': fullPlaylist['name'],
+            'images': fullPlaylist['images'],
+            'external_urls': fullPlaylist['external_urls'],
+            'owner': fullPlaylist['owner'],
+            'public': fullPlaylist['public'],
+            'collaborative': fullPlaylist['collaborative'],
+          });
+        }
+      }
+    } catch (e) {
+      print('获取完整上下文信息失败: $e');
+    }
+    
+    // 确保必要的字段存在
+    enrichedContext['images'] ??= [{'url': 'https://via.placeholder.com/300'}];
+    enrichedContext['name'] ??= '未知${type == 'playlist' ? '播放列表' : '专辑'}';
+    
+    return enrichedContext;
   }
 
   Future<void> checkCurrentTrackSaveState() async {
@@ -385,6 +427,7 @@ class SpotifyProvider extends ChangeNotifier {
           break;
       }
       _currentMode = mode;
+      await refreshPlaybackQueue();
       notifyListeners();
     } catch (e) {
       print('设置播放模式失败: $e');
