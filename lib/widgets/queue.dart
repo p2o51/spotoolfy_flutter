@@ -74,6 +74,16 @@ class QueueDisplay extends StatelessWidget {
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    onTap: () {
+                      final trackUri = track['uri'];
+                      final contextUri = spotifyProvider.currentTrack?['context']?['uri'];
+                      if (trackUri != null) {
+                        spotifyProvider.playTrack(
+                          trackUri: trackUri,
+                          contextUri: contextUri,
+                        );
+                      }
+                    },
                   );
                 },
               ),

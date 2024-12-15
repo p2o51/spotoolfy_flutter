@@ -176,34 +176,43 @@ class _SearchState extends State<Search> {
                             itemCount: items.length,
                             itemBuilder: (context, index) {
                               final item = items[index];
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  AspectRatio(
-                                    aspectRatio: 1,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        item['images'][0]['url'],
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
+                              return GestureDetector(
+                                onTap: () {
+                                  final type = item['type'];
+                                  final id = item['id'] ?? item['context']?['uri']?.split(':').last;
+                                  if (type != null && id != null) {
+                                    spotifyProvider.playContext(type: type, id: id);
+                                  }
+                                },
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AspectRatio(
+                                      aspectRatio: 1,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          item['images'][0]['url'],
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    item['name'],
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                  Text(
-                                    item['type'] == 'playlist' ? 'Playlist' : 'Album',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      item['name'],
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.bodySmall,
                                     ),
-                                  ),
-                                ],
+                                    Text(
+                                      item['type'] == 'playlist' ? 'Playlist' : 'Album',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                           ),
@@ -285,14 +294,28 @@ class _MyCarouselViewState extends State<MyCarouselView> {
               children: validItems.map((item) {
                 final imageUrl = item['images']?[0]?['url'] ?? 
                                item['context']?['images']?[0]?['url'];
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      imageUrl!,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
+                final type = item['type'];
+                final id = item['id'] ?? item['context']?['uri']?.split(':').last;
+
+                return GestureDetector(
+                  onTap: () {
+                    if (type != null && id != null) {
+                      final spotifyProvider = Provider.of<SpotifyProvider>(
+                        context, 
+                        listen: false
+                      );
+                      spotifyProvider.playContext(type: type, id: id);
+                    }
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        imageUrl!,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 );

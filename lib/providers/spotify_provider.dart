@@ -138,33 +138,39 @@ class SpotifyProvider extends ChangeNotifier {
         final isPlaying = track['is_playing'];
         final oldIsPlaying = currentTrack?['is_playing'];
         final progress = track['progress_ms'];
+        final newContextUri = track['context']?['uri'];
+        final oldContextUri = currentTrack?['context']?['uri'];
 
         // 检查是否需要更新状态
-        if (currentTrack == null || 
+        final shouldUpdate = currentTrack == null || 
             newId != oldId || 
-            isPlaying != oldIsPlaying) {
-          
+            isPlaying != oldIsPlaying ||
+            newContextUri != oldContextUri;
+
+        if (shouldUpdate) {
           // 重置进度更新时间
           _lastProgressUpdate = DateTime.now();
           
-          // 只有在歌曲ID改变时才刷新播放队列
-          if (currentTrack == null || newId != oldId) {
-            await refreshPlaybackQueue();
+          // 在以下情况刷新播放队列：
+          // 1. 首次加载 (currentTrack == null)
+          // 2. 歌曲改变 (newId != oldId)
+          // 3. 播放状态改变 (isPlaying != oldIsPlaying)
+          // 4. 播放上下文改变 (newContextUri != oldContextUri)
+          await refreshPlaybackQueue();
+          
+          // 获取 FirestoreProvider 实例并保存播放上下文
+          if (track['context'] != null) {
+            final firestoreProvider = Provider.of<FirestoreProvider>(
+              navigatorKey.currentContext!, 
+              listen: false
+            );
             
-            // 获取 FirestoreProvider 实例并保存播放上下文
-            if (track['context'] != null) {
-              final firestoreProvider = Provider.of<FirestoreProvider>(
-                navigatorKey.currentContext!, 
-                listen: false
-              );
-              
-              final enrichedContext = await _enrichPlayContext(track['context']);
-              await firestoreProvider.savePlayContext(
-                trackId: track['item']['id'],
-                context: enrichedContext,
-                timestamp: DateTime.now(),
-              );
-            }
+            final enrichedContext = await _enrichPlayContext(track['context']);
+            await firestoreProvider.savePlayContext(
+              trackId: track['item']['id'],
+              context: enrichedContext,
+              timestamp: DateTime.now(),
+            );
           }
 
           previousTrack = currentTrack;
@@ -178,10 +184,19 @@ class SpotifyProvider extends ChangeNotifier {
           await updateWidget();
           
           notifyListeners();
-        } else {
-          // 即使只是进度变化，也更新服务器的进度值
+        } else if (progress != currentTrack!['progress_ms']) {
+          // 即使只是进度变化，也更新进度值
           currentTrack!['progress_ms'] = progress;
+          notifyListeners();
         }
+      } else if (currentTrack != null) {
+        // 如果当前没有播放任何内容，但之前有，则清除状态
+        currentTrack = null;
+        previousTrack = null;
+        nextTrack = null;
+        isCurrentTrackSaved = null;
+        upcomingTracks.clear();
+        notifyListeners();
       }
     } catch (e) {
       print('刷新当前播放失败: $e');
@@ -278,6 +293,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       await _spotifyService.togglePlayPause();
       await refreshCurrentTrack();
+      // 播放状态改变时刷新队列
       await refreshPlaybackQueue();
       // 更新小部件
       await updateWidget();
@@ -295,28 +311,29 @@ class SpotifyProvider extends ChangeNotifier {
       // 保存当前歌曲作为上一首
       previousTrack = currentTrack?['item'];
       
-      // 预先准备下一首歌的信息
-      final targetTrack = nextTrack;
-      
-      // 执行切歌操作，但不立即更新UI
+      // 执行切歌操作
       await _spotifyService.skipToNext();
       
-      // 等待一小段时间确保 Spotify 已经切换
-      await Future.delayed(const Duration(milliseconds: 100));
+      // 等待适当的时间确保 Spotify 已经切换
+      // 使用轮询方式检查，最多等待1秒
+      int attempts = 0;
+      const maxAttempts = 10;
+      const delayMs = 100;
       
-      // 获取实际的新曲目信息
-      final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
-      
-      // 只在确认切歌成功后更新一次UI
-      if (newTrack != null) {
-        currentTrack = newTrack;
-        // 更新小部件
-        await updateWidget();
-        notifyListeners();
-        
-        // 如果新曲目与预期的下一首不同，更新队列
-        if (targetTrack != null && newTrack['item']?['id'] != targetTrack['id']) {
+      while (attempts < maxAttempts) {
+        final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
+        if (newTrack != null && 
+            newTrack['item']?['id'] != currentTrack?['item']?['id']) {
+          currentTrack = newTrack;
+          await updateWidget();
           await refreshPlaybackQueue();
+          notifyListeners();
+          break;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          await Future.delayed(const Duration(milliseconds: delayMs));
         }
       }
       
@@ -325,7 +342,6 @@ class SpotifyProvider extends ChangeNotifier {
       // 如果失败，恢复到原来的状态
       if (previousTrack != null) {
         currentTrack = {'item': previousTrack, 'is_playing': true};
-        // 更新小部件
         await updateWidget();
         notifyListeners();
       }
@@ -343,35 +359,40 @@ class SpotifyProvider extends ChangeNotifier {
       // 保存当前歌曲作为下一首
       nextTrack = currentTrack?['item'];
       
-      // 如果已经有上一首的信息，先更新UI
-      if (previousTrack != null) {
-        currentTrack = {'item': previousTrack, 'is_playing': true};
-        // 更新小部件
-        await updateWidget();
-        notifyListeners();
-      }
-      
       // 执行切歌操作
       await _spotifyService.skipToPrevious();
-      final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
       
-      if (newTrack != null) {
-        currentTrack = newTrack;
-        // 更新小部件
-        await updateWidget();
-        notifyListeners();
+      // 等待适当的时间确保 Spotify 已经切换
+      // 使用轮询方式检查，最多等待1秒
+      int attempts = 0;
+      const maxAttempts = 10;
+      const delayMs = 100;
+      
+      while (attempts < maxAttempts) {
+        final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
+        if (newTrack != null && 
+            newTrack['item']?['id'] != currentTrack?['item']?['id']) {
+          currentTrack = newTrack;
+          await updateWidget();
+          await refreshPlaybackQueue();
+          notifyListeners();
+          break;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          await Future.delayed(const Duration(milliseconds: delayMs));
+        }
       }
-      
-      // 刷新并预加载新的队列
-      await refreshPlaybackQueue();
       
     } catch (e) {
       print('上一首失败: $e');
       // 如果失败，恢复到原来的状态
-      currentTrack = {'item': nextTrack};
-      // 更新小部件
-      await updateWidget();
-      notifyListeners();
+      if (nextTrack != null) {
+        currentTrack = {'item': nextTrack, 'is_playing': true};
+        await updateWidget();
+        notifyListeners();
+      }
     } finally {
       _isSkipping = false;
     }
@@ -661,8 +682,88 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       await _spotifyService.seekToPosition(position);
       await refreshCurrentTrack();
+      // 跳转位置后刷新队列
+      await refreshPlaybackQueue();
     } catch (e) {
       print('跳转播放位置失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 播放专辑或播放列表
+  Future<void> playContext({
+    required String type,
+    required String id,
+    int? offsetIndex,
+    String? deviceId,
+  }) async {
+    try {
+      final contextUri = 'spotify:$type:$id';
+      await _spotifyService.playContext(
+        contextUri: contextUri,
+        offsetIndex: offsetIndex,
+        deviceId: deviceId,
+      );
+
+      // 等待适当的时间确保 Spotify 已经切换
+      // 使用轮询方式检查，最多等待2秒
+      int attempts = 0;
+      const maxAttempts = 20;  // 增加尝试次数，因为加载播放列表可能需要更长时间
+      const delayMs = 100;
+      
+      while (attempts < maxAttempts) {
+        final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
+        if (newTrack != null && 
+            newTrack['context']?['uri'] == contextUri) {
+          currentTrack = newTrack;
+          await updateWidget();
+          await refreshPlaybackQueue();
+          notifyListeners();
+          break;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          await Future.delayed(const Duration(milliseconds: delayMs));
+        }
+      }
+
+      // 即使没有检测到变化，也刷新一次以确保状态同步
+      if (attempts >= maxAttempts) {
+        await refreshCurrentTrack();
+        await refreshPlaybackQueue();
+      }
+    } catch (e) {
+      print('播放 $type 失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 播放指定歌曲
+  Future<void> playTrack({
+    required String trackUri,
+    String? deviceId,
+    String? contextUri,  // 添加上下文URI参数
+  }) async {
+    try {
+      if (contextUri != null) {
+        // 如果有上下文，在上下文中播放
+        await _spotifyService.playTrackInContext(
+          contextUri: contextUri,
+          trackUri: trackUri,
+          deviceId: deviceId,
+        );
+      } else {
+        // 否则单独播放
+        await _spotifyService.playTrack(
+          trackUri: trackUri,
+          deviceId: deviceId,
+        );
+      }
+      await refreshCurrentTrack();
+      await refreshPlaybackQueue();
+    } catch (e) {
+      print('播放歌曲失败: $e');
       rethrow;
     }
   }
