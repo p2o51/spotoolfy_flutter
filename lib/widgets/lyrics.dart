@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'materialui.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../services/lyrics_service.dart';
 import 'dart:async';
+import 'dart:math' as math;
+
 class LyricLine {
   final Duration timestamp;
   final String text;
@@ -24,6 +27,10 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   String? _lastTrackId;
   Timer? _progressTimer;
   Duration _currentPosition = Duration.zero;
+  final ScrollController _scrollController = ScrollController();
+  final Map<int, double> _lineHeights = {};
+  final GlobalKey _listViewKey = GlobalKey();
+  bool _autoScroll = true;
 
   @override
   void initState() {
@@ -37,6 +44,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   @override
   void dispose() {
     _progressTimer?.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -78,6 +86,38 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     }
   }
 
+  void _scrollToCurrentLine(int currentLineIndex) {
+    if (!mounted || 
+        currentLineIndex < 0 || 
+        !_scrollController.hasClients || 
+        _lyrics.isEmpty) return;
+
+    try {
+      final RenderBox? renderBox = _listViewKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox == null) return;
+      
+      final viewportHeight = _scrollController.position.viewportDimension;
+      
+      double totalOffset = 0;
+      for (int i = 0; i < currentLineIndex; i++) {
+        totalOffset += _lineHeights[i] ?? 50.0;
+      }
+      
+      final currentLineHeight = _lineHeights[currentLineIndex] ?? 50.0;
+      totalOffset += currentLineHeight / 2;
+      
+      final offset = totalOffset - (viewportHeight / 2);
+      
+      _scrollController.animateTo(
+        math.max(0, offset),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeInOut,
+      );
+    } catch (e) {
+      print('滚动到当前行时出错: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<SpotifyProvider>(
@@ -101,51 +141,106 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
         final currentLineIndex = _getCurrentLineIndex(_currentPosition);
 
-        return Column(
+        if (_autoScroll) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToCurrentLine(currentLineIndex);
+          });
+        }
+
+        return Stack(
           children: [
-            const SizedBox(height: 24),
-            const IconHeader(icon: Icons.lyrics, text: "LYRICS"),
-            Expanded(
+            NotificationListener<ScrollNotification>(
+              onNotification: (scrollNotification) {
+                if (scrollNotification is UserScrollNotification &&
+                    scrollNotification.direction != ScrollDirection.idle) {
+                  if (_autoScroll) {
+                    setState(() {
+                      _autoScroll = false;
+                    });
+                  }
+                }
+                return true;
+              },
               child: ListView.builder(
+                key: _listViewKey,
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(),
                 itemCount: _lyrics.length,
                 itemBuilder: (context, index) {
-                  final isCurrentLine = index == currentLineIndex;
-                  final isPastLine = index < currentLineIndex;
-                  
-                  return AnimatedPadding(
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeOutCubic,
-                    padding: EdgeInsets.symmetric(
-                      vertical: isCurrentLine ? 16.0 : 12.0,
-                      horizontal: 24.0,
-                    ),
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeOutCubic,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: isCurrentLine ? FontWeight.w700 : FontWeight.w600,
-                        color: isPastLine
-                            ? Theme.of(context).colorScheme.secondaryContainer
-                            : isCurrentLine
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.5),
-                        height: 1.5,
-                      ),
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeOutCubic,
-                        opacity: isCurrentLine ? 1.0 : 0.8,
-                        child: Text(
-                          _lyrics[index].text,
-                          textAlign: TextAlign.left,
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      return MeasureSize(
+                        onChange: (size) {
+                          if (_lineHeights[index] != size.height) {
+                            _lineHeights[index] = size.height;
+                          }
+                        },
+                        child: GestureDetector(
+                          onTap: () {
+                            final provider = Provider.of<SpotifyProvider>(
+                              context, 
+                              listen: false
+                            );
+                            provider.seekToPosition(_lyrics[index].timestamp);
+                            setState(() {
+                              _autoScroll = true;
+                            });
+                          },
+                          child: AnimatedPadding(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOutCubic,
+                            padding: EdgeInsets.symmetric(
+                              vertical: index == currentLineIndex ? 16.0 : 12.0,
+                              horizontal: 24.0,
+                            ),
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeOutCubic,
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: index == currentLineIndex 
+                                  ? FontWeight.w700 
+                                  : FontWeight.w600,
+                                color: index < currentLineIndex
+                                  ? Theme.of(context).colorScheme.secondaryContainer
+                                  : index == currentLineIndex
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.5),
+                                height: 1.5,
+                              ),
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeOutCubic,
+                                opacity: index == currentLineIndex ? 1.0 : 0.8,
+                                child: Text(
+                                  _lyrics[index].text,
+                                  textAlign: TextAlign.left,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   );
                 },
               ),
             ),
+            if (!_autoScroll)
+              Positioned(
+                left: 16,
+                bottom: 24,
+                child: IconButton.filledTonal(
+                  icon: const Icon(Icons.vertical_align_center),
+                  onPressed: () {
+                    setState(() {
+                      _autoScroll = true;
+                    });
+                    _scrollToCurrentLine(currentLineIndex);
+                  },
+                  tooltip: '返回到当前播放位置',
+                ),
+              ),
           ],
         );
       },
@@ -207,5 +302,53 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     
     result.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return result;
+  }
+}
+
+class MeasureSize extends StatefulWidget {
+  final Widget child;
+  final Function(Size) onChange;
+
+  const MeasureSize({
+    Key? key,
+    required this.onChange,
+    required this.child,
+  }) : super(key: key);
+
+  @override
+  _MeasureSizeState createState() => _MeasureSizeState();
+}
+
+class _MeasureSizeState extends State<MeasureSize> {
+  final widgetKey = GlobalKey();
+  Size? oldSize;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureSize();
+    });
+  }
+
+  void _measureSize() {
+    final context = widgetKey.currentContext;
+    if (context == null) return;
+    
+    final RenderBox box = context.findRenderObject() as RenderBox;
+    final size = box.size;
+    
+    if (oldSize != size) {
+      oldSize = size;
+      widget.onChange(size);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: widgetKey,
+      child: widget.child,
+    );
   }
 }

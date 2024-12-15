@@ -589,4 +589,26 @@ class SpotifyAuthService {
       rethrow;
     }
   }
+
+  Future<void> seekToPosition(Duration position) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player/seek?position_ms=${position.inMilliseconds}'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200 && 
+          response.statusCode != 202 && 
+          response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '跳转播放位置失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('跳转播放位置时出错: $e');
+      rethrow;
+    }
+  }
 }

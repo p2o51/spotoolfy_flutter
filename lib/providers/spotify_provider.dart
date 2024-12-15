@@ -492,7 +492,7 @@ class SpotifyProvider extends ChangeNotifier {
             timestamp: playedAt,
           );
           
-          // 处理播放列表
+          // ���理播放列表
           if (type == 'playlist' && !playlistUris.contains(uri)) {
             playlistUris.add(uri);
             final playlistId = uri.split(':').last;
@@ -607,6 +607,16 @@ class SpotifyProvider extends ChangeNotifier {
       } catch (e) {
         print('更新 widget 失败: $e');
       }
+    }
+  }
+
+  Future<void> seekToPosition(Duration position) async {
+    try {
+      await _spotifyService.seekToPosition(position);
+      await refreshCurrentTrack();
+    } catch (e) {
+      print('跳转播放位置失败: $e');
+      rethrow;
     }
   }
 }
