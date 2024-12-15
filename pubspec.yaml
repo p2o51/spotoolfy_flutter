@@ -48,6 +48,7 @@ dependencies:
   spotify_sdk: ^3.0.2
   logger: ^2.5.0
   flutter_launcher_icons: ^0.14.2
+  shared_preferences: ^2.3.3
 
 dev_dependencies:
   flutter_test:

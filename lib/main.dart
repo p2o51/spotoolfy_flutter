@@ -3,6 +3,7 @@ import 'pages/nowplaying.dart';
 import 'pages/search.dart';
 import 'pages/roam.dart';
 import 'pages/login.dart';
+import 'pages/devices.dart';
 import 'package:provider/provider.dart';
 import 'providers/spotify_provider.dart';
 import 'providers/auth_provider.dart';
@@ -223,6 +224,24 @@ class _MyAppState extends State<MyApp> {
               icon: const Icon(Icons.info_outline),
             ),
           ],
+          IconButton.filledTonal(
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                constraints: const BoxConstraints(
+                  minWidth: 400,
+                  
+                ),
+                builder: (BuildContext context) {
+                  return const DevicesPage();
+                },
+              );
+            },
+            icon: const Icon(Icons.devices),
+          ),
+          const SizedBox(width: 8),
           IconButton.filledTonal(
             onPressed: () {
               showModalBottomSheet(

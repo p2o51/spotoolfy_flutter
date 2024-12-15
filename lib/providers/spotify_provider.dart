@@ -43,17 +43,64 @@ class SpotifyProvider extends ChangeNotifier {
         : 'spotoolfy://callback',
   );
 
+  // 添加设备列表状态
+  List<Map<String, dynamic>> _availableDevices = [];
+  String? _activeDeviceId;
+
+  // Getter
+  List<Map<String, dynamic>> get availableDevices => _availableDevices;
+  String? get activeDeviceId => _activeDeviceId;
+
+  /// 刷新可用设备列表
+  Future<void> refreshAvailableDevices() async {
+    try {
+      final devices = await _spotifyService.getAvailableDevices();
+      _availableDevices = devices;
+      
+      // 更新当前活动设备ID
+      final activeDevice = devices.firstWhere(
+        (device) => device['is_active'] == true,
+        orElse: () => {},
+      );
+      _activeDeviceId = activeDevice['id'];
+      
+      notifyListeners();
+    } catch (e) {
+      print('刷新可用设备列表失败: $e');
+    }
+  }
+
+  /// 转移播放到指定设备
+  Future<void> transferPlaybackToDevice(String deviceId, {bool play = false}) async {
+    try {
+      await _spotifyService.transferPlayback(deviceId, play: play);
+      
+      // 等待一小段时间确保转移完成
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // 刷新设备列表和播放状态
+      await Future.wait([
+        refreshAvailableDevices(),
+        refreshCurrentTrack(),
+      ]);
+    } catch (e) {
+      print('转移播放失败: $e');
+    }
+  }
+
   void startTrackRefresh() {
     _refreshTimer?.cancel();
     _progressTimer?.cancel();
     
     if (username != null) {
       refreshCurrentTrack();
+      refreshAvailableDevices(); // 初始加载设备列表
       
       // API 刷新计时器 - 每5秒从服务器获取一次
       _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (!_isSkipping) {
           refreshCurrentTrack();
+          refreshAvailableDevices(); // 定期刷新设备列表
         }
       });
       
@@ -492,7 +539,7 @@ class SpotifyProvider extends ChangeNotifier {
             timestamp: playedAt,
           );
           
-          // ���理播放列表
+          // 处理播放列表
           if (type == 'playlist' && !playlistUris.contains(uri)) {
             playlistUris.add(uri);
             final playlistId = uri.split(':').last;

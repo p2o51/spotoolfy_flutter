@@ -6,20 +6,27 @@ import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
-import 'package:spotoolfy_flutter/widgets/credits.dart';
-class NowPlaying extends StatelessWidget {
+
+class NowPlaying extends StatefulWidget {
   const NowPlaying({super.key});
 
   @override
+  State<NowPlaying> createState() => _NowPlayingState();
+}
+
+class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     bool isLargeScreen = MediaQuery.of(context).size.width > 800;
 
     if (isLargeScreen) {
-      // 大屏幕布局：左右分栏
       return Scaffold(
         body: Row(
           children: [
-            // 左侧 Player
             const Expanded(
               flex: 1,
               child: SingleChildScrollView(
@@ -31,25 +38,23 @@ class NowPlaying extends StatelessWidget {
                 ),
               ),
             ),
-            // 右侧 TabView
             Expanded(
               flex: 1,
               child: DefaultTabController(
-                length: 4,
+                length: 3,
+                initialIndex: 2,
                 child: Column(
                   children: [
                     const TabBar(
                       tabs: [
-                        Tab(text: 'THOUGHTS'),
-                        Tab(text: 'QUEUE'),
-                        Tab(text: 'LYRICS'),
-                        Tab(text: 'CREDITS'),
+                        Tab(icon: Icon(Icons.comment)),
+                        Tab(icon: Icon(Icons.queue_music)),
+                        Tab(icon: Icon(Icons.lyrics)),
                       ],
                     ),
                     Expanded(
                       child: TabBarView(
                         children: [
-                          // THOUGHTS 内容
                           SingleChildScrollView(
                             child: Column(
                               children: [
@@ -66,14 +71,10 @@ class NowPlaying extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // QUEUE 内容
                           const SingleChildScrollView(
                             child: QueueDisplay(),
                           ),
-                          // LYRICS 内容
                           LyricsWidget(),
-                          // CREDITS 内容
-                          const CreditsWidget(),
                         ],
                       ),
                     ),
@@ -95,10 +96,10 @@ class NowPlaying extends StatelessWidget {
         ),
       );
     } else {
-      // 小屏幕布局：保持原来的垂直布局
       return Scaffold(
         body: DefaultTabController(
-          length: 4,
+          length: 3,
+          initialIndex: 2,
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
@@ -115,10 +116,9 @@ class NowPlaying extends StatelessWidget {
                   delegate: _SliverAppBarDelegate(
                     TabBar(
                       tabs: [
-                        Tab(text: 'THOUGHTS'),
-                        Tab(text: 'QUEUE'),
-                        Tab(text: 'LYRICS'),
-                        Tab(text: 'CREDITS'),
+                        Tab(icon: Icon(Icons.comment)),
+                        Tab(icon: Icon(Icons.queue_music)),
+                        Tab(icon: Icon(Icons.lyrics)),
                       ],
                     ),
                   ),
@@ -127,7 +127,6 @@ class NowPlaying extends StatelessWidget {
             },
             body: TabBarView(
               children: [
-                // THOUGHTS 内容
                 SingleChildScrollView(
                   child: Column(
                     children: [
@@ -144,14 +143,10 @@ class NowPlaying extends StatelessWidget {
                     ],
                   ),
                 ),
-                // QUEUE 内容
                 const SingleChildScrollView(
                   child: QueueDisplay(),
                 ),
-                // LYRICS 内容
                 LyricsWidget(),
-                // CREDITS 内容
-                const CreditsWidget(),
               ],
             ),
           ),

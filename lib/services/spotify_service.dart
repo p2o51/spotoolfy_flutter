@@ -611,4 +611,53 @@ class SpotifyAuthService {
       rethrow;
     }
   }
+
+  /// 获取可用设备列表
+  Future<List<Map<String, dynamic>>> getAvailableDevices() async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/player/devices'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取可用设备失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      final data = json.decode(response.body);
+      return List<Map<String, dynamic>>.from(data['devices']);
+    } catch (e) {
+      print('获取可用设备时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 转移播放到指定设备
+  Future<void> transferPlayback(String deviceId, {bool play = false}) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player'),
+        headers: headers,
+        body: json.encode({
+          'device_ids': [deviceId],
+          'play': play,
+        }),
+      );
+
+      if (response.statusCode != 202 && response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '转移播放失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('转移播放时出错: $e');
+      rethrow;
+    }
+  }
 }
