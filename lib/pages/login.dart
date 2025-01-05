@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/auth_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class Login extends StatelessWidget {
   const Login({super.key});
@@ -18,14 +19,73 @@ class Login extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          IconButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            icon: const Icon(Icons.close),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 24),
+                child: Text(
+                  'Settings',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      final Uri emailLaunchUri = Uri(
+                        scheme: 'mailto',
+                        path: 'lastnatsu51@gmail.com',
+                      );
+                      launchUrl(emailLaunchUri);
+                    },
+                    icon: const Icon(Icons.email),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ],
           ),
+          const SizedBox(height: 32),
           const Welcome(),
           const SizedBox(height: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Text('Traditional Chinese Lyrics'),
+                    Container(
+                      margin: const EdgeInsets.only(left: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        '測試',
+                        style: TextStyle(fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ),
+                Switch(
+                  value: spotifyProvider.useTraditionalChinese,
+                  onChanged: (value) {
+                    spotifyProvider.toggleTraditionalChinese();
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           FilledButton(
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
@@ -41,21 +101,21 @@ class Login extends StatelessWidget {
                       await spotifyProvider.logout();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已退出 Spotify')),
+                          const SnackBar(content: Text('Logged out from Spotify')),
                         );
                       }
                     } else {
                       await spotifyProvider.login();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Spotify 登录成功！')),
+                          const SnackBar(content: Text('Logged in with Spotify')),
                         );
                       }
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('操作失败: $e')),
+                        SnackBar(content: Text('Operation failed: $e')),
                       );
                     }
                   }
@@ -74,18 +134,13 @@ class Login extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '欢迎你，${spotifyProvider.username}',
+                'Welcome, ${spotifyProvider.username}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           const SizedBox(height: 16),
-          const Text('and',
-            style: TextStyle(
-              fontFamily: 'Derivia',
-              fontSize: 64,
-              height: 0.9,
-            ),
-          ),
+          
+          
           const SizedBox(height: 16),
           FilledButton.tonal(
             style: FilledButton.styleFrom(
@@ -102,21 +157,21 @@ class Login extends StatelessWidget {
                       await authProvider.signOut();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已退出 Google 账号')),
+                          const SnackBar(content: Text('Logged out from Google')),
                         );
                       }
                     } else {
                       final credential = await authProvider.signInWithGoogle();
                       if (context.mounted && credential != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Google 登录成功！')),
+                          const SnackBar(content: Text('Logged in with Google')),
                         );
                       }
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('操作失败: $e')),
+                        SnackBar(content: Text('Operation failed: $e')),
                       );
                     }
                   }
@@ -135,7 +190,7 @@ class Login extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '欢迎你，${authProvider.userDisplayName}',
+                'Welcome, ${authProvider.userDisplayName}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

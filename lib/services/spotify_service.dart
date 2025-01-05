@@ -732,7 +732,31 @@ class SpotifyAuthService {
     try {
       final headers = await getAuthenticatedHeaders();
       
-      // 获取上下文中的所有歌曲
+      // 首先检查设备状态
+      if (deviceId != null) {
+        final devicesResponse = await http.get(
+          Uri.parse('https://api.spotify.com/v1/me/player/devices'),
+          headers: headers,
+        );
+        
+        if (devicesResponse.statusCode == 200) {
+          final devices = json.decode(devicesResponse.body)['devices'] as List;
+          final targetDevice = devices.firstWhere(
+            (d) => d['id'] == deviceId,
+            orElse: () => null,
+          );
+          
+          if (targetDevice != null && targetDevice['is_restricted'] == true) {
+            throw SpotifyAuthException(
+              '此设备（${targetDevice['name']}）不支持通过 API 控制播放。\n'
+              '请使用 Spotify 或设备自带的应用进行控制。',
+              code: 'RESTRICTED_DEVICE',
+            );
+          }
+        }
+      }
+      
+      // 对于非受限设备，使用标准播放方式
       final trackResponse = await http.get(
         Uri.parse('https://api.spotify.com/v1/tracks/${trackUri.split(':').last}'),
         headers: headers,
@@ -746,13 +770,14 @@ class SpotifyAuthService {
       }
 
       final trackInfo = json.decode(trackResponse.body);
-      final trackNumber = trackInfo['track_number'];
-
-      // 在上下文中播放，使用 track_number 作为 offset
-      final body = {
+      
+      // 构建播放请求
+      Map<String, dynamic> body = {
         'context_uri': contextUri,
-        'offset': {'position': trackNumber - 1},
       };
+
+      // 尝试使用 URI 作为 offset
+      body['offset'] = {'uri': trackUri};
 
       final queryParams = deviceId != null ? '?device_id=$deviceId' : '';
       final response = await http.put(
@@ -762,13 +787,63 @@ class SpotifyAuthService {
       );
 
       if (response.statusCode != 202 && response.statusCode != 204) {
+        // 如果使用 URI 失败，尝试使用 track_number
+        final trackNumber = trackInfo['track_number'];
+        if (response.statusCode == 404 && trackNumber is int && trackNumber > 0) {
+          body['offset'] = {'position': trackNumber - 1};
+          
+          final retryResponse = await http.put(
+            Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
+            headers: headers,
+            body: json.encode(body),
+          );
+          
+          if (retryResponse.statusCode != 202 && retryResponse.statusCode != 204) {
+            throw SpotifyAuthException(
+              '开始播放失败: ${retryResponse.body}',
+              code: retryResponse.statusCode.toString(),
+            );
+          }
+        } else {
+          throw SpotifyAuthException(
+            '开始播放失败: ${response.body}',
+            code: response.statusCode.toString(),
+          );
+        }
+      }
+    } catch (e) {
+      print('在上下文中播放歌曲时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 设置播放音量
+  Future<void> setVolume(int volumePercent, {String? deviceId}) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      
+      // 构建查询参数
+      final queryParams = {
+        'volume_percent': volumePercent.toString(),
+        if (deviceId != null) 'device_id': deviceId,
+      };
+      
+      final uri = Uri.https(
+        'api.spotify.com',
+        '/v1/me/player/volume',
+        queryParams,
+      );
+      
+      final response = await http.put(uri, headers: headers);
+
+      if (response.statusCode != 202 && response.statusCode != 204) {
         throw SpotifyAuthException(
-          '开始播放失败: ${response.body}',
+          '设置音量失败: ${response.body}',
           code: response.statusCode.toString(),
         );
       }
     } catch (e) {
-      print('在上下文中播放歌曲时出错: $e');
+      print('设置音量时出错: $e');
       rethrow;
     }
   }

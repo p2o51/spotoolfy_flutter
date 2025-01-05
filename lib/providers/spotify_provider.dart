@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:async';
 import '../services/spotify_service.dart';
+import '../models/spotify_device.dart';
+import 'package:collection/collection.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
 import 'package:provider/provider.dart';
@@ -44,25 +46,41 @@ class SpotifyProvider extends ChangeNotifier {
   );
 
   // 添加设备列表状态
-  List<Map<String, dynamic>> _availableDevices = [];
+  List<SpotifyDevice> _availableDevices = [];
   String? _activeDeviceId;
 
   // Getter
-  List<Map<String, dynamic>> get availableDevices => _availableDevices;
+  List<SpotifyDevice> get availableDevices => _availableDevices;
   String? get activeDeviceId => _activeDeviceId;
+  
+  SpotifyDevice? get activeDevice => _availableDevices.firstWhereOrNull(
+    (device) => device.isActive,
+  ) ?? _availableDevices.firstWhereOrNull(
+    (device) => device.id == _activeDeviceId,
+  ) ?? (_availableDevices.isEmpty ? null : _availableDevices.first);
 
   /// 刷新可用设备列表
   Future<void> refreshAvailableDevices() async {
     try {
       final devices = await _spotifyService.getAvailableDevices();
-      _availableDevices = devices;
+      _availableDevices = devices
+          .map((json) => SpotifyDevice.fromJson(json))
+          .toList();
       
       // 更新当前活动设备ID
-      final activeDevice = devices.firstWhere(
-        (device) => device['is_active'] == true,
-        orElse: () => {},
-      );
-      _activeDeviceId = activeDevice['id'];
+      final activeDevice = _availableDevices.firstWhereOrNull(
+        (device) => device.isActive,
+      ) ?? (_availableDevices.isEmpty ? 
+        SpotifyDevice(
+          name: 'No Device',
+          type: SpotifyDeviceType.unknown,
+          isActive: false,
+          isPrivateSession: false,
+          isRestricted: true,
+          supportsVolume: false,
+        ) : _availableDevices.first);
+      
+      _activeDeviceId = activeDevice.id;
       
       notifyListeners();
     } catch (e) {
@@ -73,6 +91,19 @@ class SpotifyProvider extends ChangeNotifier {
   /// 转移播放到指定设备
   Future<void> transferPlaybackToDevice(String deviceId, {bool play = false}) async {
     try {
+      final targetDevice = _availableDevices.firstWhereOrNull(
+        (device) => device.id == deviceId,
+      );
+      
+      if (targetDevice == null) {
+        throw Exception('Device not found');
+      }
+      
+      // 检查设备是否受限
+      if (targetDevice.isRestricted) {
+        throw Exception('Device is restricted');
+      }
+      
       await _spotifyService.transferPlayback(deviceId, play: play);
       
       // 等待一小段时间确保转移完成
@@ -85,6 +116,35 @@ class SpotifyProvider extends ChangeNotifier {
       ]);
     } catch (e) {
       print('转移播放失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 设置设备音量
+  Future<void> setDeviceVolume(String deviceId, int volumePercent) async {
+    try {
+      final targetDevice = _availableDevices.firstWhereOrNull(
+        (device) => device.id == deviceId,
+      );
+      
+      if (targetDevice == null) {
+        throw Exception('Device not found');
+      }
+      
+      // 检查设备是否支持音量控制
+      if (!targetDevice.supportsVolume) {
+        throw Exception('Device does not support volume control');
+      }
+      
+      await _spotifyService.setVolume(
+        volumePercent.clamp(0, 100),
+        deviceId: deviceId,
+      );
+      
+      await refreshAvailableDevices();
+    } catch (e) {
+      print('设置音量失败: $e');
+      rethrow;
     }
   }
 
@@ -290,15 +350,38 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
+    if (currentTrack == null) return;
+    
+    // 保存当前状态用于恢复
+    final wasPlaying = currentTrack!['is_playing'] as bool;
+    
     try {
+      // 立即更新 UI 状态（乐观更新）
+      currentTrack!['is_playing'] = !wasPlaying;
+      notifyListeners();
+      
+      // 发送请求到服务器
       await _spotifyService.togglePlayPause();
-      await refreshCurrentTrack();
+      
+      // 等待一小段时间后验证状态
+      await Future.delayed(const Duration(milliseconds: 500));
+      final newState = await _spotifyService.getCurrentlyPlayingTrack();
+      
+      // 如果服务器状态与本地不一致，更新为服务器状态
+      if (newState != null && newState['is_playing'] != currentTrack!['is_playing']) {
+        currentTrack = newState;
+        notifyListeners();
+      }
+      
       // 播放状态改变时刷新队列
       await refreshPlaybackQueue();
       // 更新小部件
       await updateWidget();
     } catch (e) {
       print('播放/暂停切换失败: $e');
+      // 发生错误时恢复到原始状态
+      currentTrack!['is_playing'] = wasPlaying;
+      notifyListeners();
     }
   }
 
@@ -403,10 +486,30 @@ class SpotifyProvider extends ChangeNotifier {
 
     try {
       final trackId = currentTrack!['item']['id'];
-      isCurrentTrackSaved = await _spotifyService.toggleTrackSave(trackId);
+      await _spotifyService.toggleTrackSave(trackId);
+      
+      // 添加延迟和验证
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // 从服务器重新获取实际的收藏状态
+      isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
       notifyListeners();
+      
+      // 如果状态改变，等待一段时间后再次验证
+      await Future.delayed(const Duration(seconds: 2));
+      final finalState = await _spotifyService.isTrackSaved(trackId);
+      if (finalState != isCurrentTrackSaved) {
+        isCurrentTrackSaved = finalState;
+        notifyListeners();
+      }
     } catch (e) {
       print('切换收藏状态失败: $e');
+      // 发生错误时，重新检查状态
+      final trackId = currentTrack?['item']?['id'];
+      if (trackId != null) {
+        isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
+        notifyListeners();
+      }
     }
   }
 
@@ -760,11 +863,47 @@ class SpotifyProvider extends ChangeNotifier {
           deviceId: deviceId,
         );
       }
-      await refreshCurrentTrack();
-      await refreshPlaybackQueue();
+      
+      // 等待适当的时间确保 Spotify 已经切换
+      // 使用轮询方式检查，最多等待2秒
+      int attempts = 0;
+      const maxAttempts = 20;  // 增加尝试次数，因为加载可能需要更长时间
+      const delayMs = 100;
+      
+      while (attempts < maxAttempts) {
+        final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
+        if (newTrack != null && 
+            newTrack['item']?['uri'] == trackUri) {
+          currentTrack = newTrack;
+          await updateWidget();
+          await refreshPlaybackQueue();
+          notifyListeners();
+          break;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          await Future.delayed(const Duration(milliseconds: delayMs));
+        }
+      }
+
+      // 即使没有检测到变化，也刷新一次以确保状态同步
+      if (attempts >= maxAttempts) {
+        await refreshCurrentTrack();
+        await refreshPlaybackQueue();
+      }
     } catch (e) {
       print('播放歌曲失败: $e');
       rethrow;
     }
+  }
+
+  bool _useTraditionalChinese = false;
+  bool get useTraditionalChinese => _useTraditionalChinese;
+
+  Future<void> toggleTraditionalChinese() async {
+    _useTraditionalChinese = !_useTraditionalChinese;
+    // 可以在这里添加持久化存储，比如使用 SharedPreferences
+    notifyListeners();
   }
 }

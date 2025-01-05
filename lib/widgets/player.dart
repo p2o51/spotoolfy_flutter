@@ -516,7 +516,7 @@ class DragIndicator extends StatelessWidget {
   }
 }
 
-class PlayButton extends StatelessWidget {
+class PlayButton extends StatefulWidget {
   final bool isPlaying;
   final VoidCallback onPressed;
 
@@ -527,25 +527,268 @@ class PlayButton extends StatelessWidget {
   });
 
   @override
+  State<PlayButton> createState() => _PlayButtonState();
+}
+
+class _PlayButtonState extends State<PlayButton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    ));
+
+    _opacityAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.8,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onPressed,
-      child: Container(
-        width: 96,
-        height: 64,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary,
-          borderRadius: BorderRadius.circular(32.0),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            width: 4,
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) => _controller.reverse(),
+      onTapCancel: () => _controller.reverse(),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) => Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Opacity(
+            opacity: _opacityAnimation.value,
+            child: child,
           ),
         ),
-        child: Icon(
-          isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          color: Colors.white,
+        child: TextButton(
+          onPressed: widget.onPressed,
+          child: Container(
+            width: 96,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(32.0),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                width: 4,
+              ),
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: Icon(
+                widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                key: ValueKey(widget.isPlaying),
+                color: Colors.white,
+              ),
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+class ScrollingText extends StatefulWidget {
+  final String text;
+  final TextStyle? style;
+
+  const ScrollingText({
+    super.key,
+    required this.text,
+    this.style,
+  });
+
+  @override
+  State<ScrollingText> createState() => _ScrollingTextState();
+}
+
+class _ScrollingTextState extends State<ScrollingText> with SingleTickerProviderStateMixin {
+  late ScrollController _scrollController;
+  late AnimationController _animationController;
+  bool _needsScroll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _checkIfNeedsScroll();
+      }
+    });
+
+    _animationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            _animationController.reverse();
+          }
+        });
+      } else if (status == AnimationStatus.dismissed) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            _animationController.forward();
+          }
+        });
+      }
+    });
+  }
+
+  void _checkIfNeedsScroll() {
+    if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
+      setState(() {
+        _needsScroll = true;
+      });
+      
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          _animationController.forward();
+        }
+      });
+
+      _animationController.addListener(() {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(
+            _animationController.value * _scrollController.position.maxScrollExtent,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ScrollingText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text != oldWidget.text) {
+      _needsScroll = false;
+      _animationController.reset();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _checkIfNeedsScroll();
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          controller: _scrollController,
+          physics: const NeverScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.only(right: 32.0),
+            child: Text(
+              widget.text,
+              style: widget.style,
+              maxLines: 1,
+            ),
+          ),
+        ),
+        if (_needsScroll)
+          Positioned.fill(
+            child: ShaderMask(
+              shaderCallback: (Rect bounds) {
+                return LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Theme.of(context).colorScheme.surface.withOpacity(0.0),
+                    Theme.of(context).colorScheme.surface,
+                    Theme.of(context).colorScheme.surface,
+                    Theme.of(context).colorScheme.surface.withOpacity(0.0),
+                  ],
+                  stops: const [0.0, 0.05, 0.85, 1.0],
+                ).createShader(bounds);
+              },
+              blendMode: BlendMode.dstOut,
+              child: ColoredBox(
+                color: Theme.of(context).colorScheme.surface,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class HeaderAndFooter extends StatelessWidget {
+  final String header;
+  final String footer;
+
+  const HeaderAndFooter({
+    super.key,
+    required this.header,
+    required this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ScrollingText(
+          text: header,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        ScrollingText(
+          text: footer,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+        ),
+      ],
     );
   }
 }
