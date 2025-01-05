@@ -28,3 +28,16 @@ New Year, New Version.
 - Add traditional Chinese conversion to lyrics page
 - Spotify API compliance, rename and add "return to Spotify" button
 
+## Configuration
+
+### Spotify API Credentials
+1. Copy `lib/config/secrets.example.dart` to `lib/config/secrets.dart`
+2. Replace the placeholder values in `secrets.dart` with your Spotify API credentials:
+   ```dart
+   class SpotifySecrets {
+     static const String clientId = 'your_client_id_here';
+     static const String clientSecret = 'your_client_secret_here';
+   }
+   ```
+3. Never commit `secrets.dart` to version control
+

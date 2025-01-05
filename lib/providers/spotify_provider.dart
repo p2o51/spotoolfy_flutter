@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../providers/firestore_provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import '../config/secrets.dart';
 
 
 enum PlayMode {
@@ -38,8 +39,8 @@ class SpotifyProvider extends ChangeNotifier {
   final Map<String, String> _imageCache = {};
   
   SpotifyProvider() : _spotifyService = SpotifyAuthService(
-    clientId: '64103961829a42328a6634fb80574191',
-    clientSecret: '2d1ae3a42dc94650887f4c73ab6926d1',
+    clientId: SpotifySecrets.clientId,
+    clientSecret: SpotifySecrets.clientSecret,
     redirectUrl: kIsWeb 
         ? 'http://localhost:8080/spotify_callback.html'
         : 'spotoolfy://callback',
