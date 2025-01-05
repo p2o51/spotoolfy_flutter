@@ -47,9 +47,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                   children: [
                     const TabBar(
                       tabs: [
-                        Tab(icon: Icon(Icons.comment)),
-                        Tab(icon: Icon(Icons.queue_music)),
-                        Tab(icon: Icon(Icons.lyrics)),
+                        Tab(icon: Icon(Icons.comment_rounded)),
+                        Tab(icon: Icon(Icons.queue_music_rounded)),
+                        Tab(icon: Icon(Icons.lyrics_rounded)),
                       ],
                     ),
                     Expanded(

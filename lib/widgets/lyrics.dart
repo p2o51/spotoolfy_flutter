@@ -78,7 +78,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     final songName = currentTrack['item']?['name'] ?? '';
     final artistName = currentTrack['item']?['artists']?[0]?['name'] ?? '';
     
-    final rawLyrics = await _lyricsService.getLyrics(songName, artistName);
+    final rawLyrics = await _lyricsService.getLyrics(songName, artistName, trackId);
     if (rawLyrics != null) {
       setState(() {
         _lyrics = _parseLyrics(rawLyrics);

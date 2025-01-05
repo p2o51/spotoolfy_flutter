@@ -14,34 +14,32 @@ class LyricsService {
   // 缓存键的前缀
   static const String _cacheKeyPrefix = 'lyrics_cache_';
 
-  Future<String?> getLyrics(String songName, String artistName) async {
+  Future<String?> getLyrics(String songName, String artistName, String trackId) async {
     try {
-      // 生成缓存键
-      final cacheKey = _cacheKeyPrefix + _generateCacheKey(songName, artistName);
+      // 使用 trackId 作为缓存键
+      final cacheKey = _cacheKeyPrefix + trackId;
       
       // 尝试从缓存获取
       final prefs = await SharedPreferences.getInstance();
       final cachedLyrics = prefs.getString(cacheKey);
       
       if (cachedLyrics != null) {
-        print('从缓存获取歌词: $songName - $artistName');
+        print('从缓存获取歌词: $trackId');
         return cachedLyrics;
       }
 
       // 如果缓存中没有，从网络获取
       print('从网络获取歌词: $songName - $artistName');
       
-      // 1. 先搜索歌曲获取 songmid
       final songmid = await _searchSong(songName, artistName);
       if (songmid == null) return null;
 
-      // 2. 用 songmid 获取歌词
       final lyrics = await _fetchLyrics(songmid);
       
-      // 如果获取到歌词，保存到缓存
+      // 使用 trackId 存储缓存
       if (lyrics != null) {
         await prefs.setString(cacheKey, lyrics);
-        print('歌词已缓存: $songName - $artistName');
+        print('歌词已缓存: $trackId');
       }
 
       return lyrics;
@@ -49,14 +47,6 @@ class LyricsService {
       print('获取歌词失败: $e');
       return null;
     }
-  }
-
-  // 生成缓存键
-  String _generateCacheKey(String songName, String artistName) {
-    // 移除特殊字符，并转换为小写
-    final normalizedSong = songName.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
-    final normalizedArtist = artistName.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
-    return '$normalizedSong-$normalizedArtist';
   }
 
   // 清除缓存
@@ -102,10 +92,16 @@ class LyricsService {
 
   Future<String?> _searchSong(String songName, String artistName) async {
     try {
-      final searchKeyword = Uri.encodeComponent('$songName $artistName');
-      final url = '$_baseSearchUrl?w=$searchKeyword&p=1&n=1&format=json';
+      // 移除 Uri.encodeComponent，直接使用原始搜索词
+      final searchKeyword = '$songName $artistName';
+      final url = Uri.parse(_baseSearchUrl).replace(queryParameters: {
+        'w': searchKeyword,
+        'p': '1',
+        'n': '1',
+        'format': 'json'
+      });
       
-      final response = await http.get(Uri.parse(url), headers: _headers);
+      final response = await http.get(url, headers: _headers);
       final data = json.decode(response.body);
 
       if (data['data']?['song']?['list']?.isNotEmpty) {
