@@ -6,6 +6,7 @@ import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
+import 'package:spotoolfy_flutter/widgets/mdtab.dart';
 
 class NowPlaying extends StatefulWidget {
   const NowPlaying({super.key});
@@ -15,6 +16,43 @@ class NowPlaying extends StatefulWidget {
 }
 
 class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
+  final PageController _pageController = PageController(initialPage: 2);
+  
+  final List<PageData> _pages = [
+    PageData(
+      title: 'RECORDS',
+      icon: Icons.comment_rounded,
+      page: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 24),
+            Ratings(
+              initialRating: 'good',
+              onRatingChanged: (rating) {
+                // Handle rating change if needed
+              },
+            ),
+            const SizedBox(height: 16),
+            const NotesDisplay(),
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
+    ),
+    PageData(
+      title: 'NOW PLAYING',
+      icon: Icons.queue_music_rounded,
+      page: const SingleChildScrollView(
+        child: QueueDisplay(),
+      ),
+    ),
+    PageData(
+      title: 'LYRICS',
+      icon: Icons.lyrics_rounded,
+      page: LyricsWidget(),
+    ),
+  ];
+
   @override
   bool get wantKeepAlive => true;
 
@@ -40,46 +78,19 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
             ),
             Expanded(
               flex: 1,
-              child: DefaultTabController(
-                length: 3,
-                initialIndex: 2,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      tabs: [
-                        Tab(icon: Icon(Icons.comment_rounded)),
-                        Tab(icon: Icon(Icons.queue_music_rounded)),
-                        Tab(icon: Icon(Icons.lyrics_rounded)),
-                      ],
+              child: Column(
+                children: [
+                  SimplePageIndicator(
+                    pages: _pages,
+                    pageController: _pageController,
+                  ),
+                  Expanded(
+                    child: PageView(
+                      controller: _pageController,
+                      children: _pages.map((page) => page.page).toList(),
                     ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 24),
-                                Ratings(
-                                  initialRating: 'good',
-                                  onRatingChanged: (rating) {
-                                    // Handle rating change if needed
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                const NotesDisplay(),
-                                const SizedBox(height: 80),
-                              ],
-                            ),
-                          ),
-                          const SingleChildScrollView(
-                            child: QueueDisplay(),
-                          ),
-                          LyricsWidget(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -97,59 +108,32 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       );
     } else {
       return Scaffold(
-        body: DefaultTabController(
-          length: 3,
-          initialIndex: 2,
-          child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverToBoxAdapter(
-                  child: Column(
-                    children: [
-                      const Player(isLargeScreen: false),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-                const SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverAppBarDelegate(
-                    TabBar(
-                      tabs: [
-                        Tab(icon: Icon(Icons.comment)),
-                        Tab(icon: Icon(Icons.queue_music)),
-                        Tab(icon: Icon(Icons.lyrics)),
-                      ],
-                    ),
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              children: [
-                SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 24),
-                      Ratings(
-                        initialRating: 'good',
-                        onRatingChanged: (rating) {
-                          // Handle rating change if needed
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      const NotesDisplay(),
-                      const SizedBox(height: 80),
-                    ],
-                  ),
-                ),
-                const SingleChildScrollView(
-                  child: QueueDisplay(),
-                ),
-                LyricsWidget(),
-              ],
+        body: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  const Player(isLargeScreen: false),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
-          ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyTabDelegate(
+                child: SimplePageIndicator(
+                  pages: _pages,
+                  pageController: _pageController,
+                ),
+              ),
+            ),
+            SliverFillRemaining(
+              child: PageView(
+                controller: _pageController,
+                children: _pages.map((page) => page.page).toList(),
+              ),
+            ),
+          ],
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
@@ -166,27 +150,26 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   }
 }
 
-// 添加这个辅助类来处理 TabBar 的固定效果
-class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  const _SliverAppBarDelegate(this._tabBar);
-
-  final TabBar _tabBar;
-
-  @override
-  double get minExtent => _tabBar.preferredSize.height;
-  @override
-  double get maxExtent => _tabBar.preferredSize.height;
+class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  
+  _StickyTabDelegate({required this.child});
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
+      height: maxExtent,
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: _tabBar,
+      child: child,
     );
   }
 
   @override
-  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
-    return false;
-  }
+  double get maxExtent => 56.0;
+
+  @override
+  double get minExtent => 56.0;
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
 }

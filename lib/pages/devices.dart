@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../models/spotify_device.dart';
-import '../widgets/materialui.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({super.key});

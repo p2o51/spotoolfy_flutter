@@ -16,11 +16,6 @@ class QueueDisplay extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const IconHeader(
-            icon: Icons.queue_music_outlined,
-            text: 'NOW PLAYING',
-          ),
-          const SizedBox(height: 16),
           if (currentQueue == null || currentQueue.isEmpty)
             const Center(
               child: Padding(

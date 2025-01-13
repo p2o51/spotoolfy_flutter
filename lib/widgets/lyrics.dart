@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'materialui.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../services/lyrics_service.dart';
@@ -57,7 +56,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
         final spotifyProgress = provider.currentTrack?['progress_ms'] ?? 0;
         
         if (isPlaying) {
-          print('Spotify progress: ${spotifyProgress}ms');
           setState(() {
             _currentPosition = Duration(milliseconds: spotifyProgress);
           });
@@ -231,7 +229,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                                     : index == currentLineIndex
                                       ? Theme.of(context).colorScheme.primary
                                       : Theme.of(context).colorScheme.secondaryContainer,
-                                  height: 1.5,
+                                  height: 1.2,
                                 ),
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 400),
@@ -276,7 +274,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   int _getCurrentLineIndex(Duration currentPosition) {
     if (_lyrics.isEmpty) return -1;
     
-    print('Current position ms: ${currentPosition.inMilliseconds}');
     
     if (_lyrics.isNotEmpty && currentPosition < _lyrics[0].timestamp) {
       return -1;
