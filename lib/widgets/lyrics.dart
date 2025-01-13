@@ -147,108 +147,94 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
         return Stack(
           children: [
-            ShaderMask(
-              shaderCallback: (Rect bounds) {
-                final fadeHeight = 40.0;
-                return LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.white,
-                    Colors.white,
-                    Colors.transparent,
-                  ],
-                  stops: [
-                    0.0,
-                    fadeHeight / bounds.height,
-                    1 - (fadeHeight / bounds.height),
-                    1.0,
-                  ],
-                ).createShader(bounds);
-              },
-              blendMode: BlendMode.dstIn,
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (scrollNotification) {
-                  if (scrollNotification is UserScrollNotification &&
-                      scrollNotification.direction != ScrollDirection.idle) {
-                    if (_autoScroll) {
-                      setState(() {
-                        _autoScroll = false;
-                      });
-                    }
-                  }
-                  return true;
-                },
-                child: ListView.builder(
-                  key: _listViewKey,
-                  controller: _scrollController,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _lyrics.length + 10,
-                  itemBuilder: (context, index) {
-                    if (index >= _lyrics.length) {
-                      return const SizedBox(height: 50.0);
-                    }
-                    
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        return MeasureSize(
-                          onChange: (size) {
-                            if (_lineHeights[index] != size.height) {
-                              _lineHeights[index] = size.height;
-                            }
-                          },
-                          child: GestureDetector(
-                            onTap: () {
-                              final provider = Provider.of<SpotifyProvider>(
-                                context, 
-                                listen: false
-                              );
-                              provider.seekToPosition(_lyrics[index].timestamp);
-                              setState(() {
-                                _autoScroll = true;
-                              });
-                            },
-                            child: AnimatedPadding(
-                              duration: const Duration(milliseconds: 400),
-                              curve: Curves.easeOutCubic,
-                              padding: EdgeInsets.symmetric(
-                                vertical: index == currentLineIndex ? 16.0 : 12.0,
-                                horizontal: 24.0,
-                              ),
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.easeOutCubic,
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: index == currentLineIndex 
-                                    ? FontWeight.w700 
-                                    : FontWeight.w600,
-                                  color: index < currentLineIndex
-                                    ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
-                                    : index == currentLineIndex
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).colorScheme.secondaryContainer,
-                                  height: 1.2,
-                                ),
-                                child: AnimatedOpacity(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Container(
+                  height: constraints.maxHeight,
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (scrollNotification) {
+                      if (scrollNotification is UserScrollNotification &&
+                          scrollNotification.direction != ScrollDirection.idle) {
+                        if (_autoScroll) {
+                          setState(() {
+                            _autoScroll = false;
+                          });
+                        }
+                      }
+                      return true;
+                    },
+                    child: ListView.builder(
+                      key: _listViewKey,
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      itemCount: _lyrics.length + 10,
+                      itemBuilder: (context, index) {
+                        if (index >= _lyrics.length) {
+                          return const SizedBox(height: 50.0);
+                        }
+                        
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            return MeasureSize(
+                              onChange: (size) {
+                                if (_lineHeights[index] != size.height) {
+                                  _lineHeights[index] = size.height;
+                                }
+                              },
+                              child: GestureDetector(
+                                onTap: () {
+                                  final provider = Provider.of<SpotifyProvider>(
+                                    context, 
+                                    listen: false
+                                  );
+                                  provider.seekToPosition(_lyrics[index].timestamp);
+                                  setState(() {
+                                    _autoScroll = true;
+                                  });
+                                },
+                                child: AnimatedPadding(
                                   duration: const Duration(milliseconds: 400),
                                   curve: Curves.easeOutCubic,
-                                  opacity: index == currentLineIndex ? 1.0 : 0.8,
-                                  child: Text(
-                                    _lyrics[index].text,
-                                    textAlign: TextAlign.left,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: index == currentLineIndex ? 16.0 : 12.0,
+                                    horizontal: 24.0,
+                                  ),
+                                  child: AnimatedDefaultTextStyle(
+                                    duration: const Duration(milliseconds: 400),
+                                    curve: Curves.easeOutCubic,
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: index == currentLineIndex 
+                                        ? FontWeight.w700 
+                                        : FontWeight.w600,
+                                      color: index < currentLineIndex
+                                        ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                                        : index == currentLineIndex
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Theme.of(context).colorScheme.secondaryContainer,
+                                      height: 1.2,
+                                    ),
+                                    child: AnimatedOpacity(
+                                      duration: const Duration(milliseconds: 400),
+                                      curve: Curves.easeOutCubic,
+                                      opacity: index == currentLineIndex ? 1.0 : 0.8,
+                                      child: Text(
+                                        _lyrics[index].text,
+                                        textAlign: TextAlign.left,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              ),
+                    ),
+                  ),
+                );
+              },
             ),
             if (!_autoScroll)
               Positioned(

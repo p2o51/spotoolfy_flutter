@@ -159,17 +159,35 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: child,
+    return ShaderMask(
+      shaderCallback: (Rect bounds) {
+        const fadeHeight = 40.0;
+        return LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.white,
+          ],
+          stops: [
+            0.0,
+            fadeHeight / bounds.height,
+          ],
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.dstIn,
+      child: Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: child,
+      ),
     );
   }
 
   @override
-  double get maxExtent => 80.0; // 调整这个高度以适应您的标签栏
+  double get maxExtent => 80.0;
 
   @override
-  double get minExtent => 80.0; // 通常与maxExtent相同，除非您想要动态高度
+  double get minExtent => 80.0;
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;

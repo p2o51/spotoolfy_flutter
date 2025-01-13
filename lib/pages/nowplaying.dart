@@ -17,7 +17,33 @@ class NowPlaying extends StatefulWidget {
 
 class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
   final PageController _pageController = PageController(initialPage: 2);
+  final ScrollController _scrollController = ScrollController();
+  bool _showMiniPlayer = false;
   
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      final showMini = _scrollController.offset > 200;
+      if (showMini != _showMiniPlayer) {
+        setState(() {
+          _showMiniPlayer = showMini;
+        });
+      }
+    }
+  }
+
   final List<PageData> _pages = [
     PageData(
       title: 'RECORDS',
@@ -25,7 +51,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       page: SingleChildScrollView(
         child: Column(
           children: [
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
             Ratings(
               initialRating: 'good',
               onRatingChanged: (rating) {
@@ -43,13 +69,22 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       title: 'NOW PLAYING',
       icon: Icons.queue_music_rounded,
       page: const SingleChildScrollView(
-        child: QueueDisplay(),
+        child: Column(
+          children: [
+            SizedBox(height: 8),
+            QueueDisplay(),
+          ],
+        ),
       ),
     ),
     PageData(
       title: 'LYRICS',
       icon: Icons.lyrics_rounded,
-      page: LyricsWidget(),
+      page: Column(
+        children: [
+          Expanded(child: LyricsWidget()),
+        ],
+      ),
     ),
   ];
 
@@ -108,30 +143,46 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       );
     } else {
       return Scaffold(
-        body: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  const Player(isLargeScreen: false),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _StickyTabDelegate(
-                child: SimplePageIndicator(
-                  pages: _pages,
-                  pageController: _pageController,
+        body: Stack(
+          children: [
+            CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      const Player(isLargeScreen: false),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            SliverFillRemaining(
-              child: PageView(
-                controller: _pageController,
-                children: _pages.map((page) => page.page).toList(),
-              ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _StickyTabDelegate(
+                    showMiniPlayer: _showMiniPlayer,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_showMiniPlayer)
+                          const Player(
+                            isLargeScreen: false,
+                            isMiniPlayer: true,
+                          ),
+                        SimplePageIndicator(
+                          pages: _pages,
+                          pageController: _pageController,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverFillRemaining(
+                  child: PageView(
+                    controller: _pageController,
+                    children: _pages.map((page) => page.page).toList(),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -145,6 +196,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
           },
           child: const Icon(Icons.add),
         ),
+        floatingActionButtonLocation: _showMiniPlayer 
+          ? FloatingActionButtonLocation.endFloat
+          : FloatingActionButtonLocation.endFloat,
       );
     }
   }
@@ -152,8 +206,12 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
 class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
-  
-  _StickyTabDelegate({required this.child});
+  final bool showMiniPlayer;
+
+  _StickyTabDelegate({
+    required this.child,
+    required this.showMiniPlayer,
+  });
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -165,11 +223,12 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  double get maxExtent => 56.0;
+  double get maxExtent => showMiniPlayer ? 72.0 + 56.0 : 56.0;
 
   @override
-  double get minExtent => 56.0;
+  double get minExtent => showMiniPlayer ? 72.0 + 56.0 : 56.0;
 
   @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
+  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) => 
+    oldDelegate.showMiniPlayer != showMiniPlayer;
 }

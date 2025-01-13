@@ -6,13 +6,16 @@ import '../providers/spotify_provider.dart';
 import '../providers/theme_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/physics.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class Player extends StatefulWidget {
   final bool isLargeScreen;
+  final bool isMiniPlayer;
 
   const Player({
     super.key,
     this.isLargeScreen = false,
+    this.isMiniPlayer = false,
   });
 
   @override
@@ -173,6 +176,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     
     final displayTrack = track ?? _lastTrack;
 
+    if (widget.isMiniPlayer) {
+      return _buildMiniPlayer(displayTrack, spotifyProvider);
+    }
+
     return RepaintBoundary(
       child: Center(
         child: ConstrainedBox(
@@ -224,6 +231,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                     ?.map((artist) => artist['name'] as String)
                                     .join(', ') ?? 'Unknown Artist'
                                 : 'Camila Cabello',
+                            track: displayTrack,
                           ),
                         ),
                         IconButton.filledTonal(
@@ -386,6 +394,117 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       default:
         return Icons.repeat_rounded;
     }
+  }
+
+  Widget _buildMiniPlayer(Map<String, dynamic>? track, SpotifyProvider spotify) {
+    final isPlaying = context.select<SpotifyProvider, bool>(
+      (provider) => provider.currentTrack?['is_playing'] ?? false
+    );
+
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      color: Theme.of(context).colorScheme.surface,
+      child: Row(
+        children: [
+          // Mini Album Art
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: _buildMiniAlbumArt(track),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Track Info
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track?['name'] ?? 'Godspeed',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  track != null 
+                    ? (track['artists'] as List?)
+                        ?.map((artist) => artist['name'] as String)
+                        .join(', ') ?? 'Unknown Artist'
+                    : 'Camila Cabello',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          // Control Buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                onPressed: () => spotify.togglePlayPause(),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.skip_next_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                onPressed: () => spotify.skipToNext(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniAlbumArt(Map<String, dynamic>? track) {
+    final displayTrack = track ?? _lastTrack;
+    final String? currentImageUrl = displayTrack?['album']?['images']?[0]?['url'];
+
+    return displayTrack != null && 
+           displayTrack['album']?['images'] != null &&
+           (displayTrack['album']['images'] as List).isNotEmpty
+        ? CachedNetworkImage(
+            key: ValueKey(currentImageUrl),
+            imageUrl: currentImageUrl!,
+            fit: BoxFit.cover,
+            fadeInDuration: Duration.zero,
+            fadeOutDuration: Duration.zero,
+            placeholderFadeInDuration: Duration.zero,
+            memCacheWidth: 48,
+            maxWidthDiskCache: 48,
+            placeholder: (context, url) => Container(
+              color: Theme.of(context).colorScheme.surface,
+              child: _lastTrack != null && _lastImageUrl != null
+                ? Image(
+                    image: CachedNetworkImageProvider(_lastImageUrl!),
+                    fit: BoxFit.cover,
+                  )
+                : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+            ),
+            errorWidget: (context, url, error) => 
+              Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+          )
+        : Image.asset(
+            'assets/examples/CXOXO.png',
+            key: const ValueKey('default_image'),
+            fit: BoxFit.cover,
+          );
   }
 }
 
@@ -761,33 +880,90 @@ class _ScrollingTextState extends State<ScrollingText> with SingleTickerProvider
 class HeaderAndFooter extends StatelessWidget {
   final String header;
   final String footer;
+  final Map<String, dynamic>? track;
 
   const HeaderAndFooter({
     super.key,
     required this.header,
     required this.footer,
+    this.track,
   });
+
+  void _launchSpotifyURL(BuildContext context, String? url) async {
+    if (url == null) return;
+    
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('无法打开 Spotify: $url')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('打开 Spotify 链接失败')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    
+    final albumUrl = track?['album']?['external_urls']?['spotify'];
+    final artists = (track?['artists'] as List?)?.map((artist) => {
+      'name': artist['name'],
+      'url': artist['external_urls']?['spotify'],
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ScrollingText(
-          text: header,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
+        GestureDetector(
+          onTap: albumUrl != null ? () => _launchSpotifyURL(context, albumUrl) : null,
+          child: ScrollingText(
+            text: header,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
         const SizedBox(height: 4),
-        ScrollingText(
-          text: footer,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Theme.of(context).colorScheme.secondary,
+        if (artists != null && artists.isNotEmpty)
+          Row(
+            children: [
+              for (int i = 0; i < artists.length; i++) ...[
+                if (i > 0) Text(', ', style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                )),
+                GestureDetector(
+                  onTap: artists[i]['url'] != null 
+                    ? () => _launchSpotifyURL(context, artists[i]['url']) 
+                    : null,
+                  child: Text(
+                    artists[i]['name'] as String,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          )
+        else
+          ScrollingText(
+            text: footer,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.secondary,
+            ),
           ),
-        ),
       ],
     );
   }
