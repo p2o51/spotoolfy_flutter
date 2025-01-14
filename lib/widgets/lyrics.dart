@@ -104,7 +104,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       final currentLineHeight = _lineHeights[currentLineIndex] ?? 50.0;
       totalOffset += currentLineHeight / 2;
       
-      final offset = totalOffset - (viewportHeight / 2);
+      final offset = totalOffset - (viewportHeight / 2) + 12.0;
       
       _scrollController.animateTo(
         math.max(0, offset),

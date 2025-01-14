@@ -155,9 +155,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                     duration: const Duration(milliseconds: 150),
                     opacity: _showMiniPlayer ? 0.0 : 1.0,
                     child: Column(
-                      children: const [
-                        Player(isLargeScreen: false),
-                        SizedBox(height: 16),
+                      children: [
+                        const Player(isLargeScreen: false),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -165,9 +165,18 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _StickyTabDelegate(
-                    child: SimplePageIndicator(
-                      pages: _pages,
-                      pageController: _pageController,
+                    showMiniPlayer: _showMiniPlayer,
+                    child: Container(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SimplePageIndicator(
+                            pages: _pages,
+                            pageController: _pageController,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -177,16 +186,19 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                 children: _pages.map((page) => page.page).toList(),
               ),
             ),
-            if (_showMiniPlayer)
-              const Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Player(
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: _showMiniPlayer ? 1.0 : 0.0,
+                child: const Player(
                   isLargeScreen: false,
                   isMiniPlayer: true,
                 ),
               ),
+            ),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -206,14 +218,17 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
 class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
+  final bool showMiniPlayer;
 
   _StickyTabDelegate({
     required this.child,
+    required this.showMiniPlayer,
   });
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
+      padding: EdgeInsets.only(top: showMiniPlayer ? 64.0 : 0),
       height: maxExtent,
       color: Theme.of(context).scaffoldBackgroundColor,
       child: child,
@@ -221,11 +236,12 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  double get maxExtent => 56.0;
+  double get maxExtent => showMiniPlayer ? 120.0 : 56.0;
 
   @override
-  double get minExtent => 56.0;
+  double get minExtent => showMiniPlayer ? 120.0 : 56.0;
 
   @override
-  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) => false;
+  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) => 
+    oldDelegate.showMiniPlayer != showMiniPlayer;
 }
