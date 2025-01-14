@@ -401,13 +401,17 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       (provider) => provider.currentTrack?['is_playing'] ?? false
     );
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      color: Theme.of(context).colorScheme.surface,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+      ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          // Mini Album Art
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
@@ -416,8 +420,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               child: _buildMiniAlbumArt(track),
             ),
           ),
-          const SizedBox(width: 12),
-          // Track Info
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -452,9 +455,22 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: Icon(
-                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: Theme.of(context).colorScheme.primary,
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, animation) {
+                    return ScaleTransition(
+                      scale: animation,
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    key: ValueKey(isPlaying),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 onPressed: () => spotify.togglePlayPause(),
               ),

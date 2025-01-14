@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
-import 'materialui.dart';
 
 class QueueDisplay extends StatelessWidget {
   const QueueDisplay({super.key});
@@ -12,7 +11,7 @@ class QueueDisplay extends StatelessWidget {
     final currentQueue = spotifyProvider.upcomingTracks; // 假设这是播放队列数据
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

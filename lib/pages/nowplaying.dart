@@ -17,25 +17,27 @@ class NowPlaying extends StatefulWidget {
 
 class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
   final PageController _pageController = PageController(initialPage: 2);
-  final ScrollController _scrollController = ScrollController();
+  ScrollController? _scrollController;
   bool _showMiniPlayer = false;
   
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
+    _scrollController = ScrollController();
+    _scrollController?.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
+    _scrollController?.removeListener(_onScroll);
+    _scrollController?.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
-    if (_scrollController.hasClients) {
-      final showMini = _scrollController.offset > 200;
+    if (_scrollController?.hasClients ?? false) {
+      final showMini = _scrollController!.offset > 200;
       if (showMini != _showMiniPlayer) {
         setState(() {
           _showMiniPlayer = showMini;
@@ -48,8 +50,10 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     PageData(
       title: 'RECORDS',
       icon: Icons.comment_rounded,
-      page: SingleChildScrollView(
+      page: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 0),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
             Ratings(
@@ -68,9 +72,11 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     PageData(
       title: 'NOW PLAYING',
       icon: Icons.queue_music_rounded,
-      page: const SingleChildScrollView(
+      page: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 0),
         child: Column(
-          children: [
+          mainAxisSize: MainAxisSize.min,
+          children: const [
             SizedBox(height: 8),
             QueueDisplay(),
           ],
@@ -80,11 +86,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     PageData(
       title: 'LYRICS',
       icon: Icons.lyrics_rounded,
-      page: Column(
-        children: [
-          Expanded(child: LyricsWidget()),
-        ],
-      ),
+      page: const LyricsWidget(),
     ),
   ];
 
@@ -145,45 +147,46 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       return Scaffold(
         body: Stack(
           children: [
-            CustomScrollView(
+            NestedScrollView(
               controller: _scrollController,
-              slivers: [
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
                 SliverToBoxAdapter(
-                  child: Column(
-                    children: [
-                      const Player(isLargeScreen: false),
-                      const SizedBox(height: 16),
-                    ],
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: _showMiniPlayer ? 0.0 : 1.0,
+                    child: Column(
+                      children: const [
+                        Player(isLargeScreen: false),
+                        SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _StickyTabDelegate(
-                    showMiniPlayer: _showMiniPlayer,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_showMiniPlayer)
-                          const Player(
-                            isLargeScreen: false,
-                            isMiniPlayer: true,
-                          ),
-                        SimplePageIndicator(
-                          pages: _pages,
-                          pageController: _pageController,
-                        ),
-                      ],
+                    child: SimplePageIndicator(
+                      pages: _pages,
+                      pageController: _pageController,
                     ),
                   ),
                 ),
-                SliverFillRemaining(
-                  child: PageView(
-                    controller: _pageController,
-                    children: _pages.map((page) => page.page).toList(),
-                  ),
-                ),
               ],
+              body: PageView(
+                controller: _pageController,
+                children: _pages.map((page) => page.page).toList(),
+              ),
             ),
+            if (_showMiniPlayer)
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Player(
+                  isLargeScreen: false,
+                  isMiniPlayer: true,
+                ),
+              ),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -196,9 +199,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
           },
           child: const Icon(Icons.add),
         ),
-        floatingActionButtonLocation: _showMiniPlayer 
-          ? FloatingActionButtonLocation.endFloat
-          : FloatingActionButtonLocation.endFloat,
       );
     }
   }
@@ -206,11 +206,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
 class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
-  final bool showMiniPlayer;
 
   _StickyTabDelegate({
     required this.child,
-    required this.showMiniPlayer,
   });
 
   @override
@@ -223,12 +221,11 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  double get maxExtent => showMiniPlayer ? 72.0 + 56.0 : 56.0;
+  double get maxExtent => 56.0;
 
   @override
-  double get minExtent => showMiniPlayer ? 72.0 + 56.0 : 56.0;
+  double get minExtent => 56.0;
 
   @override
-  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) => 
-    oldDelegate.showMiniPlayer != showMiniPlayer;
+  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) => false;
 }

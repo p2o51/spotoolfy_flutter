@@ -177,7 +177,7 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
       },
       blendMode: BlendMode.dstIn,
       child: Container(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: Colors.transparent,
         child: child,
       ),
     );

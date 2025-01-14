@@ -145,113 +145,129 @@ class _LyricsWidgetState extends State<LyricsWidget> {
           });
         }
 
-        return Stack(
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Container(
-                  height: constraints.maxHeight,
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (scrollNotification) {
-                      if (scrollNotification is UserScrollNotification &&
-                          scrollNotification.direction != ScrollDirection.idle) {
-                        if (_autoScroll) {
-                          setState(() {
-                            _autoScroll = false;
-                          });
+        return Material(
+          color: Colors.transparent,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (scrollNotification) {
+              if (scrollNotification is UserScrollNotification &&
+                  scrollNotification.direction != ScrollDirection.idle) {
+                if (_autoScroll) {
+                  setState(() {
+                    _autoScroll = false;
+                  });
+                }
+              }
+              return true;
+            },
+            child: Stack(
+              children: [
+                ListView.builder(
+                  key: _listViewKey,
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.only(
+                    top: 80 + MediaQuery.of(context).padding.top,
+                    bottom: 40 + MediaQuery.of(context).padding.bottom,
+                  ),
+                  itemCount: _lyrics.length + 10,
+                  itemBuilder: (context, index) {
+                    if (index >= _lyrics.length) {
+                      return const SizedBox(height: 50.0);
+                    }
+                    
+                    return MeasureSize(
+                      onChange: (size) {
+                        if (_lineHeights[index] != size.height) {
+                          _lineHeights[index] = size.height;
                         }
-                      }
-                      return true;
-                    },
-                    child: ListView.builder(
-                      key: _listViewKey,
-                      controller: _scrollController,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(vertical: 40),
-                      itemCount: _lyrics.length + 10,
-                      itemBuilder: (context, index) {
-                        if (index >= _lyrics.length) {
-                          return const SizedBox(height: 50.0);
-                        }
-                        
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            return MeasureSize(
-                              onChange: (size) {
-                                if (_lineHeights[index] != size.height) {
-                                  _lineHeights[index] = size.height;
-                                }
-                              },
-                              child: GestureDetector(
-                                onTap: () {
-                                  final provider = Provider.of<SpotifyProvider>(
-                                    context, 
-                                    listen: false
-                                  );
-                                  provider.seekToPosition(_lyrics[index].timestamp);
-                                  setState(() {
-                                    _autoScroll = true;
-                                  });
-                                },
-                                child: AnimatedPadding(
-                                  duration: const Duration(milliseconds: 400),
-                                  curve: Curves.easeOutCubic,
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: index == currentLineIndex ? 16.0 : 12.0,
-                                    horizontal: 24.0,
-                                  ),
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 400),
-                                    curve: Curves.easeOutCubic,
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: index == currentLineIndex 
-                                        ? FontWeight.w700 
-                                        : FontWeight.w600,
-                                      color: index < currentLineIndex
-                                        ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
-                                        : index == currentLineIndex
-                                          ? Theme.of(context).colorScheme.primary
-                                          : Theme.of(context).colorScheme.secondaryContainer,
-                                      height: 1.2,
-                                    ),
-                                    child: AnimatedOpacity(
-                                      duration: const Duration(milliseconds: 400),
-                                      curve: Curves.easeOutCubic,
-                                      opacity: index == currentLineIndex ? 1.0 : 0.8,
-                                      child: Text(
-                                        _lyrics[index].text,
-                                        textAlign: TextAlign.left,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
                       },
+                      child: GestureDetector(
+                        onTap: () {
+                          final provider = Provider.of<SpotifyProvider>(
+                            context, 
+                            listen: false
+                          );
+                          provider.seekToPosition(_lyrics[index].timestamp);
+                          setState(() {
+                            _autoScroll = true;
+                          });
+                        },
+                        child: AnimatedPadding(
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOutCubic,
+                          padding: EdgeInsets.symmetric(
+                            vertical: index == currentLineIndex ? 16.0 : 12.0,
+                            horizontal: 24.0,
+                          ),
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOutCubic,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: index == currentLineIndex 
+                                ? FontWeight.w700 
+                                : FontWeight.w600,
+                              color: index < currentLineIndex
+                                ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                                : index == currentLineIndex
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.secondaryContainer,
+                              height: 1.1,
+                            ),
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeOutCubic,
+                              opacity: index == currentLineIndex ? 1.0 : 0.8,
+                              child: Text(
+                                _lyrics[index].text,
+                                textAlign: TextAlign.left,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 40 + MediaQuery.of(context).padding.top,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Theme.of(context).scaffoldBackgroundColor,
+                          Theme.of(context).scaffoldBackgroundColor,
+                          Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+                          Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                        ],
+                        stops: const [0.0, 0.3, 0.6, 1.0],
+                      ),
                     ),
                   ),
-                );
-              },
-            ),
-            if (!_autoScroll)
-              Positioned(
-                left: 16,
-                bottom: 24,
-                child: IconButton.filledTonal(
-                  icon: const Icon(Icons.vertical_align_center),
-                  onPressed: () {
-                    setState(() {
-                      _autoScroll = true;
-                    });
-                    _scrollToCurrentLine(currentLineIndex);
-                  },
-                  tooltip: '返回到当前播放位置',
                 ),
-              ),
-          ],
+                if (!_autoScroll)
+                  Positioned(
+                    left: 24,
+                    bottom: 24 + MediaQuery.of(context).padding.bottom,
+                    child: IconButton.filledTonal(
+                      icon: const Icon(Icons.vertical_align_center),
+                      onPressed: () {
+                        setState(() {
+                          _autoScroll = true;
+                        });
+                        _scrollToCurrentLine(currentLineIndex);
+                      },
+                      tooltip: '返回到当前播放位置',
+                    ),
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -297,7 +313,13 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                 minutes: minutes,
                 milliseconds: (seconds * 1000).round(),
               );
-              final text = line.substring(line.indexOf(']') + 1).trim();
+              var text = line.substring(line.indexOf(']') + 1).trim();
+              // 解码 HTML 实体
+              text = text.replaceAll('&apos;', "'")
+                        .replaceAll('&quot;', '"')
+                        .replaceAll('&amp;', '&')
+                        .replaceAll('&lt;', '<')
+                        .replaceAll('&gt;', '>');
               if (text.isNotEmpty && !text.startsWith('[')) {
                 result.add(LyricLine(timestamp, text));
               }

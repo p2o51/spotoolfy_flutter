@@ -312,27 +312,32 @@ class _MyAppState extends State<MyApp> {
           ),
         ],
       ),
-      bottomNavigationBar: isLargeScreen ? null : NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.music_note),
-            label: 'NowPlaying',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.radio),
-            label: 'Roam',
-          ),
-        ],
+      bottomNavigationBar: isLargeScreen ? null : SafeArea(
+        bottom: false,
+        child: NavigationBar(
+          height: 65,
+          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (int index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.music_note),
+              label: 'NowPlaying',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.search),
+              label: 'Search',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.radio),
+              label: 'Roam',
+            ),
+          ],
+        ),
       ),
     );
   }
