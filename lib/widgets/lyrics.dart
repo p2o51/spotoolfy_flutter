@@ -95,24 +95,32 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       if (renderBox == null) return;
       
       final viewportHeight = _scrollController.position.viewportDimension;
+      final maxScroll = _scrollController.position.maxScrollExtent;
       
+      // Calculate total height before current line
       double totalOffset = 0;
       for (int i = 0; i < currentLineIndex; i++) {
         totalOffset += _lineHeights[i] ?? 50.0;
       }
       
+      // Add half of current line height
       final currentLineHeight = _lineHeights[currentLineIndex] ?? 50.0;
       totalOffset += currentLineHeight / 2;
       
-      final offset = totalOffset - (viewportHeight / 2) + 12.0;
+      // Calculate target offset with padding compensation
+      final topPadding = 80 + MediaQuery.of(context).padding.top;
+      final targetOffset = totalOffset - (viewportHeight / 2) + topPadding;
+      
+      // Clamp the scroll position between valid bounds
+      final clampedOffset = targetOffset.clamp(0.0, maxScroll);
       
       _scrollController.animateTo(
-        math.max(0, offset),
+        clampedOffset,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeInOut,
       );
     } catch (e) {
-      print('滚动到当前行时出错: $e');
+      print('Error scrolling to current line: $e');
     }
   }
 

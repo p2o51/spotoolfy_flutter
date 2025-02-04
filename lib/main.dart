@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'providers/theme_provider.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:io' show Platform;
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -315,7 +316,7 @@ class _MyAppState extends State<MyApp> {
       bottomNavigationBar: isLargeScreen ? null : SafeArea(
         bottom: false,
         child: NavigationBar(
-          height: 65,
+          height: Platform.isIOS ? 65 : null,  // 只在 iOS 平台设置固定高度
           labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
           selectedIndex: _selectedIndex,
           onDestinationSelected: (int index) {

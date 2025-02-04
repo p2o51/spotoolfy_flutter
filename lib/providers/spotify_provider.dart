@@ -11,6 +11,10 @@ import '../providers/firestore_provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import '../config/secrets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
 
 enum PlayMode {
@@ -20,7 +24,10 @@ enum PlayMode {
 }
 
 class SpotifyProvider extends ChangeNotifier {
-  final SpotifyAuthService _spotifyService;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  late SpotifyAuthService _spotifyService;
+  static const String _clientIdKey = 'spotify_client_id';
+  static const String _clientSecretKey = 'spotify_client_secret';
 
   String? username;
   Map<String, dynamic>? currentTrack;
@@ -34,17 +41,58 @@ class SpotifyProvider extends ChangeNotifier {
   PlayMode _currentMode = PlayMode.sequential;
   PlayMode get currentMode => _currentMode;
   bool _isSkipping = false;
+  bool _isInitialized = false;
 
   // 添加图片预加载缓存
   final Map<String, String> _imageCache = {};
   
-  SpotifyProvider() : _spotifyService = SpotifyAuthService(
-    clientId: SpotifySecrets.clientId,
-    clientSecret: SpotifySecrets.clientSecret,
-    redirectUrl: kIsWeb 
-        ? 'http://localhost:8080/spotify_callback.html'
-        : 'spotoolfy://callback',
-  );
+  SpotifyProvider() {
+    _initSpotifyService();
+  }
+
+  Future<void> _initSpotifyService() async {
+    if (_isInitialized) return;
+    
+    try {
+      final clientId = await _secureStorage.read(key: _clientIdKey) ?? SpotifySecrets.clientId;
+      final clientSecret = await _secureStorage.read(key: _clientSecretKey) ?? SpotifySecrets.clientSecret;
+      
+      _spotifyService = SpotifyAuthService(
+        clientId: clientId,
+        clientSecret: clientSecret,
+        redirectUrl: kIsWeb 
+            ? 'http://localhost:8080/spotify_callback.html'
+            : 'spotoolfy://callback',
+      );
+      _isInitialized = true;
+    } catch (e) {
+      print('初始化 SpotifyService 失败: $e');
+      _isInitialized = false;
+    }
+  }
+
+  Future<void> setClientCredentials(String clientId, String clientSecret) async {
+    await _secureStorage.write(key: _clientIdKey, value: clientId);
+    await _secureStorage.write(key: _clientSecretKey, value: clientSecret);
+    await _initSpotifyService();
+    notifyListeners();
+  }
+
+  Future<Map<String, String?>> getClientCredentials() async {
+    final clientId = await _secureStorage.read(key: _clientIdKey);
+    final clientSecret = await _secureStorage.read(key: _clientSecretKey);
+    return {
+      'clientId': clientId,
+      'clientSecret': clientSecret,
+    };
+  }
+
+  Future<void> resetClientCredentials() async {
+    await _secureStorage.delete(key: _clientIdKey);
+    await _secureStorage.delete(key: _clientSecretKey);
+    await _initSpotifyService();
+    notifyListeners();
+  }
 
   // 添加设备列表状态
   List<SpotifyDevice> _availableDevices = [];
@@ -154,18 +202,35 @@ class SpotifyProvider extends ChangeNotifier {
     _progressTimer?.cancel();
     
     if (username != null) {
+      // 立即执行一次刷新
       refreshCurrentTrack();
-      refreshAvailableDevices(); // 初始加载设备列表
+      refreshAvailableDevices();
       
       // API 刷新计时器 - 每5秒从服务器获取一次
-      _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
         if (!_isSkipping) {
-          refreshCurrentTrack();
-          refreshAvailableDevices(); // 定期刷新设备列表
+          try {
+            // 在每次 API 调用前检查令牌是否需要刷新
+            final token = await _spotifyService.getAccessToken();
+            if (token == null) {
+              // 如果获取不到有效令牌，可能需要重新登录
+              await logout();
+              return;
+            }
+            
+            await refreshCurrentTrack();
+            await refreshAvailableDevices();
+          } catch (e) {
+            print('定时刷新失败: $e');
+            // 如果刷新失败，可能是令牌问题，尝试重新登录
+            if (e is SpotifyAuthException) {
+              await logout();
+            }
+          }
         }
       });
       
-      // 本地进度计时器 - 每100毫秒更新一次
+      // 本地进度计时器保持不变
       _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
         if (!_isSkipping && currentTrack != null && currentTrack!['is_playing']) {
           final now = DateTime.now();
@@ -192,6 +257,10 @@ class SpotifyProvider extends ChangeNotifier {
     if (_isSkipping) return;
     
     try {
+      // 打印当前的 ClientID
+      final credentials = await getClientCredentials();
+      print('当前使用的 ClientID: ${credentials['clientId']}');
+      
       final track = await _spotifyService.getCurrentlyPlayingTrack();
       if (track != null) {
         final newId = track['item']?['id'];
@@ -327,15 +396,102 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  // 添加自动登录检查
+  Future<bool> autoLogin() async {
+    try {
+      isLoading = true;
+      notifyListeners();
+
+      print('开始自动登录检查...');
+
+      // 确保 SpotifyService 已初始化
+      if (!_isInitialized) {
+        await _initSpotifyService();
+        if (!_isInitialized) {
+          print('SpotifyService 初始化失败');
+          return false;
+        }
+      }
+
+      // 检查是否有有效的 token
+      if (await _spotifyService.isAuthenticated()) {
+        try {
+          print('发现有效的认证信息，尝试获取用户信息');
+          final userProfile = await _spotifyService.getUserProfile();
+          username = userProfile['display_name'];
+          
+          print('成功获取用户信息：$username');
+          
+          // 启动定时刷新任务
+          startTrackRefresh();
+          
+          // 更新小部件状态
+          await updateWidget();
+          
+          return true;
+        } catch (e) {
+          print('获取用户信息失败: $e');
+          // 如果获取用户信息失败，可能是令牌已失效
+          // 尝试刷新令牌
+          print('尝试刷新令牌...');
+          final newToken = await _spotifyService.refreshToken();
+          if (newToken != null) {
+            print('令牌刷新成功，重新获取用户信息');
+            final userProfile = await _spotifyService.getUserProfile();
+            username = userProfile['display_name'];
+            startTrackRefresh();
+            await updateWidget();
+            return true;
+          } else {
+            print('令牌刷新失败，需要重新登录');
+          }
+        }
+      } else {
+        print('未找到有效的认证信息，需要重新登录');
+      }
+      return false;
+    } catch (e) {
+      print('自动登录失败: $e');
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> login() async {
     try {
       isLoading = true;
       notifyListeners();
 
+      print('开始登录流程...');
+
+      // 确保 SpotifyService 已初始化
+      if (!_isInitialized) {
+        await _initSpotifyService();
+        if (!_isInitialized) {
+          throw SpotifyAuthException('SpotifyService 初始化失败');
+        }
+      }
+
+      // 先尝试自动登录
+      if (await autoLogin()) {
+        print('自动登录成功');
+        return;
+      }
+
+      print('自动登录失败，尝试重新获取令牌...');
       final result = await _spotifyService.login();
+      if (result == null) {
+        throw SpotifyAuthException('登录失败：无法获取访问令牌');
+      }
+
       final userProfile = await _spotifyService.getUserProfile();
       username = userProfile['display_name'];
       
+      print('登录成功，用户名：$username');
+      
+      // 启动定时刷新任务
       startTrackRefresh();
       
       // 登录后更新小部件
@@ -344,6 +500,7 @@ class SpotifyProvider extends ChangeNotifier {
     } catch (e) {
       print('登录失败: $e');
       username = null;
+      rethrow;
     } finally {
       isLoading = false;
       notifyListeners();
@@ -701,29 +858,6 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
-  // 添加自动登录检查
-  Future<bool> autoLogin() async {
-    try {
-      isLoading = true;
-      notifyListeners();
-
-      // 检查是否有有效的 token
-      if (await _spotifyService.isAuthenticated()) {
-        final userProfile = await _spotifyService.getUserProfile();
-        username = userProfile['display_name'];
-        startTrackRefresh();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      print('自动登录失败: $e');
-      return false;
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
-
   // 在 SpotifyProvider 类中添加 logout 方法
   Future<void> logout() async {
     try {
@@ -899,12 +1033,132 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
-  bool _useTraditionalChinese = false;
-  bool get useTraditionalChinese => _useTraditionalChinese;
+  Future<void> playTrackInContext({
+    required String contextUri,
+    required String trackUri,
+    String? deviceId,
+  }) async {
+    try {
+      final headers = await getAuthenticatedHeaders();
+      
+      // 首先检查设备状态
+      if (deviceId != null) {
+        final devicesResponse = await http.get(
+          Uri.parse('https://api.spotify.com/v1/me/player/devices'),
+          headers: headers,
+        );
+        
+        if (devicesResponse.statusCode == 200) {
+          final devices = json.decode(devicesResponse.body)['devices'] as List;
+          final targetDevice = devices.firstWhere(
+            (d) => d['id'] == deviceId,
+            orElse: () => null,
+          );
+          
+          if (targetDevice != null && targetDevice['is_restricted'] == true) {
+            throw SpotifyAuthException(
+              '此设备（${targetDevice['name']}）不支持通过 API 控制播放。\n'
+              '请使用 Spotify 或设备自带的应用进行控制。',
+              code: 'RESTRICTED_DEVICE',
+            );
+          }
+        }
+      }
+      
+      // 对于非受限设备，使用标准播放方式
+      final trackResponse = await http.get(
+        Uri.parse('https://api.spotify.com/v1/tracks/${trackUri.split(':').last}'),
+        headers: headers,
+      );
 
-  Future<void> toggleTraditionalChinese() async {
-    _useTraditionalChinese = !_useTraditionalChinese;
-    // 可以在这里添加持久化存储，比如使用 SharedPreferences
-    notifyListeners();
+      if (trackResponse.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取歌曲信息失败: ${trackResponse.body}',
+          code: trackResponse.statusCode.toString(),
+        );
+      }
+
+      final trackInfo = json.decode(trackResponse.body);
+      
+      // 构建播放请求
+      Map<String, dynamic> body = {
+        'context_uri': contextUri,
+      };
+
+      // 尝试使用 URI 作为 offset
+      body['offset'] = {'uri': trackUri};
+
+      final queryParams = deviceId != null ? '?device_id=$deviceId' : '';
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      if (response.statusCode != 202 && response.statusCode != 204) {
+        // 如果使用 URI 失败，尝试使用 track_number
+        final trackNumber = trackInfo['track_number'];
+        if (response.statusCode == 404 && trackNumber is int && trackNumber > 0) {
+          body['offset'] = {'position': trackNumber - 1};
+          
+          final retryResponse = await http.put(
+            Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
+            headers: headers,
+            body: json.encode(body),
+          );
+          
+          if (retryResponse.statusCode != 202 && retryResponse.statusCode != 204) {
+            throw SpotifyAuthException(
+              '开始播放失败: ${retryResponse.body}',
+              code: retryResponse.statusCode.toString(),
+            );
+          }
+        } else {
+          throw SpotifyAuthException(
+            '开始播放失败: ${response.body}',
+            code: response.statusCode.toString(),
+          );
+        }
+      }
+    } catch (e) {
+      print('在上下文中播放歌曲时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// 设置播放音量
+  Future<void> setVolume(int volumePercent, {String? deviceId}) async {
+    try {
+      final headers = await _spotifyService.getAuthenticatedHeaders();
+      
+      // 构建查询参数
+      final queryParams = {
+        'volume_percent': volumePercent.toString(),
+        if (deviceId != null) 'device_id': deviceId,
+      };
+      
+      final uri = Uri.https(
+        'api.spotify.com',
+        '/v1/me/player/volume',
+        queryParams,
+      );
+      
+      final response = await http.put(uri, headers: headers);
+
+      if (response.statusCode != 202 && response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '设置音量失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      print('设置音量时出错: $e');
+      rethrow;
+    }
+  }
+
+  /// Get authenticated headers from the Spotify service
+  Future<Map<String, String>> getAuthenticatedHeaders() async {
+    return await _spotifyService.getAuthenticatedHeaders();
   }
 }

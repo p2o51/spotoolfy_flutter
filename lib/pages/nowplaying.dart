@@ -166,17 +166,15 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                   pinned: true,
                   delegate: _StickyTabDelegate(
                     showMiniPlayer: _showMiniPlayer,
-                    child: Container(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SimplePageIndicator(
-                            pages: _pages,
-                            pageController: _pageController,
-                          ),
-                        ],
-                      ),
+                    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SimplePageIndicator(
+                          pages: _pages,
+                          pageController: _pageController,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -219,10 +217,12 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   final bool showMiniPlayer;
+  final Color backgroundColor;
 
   _StickyTabDelegate({
     required this.child,
     required this.showMiniPlayer,
+    required this.backgroundColor,
   });
 
   @override
@@ -230,7 +230,7 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
     return Container(
       padding: EdgeInsets.only(top: showMiniPlayer ? 64.0 : 0),
       height: maxExtent,
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: backgroundColor,
       child: child,
     );
   }
@@ -242,6 +242,8 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => showMiniPlayer ? 120.0 : 56.0;
 
   @override
-  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) => 
-    oldDelegate.showMiniPlayer != showMiniPlayer;
+  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) {
+    return oldDelegate.showMiniPlayer != showMiniPlayer ||
+           oldDelegate.backgroundColor != backgroundColor;
+  }
 }

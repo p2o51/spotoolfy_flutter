@@ -154,8 +154,12 @@ class _ExamplePageState extends State<ExamplePage> {
 // 添加这个新类来处理粘性效果
 class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
+  final Color? backgroundColor;
   
-  _StickyTabDelegate({required this.child});
+  _StickyTabDelegate({
+    required this.child,
+    this.backgroundColor,
+  });
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -177,7 +181,7 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
       },
       blendMode: BlendMode.dstIn,
       child: Container(
-        color: Theme.of(context).colorScheme.surface,
+        color: backgroundColor ?? Theme.of(context).colorScheme.surface,
         child: child,
       ),
     );
@@ -190,5 +194,8 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => 80.0;
 
   @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => false;
+  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) {
+    return oldDelegate.child != child || 
+           oldDelegate.backgroundColor != backgroundColor;
+  }
 }

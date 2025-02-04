@@ -87,15 +87,22 @@ class SpotifyAuthService {
       final token = await _secureStorage.read(key: _accessTokenKey);
       final expirationStr = await _secureStorage.read(key: _expirationKey);
 
-      if (token == null || expirationStr == null) return false;
+      if (token == null || expirationStr == null) {
+        print('未找到保存的令牌或过期时间');
+        return false;
+      }
 
       final expiration = DateTime.parse(expirationStr);
-      if (expiration.isBefore(DateTime.now())) {
+      // 如果令牌即将过期（比如还有5分钟就过期），也尝试刷新
+      if (expiration.subtract(const Duration(minutes: 5)).isBefore(DateTime.now())) {
+        print('令牌即将过期，尝试刷新');
         return await refreshToken() != null;
       }
 
+      print('找到有效的访问令牌');
       return true;
     } catch (e) {
+      print('检查认证状态失败: $e');
       return false;
     }
   }
@@ -103,28 +110,54 @@ class SpotifyAuthService {
   Future<String?> login({List<String>? scopes}) async {
     try {
       print('准备连接到 Spotify...');
-      print('配置信息:');
-      print('- clientId: $clientId');
-      print('- redirectUrl: $redirectUrl');
-      print('- scopes: ${scopes ?? defaultScopes}');
 
-      final String accessToken = await SpotifySdk.getAccessToken(
-        clientId: clientId,
-        redirectUrl: redirectUrl,
-        scope: (scopes ?? defaultScopes).join(','),
-      );
+      // 首先检查是否有有效的访问令牌
+      if (await isAuthenticated()) {
+        print('发现有效的访问令牌，直接使用');
+        return await getAccessToken();
+      }
 
-      print('连接成功，获取到访问令牌');
+      // 1. 尝试获取访问令牌（不需要先连接Remote）
+      String? accessToken;
+      try {
+        accessToken = await SpotifySdk.getAccessToken(
+          clientId: clientId,
+          redirectUrl: redirectUrl,
+          scope: (scopes ?? defaultScopes).join(','),
+        );
+        print('成功获取访问令牌');
+      } catch (e) {
+        print('获取访问令牌失败: $e');
+        rethrow;
+      }
 
+      // 2. 获取到令牌后，再尝试连接Remote
+      try {
+        final connected = await SpotifySdk.connectToSpotifyRemote(
+          clientId: clientId,
+          redirectUrl: redirectUrl,
+        );
+        if (connected) {
+          print('成功连接到 Spotify Remote');
+        } else {
+          print('无法连接到 Spotify Remote，但不影响基本功能');
+        }
+      } catch (e) {
+        // Remote连接失败不应该影响整个登录流程
+        print('连接 Spotify Remote 失败: $e');
+        print('继续使用基本功能...');
+      }
+
+      // 3. 保存认证信息
       final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
-
-      print('开始保存访问令牌...');
       await _saveAuthResponse(accessToken, expirationDateTime);
-      print('访问令牌保存完成');
+      
+      // 4. 开始监听连接状态
+      _setupConnectionListener();
 
       return accessToken;
     } catch (e, stack) {
-      print('连接 Spotify 错误详情:');
+      print('Spotify 登录错误详情:');
       print('错误类型: ${e.runtimeType}');
       print('错误消息: $e');
       print('堆栈跟踪:');
@@ -133,23 +166,81 @@ class SpotifyAuthService {
     }
   }
 
+  // 监听连接状态
+  void _setupConnectionListener() {
+    try {
+      SpotifySdk.subscribeConnectionStatus().listen(
+        (status) {
+          if (!status.connected) {
+            // 如果连接断开，尝试重新连接
+            _reconnect();
+          }
+        },
+        onError: (e) {
+          print('连接状态监听错误: $e');
+        },
+      );
+    } catch (e) {
+      print('设置连接监听器失败: $e');
+    }
+  }
+
+  // 重新连接逻辑
+  Future<void> _reconnect() async {
+    try {
+      final connected = await SpotifySdk.connectToSpotifyRemote(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+      );
+
+      if (connected) {
+        print('重新连接成功');
+      } else {
+        print('重新连接失败，但不影响基本功能');
+      }
+    } catch (e) {
+      print('重新连接失败: $e');
+      print('继续使用基本功能...');
+    }
+  }
+
   /// 刷新访问令牌
   Future<String?> refreshToken() async {
     try {
-      final storedRefreshToken = await _secureStorage.read(key: _refreshTokenKey);
-
-      // Spotify SDK 没有直接的刷新令牌方法，需要重新获取
+      print('开始刷新访问令牌...');
+      
+      // 1. 直接尝试获取新的访问令牌
       final accessToken = await SpotifySdk.getAccessToken(
         clientId: clientId,
         redirectUrl: redirectUrl,
         scope: defaultScopes.join(','),
       );
 
-      final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
+      print('成功获取新的访问令牌');
 
+      // 2. 设置新的过期时间并保存
+      final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
       await _saveAuthResponse(accessToken, expirationDateTime);
+
+      // 3. 尝试连接Remote（可选的）
+      try {
+        final connected = await SpotifySdk.connectToSpotifyRemote(
+          clientId: clientId,
+          redirectUrl: redirectUrl,
+        );
+        if (connected) {
+          print('刷新令牌后成功连接到 Spotify Remote');
+        } else {
+          print('刷新令牌后无法连接到 Spotify Remote，但不影响基本功能');
+        }
+      } catch (e) {
+        print('刷新令牌后连接 Remote 失败: $e');
+        print('继续使用基本功能...');
+      }
+
       return accessToken;
     } catch (e) {
+      print('刷新访问令牌失败: $e');
       // 如果刷新失败，清除存储的令牌
       await logout();
       return null;
@@ -158,19 +249,42 @@ class SpotifyAuthService {
 
   /// 保存认证响应到安全存储
   Future<void> _saveAuthResponse(String accessToken, DateTime expirationDateTime) async {
-    await Future.wait([
-      _secureStorage.write(key: _accessTokenKey, value: accessToken),
-      _secureStorage.write(
-        key: _expirationKey,
-        value: expirationDateTime.toIso8601String(),
-      ),
-    ]);
+    try {
+      await Future.wait([
+        _secureStorage.write(key: _accessTokenKey, value: accessToken),
+        _secureStorage.write(
+          key: _expirationKey,
+          value: expirationDateTime.toIso8601String(),
+        ),
+      ]);
+      print('成功保存认证信息');
+    } catch (e) {
+      print('保存认证信息失败: $e');
+      rethrow;
+    }
   }
 
-  /// 获取当前的访问令牌
+  /// 获取当前的访问令牌，如果即将过期会自动刷新
   Future<String?> getAccessToken() async {
-    if (!await isAuthenticated()) return null;
-    return await _secureStorage.read(key: _accessTokenKey);
+    try {
+      if (!await isAuthenticated()) return null;
+      
+      final token = await _secureStorage.read(key: _accessTokenKey);
+      final expirationStr = await _secureStorage.read(key: _expirationKey);
+      
+      if (token == null || expirationStr == null) return null;
+      
+      final expiration = DateTime.parse(expirationStr);
+      // 如果令牌即将过期（还有5分钟），尝试刷新
+      if (expiration.subtract(const Duration(minutes: 5)).isBefore(DateTime.now())) {
+        return await refreshToken();
+      }
+      
+      return token;
+    } catch (e) {
+      print('获取访问令牌失败: $e');
+      return null;
+    }
   }
 
   /// 登出并清除所有存储的令牌
