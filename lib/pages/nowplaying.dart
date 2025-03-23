@@ -50,36 +50,40 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     PageData(
       title: 'RECORDS',
       icon: Icons.comment_rounded,
-      page: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Ratings(
-              initialRating: 'good',
-              onRatingChanged: (rating) {
-                // Handle rating change if needed
-              },
-            ),
-            const SizedBox(height: 16),
-            const NotesDisplay(),
-            const SizedBox(height: 80),
-          ],
+      page: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Ratings(
+                initialRating: 'good',
+                onRatingChanged: (rating) {
+                  // Handle rating change if needed
+                },
+              ),
+              const SizedBox(height: 16),
+              const NotesDisplay(),
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     ),
     PageData(
       title: 'NOW PLAYING',
       icon: Icons.queue_music_rounded,
-      page: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            SizedBox(height: 8),
-            QueueDisplay(),
-          ],
+      page: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              SizedBox(height: 8),
+              QueueDisplay(),
+            ],
+          ),
         ),
       ),
     ),
