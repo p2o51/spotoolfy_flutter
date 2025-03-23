@@ -19,6 +19,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   final PageController _pageController = PageController(initialPage: 2);
   ScrollController? _scrollController;
   bool _showMiniPlayer = false;
+  bool _isExpanded = false;
   
   @override
   void initState() {
@@ -44,6 +45,12 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         });
       }
     }
+  }
+
+  void _toggleExpand() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
   }
 
   final List<PageData> _pages = [
@@ -97,123 +104,170 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   @override
   bool get wantKeepAlive => true;
 
+  Widget _buildTabHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: SimplePageIndicator(
+              pages: _pages,
+              pageController: _pageController,
+            ),
+          ),
+          IconButton(
+            icon: Icon(_isExpanded ? Icons.expand_less : Icons.expand_more),
+            onPressed: _toggleExpand,
+            tooltip: _isExpanded ? '收起' : '展开',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpandedLayout(bool isLargeScreen) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Player(isLargeScreen: isLargeScreen, isMiniPlayer: true),
+          _buildTabHeader(),
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              children: _pages.map((page) => page.page).toList(),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => const AddNoteSheet(),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildCollapsedLargeLayout() {
+    return Scaffold(
+      body: Row(
+        children: [
+          const Expanded(
+            flex: 1,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  Player(isLargeScreen: true),
+                  SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Column(
+              children: [
+                _buildTabHeader(),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    children: _pages.map((page) => page.page).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => const AddNoteSheet(),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildCollapsedSmallLayout() {
+    return Scaffold(
+      body: Stack(
+        children: [
+          NestedScrollView(
+            controller: _scrollController,
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: _showMiniPlayer ? 0.0 : 1.0,
+                  child: Column(
+                    children: [
+                      const Player(isLargeScreen: false),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _StickyTabDelegate(
+                  showMiniPlayer: _showMiniPlayer,
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  child: _buildTabHeader(),
+                ),
+              ),
+            ],
+            body: PageView(
+              controller: _pageController,
+              children: _pages.map((page) => page.page).toList(),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 150),
+              opacity: _showMiniPlayer ? 1.0 : 0.0,
+              child: const Player(
+                isLargeScreen: false,
+                isMiniPlayer: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => const AddNoteSheet(),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     bool isLargeScreen = MediaQuery.of(context).size.width > 800;
 
-    if (isLargeScreen) {
-      return Scaffold(
-        body: Row(
-          children: [
-            const Expanded(
-              flex: 1,
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Player(isLargeScreen: true),
-                    SizedBox(height: 16),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Column(
-                children: [
-                  SimplePageIndicator(
-                    pages: _pages,
-                    pageController: _pageController,
-                  ),
-                  Expanded(
-                    child: PageView(
-                      controller: _pageController,
-                      children: _pages.map((page) => page.page).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              builder: (context) => const AddNoteSheet(),
-            );
-          },
-          child: const Icon(Icons.add),
-        ),
-      );
+    if (_isExpanded) {
+      return _buildExpandedLayout(isLargeScreen);
     } else {
-      return Scaffold(
-        body: Stack(
-          children: [
-            NestedScrollView(
-              controller: _scrollController,
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                SliverToBoxAdapter(
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 150),
-                    opacity: _showMiniPlayer ? 0.0 : 1.0,
-                    child: Column(
-                      children: [
-                        const Player(isLargeScreen: false),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _StickyTabDelegate(
-                    showMiniPlayer: _showMiniPlayer,
-                    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SimplePageIndicator(
-                          pages: _pages,
-                          pageController: _pageController,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              body: PageView(
-                controller: _pageController,
-                children: _pages.map((page) => page.page).toList(),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: _showMiniPlayer ? 1.0 : 0.0,
-                child: const Player(
-                  isLargeScreen: false,
-                  isMiniPlayer: true,
-                ),
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              builder: (context) => const AddNoteSheet(),
-            );
-          },
-          child: const Icon(Icons.add),
-        ),
-      );
+      return isLargeScreen 
+          ? _buildCollapsedLargeLayout() 
+          : _buildCollapsedSmallLayout();
     }
   }
 }
