@@ -17,7 +17,6 @@ class NowPlaying extends StatefulWidget {
 
 class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
   final PageController _pageController = PageController();
-  ScrollController? _scrollController;
   bool _showMiniPlayer = false;
   bool _isExpanded = false;
   int _currentPageIndex = 2; // 默认显示 LYRICS 页面
@@ -25,8 +24,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
-    _scrollController?.addListener(_onScroll);
     
     // 监听页面变化
     _pageController.addListener(_onPageChanged);
@@ -39,22 +36,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
   @override
   void dispose() {
-    _scrollController?.removeListener(_onScroll);
-    _scrollController?.dispose();
     _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController?.hasClients ?? false) {
-      final showMini = _scrollController!.offset > 200;
-      if (showMini != _showMiniPlayer) {
-        setState(() {
-          _showMiniPlayer = showMini;
-        });
-      }
-    }
   }
 
   void _toggleExpand() {
@@ -245,33 +229,13 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
   Widget _buildCollapsedSmallLayout() {
     return Scaffold(
-      body: Stack(
+      body: Column(
         children: [
-          NestedScrollView(
-            controller: _scrollController,
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverToBoxAdapter(
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: _showMiniPlayer ? 0.0 : 1.0,
-                  child: Column(
-                    children: [
-                      const Player(isLargeScreen: false),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StickyTabDelegate(
-                  showMiniPlayer: _showMiniPlayer,
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  child: _buildTabHeader(),
-                ),
-              ),
-            ],
-            body: PageView(
+          const Player(isLargeScreen: false),
+          const SizedBox(height: 16),
+          _buildTabHeader(),
+          Expanded(
+            child: PageView(
               controller: _pageController,
               onPageChanged: (index) {
                 setState(() {
@@ -279,19 +243,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                 });
               },
               children: _pages.map((page) => page.page).toList(),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 150),
-              opacity: _showMiniPlayer ? 1.0 : 0.0,
-              child: const Player(
-                isLargeScreen: false,
-                isMiniPlayer: true,
-              ),
             ),
           ),
         ],
@@ -314,11 +265,13 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     super.build(context);
     bool isLargeScreen = MediaQuery.of(context).size.width > 800;
 
-    if (_isExpanded) {
-      return _buildExpandedLayout(isLargeScreen);
+    if (isLargeScreen) {
+      // On large screens, always use the side-by-side layout
+      return _buildCollapsedLargeLayout();
     } else {
-      return isLargeScreen 
-          ? _buildCollapsedLargeLayout() 
+      // On small screens, respect the expanded state
+      return _isExpanded 
+          ? _buildExpandedLayout(false) // false because it's not large screen
           : _buildCollapsedSmallLayout();
     }
   }
