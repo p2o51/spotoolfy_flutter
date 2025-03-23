@@ -187,18 +187,20 @@ class _SearchState extends State<Search> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    AspectRatio(
-                                      aspectRatio: 1,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          item['images'][0]['url'],
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
+                                    Expanded(
+                                      child: AspectRatio(
+                                        aspectRatio: 1,
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Image.network(
+                                            item['images'][0]['url'],
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 2),
                                     Text(
                                       item['name'],
                                       maxLines: 1,
@@ -207,6 +209,8 @@ class _SearchState extends State<Search> {
                                     ),
                                     Text(
                                       item['type'] == 'playlist' ? 'Playlist' : 'Album',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
                                       ),

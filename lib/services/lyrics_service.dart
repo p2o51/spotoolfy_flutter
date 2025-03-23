@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,7 +33,7 @@ class LyricsService {
       // 如果缓存中没有，从网络获取
       print('从网络获取歌词: $songName - $artistName');
       
-      final songmid = await _searchSong(songName, artistName);
+      final songmid = await _searchSong('$songName $artistName');
       if (songmid == null) return null;
 
       final lyrics = await _fetchLyrics(songmid);
@@ -45,6 +47,79 @@ class LyricsService {
       return lyrics;
     } catch (e) {
       print('获取歌词失败: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _searchSong(String keyword) async {
+    try {
+      final url = Uri.parse(_baseSearchUrl).replace(queryParameters: {
+        'w': keyword,
+        'p': '1',
+        'n': '3',
+        'format': 'json'
+      });
+      
+      final response = await http.get(url, headers: _headers).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('搜索请求超时');
+        },
+      );
+
+      if (response.statusCode != 200) {
+        print('搜索请求失败，状态码: ${response.statusCode}');
+        return null;
+      }
+
+      final data = json.decode(response.body);
+      if (data['data']?['song']?['list']?.isNotEmpty) {
+        return data['data']['song']['list'][0]['songmid'];
+      }
+      return null;
+    } catch (e) {
+      print('搜索歌曲失败: $e');
+      if (e is SocketException) {
+        print('网络连接错误: ${e.message}');
+      } else if (e is TimeoutException) {
+        print('请求超时: ${e.message}');
+      }
+      return null;
+    }
+  }
+
+  Future<String?> _fetchLyrics(String songmid) async {
+    try {
+      final url = Uri.parse(_baseLyricUrl).replace(queryParameters: {
+        'songmid': songmid,
+        'format': 'json',
+        'nobase64': '1'
+      });
+      
+      final response = await http.get(url, headers: _headers).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('获取歌词请求超时');
+        },
+      );
+
+      if (response.statusCode != 200) {
+        print('获取歌词请求失败，状态码: ${response.statusCode}');
+        return null;
+      }
+
+      final data = json.decode(response.body);
+      if (data['lyric'] != null) {
+        return data['lyric'];
+      }
+      return null;
+    } catch (e) {
+      print('获取歌词详情失败: $e');
+      if (e is SocketException) {
+        print('网络连接错误: ${e.message}');
+      } else if (e is TimeoutException) {
+        print('请求超时: ${e.message}');
+      }
       return null;
     }
   }
@@ -87,48 +162,6 @@ class LyricsService {
     } catch (e) {
       print('获取缓存大小失败: $e');
       return 0;
-    }
-  }
-
-  Future<String?> _searchSong(String songName, String artistName) async {
-    try {
-      // 移除 Uri.encodeComponent，直接使用原始搜索词
-      final searchKeyword = '$songName $artistName';
-      final url = Uri.parse(_baseSearchUrl).replace(queryParameters: {
-        'w': searchKeyword,
-        'p': '1',
-        'n': '1',
-        'format': 'json'
-      });
-      
-      final response = await http.get(url, headers: _headers);
-      final data = json.decode(response.body);
-
-      if (data['data']?['song']?['list']?.isNotEmpty) {
-        return data['data']['song']['list'][0]['songmid'];
-      }
-      return null;
-    } catch (e) {
-      print('搜索歌曲失败: $e');
-      return null;
-    }
-  }
-
-  Future<String?> _fetchLyrics(String songmid) async {
-    try {
-      final url = '$_baseLyricUrl?songmid=$songmid&format=json&nobase64=0';
-      
-      final response = await http.get(Uri.parse(url), headers: _headers);
-      final data = json.decode(response.body);
-
-      if (data['lyric'] != null) {
-        final bytes = base64.decode(data['lyric']);
-        return utf8.decode(bytes);
-      }
-      return null;
-    } catch (e) {
-      print('获取歌词详情失败: $e');
-      return null;
     }
   }
 }

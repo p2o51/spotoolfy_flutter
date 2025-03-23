@@ -51,6 +51,16 @@ class SpotifyAuthService {
   static const String _authEndpoint = 'https://accounts.spotify.com/authorize';
   static const String _tokenEndpoint = 'https://accounts.spotify.com/api/token';
 
+  // 添加重连相关的常量
+  static const int _maxReconnectAttempts = 3;
+  static const Duration _reconnectDelay = Duration(seconds: 2);
+  static const Duration _maxReconnectTimeout = Duration(seconds: 10);
+  
+  // 添加重连状态追踪
+  bool _isReconnecting = false;
+  int _reconnectAttempts = 0;
+  Timer? _reconnectTimer;
+
   SpotifyAuthService({
     required this.clientId,
     required this.clientSecret,
@@ -170,14 +180,15 @@ class SpotifyAuthService {
   void _setupConnectionListener() {
     try {
       SpotifySdk.subscribeConnectionStatus().listen(
-        (status) {
-          if (!status.connected) {
-            // 如果连接断开，尝试重新连接
-            _reconnect();
+        (status) async {
+          if (!status.connected && !_isReconnecting) {
+            print('检测到连接断开，开始重连流程...');
+            await _handleDisconnection();
           }
         },
         onError: (e) {
           print('连接状态监听错误: $e');
+          _handleDisconnection();
         },
       );
     } catch (e) {
@@ -185,22 +196,75 @@ class SpotifyAuthService {
     }
   }
 
-  // 重新连接逻辑
+  // 处理断开连接
+  Future<void> _handleDisconnection() async {
+    if (_isReconnecting) return;
+    
+    _isReconnecting = true;
+    _reconnectAttempts = 0;
+    
+    // 取消之前的重连定时器
+    _reconnectTimer?.cancel();
+    
+    // 开始重连流程
+    await _reconnect();
+  }
+
+  // 改进的重连逻辑
   Future<void> _reconnect() async {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      print('达到最大重连次数，停止重连');
+      _isReconnecting = false;
+      return;
+    }
+
     try {
-      final connected = await SpotifySdk.connectToSpotifyRemote(
-        clientId: clientId,
-        redirectUrl: redirectUrl,
-      );
+      print('尝试重连 (${_reconnectAttempts + 1}/$_maxReconnectAttempts)...');
+      
+      // 先尝试刷新令牌
+      final newToken = await refreshToken();
+      if (newToken == null) {
+        print('刷新令牌失败，无法重连');
+        _isReconnecting = false;
+        return;
+      }
+
+      // 设置重连超时
+      final timeoutFuture = Future.delayed(_maxReconnectTimeout);
+      
+      // 尝试重连
+      final connected = await Future.any([
+        SpotifySdk.connectToSpotifyRemote(
+          clientId: clientId,
+          redirectUrl: redirectUrl,
+        ),
+        timeoutFuture,
+      ]).then((result) => result is bool ? result : false);
 
       if (connected) {
-        print('重新连接成功');
+        print('重连成功');
+        _isReconnecting = false;
+        _reconnectAttempts = 0;
+        return;
+      }
+
+      // 如果重连失败，增加重试次数并延迟后重试
+      _reconnectAttempts++;
+      if (_reconnectAttempts < _maxReconnectAttempts) {
+        print('重连失败，${_reconnectDelay.inSeconds}秒后重试...');
+        _reconnectTimer = Timer(_reconnectDelay, _reconnect);
       } else {
-        print('重新连接失败，但不影响基本功能');
+        print('达到最大重连次数，停止重连');
+        _isReconnecting = false;
       }
     } catch (e) {
-      print('重新连接失败: $e');
-      print('继续使用基本功能...');
+      print('重连过程出错: $e');
+      _reconnectAttempts++;
+      if (_reconnectAttempts < _maxReconnectAttempts) {
+        _reconnectTimer = Timer(_reconnectDelay, _reconnect);
+      } else {
+        _isReconnecting = false;
+      }
     }
   }
 
