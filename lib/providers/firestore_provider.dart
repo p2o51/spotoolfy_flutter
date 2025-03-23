@@ -14,6 +14,7 @@ class FirestoreProvider extends ChangeNotifier {
   String? _lastTrackId;
   
   Map<String, dynamic>? randomThought;
+  List<Map<String, dynamic>> randomThoughts = [];
   
   String _currentRating = 'good';
   String get currentRating => _currentRating;
@@ -158,8 +159,9 @@ class FirestoreProvider extends ChangeNotifier {
 
       if (thoughtsSnap.docs.isEmpty) {
         randomThought = null;
+        randomThoughts = [];
       } else {
-        // 随机选择一条笔记
+        // For backward compatibility, keep the randomThought
         final random = thoughtsSnap.docs[
           DateTime.now().millisecondsSinceEpoch % thoughtsSnap.docs.length
         ];
@@ -172,12 +174,41 @@ class FirestoreProvider extends ChangeNotifier {
           'album': random.data()['album'] ?? '',
           'imageUrl': random.data()['imageUrl'] ?? '',
         };
+
+        // Get 3 random thoughts
+        randomThoughts = [];
+        final totalDocs = thoughtsSnap.docs.length;
+        final usedIndices = <int>{};
+        
+        // Get up to 3 random thoughts (or less if fewer are available)
+        final numToGet = totalDocs < 3 ? totalDocs : 3;
+        
+        for (var i = 0; i < numToGet; i++) {
+          int randomIndex;
+          do {
+            randomIndex = DateTime.now().microsecondsSinceEpoch % totalDocs;
+          } while (usedIndices.contains(randomIndex) && usedIndices.length < totalDocs);
+          
+          if (usedIndices.length >= totalDocs) break;
+          usedIndices.add(randomIndex);
+          
+          final doc = thoughtsSnap.docs[randomIndex];
+          randomThoughts.add({
+            'id': doc.id,
+            ...doc.data(),
+            'createdAt': (doc.data()['createdAt'] as Timestamp).toDate().toString(),
+            'timestamp': doc.data()['timestamp'] ?? '',
+            'album': doc.data()['album'] ?? '',
+            'imageUrl': doc.data()['imageUrl'] ?? '',
+          });
+        }
       }
 
       notifyListeners();
     } catch (e) {
       print('获取随机笔记失败: $e');
       randomThought = null;
+      randomThoughts = [];
     } finally {
       _isLoading = false;
       notifyListeners();
