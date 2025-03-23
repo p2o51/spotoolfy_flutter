@@ -337,7 +337,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       bottomNavigationBar: isLargeScreen ? null : SafeArea(
         bottom: false,
         child: NavigationBar(
-          height: Platform.isIOS ? 65 : null,  // 只在 iOS 平台设置固定高度
+          height: Platform.isIOS ? 55 : null,  // 只在 iOS 平台设置固定高度
           labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
           selectedIndex: _selectedIndex,
           onDestinationSelected: (int index) {
