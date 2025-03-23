@@ -11,7 +11,7 @@ class QueueDisplay extends StatelessWidget {
     final currentQueue = spotifyProvider.upcomingTracks; // 假设这是播放队列数据
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

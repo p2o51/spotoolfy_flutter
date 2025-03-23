@@ -25,7 +25,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(32, 16, 32, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -48,23 +48,30 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   }
 
   void _startProgressTimer() {
+    if (!mounted) return;
+    
     _progressTimer?.cancel();
     _progressTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (mounted) {
-        final provider = Provider.of<SpotifyProvider>(context, listen: false);
-        final isPlaying = provider.currentTrack?['is_playing'] ?? false;
-        final spotifyProgress = provider.currentTrack?['progress_ms'] ?? 0;
-        
-        if (isPlaying) {
-          setState(() {
-            _currentPosition = Duration(milliseconds: spotifyProgress);
-          });
-        }
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      final provider = Provider.of<SpotifyProvider>(context, listen: false);
+      final isPlaying = provider.currentTrack?['is_playing'] ?? false;
+      final spotifyProgress = provider.currentTrack?['progress_ms'] ?? 0;
+      
+      if (isPlaying && mounted) {
+        setState(() {
+          _currentPosition = Duration(milliseconds: spotifyProgress);
+        });
       }
     });
   }
 
   Future<void> _loadLyrics() async {
+    if (!mounted) return;
+    
     final provider = Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrack = provider.currentTrack;
     if (currentTrack == null) return;
@@ -77,7 +84,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     final artistName = currentTrack['item']?['artists']?[0]?['name'] ?? '';
     
     final rawLyrics = await _lyricsService.getLyrics(songName, artistName, trackId);
-    if (rawLyrics != null) {
+    if (rawLyrics != null && mounted) {
       setState(() {
         _lyrics = _parseLyrics(rawLyrics);
       });
@@ -135,21 +142,27 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
         final currentTrackId = provider.currentTrack?['item']?['id'];
         if (currentTrackId != _lastTrackId) {
-          Future.microtask(() => _loadLyrics());
+          if (mounted) {
+            Future.microtask(() => _loadLyrics());
+          }
         }
 
         final isPlaying = provider.currentTrack?['is_playing'] ?? false;
         if (!isPlaying) {
           _progressTimer?.cancel();
         } else if (_progressTimer == null || !_progressTimer!.isActive) {
-          Future.microtask(() => _startProgressTimer());
+          if (mounted) {
+            Future.microtask(() => _startProgressTimer());
+          }
         }
 
         final currentLineIndex = _getCurrentLineIndex(_currentPosition);
 
-        if (_autoScroll) {
+        if (_autoScroll && mounted) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _scrollToCurrentLine(currentLineIndex);
+            if (mounted) {
+              _scrollToCurrentLine(currentLineIndex);
+            }
           });
         }
 
@@ -157,6 +170,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
           color: Colors.transparent,
           child: NotificationListener<ScrollNotification>(
             onNotification: (scrollNotification) {
+              if (!mounted) return true;
+              
               if (scrollNotification is UserScrollNotification &&
                   scrollNotification.direction != ScrollDirection.idle) {
                 if (_autoScroll) {
@@ -191,6 +206,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                       },
                       child: GestureDetector(
                         onTap: () {
+                          if (!mounted) return;
+                          
                           final provider = Provider.of<SpotifyProvider>(
                             context, 
                             listen: false
@@ -204,14 +221,14 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                           duration: const Duration(milliseconds: 400),
                           curve: Curves.easeOutCubic,
                           padding: EdgeInsets.symmetric(
-                            vertical: index == currentLineIndex ? 16.0 : 12.0,
-                            horizontal: 24.0,
+                            vertical: index == currentLineIndex ? 12.0 : 8.0,
+                            horizontal: MediaQuery.of(context).size.width > 600 ? 24.0 : 40.0,
                           ),
                           child: AnimatedDefaultTextStyle(
                             duration: const Duration(milliseconds: 400),
                             curve: Curves.easeOutCubic,
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: MediaQuery.of(context).size.width > 600 ? 24 : 22,
                               fontWeight: index == currentLineIndex 
                                 ? FontWeight.w700 
                                 : FontWeight.w600,
@@ -260,11 +277,13 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                 ),
                 if (!_autoScroll)
                   Positioned(
-                    left: 24,
+                    left: MediaQuery.of(context).size.width > 600 ? 24 : 40,
                     bottom: 24 + MediaQuery.of(context).padding.bottom,
                     child: IconButton.filledTonal(
                       icon: const Icon(Icons.vertical_align_center),
                       onPressed: () {
+                        if (!mounted) return;
+                        
                         setState(() {
                           _autoScroll = true;
                         });
@@ -371,6 +390,8 @@ class _MeasureSizeState extends State<MeasureSize> {
   }
 
   void _measureSize() {
+    if (!mounted) return;
+    
     final context = widgetKey.currentContext;
     if (context == null) return;
     
