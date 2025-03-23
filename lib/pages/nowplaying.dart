@@ -269,10 +269,78 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       // On large screens, always use the side-by-side layout
       return _buildCollapsedLargeLayout();
     } else {
-      // On small screens, respect the expanded state
-      return _isExpanded 
-          ? _buildExpandedLayout(false) // false because it's not large screen
-          : _buildCollapsedSmallLayout();
+      // On small screens, maintain a single PageView while animating other parts
+      return Scaffold(
+        body: Column(
+          children: [
+            // Only animate this top part
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOut,
+              transitionBuilder: (child, animation) {
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(0.0, 0.1),
+                  end: Offset.zero,
+                ).animate(animation);
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: offsetAnimation,
+                    child: child,
+                  ),
+                );
+              },
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  alignment: Alignment.topCenter,
+                  children: <Widget>[
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
+              child: _isExpanded
+                ? KeyedSubtree(
+                    key: const ValueKey('expanded_header'),
+                    child: const Player(isLargeScreen: false, isMiniPlayer: true),
+                  )
+                : KeyedSubtree(
+                    key: const ValueKey('collapsed_header'),
+                    child: Column(
+                      children: const [
+                        Player(isLargeScreen: false),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+            ),
+            // Tab header stays consistent
+            _buildTabHeader(),
+            // PageView stays consistent across states
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentPageIndex = index;
+                  });
+                },
+                children: _pages.map((page) => page.page).toList(),
+              ),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              builder: (context) => const AddNoteSheet(),
+            );
+          },
+          child: const Icon(Icons.add),
+        ),
+      );
     }
   }
 }
