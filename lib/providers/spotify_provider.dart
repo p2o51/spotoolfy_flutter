@@ -15,6 +15,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:spotify_sdk/spotify_sdk.dart';
 
 
 enum PlayMode {
@@ -42,12 +43,14 @@ class SpotifyProvider extends ChangeNotifier {
   PlayMode get currentMode => _currentMode;
   bool _isSkipping = false;
   bool _isInitialized = false;
+  bool _isReconnecting = false;  // 添加重连状态标志
 
   // 添加图片预加载缓存
   final Map<String, String> _imageCache = {};
   
   SpotifyProvider() {
     _initSpotifyService();
+    _setupConnectionListener();
   }
 
   Future<void> _initSpotifyService() async {
@@ -1160,5 +1163,58 @@ class SpotifyProvider extends ChangeNotifier {
   /// Get authenticated headers from the Spotify service
   Future<Map<String, String>> getAuthenticatedHeaders() async {
     return await _spotifyService.getAuthenticatedHeaders();
+  }
+
+  // 处理断开连接
+  Future<void> _handleDisconnection() async {
+    if (_isReconnecting) return;
+    
+    _isReconnecting = true;
+    
+    try {
+      // 尝试重新连接
+      final connected = await SpotifySdk.connectToSpotifyRemote(
+        clientId: _spotifyService.clientId,
+        redirectUrl: _spotifyService.redirectUrl,
+      );
+      
+      if (connected) {
+        print('重新连接成功');
+        // 连接成功后刷新状态
+        await refreshCurrentTrack();
+        await refreshAvailableDevices();
+      } else {
+        print('重新连接失败');
+      }
+    } catch (e) {
+      print('重新连接时出错: $e');
+    } finally {
+      _isReconnecting = false;
+    }
+  }
+
+  // 监听连接状态
+  void _setupConnectionListener() {
+    try {
+      SpotifySdk.subscribeConnectionStatus().listen(
+        (status) async {
+          if (!status.connected && !_isReconnecting) {
+            print('检测到连接断开，开始重连流程...');
+            await _handleDisconnection();
+          } else if (status.connected) {
+            print('检测到连接成功，刷新播放状态...');
+            // 连接成功时刷新播放状态
+            await refreshCurrentTrack();
+            await refreshAvailableDevices();
+          }
+        },
+        onError: (e) {
+          print('连接状态监听错误: $e');
+          _handleDisconnection();
+        },
+      );
+    } catch (e) {
+      print('设置连接监听器失败: $e');
+    }
   }
 }

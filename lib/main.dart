@@ -187,8 +187,29 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // 当应用从后台恢复时，刷新播放状态
+      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+      spotifyProvider.refreshCurrentTrack();
+    }
+  }
   
   // 准备所有页面
   final List<Widget> _pages = [
