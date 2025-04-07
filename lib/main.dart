@@ -54,19 +54,27 @@ class MyThemedApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final brightness = themeProvider.colorScheme.brightness;
+    
+    // Determine status bar icon brightness based on theme brightness
+    final systemUiOverlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      // Android: Use light icons on dark background, dark icons on light background
+      statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+      // iOS: Use dark status bar for dark theme, light status bar for light theme
+      statusBarBrightness: brightness == Brightness.dark ? Brightness.dark : Brightness.light, 
+    );
+
     return MaterialApp(
       navigatorKey: navigatorKey,
       theme: ThemeData(
-        colorScheme: context.watch<ThemeProvider>().colorScheme,
+        colorScheme: themeProvider.colorScheme,
         useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          systemOverlayStyle: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            systemNavigationBarColor: Colors.transparent,
-            systemNavigationBarDividerColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.dark,
-            statusBarBrightness: Brightness.light,
-          ),
+        appBarTheme: AppBarTheme(
+          systemOverlayStyle: systemUiOverlayStyle, // Use the dynamic style
         ),
       ),
       home: const MyApp(),

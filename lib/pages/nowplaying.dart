@@ -16,7 +16,7 @@ class NowPlaying extends StatefulWidget {
 }
 
 class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
-  final PageController _pageController = PageController();
+  late final PageController _pageController;
   bool _showMiniPlayer = false;
   bool _isExpanded = false;
   int _currentPageIndex = 2; // 默认显示 LYRICS 页面
@@ -25,13 +25,18 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   void initState() {
     super.initState();
     
+    // Initialize PageController with the correct starting page
+    _pageController = PageController(initialPage: _currentPageIndex); 
+    
     // 监听页面变化
     _pageController.addListener(_onPageChanged);
     
-    // 初始化时设置到默认页面
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _pageController.jumpToPage(_currentPageIndex);
-    });
+    // No longer need jumpToPage here as initialPage is set
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   if (_pageController.hasClients) { // Check if controller is attached
+    //      _pageController.jumpToPage(_currentPageIndex);
+    //    }
+    // });
   }
 
   @override

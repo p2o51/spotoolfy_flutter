@@ -745,7 +745,7 @@ class _PlayButtonState extends State<PlayButton> with SingleTickerProviderStateM
               child: Icon(
                 widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                 key: ValueKey(widget.isPlaying),
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
               ),
             ),
           ),
