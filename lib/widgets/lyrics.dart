@@ -42,6 +42,10 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   @override
   void initState() {
     super.initState();
+    // 确保自动滚动在初始化时启用
+    setState(() {
+      _autoScroll = true;
+    });
     _loadLyrics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startProgressTimer();
@@ -59,6 +63,33 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     if (!mounted) return;
     
     _progressTimer?.cancel();
+    
+    // 立即更新位置
+    final provider = Provider.of<SpotifyProvider>(context, listen: false);
+    final isPlaying = provider.currentTrack?['is_playing'] ?? false;
+    final spotifyProgress = provider.currentTrack?['progress_ms'] ?? 0;
+    
+    // 如果歌曲正在播放且有歌词，立即更新位置并触发滚动
+    if (isPlaying && mounted && _lyrics.isNotEmpty) {
+      final newPosition = Duration(milliseconds: spotifyProgress);
+      
+      if (_currentPosition != newPosition) {
+        setState(() {
+          _currentPosition = newPosition;
+        });
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _autoScroll && _lyrics.isNotEmpty) {
+            final currentIndex = _getCurrentLineIndex(_currentPosition);
+            if (currentIndex >= 0 && currentIndex != _previousLineIndex) {
+              _previousLineIndex = currentIndex;
+              _scrollToCurrentLine(currentIndex);
+            }
+          }
+        });
+      }
+    }
+    
     _progressTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -70,9 +101,23 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       final spotifyProgress = provider.currentTrack?['progress_ms'] ?? 0;
       
       if (isPlaying && mounted) {
-        setState(() {
-          _currentPosition = Duration(milliseconds: spotifyProgress);
-        });
+        final newPosition = Duration(milliseconds: spotifyProgress);
+        if (_currentPosition != newPosition) {
+          setState(() {
+            _currentPosition = newPosition;
+          });
+        }
+        
+        // 检查自动滚动是否应该被重新启用
+        if (!_autoScroll && 
+            _lyrics.isNotEmpty && 
+            !_isCopyLyricsMode && 
+            _scrollController.hasClients &&
+            !_scrollController.position.isScrollingNotifier.value) {
+          setState(() {
+            _autoScroll = true;
+          });
+        }
       }
     });
   }
@@ -111,6 +156,43 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       setState(() {
         _lyrics = _parseLyrics(rawLyrics);
       });
+      
+      // 设置回退滚动机制，以防行高未及时测量
+      if (mounted && _lyrics.isNotEmpty) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (!mounted || _lastTrackId != trackId) return;
+          
+          final provider = Provider.of<SpotifyProvider>(context, listen: false);
+          final isPlaying = provider.currentTrack?['is_playing'] ?? false;
+          final currentProgressMs = provider.currentTrack?['progress_ms'] ?? 0;
+          
+          if (isPlaying && _autoScroll && _lyrics.isNotEmpty) {
+            // 检查是否测量了足够的行高
+            final measuredHeights = _lineHeights.length;
+            if (measuredHeights < _lyrics.length * 0.5) { // 少于一半测量完成
+              // 使用已测量行高的平均值作为回退
+              final avgHeight = measuredHeights > 0 
+                  ? _lineHeights.values.reduce((a, b) => a + b) / measuredHeights 
+                  : 40.0; // 如果没有测量，使用默认值
+              
+              // 添加缺失的行高
+              for (int i = 0; i < _lyrics.length; i++) {
+                if (!_lineHeights.containsKey(i)) {
+                  _lineHeights[i] = avgHeight;
+                }
+              }
+              
+              // 强制滚动到当前位置
+              final currentPosition = Duration(milliseconds: currentProgressMs);
+              final currentIndex = _getCurrentLineIndex(currentPosition);
+              if (currentIndex >= 0) {
+                _previousLineIndex = currentIndex;
+                _scrollToCurrentLine(currentIndex);
+              }
+            }
+          }
+        });
+      }
     } else {
       setState(() {
         _lyrics = [];
@@ -231,13 +313,11 @@ class _LyricsWidgetState extends State<LyricsWidget> {
          return;
       }
       
-      // Check if all necessary line heights are available before scrolling
+      // 检查所有必需的行高是否可用
       bool heightsAvailable = true;
       for (int i = 0; i <= currentLineIndex; i++) {
         if (!_lineHeights.containsKey(i)) {
           heightsAvailable = false;
-          // Optional: Add a print statement for debugging if needed
-          // print('Height for line $i not yet available for scrolling.'); 
           break;
         }
       }
@@ -245,12 +325,10 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       if (!heightsAvailable) {
         if (!_isScrollRetryScheduled) {
           _isScrollRetryScheduled = true;
-          // Increase delay
           Future.delayed(const Duration(milliseconds: 200), () {
             if (mounted && _autoScroll) {
                _isScrollRetryScheduled = false;
                final latestCurrentIndex = _getCurrentLineIndex(_currentPosition);
-               // Check if index is still valid before retrying
                if (latestCurrentIndex >= 0 && latestCurrentIndex < _lyrics.length) {
                  _scrollToCurrentLine(latestCurrentIndex);
                }
@@ -267,23 +345,21 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       final viewportHeight = _scrollController.position.viewportDimension;
       final maxScroll = _scrollController.position.maxScrollExtent;
       
-      // Calculate total height before current line
+      // 计算当前行前的总高度
       double totalOffset = 0;
       for (int i = 0; i < currentLineIndex; i++) {
-        // Use ! because we've already checked for key existence
         totalOffset += _lineHeights[i]!;
       }
       
-      // Add half of current line height
-      // Use ! because we've already checked for key existence
+      // 添加当前行高度的一半
       final currentLineHeight = _lineHeights[currentLineIndex]!;
       totalOffset += currentLineHeight / 2;
       
-      // Calculate target offset with padding compensation
+      // 计算目标偏移量
       final topPadding = 80 + MediaQuery.of(context).padding.top;
       final targetOffset = totalOffset - (viewportHeight / 2) + topPadding;
       
-      // Clamp the scroll position between valid bounds
+      // 将滚动位置限制在有效范围内
       final clampedOffset = targetOffset.clamp(0.0, maxScroll);
       
       _scrollController.animateTo(
@@ -292,7 +368,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
         curve: Curves.easeInOut,
       );
     } catch (e) {
-      print('Error scrolling to current line: $e');
+      // 滚动出错
     }
   }
 
@@ -301,10 +377,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     return Consumer<SpotifyProvider>(
       builder: (context, provider, child) {
         final currentProgress = provider.currentTrack?['progress_ms'] ?? 0;
-        // Use a local variable for current position within the build cycle
         final localCurrentPosition = Duration(milliseconds: currentProgress);
         
-        // Update state only if necessary
         if (_currentPosition != localCurrentPosition) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
@@ -320,12 +394,11 @@ class _LyricsWidgetState extends State<LyricsWidget> {
           if (_isCopyLyricsMode) {
             if (mounted) {
               Future.microtask(() {
-                _toggleCopyLyricsMode(); // This will reset state
+                _toggleCopyLyricsMode();
               });
             }
           }
           if (mounted) {
-             // Reset previous index when track changes
              _previousLineIndex = -1;
              Future.microtask(() => _loadLyrics());
           }
@@ -342,7 +415,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
         final currentLineIndex = _getCurrentLineIndex(localCurrentPosition);
 
-        // Trigger scroll only if autoScroll is enabled AND the line index has changed
         if (_autoScroll && 
             mounted && 
             _lyrics.isNotEmpty && 
@@ -350,9 +422,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             currentLineIndex != _previousLineIndex) {
           
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _autoScroll) { // Re-check autoScroll state in callback
+            if (mounted && _autoScroll) {
               _scrollToCurrentLine(currentLineIndex);
-              _previousLineIndex = currentLineIndex; // Update previous index after scheduling scroll
+              _previousLineIndex = currentLineIndex;
             }
           });
         }
@@ -399,13 +471,15 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                         onTap: () {
                           if (!mounted) return;
                           
+                          final provider = Provider.of<SpotifyProvider>(context, listen: false);
+                          final tappedTimestamp = _lyrics[index].timestamp;
+                          provider.seekToPosition(tappedTimestamp);
+
                           bool needsScrollTrigger = false;
-                          // Exit copy mode if active when centering
                           if (_isCopyLyricsMode) {
-                            _toggleCopyLyricsMode(); // This will set _autoScroll = true
-                            // toggle already handles scroll trigger
+                            _toggleCopyLyricsMode();
                           } else {
-                            if (!_autoScroll) { // Only trigger if not already auto-scrolling
+                            if (!_autoScroll) {
                               needsScrollTrigger = true; 
                               setState(() {
                                 _autoScroll = true; 
@@ -413,7 +487,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                             }
                           }
 
-                          // Explicitly trigger scroll if autoScroll was just enabled
                           if (needsScrollTrigger) {
                              WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted && _autoScroll) {
@@ -493,9 +566,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                           onPressed: () {
                             if (!mounted) return;
                             
-                            // Exit copy mode if active when centering
                             if (_isCopyLyricsMode) {
-                              _toggleCopyLyricsMode(); // This will set _autoScroll = true
+                              _toggleCopyLyricsMode();
                             } else {
                               setState(() {
                                 _autoScroll = true; 
@@ -516,19 +588,18 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                           onPressed: _isTranslating ? null : _translateAndShowLyrics,
                           tooltip: 'Translate Lyrics',
                         ),
-                        const SizedBox(width: 8), // Add spacing
-                        // Copy Lyrics Mode Button
+                        const SizedBox(width: 8),
                         IconButton.filledTonal(
                           icon: Icon(
                             _isCopyLyricsMode 
-                              ? Icons.playlist_play_rounded // Icon when active (Exit mode)
-                              : Icons.edit_note_rounded, // Changed icon for inactive (Enter mode)
+                              ? Icons.playlist_play_rounded
+                              : Icons.edit_note_rounded,
                           ),
                           onPressed: _toggleCopyLyricsMode, 
                           tooltip: _isCopyLyricsMode 
                               ? 'Exit Copy Mode & Resume Scroll' 
                               : 'Enter Copy Lyrics Mode (Single Repeat)',
-                          style: ButtonStyle( // Highlight when active
+                          style: ButtonStyle(
                             backgroundColor: _isCopyLyricsMode 
                               ? MaterialStateProperty.all(
                                   Theme.of(context).colorScheme.primary.withOpacity(0.3)
@@ -682,6 +753,16 @@ class _MeasureSizeState extends State<MeasureSize> {
   @override
   void initState() {
     super.initState();
+    // 初始构建后立即测量尺寸
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureSize();
+    });
+  }
+  
+  @override
+  void didUpdateWidget(MeasureSize oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 组件更新后检查尺寸变化
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureSize();
     });
@@ -694,6 +775,14 @@ class _MeasureSizeState extends State<MeasureSize> {
     if (context == null) return;
     
     final RenderBox box = context.findRenderObject() as RenderBox;
+    if (!box.hasSize) {
+      // 如果尺寸还不可用，在下一帧再次尝试
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _measureSize();
+      });
+      return;
+    }
+    
     final size = box.size;
     
     if (oldSize != size) {

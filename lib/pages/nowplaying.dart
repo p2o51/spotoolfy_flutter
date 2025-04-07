@@ -17,7 +17,7 @@ class NowPlaying extends StatefulWidget {
 
 class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
   late final PageController _pageController;
-  bool _showMiniPlayer = false;
+
   bool _isExpanded = false;
   int _currentPageIndex = 2; // 默认显示 LYRICS 页面
   
@@ -98,7 +98,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       ),
     ),
     PageData(
-      title: 'NOW PLAYING',
+      title: 'QUEUE',
       icon: Icons.queue_music_rounded,
       page: SingleChildScrollView(
         child: ConstrainedBox(

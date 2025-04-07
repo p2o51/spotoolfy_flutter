@@ -163,24 +163,12 @@ class _CarouselViewState extends State<CarouselView> {
       scrollDirection: Axis.horizontal,
       itemCount: widget.children.length,
       itemExtent: widget.itemExtent,
-      physics: widget.itemSnapping 
-        ? PageScrollPhysics() 
-        : BouncingScrollPhysics(),
       itemBuilder: (context, index) {
-        // 计算缩放效果
         final scale = 1.0 - ((_currentPage - index).abs() * 0.1).clamp(0.0, widget.shrinkExtent / 100);
         
-        // 添加半透明效果
-        final opacity = 0.5 + (1.0 - (_currentPage - index).abs() * 0.2).clamp(0.0, 0.5);
-        
-        return Opacity(
-          opacity: opacity,
-          child: Transform.scale(
-            scale: scale,
-            child: Center(
-              child: widget.children[index],
-            ),
-          ),
+        return Transform.scale(
+          scale: scale,
+          child: widget.children[index],
         );
       },
     );

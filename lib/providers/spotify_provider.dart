@@ -643,38 +643,117 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
-    if (currentTrack == null) return;
-    
-    // 保存当前状态用于恢复
-    final wasPlaying = currentTrack!['is_playing'] as bool;
-    
+    // Use getPlaybackState to check for active device
+    Map<String, dynamic>? playbackState;
+    bool hasActiveDevice = false;
+    bool isCurrentlyPlaying = false;
+
     try {
-      // 立即更新 UI 状态（乐观更新）
-      currentTrack!['is_playing'] = !wasPlaying;
-      notifyListeners();
-      
-      // 发送请求到服务器
-      await _spotifyService.togglePlayPause();
-      
-      // 等待一小段时间后验证状态
-      await Future.delayed(const Duration(milliseconds: 500));
-      final newState = await _spotifyService.getCurrentlyPlayingTrack();
-      
-      // 如果服务器状态与本地不一致，更新为服务器状态
-      if (newState != null && newState['is_playing'] != currentTrack!['is_playing']) {
-        currentTrack = newState;
-        notifyListeners();
+      playbackState = await _spotifyService.getPlaybackState();
+      hasActiveDevice = playbackState['device'] != null;
+      isCurrentlyPlaying = playbackState['is_playing'] ?? false;
+      print('Playback State: HasDevice=$hasActiveDevice, IsPlaying=$isCurrentlyPlaying');
+    } catch (e) {
+      print('获取播放状态失败: $e');
+      // Assume no active device if state fetch fails
+      hasActiveDevice = false;
+      isCurrentlyPlaying = false;
+    }
+
+    try {
+      if (!isCurrentlyPlaying) {
+        // Logic to Start Playback
+        if (!hasActiveDevice) {
+          print('没有活跃设备，尝试连接并启动 Spotify...');
+          bool connected = false;
+          try {
+            // This might prompt the user to open Spotify
+            connected = await SpotifySdk.connectToSpotifyRemote(
+              clientId: _spotifyService.clientId,
+              redirectUrl: _spotifyService.redirectUrl,
+            );
+            print('连接尝试结果: $connected');
+
+            if (connected) {
+              // Connection succeeded, refresh devices and try to transfer playback
+              print('连接成功，刷新设备列表并尝试转移播放...');
+              await refreshAvailableDevices();
+              // Short delay for provider state update
+              await Future.delayed(const Duration(milliseconds: 500)); 
+              
+              // Try to find the newly active/local device
+              final localDevice = availableDevices.firstWhereOrNull(
+                (d) => d.isActive || d.type == SpotifyDeviceType.computer,
+              );
+
+              if (localDevice != null && localDevice.id != null) {
+                print('找到本地设备: ${localDevice.name} (ID: ${localDevice.id}), 尝试转移播放...');
+                await transferPlaybackToDevice(localDevice.id!, play: true);
+              } else {
+                print('无法确定本地设备，尝试通用播放命令...');
+                await _spotifyService.apiPut('/me/player/play');
+              }
+            } else {
+              // Even if connect returns false, Spotify might be open/opening.
+              // Wait a bit longer before trying the generic play command.
+              print('连接返回 false，等待后尝试通用播放命令...');
+              await Future.delayed(const Duration(milliseconds: 3000));
+              await _spotifyService.apiPut('/me/player/play');
+            }
+          } catch (e) {
+            print('连接或播放启动失败: $e. 尝试通用播放命令...');
+            // Wait a bit before fallback API call
+            await Future.delayed(const Duration(milliseconds: 1000)); 
+             try {
+               await _spotifyService.apiPut('/me/player/play');
+             } catch (fallbackError) {
+               print('通用播放命令也失败: $fallbackError');
+             }
+          }
+        } else {
+           // Device already active, just send play command
+           print('已有活跃设备，调用 API 播放...');
+           await _spotifyService.apiPut('/me/player/play');
+        }
+        
+        // Optimistically update UI immediately for responsiveness
+        if (currentTrack != null) {
+          currentTrack!['is_playing'] = true;
+          notifyListeners();
+        }
+        
+        // Wait slightly then refresh state to confirm
+        await Future.delayed(const Duration(milliseconds: 800)); // Slightly longer wait after potential transfer
+        await refreshCurrentTrack();
+        await refreshAvailableDevices(); // Refresh devices again after play attempt
+        await updateWidget();
+
+      } else {
+        // Logic to Pause Playback
+        print('调用 API 暂停...');
+        await _spotifyService.apiPut('/me/player/pause');
+        
+        // Optimistically update UI
+        if (currentTrack != null) {
+          currentTrack!['is_playing'] = false;
+          notifyListeners();
+        }
+
+        // Wait slightly then refresh state
+        await Future.delayed(const Duration(milliseconds: 500));
+        await refreshCurrentTrack();
+        // Don't necessarily need to refresh devices on pause
+        // await refreshAvailableDevices(); 
+        await updateWidget();
       }
-      
-      // 播放状态改变时刷新队列
-      await refreshPlaybackQueue();
-      // 更新小部件
-      await updateWidget();
     } catch (e) {
       print('播放/暂停切换失败: $e');
-      // 发生错误时恢复到原始状态
-      currentTrack!['is_playing'] = wasPlaying;
-      notifyListeners();
+      // Revert optimistic update on error
+      if (currentTrack != null) {
+        currentTrack!['is_playing'] = isCurrentlyPlaying; // Revert to original state
+        notifyListeners();
+      }
+      // Optionally show error to user
     }
   }
 
@@ -813,8 +892,8 @@ class SpotifyProvider extends ChangeNotifier {
       final queue = await _spotifyService.getPlaybackQueue();
       final rawQueue = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
       
-      // 限制队列长度，例如最多10个
-      upcomingTracks = rawQueue.take(10).toList();
+      // 移除队列长度限制
+      upcomingTracks = rawQueue.toList();
       
       // 更安全地获取下一首歌曲
       nextTrack = upcomingTracks.isNotEmpty 
@@ -1347,6 +1426,243 @@ class SpotifyProvider extends ChangeNotifier {
       );
     } catch (e) {
       print('设置连接监听器失败: $e');
+    }
+  }
+
+  /// 获取用户的播放列表
+  Future<List<Map<String, dynamic>>> getUserPlaylists({int limit = 50, int offset = 0}) async {
+    try {
+      if (!await _spotifyService.isAuthenticated()) {
+        print('未登录，无法获取播放列表');
+        return [];
+      }
+
+      final response = await _spotifyService.apiGet('/me/playlists?limit=$limit&offset=$offset');
+      if (response['items'] == null) return [];
+
+      final List<Map<String, dynamic>> playlists = List<Map<String, dynamic>>.from(response['items'].map((item) => {
+        'id': item['id'],
+        'type': 'playlist',
+        'name': item['name'],
+        'uri': item['uri'],
+        'images': item['images'],
+        'owner': item['owner'],
+        'tracks': item['tracks'],
+        'context': {
+          'uri': item['uri'],
+          'name': item['name'],
+          'type': 'playlist',
+          'images': item['images'],
+        }
+      }));
+
+      // 如果有更多数据且请求的是第一页，递归获取后续页面
+      final bool hasMoreItems = response['next'] != null;
+      if (hasMoreItems && offset == 0) {
+        // 获取总数以计算需要的请求次数
+        final int total = response['total'] ?? 0;
+        final int maxRequests = 5; // 最多请求5页，避免过多API调用
+        final int pages = ((total - limit) / limit).ceil();
+        final int requestCount = pages > maxRequests ? maxRequests : pages;
+        
+        List<Map<String, dynamic>> additionalPlaylists = [];
+        
+        for (int i = 1; i <= requestCount; i++) {
+          final nextOffset = offset + (limit * i);
+          final nextPlaylists = await getUserPlaylists(limit: limit, offset: nextOffset);
+          additionalPlaylists.addAll(nextPlaylists);
+        }
+        
+        playlists.addAll(additionalPlaylists);
+      }
+      
+      return playlists;
+    } catch (e) {
+      print('获取用户播放列表失败: $e');
+      return [];
+    }
+  }
+
+  /// 获取用户收藏的专辑
+  Future<List<Map<String, dynamic>>> getUserSavedAlbums({int limit = 50, int offset = 0}) async {
+    try {
+      if (!await _spotifyService.isAuthenticated()) {
+        print('未登录，无法获取收藏专辑');
+        return [];
+      }
+
+      final response = await _spotifyService.apiGet('/me/albums?limit=$limit&offset=$offset');
+      if (response['items'] == null) return [];
+
+      final List<Map<String, dynamic>> albums = List<Map<String, dynamic>>.from(response['items'].map((item) => {
+        'id': item['album']['id'],
+        'type': 'album',
+        'name': item['album']['name'],
+        'uri': item['album']['uri'],
+        'images': item['album']['images'],
+        'artists': item['album']['artists'],
+        'context': {
+          'uri': item['album']['uri'],
+          'name': item['album']['name'],
+          'type': 'album',
+          'images': item['album']['images'],
+        }
+      }));
+
+      // 如果有更多数据且请求的是第一页，递归获取后续页面
+      final bool hasMoreItems = response['next'] != null;
+      if (hasMoreItems && offset == 0) {
+        // 获取总数以计算需要的请求次数
+        final int total = response['total'] ?? 0;
+        final int maxRequests = 5; // 最多请求5页，避免过多API调用
+        final int pages = ((total - limit) / limit).ceil();
+        final int requestCount = pages > maxRequests ? maxRequests : pages;
+        
+        List<Map<String, dynamic>> additionalAlbums = [];
+        
+        for (int i = 1; i <= requestCount; i++) {
+          final nextOffset = offset + (limit * i);
+          final nextAlbums = await getUserSavedAlbums(limit: limit, offset: nextOffset);
+          additionalAlbums.addAll(nextAlbums);
+        }
+        
+        albums.addAll(additionalAlbums);
+      }
+      
+      return albums;
+    } catch (e) {
+      print('获取收藏专辑失败: $e');
+      return [];
+    }
+  }
+
+  /// 获取最近播放的记录
+  Future<List<Map<String, dynamic>>> getRecentlyPlayed() async {
+    try {
+      if (!await _spotifyService.isAuthenticated()) {
+        print('未登录，无法获取最近播放');
+        return [];
+      }
+
+      final response = await _spotifyService.apiGet('/me/player/recently-played?limit=50');
+      if (response['items'] == null) return [];
+
+      // 提取唯一的上下文（专辑和播放列表）
+      final Map<String, Map<String, dynamic>> uniqueContexts = {};
+
+      for (final item in response['items']) {
+        if (item['context'] != null) {
+          final contextUri = item['context']['uri'];
+          if (!uniqueContexts.containsKey(contextUri)) {
+            final contextType = contextUri.split(':')[1]; // playlist, album, etc.
+            final contextId = contextUri.split(':').last;
+            
+            // 为上下文获取更详细信息
+            Map<String, dynamic> details = {};
+            try {
+              details = await _spotifyService.apiGet('/$contextType' + 's/$contextId');
+            } catch (e) {
+              print('获取上下文详情失败: $e');
+            }
+
+            uniqueContexts[contextUri] = {
+              'id': contextId,
+              'type': contextType,
+              'uri': contextUri,
+              'name': details['name'] ?? 'Unknown',
+              'images': details['images'] ?? [],
+              'context': {
+                'uri': contextUri,
+                'type': contextType,
+                'name': details['name'] ?? 'Unknown',
+                'images': details['images'] ?? [],
+              }
+            };
+          }
+        }
+      }
+      
+      return uniqueContexts.values.toList();
+    } catch (e) {
+      print('获取最近播放记录失败: $e');
+      return [];
+    }
+  }
+
+  /// 搜索内容（歌曲、专辑、艺术家等）
+  Future<Map<String, List<Map<String, dynamic>>>> searchItems(String query, {List<String> types = const ['track', 'album', 'artist', 'playlist']}) async {
+    try {
+      if (!await _spotifyService.isAuthenticated()) {
+        print('未登录，无法搜索');
+        return {};
+      }
+
+      if (query.trim().isEmpty) return {};
+
+      final typesParam = types.join(',');
+      final response = await _spotifyService.apiGet(
+        '/search?q=${Uri.encodeComponent(query)}&type=$typesParam&limit=20'
+      );
+
+      final Map<String, List<Map<String, dynamic>>> results = {};
+
+      if (response['tracks'] != null && types.contains('track')) {
+        results['tracks'] = List<Map<String, dynamic>>.from(
+          response['tracks']['items'].map((item) => {
+            'id': item['id'],
+            'type': 'track',
+            'name': item['name'],
+            'uri': item['uri'],
+            'album': item['album'],
+            'artists': item['artists'],
+            'duration_ms': item['duration_ms'],
+            'images': item['album']['images'],
+          })
+        );
+      }
+
+      if (response['albums'] != null && types.contains('album')) {
+        results['albums'] = List<Map<String, dynamic>>.from(
+          response['albums']['items'].map((item) => {
+            'id': item['id'],
+            'type': 'album',
+            'name': item['name'],
+            'uri': item['uri'],
+            'artists': item['artists'],
+            'images': item['images'],
+          })
+        );
+      }
+
+      if (response['artists'] != null && types.contains('artist')) {
+        results['artists'] = List<Map<String, dynamic>>.from(
+          response['artists']['items'].map((item) => {
+            'id': item['id'],
+            'type': 'artist',
+            'name': item['name'],
+            'uri': item['uri'],
+            'images': item['images'],
+          })
+        );
+      }
+
+      if (response['playlists'] != null && types.contains('playlist')) {
+        results['playlists'] = List<Map<String, dynamic>>.from(
+          response['playlists']['items'].map((item) => {
+            'id': item['id'],
+            'type': 'playlist',
+            'name': item['name'],
+            'uri': item['uri'],
+            'owner': item['owner'],
+            'images': item['images'],
+          })
+        );
+      }
+
+      return results;
+    } catch (e) {
+      print('搜索失败: $e');
+      return {};
     }
   }
 }

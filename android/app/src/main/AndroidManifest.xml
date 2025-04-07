@@ -5,6 +5,19 @@
     <!-- Add necessary permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- 添加 queries 元素以支持 Spotify 链接打开 -->
+    <queries>
+        <package android:name="com.spotify.music" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="spotify"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:host="open.spotify.com"/>
+        </intent>
+    </queries>
+
     <application
         android:name=".SpotoolfyApplication"
         android:label="Spotoolfy"

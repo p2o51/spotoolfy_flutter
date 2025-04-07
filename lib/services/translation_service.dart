@@ -40,7 +40,9 @@ class TranslationService {
     final prompt = '''
 Please translate the following song lyrics into $languageName. 
 Preserve the line breaks and general structure of the original lyrics. 
-Your lyrics need to be accurate in meaning, easy to pronounce and remember, and retain the artistry of the original lyrics.
+Your lyrics need to be accurate in meaning and retain the artistry of the original lyrics.
+Based on the principles above, the lyrics can be vivid, or some conjunctions can be appropriately added to make them flow smoothly.
+
 Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
 
 Original Lyrics:

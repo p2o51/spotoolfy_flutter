@@ -100,6 +100,98 @@ class SpotifyAuthService {
     'user-read-recently-played',
   ];
 
+  /// 通用的 API GET 请求方法
+  Future<Map<String, dynamic>> apiGet(String endpoint) async {
+    try {
+      final token = await _secureStorage.read(key: _accessTokenKey);
+      if (token == null) {
+        throw SpotifyAuthException('未找到访问令牌');
+      }
+
+      final uri = Uri.parse('https://api.spotify.com/v1$endpoint');
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else if (response.statusCode == 401) {
+        // 令牌已过期，尝试刷新
+        final newToken = await refreshToken();
+        if (newToken != null) {
+          // 使用新令牌重试请求
+          return apiGet(endpoint);
+        }
+        throw SpotifyAuthException('授权已过期，无法刷新令牌');
+      } else {
+        throw SpotifyAuthException(
+          '请求失败：${response.statusCode}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      if (e is SpotifyAuthException) rethrow;
+      throw SpotifyAuthException('API请求失败: $e');
+    }
+  }
+
+  /// 通用的 API PUT 请求方法
+  Future<Map<String, dynamic>?> apiPut(String endpoint, {Map<String, dynamic>? body}) async {
+    try {
+      final token = await _secureStorage.read(key: _accessTokenKey);
+      if (token == null) {
+        throw SpotifyAuthException('未找到访问令牌');
+      }
+
+      final uri = Uri.parse('https://api.spotify.com/v1$endpoint');
+      final headers = {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      };
+
+      final response = await http.put(
+        uri,
+        headers: headers,
+        body: body != null ? jsonEncode(body) : null,
+      );
+
+      // Handle responses like 202 (Accepted) and 204 (No Content) as success for PUT
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        // Return null or an empty map for non-content responses
+        if (response.statusCode == 204 || response.body.isEmpty) {
+          return null;
+        }
+        try {
+          return jsonDecode(response.body);
+        } catch (e) {
+          // If body is not valid JSON but status is success, return null
+          print('PUT request succeeded but response body is not valid JSON: $e');
+          return null;
+        }
+      } else if (response.statusCode == 401) {
+        // 令牌已过期，尝试刷新
+        final newToken = await refreshToken();
+        if (newToken != null) {
+          // 使用新令牌重试请求
+          return apiPut(endpoint, body: body);
+        }
+        throw SpotifyAuthException('授权已过期，无法刷新令牌');
+      } else {
+        throw SpotifyAuthException(
+          '请求失败：${response.statusCode}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      if (e is SpotifyAuthException) rethrow;
+      throw SpotifyAuthException('API PUT请求失败: $e');
+    }
+  }
+
   /// 检查是否已认证
   Future<bool> isAuthenticated() async {
     try {

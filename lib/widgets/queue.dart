@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class QueueDisplay extends StatelessWidget {
   const QueueDisplay({super.key});
@@ -42,8 +44,8 @@ class QueueDisplay extends StatelessWidget {
                     leading: SizedBox(
                       width: 40,
                       height: 40,
-                      child: Image.network(
-                        track['album']['images'][0]['url'],
+                      child: CachedNetworkImage(
+                        imageUrl: track['album']['images'][0]['url'],
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -79,6 +81,7 @@ class QueueDisplay extends StatelessWidget {
                         );
                       }
                     },
+                    onLongPress: () => _openInSpotify(context, track),
                   );
                 },
               ),
@@ -93,5 +96,86 @@ class QueueDisplay extends StatelessWidget {
     final minutes = duration.inMinutes;
     final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+  
+  // 打开Spotify应用或网页
+  Future<void> _openInSpotify(BuildContext context, Map<String, dynamic> track) async {
+    String? webUrl;
+    String? spotifyUri;
+    
+    // 先尝试获取URI
+    if (track['uri'] != null && track['uri'].toString().startsWith('spotify:')) {
+      // 直接使用原始URI格式，如 spotify:track:37vIh6I03bNlWKlVMjGRK3
+      spotifyUri = track['uri'].toString();
+      
+      // 从URI构建web URL
+      final segments = spotifyUri.split(':');
+      if (segments.length >= 3) {
+        final type = segments[1]; // track, album, playlist, artist
+        final id = segments[2];
+        webUrl = 'https://open.spotify.com/$type/$id';
+      }
+    } 
+    // 尝试构建URI
+    else if (track['type'] != null && track['id'] != null) {
+      final type = track['type'].toString();
+      final id = track['id'].toString();
+      spotifyUri = 'spotify:$type:$id';
+      webUrl = 'https://open.spotify.com/$type/$id';
+    }
+    // 后备方案：尝试从external_urls
+    else if (track['external_urls'] != null && track['external_urls']['spotify'] != null) {
+      webUrl = track['external_urls']['spotify'].toString();
+      
+      // 尝试从URL创建URI
+      if (webUrl.contains('open.spotify.com/')) {
+        final path = webUrl.split('open.spotify.com/')[1].split('?')[0];
+        final segments = path.split('/');
+        if (segments.length >= 2) {
+          spotifyUri = 'spotify:${segments[0]}:${segments[1]}';
+        }
+      }
+    }
+    
+    if (spotifyUri == null && webUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法构建Spotify链接'))
+      );
+      return;
+    }
+    
+    try {
+      // 先尝试使用URI启动Spotify应用
+      if (spotifyUri != null) {
+        final uri = Uri.parse(spotifyUri);
+        print('尝试打开Spotify应用：$uri');
+        
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+          return; // 成功打开应用后直接返回
+        }
+      }
+      
+      // 如果无法打开应用，尝试打开网页
+      if (webUrl != null) {
+        final uri = Uri.parse(webUrl);
+        print('尝试打开网页链接：$uri');
+        
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      }
+      
+      // 两种方式都失败
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法打开Spotify'))
+      );
+    } catch (e) {
+      print('打开Spotify出错: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('打开Spotify失败: $e'))
+      );
+    }
   }
 }

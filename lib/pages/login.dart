@@ -4,7 +4,6 @@ import '../providers/spotify_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/settings_service.dart';
-import 'package:intl/intl.dart'; // For number formatting
 import '../services/lyrics_service.dart'; // Import LyricsService
 import '../services/translation_service.dart'; // Import TranslationService
 import 'dart:math' as math; // Import dart:math
