@@ -260,8 +260,8 @@ class SpotifyProvider extends ChangeNotifier {
       refreshCurrentTrack();
       refreshAvailableDevices();
       
-      // API 刷新计时器 - 每5秒从服务器获取一次
-      _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      // API 刷新计时器 - 每 3.5 秒从服务器获取一次
+      _refreshTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) async {
         if (!_isSkipping) {
           try {
             // 在每次 API 调用前检查令牌是否需要刷新

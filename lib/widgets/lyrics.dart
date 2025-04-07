@@ -135,6 +135,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       );
 
       if (mounted && translatedText != null) {
+        // Store the current _autoScroll state before showing the modal
+        final wasAutoScrolling = _autoScroll;
+
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
@@ -143,7 +146,24 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             originalLyrics: originalLyricsText,
             translatedLyrics: translatedText,
           ),
-        );
+        ).then((_) {
+          // This block executes after the bottom sheet is dismissed
+          if (mounted && wasAutoScrolling) {
+            // If auto-scroll was active before, ensure it still is
+            // and trigger a scroll to the current line after the frame renders
+            if (!_autoScroll) { // Only set state if it needs changing
+              setState(() {
+                _autoScroll = true;
+              });
+            }
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                // Use the latest position and index when scrolling
+                _scrollToCurrentLine(_getCurrentLineIndex(_currentPosition));
+              }
+            });
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -171,17 +191,36 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       final RenderBox? renderBox = _listViewKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox == null) return;
       
+      // Check if all necessary line heights are available before scrolling
+      bool heightsAvailable = true;
+      for (int i = 0; i <= currentLineIndex; i++) {
+        if (!_lineHeights.containsKey(i)) {
+          heightsAvailable = false;
+          // Optional: Add a print statement for debugging if needed
+          // print('Height for line $i not yet available for scrolling.'); 
+          break;
+        }
+      }
+
+      // If heights are not ready, skip this scroll attempt. 
+      // The next frame's update will likely trigger the scroll again.
+      if (!heightsAvailable) {
+        return;
+      }
+
       final viewportHeight = _scrollController.position.viewportDimension;
       final maxScroll = _scrollController.position.maxScrollExtent;
       
       // Calculate total height before current line
       double totalOffset = 0;
       for (int i = 0; i < currentLineIndex; i++) {
-        totalOffset += _lineHeights[i] ?? 50.0;
+        // Use ! because we've already checked for key existence
+        totalOffset += _lineHeights[i]!;
       }
       
       // Add half of current line height
-      final currentLineHeight = _lineHeights[currentLineIndex] ?? 50.0;
+      // Use ! because we've already checked for key existence
+      final currentLineHeight = _lineHeights[currentLineIndex]!;
       totalOffset += currentLineHeight / 2;
       
       // Calculate target offset with padding compensation

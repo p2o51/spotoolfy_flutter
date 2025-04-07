@@ -37,6 +37,7 @@ class TranslationService {
     final prompt = '''
 Please translate the following song lyrics into $languageName. 
 Preserve the line breaks and general structure of the original lyrics. 
+Your lyrics need to be accurate in meaning, easy to pronounce and remember, and retain the artistry of the original lyrics.
 Only output the translated text, without any additional commentary, introductions, or explanations.
 
 Original Lyrics:
