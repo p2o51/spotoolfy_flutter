@@ -3,6 +3,8 @@ import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../services/lyrics_service.dart';
+import '../services/translation_service.dart';
+import './translation_result_sheet.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -23,6 +25,7 @@ class LyricsWidget extends StatefulWidget {
 class _LyricsWidgetState extends State<LyricsWidget> {
   List<LyricLine> _lyrics = [];
   final LyricsService _lyricsService = LyricsService();
+  final TranslationService _translationService = TranslationService();
   String? _lastTrackId;
   Timer? _progressTimer;
   Duration _currentPosition = Duration.zero;
@@ -30,6 +33,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   final Map<int, double> _lineHeights = {};
   final GlobalKey _listViewKey = GlobalKey();
   bool _autoScroll = true;
+  bool _isTranslating = false;
+  bool _isCopyLyricsMode = false;
+  PlayMode? _previousPlayMode;
 
   @override
   void initState() {
@@ -87,7 +93,71 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     if (rawLyrics != null && mounted) {
       setState(() {
         _lyrics = _parseLyrics(rawLyrics);
+        _lineHeights.clear();
       });
+    }
+  }
+
+  Future<void> _translateAndShowLyrics() async {
+    if (_lyrics.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No lyrics to translate.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isTranslating = true;
+    });
+
+    // Get the current track ID
+    final provider = Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrackId = provider.currentTrack?['item']?['id'];
+
+    if (currentTrackId == null) {
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not get current track ID.')),
+        );
+        setState(() { _isTranslating = false; });
+       }
+       return;
+    }
+
+    try {
+      // Combine lyric lines into a single string
+      final originalLyricsText = _lyrics.map((line) => line.text).join('\n');
+      
+      // Pass trackId to the translation service
+      final translatedText = await _translationService.translateLyrics(
+        originalLyricsText, 
+        currentTrackId, // Pass the track ID here
+      );
+
+      if (mounted && translatedText != null) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => TranslationResultSheet(
+            originalLyrics: originalLyricsText,
+            translatedLyrics: translatedText,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        print("Translation Error: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Translation failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTranslating = false;
+        });
+      }
     }
   }
 
@@ -142,6 +212,13 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
         final currentTrackId = provider.currentTrack?['item']?['id'];
         if (currentTrackId != _lastTrackId) {
+          if (_isCopyLyricsMode) {
+            if (mounted) {
+              Future.microtask(() {
+                _toggleCopyLyricsMode();
+              });
+            }
+          }
           if (mounted) {
             Future.microtask(() => _loadLyrics());
           }
@@ -277,19 +354,60 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                 ),
                 if (!_autoScroll)
                   Positioned(
-                    left: MediaQuery.of(context).size.width > 600 ? 24 : 40,
+                    left: MediaQuery.of(context).size.width > 600 ? 24 : 16,
                     bottom: 24 + MediaQuery.of(context).padding.bottom,
-                    child: IconButton.filledTonal(
-                      icon: const Icon(Icons.vertical_align_center),
-                      onPressed: () {
-                        if (!mounted) return;
-                        
-                        setState(() {
-                          _autoScroll = true;
-                        });
-                        _scrollToCurrentLine(currentLineIndex);
-                      },
-                      tooltip: '返回到当前播放位置',
+                    child: Row(
+                      children: [
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.vertical_align_center),
+                          onPressed: () {
+                            if (!mounted) return;
+                            
+                            // Exit copy mode if active when centering
+                            if (_isCopyLyricsMode) {
+                              _toggleCopyLyricsMode(); // We'll define this soon
+                            } else {
+                              setState(() {
+                                _autoScroll = true;
+                              });
+                            }
+                            _scrollToCurrentLine(currentLineIndex);
+                          },
+                          tooltip: 'Center Current Line',
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          icon: _isTranslating 
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.translate),
+                          onPressed: _isTranslating ? null : _translateAndShowLyrics,
+                          tooltip: 'Translate Lyrics',
+                        ),
+                        const SizedBox(width: 8), // Add spacing
+                        // Copy Lyrics Mode Button
+                        IconButton.filledTonal(
+                          icon: Icon(
+                            _isCopyLyricsMode 
+                              ? Icons.playlist_play_rounded // Icon when active (Exit mode)
+                              : Icons.edit_note_rounded, // Changed icon for inactive (Enter mode)
+                          ),
+                          onPressed: _toggleCopyLyricsMode, 
+                          tooltip: _isCopyLyricsMode 
+                              ? 'Exit Copy Mode & Resume Scroll' 
+                              : 'Enter Copy Lyrics Mode (Single Repeat)',
+                          style: ButtonStyle( // Highlight when active
+                            backgroundColor: _isCopyLyricsMode 
+                              ? MaterialStateProperty.all(
+                                  Theme.of(context).colorScheme.primary.withOpacity(0.3)
+                                ) 
+                              : null,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
               ],
@@ -360,6 +478,55 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     
     result.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return result;
+  }
+
+  void _toggleCopyLyricsMode() {
+    if (!mounted) return;
+
+    final provider = Provider.of<SpotifyProvider>(context, listen: false);
+
+    setState(() {
+      if (_isCopyLyricsMode) {
+        // Exiting copy mode
+        _isCopyLyricsMode = false;
+        _autoScroll = true; // Resume auto-scroll
+        // Restore previous play mode if it was saved
+        if (_previousPlayMode != null) {
+          provider.setPlayMode(_previousPlayMode!); 
+        }
+      } else {
+        // Entering copy mode
+        _isCopyLyricsMode = true;
+        _autoScroll = false; // Disable auto-scroll
+        // Store current mode and set to single repeat
+        _previousPlayMode = provider.currentMode;
+        provider.setPlayMode(PlayMode.singleRepeat);
+        
+        // Show SnackBar hint
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Copy Lyrics Mode: Single repeat active, auto-scroll disabled, until you continue to scroll or skip the song.'),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+              margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            ),
+          );
+        }
+      }
+    });
+
+    // If exiting copy mode, ensure we scroll to the current line
+    if (!_isCopyLyricsMode && _autoScroll) {
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _scrollToCurrentLine(_getCurrentLineIndex(_currentPosition));
+          }
+       });
+    }
   }
 }
 

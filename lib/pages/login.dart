@@ -3,6 +3,11 @@ import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/settings_service.dart';
+import 'package:intl/intl.dart'; // For number formatting
+import '../services/lyrics_service.dart'; // Import LyricsService
+import '../services/translation_service.dart'; // Import TranslationService
+import 'dart:math' as math; // Import dart:math
 
 class Login extends StatelessWidget {
   const Login({super.key});
@@ -53,10 +58,14 @@ class Login extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 32),
-            const Welcome(),
-            const SizedBox(height: 40),
             // Add Spotify Credentials Configuration
             const SpotifyCredentialsConfig(),
+            const SizedBox(height: 24),
+            // Add Gemini API and Language Configuration Placeholder
+            const AppSettingsConfig(), // New widget for Gemini Key and Language
+            const SizedBox(height: 24),
+            // Add Cache Management Section
+            const CacheManagementSection(),
             const SizedBox(height: 24),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -374,35 +383,313 @@ class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
   }
 }
 
-class Welcome extends StatelessWidget {
-  const Welcome({super.key});
+class AppSettingsConfig extends StatefulWidget {
+  const AppSettingsConfig({super.key});
+
+  @override
+  State<AppSettingsConfig> createState() => _AppSettingsConfigState();
+}
+
+class _AppSettingsConfigState extends State<AppSettingsConfig> {
+  final _settingsService = SettingsService();
+  final _geminiApiKeyController = TextEditingController();
+  String? _selectedLanguage;
+  bool _isEditing = false;
+  bool _isLoading = true;
+
+  final Map<String, String> _languageOptions = {
+    'en': 'English',
+    'zh-CN': '简体中文 (Simplified Chinese)',
+    'zh-TW': '繁體中文 (Traditional Chinese)',
+    'ja': '日本語 (Japanese)',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    setState(() { _isLoading = true; });
+    try {
+      final settings = await _settingsService.getSettings();
+      if (mounted) {
+        setState(() {
+          _geminiApiKeyController.text = settings['apiKey'] ?? '';
+          if (settings['languageCode'] != null && 
+              _languageOptions.containsKey(settings['languageCode'])) {
+            _selectedLanguage = settings['languageCode'];
+          } else {
+            _selectedLanguage = 'en'; 
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading settings: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading settings: $e')),
+        );
+        setState(() { _isLoading = false; });
+      }
+    }
+  }
+
+  Future<void> _saveSettings() async {
+    if (_geminiApiKeyController.text.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Gemini API Key')),
+      );
+      return;
+    }
+    if (_selectedLanguage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a target language')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saving settings...')), 
+    );
+
+    try {
+      await _settingsService.saveSettings(
+        apiKey: _geminiApiKeyController.text,
+        languageCode: _selectedLanguage,
+      );
+      if (mounted) {
+         ScaffoldMessenger.of(context).removeCurrentSnackBar();
+         ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved successfully')),
+        );
+        setState(() {
+          _isEditing = false;
+        });
+      }
+    } catch (e) {
+       print("Error saving settings: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving settings: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _geminiApiKeyController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        Text('Kisses',
-          style: TextStyle(
-            fontFamily: 'Derivia',
-            fontSize: 96,
-            height: 0.9,
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'App Settings',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              IconButton(
+                icon: Icon(_isEditing ? Icons.close : Icons.edit),
+                onPressed: () {
+                  setState(() {
+                    if (_isEditing) {
+                      _loadSettings();
+                    }
+                    _isEditing = !_isEditing;
+                  });
+                },
+              ),
+            ],
           ),
-        ),
-        Text('for',
-          style: TextStyle(
-            fontFamily: 'Derivia',
-            fontSize: 64,
-            height: 0.9,
+          const SizedBox(height: 8),
+          TextField(
+            controller: _geminiApiKeyController,
+            enabled: _isEditing,
+            decoration: InputDecoration(
+              labelText: 'Gemini API Key',
+              hintText: 'Enter your Gemini API Key',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            obscureText: true,
           ),
-        ),
-        Text('Music.',
-          style: TextStyle(
-            fontFamily: 'Derivia',
-            fontSize: 112,
-            height: 0.9,
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedLanguage,
+            items: _languageOptions.entries.map((entry) {
+              return DropdownMenuItem<String>(
+                value: entry.key,
+                child: Text(entry.value),
+              );
+            }).toList(),
+            onChanged: _isEditing ? (String? newValue) {
+              setState(() {
+                _selectedLanguage = newValue;
+              });
+            } : null,
+            decoration: InputDecoration(
+              labelText: 'Target Translation Language',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            disabledHint: Text(_selectedLanguage != null 
+              ? _languageOptions[_selectedLanguage] ?? 'Select Language' 
+              : 'Select Language'),
           ),
-        ),
-      ],
+          if (_isEditing) ...[
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FilledButton(
+                  onPressed: _saveSettings,
+                  child: const Text('Save Settings'),
+                ),
+              ],
+            ),
+          ],
+           const SizedBox(height: 8),
+           Text(
+            'Configure your Gemini API Key and preferred translation language.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Add the CacheManagementSection widget structure
+class CacheManagementSection extends StatefulWidget {
+  const CacheManagementSection({super.key});
+
+  @override
+  State<CacheManagementSection> createState() => _CacheManagementSectionState();
+}
+
+class _CacheManagementSectionState extends State<CacheManagementSection> {
+  final LyricsService _lyricsService = LyricsService();
+  final TranslationService _translationService = TranslationService();
+
+  int _lyricsCacheSize = 0;
+  int _translationCacheSize = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCacheSizes();
+  }
+
+  Future<void> _loadCacheSizes() async {
+    setState(() { _isLoading = true; });
+    try {
+      final lyricsSize = await _lyricsService.getCacheSize();
+      final translationSize = await _translationService.getTranslationCacheSize();
+      if (mounted) {
+        setState(() {
+          _lyricsCacheSize = lyricsSize;
+          _translationCacheSize = translationSize;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading cache sizes: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading cache sizes: $e')),
+        );
+         setState(() { _isLoading = false; });
+      }
+    }
+  }
+
+  // Helper to format bytes into KB/MB
+  String _formatBytes(int bytes, [int decimals = 2]) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    var i = (bytes == 0) ? 0 : (math.log(bytes) / math.log(1024)).floor();
+    return '${(bytes / math.pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
+  }
+
+  Future<void> _clearLyricsCache() async {
+    await _lyricsService.clearCache();
+    if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lyrics cache cleared')),
+      );
+      _loadCacheSizes(); // Refresh sizes
+    }
+  }
+
+   Future<void> _clearTranslationCache() async {
+    await _translationService.clearTranslationCache();
+    if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Translation cache cleared')),
+      );
+      _loadCacheSizes(); // Refresh sizes
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cache Management',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Lyrics Cache Size: ${_formatBytes(_lyricsCacheSize)}'),
+                TextButton(onPressed: _clearLyricsCache, child: const Text('Clear')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Translation Cache Size: ${_formatBytes(_translationCacheSize)}'),
+                TextButton(onPressed: _clearTranslationCache, child: const Text('Clear')),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Clear cached data to free up space or resolve issues.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 }
