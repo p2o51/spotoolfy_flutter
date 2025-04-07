@@ -113,3 +113,76 @@ class Ratings extends StatelessWidget {
     );
   }
 }
+
+class CarouselView extends StatefulWidget {
+  final double itemExtent;
+  final double shrinkExtent;
+  final bool itemSnapping;
+  final List<Widget> children;
+
+  const CarouselView({
+    super.key,
+    required this.itemExtent,
+    this.shrinkExtent = 0,
+    this.itemSnapping = false,
+    required this.children,
+  });
+
+  @override
+  State<CarouselView> createState() => _CarouselViewState();
+}
+
+class _CarouselViewState extends State<CarouselView> {
+  late ScrollController _scrollController;
+  double _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    setState(() {
+      _currentPage = _scrollController.offset / widget.itemExtent;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      controller: _scrollController,
+      scrollDirection: Axis.horizontal,
+      itemCount: widget.children.length,
+      itemExtent: widget.itemExtent,
+      physics: widget.itemSnapping 
+        ? PageScrollPhysics() 
+        : BouncingScrollPhysics(),
+      itemBuilder: (context, index) {
+        // 计算缩放效果
+        final scale = 1.0 - ((_currentPage - index).abs() * 0.1).clamp(0.0, widget.shrinkExtent / 100);
+        
+        // 添加半透明效果
+        final opacity = 0.5 + (1.0 - (_currentPage - index).abs() * 0.2).clamp(0.0, 0.5);
+        
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            child: Center(
+              child: widget.children[index],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
