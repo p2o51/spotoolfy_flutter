@@ -12,13 +12,14 @@ A Flutter application that enhances your Spotify experience with additional feat
 
 ## APK & TestFlight
 Please note that you need to contact me to request Spotify API permissions before testing (currently in developer mode, registration is required).
-APK： https://drive.google.com/file/d/136C8Sv1pQ0cOTGabpDSkCxUhv8T_CKxX/view?usp=sharing
+APK： https://51notepage.craft.me/spotoolfy
 TestFlight：https://testflight.apple.com/join/h2GR2Gbf
 
 ## Recently Roadmap
 
 Spotoolfy 1.1
-New Year, New Version.
+"Soup" Update---I don't wanna live without you
+
 ### API Experience
 - Optimize the refresh timing of songs.
 - Support Spotify Connect audio display and playback
@@ -29,15 +30,4 @@ New Year, New Version.
 - Spotify API compliance, rename and add "return to Spotify" button
 
 ## Configuration
-
-### Spotify API Credentials
-1. Copy `lib/config/secrets.example.dart` to `lib/config/secrets.dart`
-2. Replace the placeholder values in `secrets.dart` with your Spotify API credentials:
-   ```dart
-   class SpotifySecrets {
-     static const String clientId = 'your_client_id_here';
-     static const String clientSecret = 'your_client_secret_here';
-   }
-   ```
-3. Never commit `secrets.dart` to version control
-
+https://51notepage.craft.me/Spotoolfy/config
