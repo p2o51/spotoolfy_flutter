@@ -4,11 +4,13 @@ import 'package:flutter/services.dart'; // For Clipboard
 class TranslationResultSheet extends StatefulWidget {
   final String originalLyrics;
   final String translatedLyrics;
+  final Future<String?> Function() onReTranslate; // Add callback for re-translation
 
   const TranslationResultSheet({
     Key? key,
     required this.originalLyrics,
     required this.translatedLyrics,
+    required this.onReTranslate, // Make callback required
   }) : super(key: key);
 
   @override
@@ -17,10 +19,51 @@ class TranslationResultSheet extends StatefulWidget {
 
 class _TranslationResultSheetState extends State<TranslationResultSheet> {
   bool _showTranslated = true;
+  bool _isTranslating = false; // State for loading indicator
+  String? _translationError; // State for error message
+  late String _currentTranslatedLyrics; // State for displayed translation
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTranslatedLyrics = widget.translatedLyrics; // Initialize with initial translation
+  }
+
+  Future<void> _handleReTranslate() async {
+    if (_isTranslating) return; // Prevent multiple triggers
+
+    setState(() {
+      _isTranslating = true;
+      _translationError = null;
+      _showTranslated = true; // Switch back to translated view if on original
+    });
+
+    try {
+      final newTranslation = await widget.onReTranslate();
+      if (mounted) { // Check if the widget is still in the tree
+        setState(() {
+          if (newTranslation != null) {
+            _currentTranslatedLyrics = newTranslation;
+            _translationError = null;
+          } else {
+            _translationError = 'Failed to re-translate. Please try again.';
+          }
+          _isTranslating = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _translationError = 'Error: ${e.toString()}';
+          _isTranslating = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final lyricsToShow = _showTranslated ? widget.translatedLyrics : widget.originalLyrics;
+    final lyricsToShow = _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
     final titleLabel = _showTranslated ? 'Translation' : 'Original';
 
     // Calculate initial size and max size for the sheet
@@ -73,18 +116,23 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                     Row(
                       children: [
                         // Re-translate Button
-                        IconButton.filledTonal(
-                          icon: const Icon(Icons.refresh, size: 20), // Smaller icon size
-                          tooltip: 'Re-translate (closes sheet)',
-                          onPressed: () {
-                            // Simple action: close the sheet to allow re-triggering
-                            // TODO: Implement direct re-translation if needed via callback
-                            Navigator.pop(context);
-                          },
-                           style: IconButton.styleFrom(
-                            padding: const EdgeInsets.all(8), // Adjust padding
-                          ),
-                        ),
+                        _isTranslating
+                          ? const SizedBox(
+                              width: 36, // Match IconButton size
+                              height: 36,
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : IconButton.filledTonal(
+                              icon: const Icon(Icons.refresh, size: 20),
+                              tooltip: 'Re-translate',
+                              onPressed: _handleReTranslate, // Use the new handler
+                              style: IconButton.styleFrom(
+                                padding: const EdgeInsets.all(8), // Adjust padding
+                              ),
+                            ),
                         const SizedBox(width: 4), // Spacing
                         // Copy Button
                         IconButton.filledTonal(
@@ -108,9 +156,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                               icon: const Icon(Icons.translate, size: 20),
                               tooltip: 'Show Original',
                               onPressed: () {
-                                setState(() {
-                                  _showTranslated = !_showTranslated;
-                                });
+                                setState(() => _showTranslated = !_showTranslated);
                               },
                               style: IconButton.styleFrom(
                                 padding: const EdgeInsets.all(8),
@@ -123,9 +169,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                               icon: const Icon(Icons.translate, size: 20),
                               tooltip: 'Show Translation',
                               onPressed: () {
-                                setState(() {
-                                  _showTranslated = !_showTranslated;
-                                });
+                                setState(() => _showTranslated = !_showTranslated);
                               },
                               style: IconButton.styleFrom(
                                 padding: const EdgeInsets.all(8),
@@ -171,9 +215,10 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                         key: ValueKey<bool>(_showTranslated), // Key on the Container
                         alignment: Alignment.topLeft, // Ensure text alignment
                         child: SelectableText(
-                          lyricsToShow,
+                          _translationError ?? lyricsToShow, // Show error or lyrics
                           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             height: 1.4, // Adjust line height for readability
+                            color: _translationError != null ? Theme.of(context).colorScheme.error : null, // Error color
                           ),
                         ),
                       ),

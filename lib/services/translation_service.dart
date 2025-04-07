@@ -9,7 +9,7 @@ class TranslationService {
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest'; // Use the latest flash model
   static const String _cacheKeyPrefix = 'translation_cache_'; // Cache key prefix
 
-  Future<String?> translateLyrics(String lyricsText, String trackId, {String? targetLanguage}) async {
+  Future<String?> translateLyrics(String lyricsText, String trackId, {String? targetLanguage, bool forceRefresh = false}) async {
     final apiKey = await _settingsService.getGeminiApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw Exception('Gemini API Key not configured.');
@@ -24,21 +24,24 @@ class TranslationService {
 
     // Try fetching from cache first
     final cachedTranslation = prefs.getString(cacheKey);
-    if (cachedTranslation != null) {
-      print('Retrieved translation from cache for track $trackId ($language)');
+    if (cachedTranslation != null && !forceRefresh) {
       return cachedTranslation;
     }
 
-    print('Fetching translation from API for track $trackId ($language)');
+    // If forcing refresh, remove existing cache entry
+    if (forceRefresh) {
+      await prefs.remove(cacheKey);
+      print('Forcing refresh: Removed cache for $cacheKey');
+    }
 
     final url = Uri.parse('$_geminiApiBaseUrl:generateContent?key=$apiKey');
     
-    // Prepare the prompt
+    // Prepare the prompt correctly
     final prompt = '''
 Please translate the following song lyrics into $languageName. 
 Preserve the line breaks and general structure of the original lyrics. 
 Your lyrics need to be accurate in meaning, easy to pronounce and remember, and retain the artistry of the original lyrics.
-Only output the translated text, without any additional commentary, introductions, or explanations.
+Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
 
 Original Lyrics:
 """
@@ -46,8 +49,8 @@ $lyricsText
 """
 
 Translated Lyrics ($languageName):
-"""
-''';
+###
+'''; // Request AI to wrap result in ###
 
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -82,28 +85,71 @@ Translated Lyrics ($languageName):
         if (candidates != null && candidates.isNotEmpty) {
           final content = candidates[0]['content'];
           if (content != null && content['parts'] != null && content['parts'].isNotEmpty) {
-            String translatedText = content['parts'][0]['text'] ?? '';
-            // Clean up potential markdown quotes
-            if (translatedText.startsWith('```')) {
+            String rawResult = content['parts'][0]['text'] ?? '';
+            
+            // 更全面的文本清理算法
+            String translatedText = rawResult;
+            
+            // 方法1：尝试通过定界符提取
+            final startIndex = rawResult.indexOf('###');
+            final endIndex = rawResult.lastIndexOf('###');
+            
+            if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+              translatedText = rawResult.substring(startIndex + 3, endIndex).trim();
+            }
+            
+            // 方法2：无论如何确保开始和结束的###都被移除
+            // 移除开头的###
+            if (translatedText.startsWith('###')) {
               translatedText = translatedText.substring(3);
             }
-            if (translatedText.endsWith('```')) {
+            
+            // 移除结尾的###
+            if (translatedText.endsWith('###')) {
               translatedText = translatedText.substring(0, translatedText.length - 3);
             }
+            
+            // 再次整理文本
             translatedText = translatedText.trim();
             
-            // Save to cache on success
+            // 移除任何井号之间的空白，有些AI会用`### ###`形式
+            if (translatedText.contains('### ###')) {
+              translatedText = translatedText.replaceAll('### ###', '');
+            }
+            
+            // 检查并移除内部出现的###
+            final parts = translatedText.split('###');
+            if (parts.length > 1) {
+              // 如果内部有###，取最长的部分作为翻译结果
+              String longestPart = '';
+              for (final part in parts) {
+                final trimmedPart = part.trim();
+                if (trimmedPart.length > longestPart.length) {
+                  longestPart = trimmedPart;
+                }
+              }
+              translatedText = longestPart;
+            }
+            
+            // 最后的整理
+            translatedText = translatedText.trim();
+            
+            // 移除任何未预期的换行符或空白
+            translatedText = translatedText.replaceAll(RegExp(r'^\s*###\s*|\s*###\s*$'), '');
+            
+            // 打印调试信息 (开发阶段，最终可以移除)
+            print('Raw result from AI:\n$rawResult');
+            print('Final cleaned translation:\n$translatedText');
+            
+            // Save to cache (even if refreshed, save the new result)
             await prefs.setString(cacheKey, translatedText);
-            print('Translation cached for track $trackId ($language)');
 
             return translatedText;
           }
         }
         // Handle cases where the expected structure isn't found
-        print('Unexpected Gemini response structure: ${response.body}');
         throw Exception('Failed to parse translation response.');
       } else {
-        print('Gemini API Error: ${response.statusCode} ${response.body}');
         // Try to parse error message from response
         String errorMessage = 'Translation failed (Code: ${response.statusCode}).';
         try {
@@ -117,7 +163,6 @@ Translated Lyrics ($languageName):
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('Error during translation request: $e');
       // Re-throw the exception to be handled by the caller
       rethrow; 
     }
@@ -146,7 +191,6 @@ Translated Lyrics ($languageName):
           await prefs.remove(key);
         }
       }
-      print('Translation cache cleared.');
     } catch (e) {
       print('Failed to clear translation cache: $e');
     }

@@ -348,7 +348,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ],
             ),
           Expanded(
-            child: _pages[_selectedIndex],
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _pages,
+            ),
           ),
         ],
       ),
