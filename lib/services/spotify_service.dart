@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:spotify_sdk/spotify_sdk.dart';
+import 'dart:io' show Platform;
 
 /// Spotify 认证响应模型
 class SpotifyAuthResponse {
@@ -181,6 +182,9 @@ class SpotifyAuthService {
   Future<String?> login({List<String>? scopes}) async {
     try {
       print('开始登录流程...');
+      print('使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)} (长度: ${clientId.length})');
+      print('使用的重定向URL: $redirectUrl');
+      print('客户端密钥长度: ${clientSecret.length}');
       
       // 先检查是否已经认证
       print('开始自动登录检查...');
@@ -216,62 +220,117 @@ class SpotifyAuthService {
       print('尝试获取访问令牌...');
       try {
         // 使用SpotifySdk获取访问令牌
-        final accessToken = await SpotifySdk.getAccessToken(
-          clientId: clientId,
-          redirectUrl: redirectUrl,
-          scope: (scopes ?? defaultScopes).join(','),
-        );
+        final scopeStr = (scopes ?? defaultScopes).join(',');
+        print('请求的权限范围: $scopeStr');
         
-        if (accessToken.isNotEmpty) {
-          print('成功获取访问令牌');
+        // 查看当前设备信息
+        print('系统信息:');
+        print('Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}');
+        print('Device: ${Platform.localHostname}');
+        
+        print('调用 SpotifySdk.getAccessToken...');
+        
+        try {
+          final accessToken = await SpotifySdk.getAccessToken(
+            clientId: clientId,
+            redirectUrl: redirectUrl,
+            scope: scopeStr,
+          );
           
-          // 设置过期时间并保存
-          final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
-          await _saveAuthResponse(accessToken, expirationDateTime);
+          print('SpotifySdk.getAccessToken 返回结果：${accessToken.isEmpty ? "空" : "长度 " + accessToken.length.toString()}');
           
-          // 连接到Spotify Remote
-          print('尝试连接到Spotify Remote...');
-          
-          bool connected = false;
-          try {
-            connected = await SpotifySdk.connectToSpotifyRemote(
-              clientId: clientId,
-              redirectUrl: redirectUrl,
-              accessToken: accessToken,
-            );
-          } catch (e) {
-            print('连接到Spotify Remote失败: $e');
-            print('将尝试再次连接...');
+          if (accessToken.isNotEmpty) {
+            print('成功获取访问令牌');
             
-            // 等待一下再重试一次
-            await Future.delayed(const Duration(seconds: 2));
+            // 设置过期时间并保存
+            final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
+            await _saveAuthResponse(accessToken, expirationDateTime);
+            
+            // 连接到Spotify Remote
+            print('尝试连接到Spotify Remote...');
+            
+            bool connected = false;
             try {
               connected = await SpotifySdk.connectToSpotifyRemote(
                 clientId: clientId,
                 redirectUrl: redirectUrl,
                 accessToken: accessToken,
               );
-            } catch (retryError) {
-              print('第二次连接到Spotify Remote也失败: $retryError');
+            } catch (e) {
+              print('连接到Spotify Remote失败: $e');
+              print('错误类型: ${e.runtimeType}');
+              
+              if (e.toString().contains('401')) {
+                print('检测到401错误 - 未授权，可能是客户端ID或密钥无效');
+              } else if (e.toString().contains('invalid_client')) {
+                print('检测到无效客户端错误 - 客户端ID或密钥无效');
+              }
+              
+              print('将尝试再次连接...');
+              
+              // 等待一下再重试一次
+              await Future.delayed(const Duration(seconds: 2));
+              try {
+                connected = await SpotifySdk.connectToSpotifyRemote(
+                  clientId: clientId,
+                  redirectUrl: redirectUrl,
+                  accessToken: accessToken,
+                );
+              } catch (retryError) {
+                print('第二次连接到Spotify Remote也失败: $retryError');
+                print('错误类型: ${retryError.runtimeType}');
+                
+                if (retryError.toString().contains('401')) {
+                  print('再次检测到401错误 - 确认为认证问题');
+                  throw SpotifyAuthException('登录失败：API凭据无效或未获得授权', code: '401');
+                }
+              }
             }
-          }
-          
-          if (connected) {
-            print('成功连接到 Spotify Remote');
-            // 设置连接状态监听
-            _setupConnectionListener();
+            
+            if (connected) {
+              print('成功连接到 Spotify Remote');
+              // 设置连接状态监听
+              _setupConnectionListener();
+            } else {
+              print('无法连接到 Spotify Remote，但令牌获取成功');
+            }
+            
+            return accessToken;
           } else {
-            print('无法连接到 Spotify Remote，但令牌获取成功');
+            print('获取访问令牌失败: 返回空令牌');
+            throw SpotifyAuthException('登录失败：获取的访问令牌为空');
+          }
+        } catch (sdkError) {
+          print('SpotifySdk.getAccessToken 调用失败: $sdkError');
+          print('错误类型: ${sdkError.runtimeType}');
+          print('错误详情: ${sdkError.toString()}');
+          
+          if (sdkError.toString().contains('PlatformException')) {
+            print('检测到平台异常 - 可能是包名或SHA-1指纹不匹配');
+            print('确保在Spotify开发者仪表板正确设置了包名和重定向URI');
+            throw SpotifyAuthException('登录失败：Spotify SDK平台配置可能不正确，请检查包名和重定向URI设置', code: 'PLATFORM_ERROR');
+          } else if (sdkError.toString().contains('auth_cancelled') || 
+                    sdkError.toString().contains('cancelled')) {
+            print('用户取消了授权流程');
+            throw SpotifyAuthException('登录被用户取消', code: 'AUTH_CANCELLED');
           }
           
-          return accessToken;
-        } else {
-          print('获取访问令牌失败: 返回空令牌');
-          throw SpotifyAuthException('登录失败：获取的访问令牌为空');
+          rethrow;
         }
       } catch (e) {
         print('获取访问令牌失败: $e');
-        throw SpotifyAuthException('登录失败：无法获取访问令牌', code: '401');
+        print('错误类型: ${e.runtimeType}');
+        
+        if (e is SpotifyAuthException) {
+          // 如果已经是 SpotifyAuthException，则直接重新抛出
+          rethrow;
+        } else if (e.toString().contains('401') || 
+            e.toString().contains('invalid_client') || 
+            e.toString().toLowerCase().contains('unauthorized')) {
+          throw SpotifyAuthException('登录失败：API凭据无效或未获得授权', code: '401');
+        }
+        
+        throw SpotifyAuthException('登录失败：无法获取访问令牌', code: e.toString().contains('401') ? '401' : 'UNKNOWN');
       }
     } catch (e, stack) {
       print('Spotify 登录错误详情:');
@@ -483,22 +542,35 @@ class SpotifyAuthService {
   /// 获取当前的访问令牌，如果即将过期会自动刷新
   Future<String?> getAccessToken() async {
     try {
-      if (!await isAuthenticated()) return null;
+      print('正在获取访问令牌...');
+      
+      if (!await isAuthenticated()) {
+        print('没有有效的认证信息');
+        return null;
+      }
       
       final token = await _secureStorage.read(key: _accessTokenKey);
       final expirationStr = await _secureStorage.read(key: _expirationKey);
       
-      if (token == null || expirationStr == null) return null;
+      if (token == null || expirationStr == null) {
+        print('存储中缺少令牌或过期时间信息');
+        return null;
+      }
       
       final expiration = DateTime.parse(expirationStr);
       // 如果令牌即将过期（还有5分钟），尝试刷新
       if (expiration.subtract(const Duration(minutes: 5)).isBefore(DateTime.now())) {
+        print('令牌即将过期，刷新中...');
         return await refreshToken();
       }
       
+      print('使用现有的有效令牌');
       return token;
     } catch (e) {
       print('获取访问令牌失败: $e');
+      print('错误类型: ${e.runtimeType}');
+      
+      // 不要抛出异常，只是返回null
       return null;
     }
   }

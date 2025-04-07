@@ -312,7 +312,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               currentImageUrl,
               maxWidth: MediaQuery.sizeOf(context).width.toInt(),
             );
-            themeProvider.updateThemeFromImage(imageProvider);
+            themeProvider.updateThemeFromImage(imageProvider, context);
           }
           _isThemeUpdating = false;
         });

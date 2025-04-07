@@ -13,7 +13,6 @@ import 'dart:io';
 import '../config/secrets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:spotify_sdk/spotify_sdk.dart';
 
@@ -75,10 +74,41 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> setClientCredentials(String clientId, String clientSecret) async {
-    await _secureStorage.write(key: _clientIdKey, value: clientId);
-    await _secureStorage.write(key: _clientSecretKey, value: clientSecret);
-    await _initSpotifyService();
-    notifyListeners();
+    try {
+      // 保存新凭据
+      await _secureStorage.write(key: _clientIdKey, value: clientId);
+      await _secureStorage.write(key: _clientSecretKey, value: clientSecret);
+      
+      // 清除现有状态
+      username = null;
+      currentTrack = null;
+      previousTrack = null;
+      nextTrack = null;
+      _isInitialized = false;
+      
+      // 停止所有计时器
+      _refreshTimer?.cancel();
+      _progressTimer?.cancel();
+      
+      // 如果之前已登录，先注销
+      if (_isInitialized) {
+        try {
+          await _spotifyService.logout();
+        } catch (e) {
+          print('注销旧凭据时出错: $e');
+        }
+      }
+      
+      // 用新凭据重新初始化服务
+      await _initSpotifyService();
+      
+      // 不立即验证凭据，让用户在登录时再验证
+      notifyListeners();
+    } catch (e) {
+      print('设置客户端凭据失败: $e');
+      // 不自动恢复默认凭据，让用户自己决定是否重置
+      rethrow;
+    }
   }
 
   Future<Map<String, String?>> getClientCredentials() async {
@@ -91,8 +121,29 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> resetClientCredentials() async {
+    // 清除存储中的自定义凭据
     await _secureStorage.delete(key: _clientIdKey);
     await _secureStorage.delete(key: _clientSecretKey);
+    
+    // 清除现有状态
+    username = null;
+    currentTrack = null;
+    previousTrack = null;
+    nextTrack = null;
+    _isInitialized = false;
+    
+    // 停止所有计时器
+    _refreshTimer?.cancel();
+    _progressTimer?.cancel();
+    
+    // 如果之前已登录，先注销
+    try {
+      await _spotifyService.logout();
+    } catch (e) {
+      print('注销时出错: $e');
+    }
+    
+    // 用默认凭据重新初始化服务
     await _initSpotifyService();
     notifyListeners();
   }
@@ -406,14 +457,16 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
 
       print('开始自动登录检查...');
-
-      // 确保 SpotifyService 已初始化
-      if (!_isInitialized) {
-        await _initSpotifyService();
-        if (!_isInitialized) {
-          print('SpotifyService 初始化失败');
-          return false;
-        }
+      
+      // 打印当前使用的凭据信息（隐藏部分内容以保护安全）
+      final credentials = await getClientCredentials();
+      String? clientId = credentials['clientId'];
+      
+      if (clientId != null && clientId.length > 8) {
+        print('自动登录使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}');
+        print('客户端ID长度: ${clientId.length}');
+      } else {
+        print('自动登录的客户端ID为空或格式不正确');
       }
 
       // 检查是否有有效的 token
@@ -424,6 +477,7 @@ class SpotifyProvider extends ChangeNotifier {
           username = userProfile['display_name'];
           
           print('成功获取用户信息：$username');
+          print('用户信息: ${json.encode(userProfile)}');
           
           // 启动定时刷新任务
           startTrackRefresh();
@@ -434,19 +488,42 @@ class SpotifyProvider extends ChangeNotifier {
           return true;
         } catch (e) {
           print('获取用户信息失败: $e');
-          // 如果获取用户信息失败，可能是令牌已失效
+          print('错误类型: ${e.runtimeType}');
+          
+          // 检查是否为客户端ID/密钥错误 (401 Unauthorized)
+          if (e is SpotifyAuthException && 
+              (e.code == '401' || e.message.contains('401'))) {
+            print('认证错误，可能是客户端ID或密钥无效');
+            
+            // 清除保存的token，但保留客户端凭据
+            await _spotifyService.logout();
+            
+            // 不重试，直接返回失败
+            return false;
+          }
+          
           // 尝试刷新令牌
           print('尝试刷新令牌...');
-          final newToken = await _spotifyService.refreshToken();
-          if (newToken != null) {
-            print('令牌刷新成功，重新获取用户信息');
-            final userProfile = await _spotifyService.getUserProfile();
-            username = userProfile['display_name'];
-            startTrackRefresh();
-            await updateWidget();
-            return true;
-          } else {
-            print('令牌刷新失败，需要重新登录');
+          try {
+            final newToken = await _spotifyService.refreshToken();
+            if (newToken != null) {
+              print('令牌刷新成功，重新获取用户信息');
+              final userProfile = await _spotifyService.getUserProfile();
+              username = userProfile['display_name'];
+              startTrackRefresh();
+              await updateWidget();
+              return true;
+            } else {
+              print('令牌刷新失败，需要重新登录');
+            }
+          } catch (refreshError) {
+            print('刷新令牌时出错: $refreshError');
+            print('错误类型: ${refreshError.runtimeType}');
+            // 如果刷新也失败，可能是客户端凭据问题
+            if (refreshError is SpotifyAuthException && 
+                (refreshError.code == '401' || refreshError.message.contains('401'))) {
+              print('刷新令牌时遇到认证错误，可能是客户端ID或密钥无效');
+            }
           }
         }
       } else {
@@ -455,6 +532,7 @@ class SpotifyProvider extends ChangeNotifier {
       return false;
     } catch (e) {
       print('自动登录失败: $e');
+      print('错误类型: ${e.runtimeType}');
       return false;
     } finally {
       isLoading = false;
@@ -477,6 +555,25 @@ class SpotifyProvider extends ChangeNotifier {
         }
       }
 
+      // 打印当前使用的凭据信息（隐藏部分内容以保护安全）
+      final credentials = await getClientCredentials();
+      String? clientId = credentials['clientId'];
+      String? clientSecret = credentials['clientSecret'];
+      
+      if (clientId != null && clientId.length > 8) {
+        print('使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}');
+        print('客户端ID长度: ${clientId.length}');
+      } else {
+        print('客户端ID为空或格式不正确');
+      }
+      
+      if (clientSecret != null && clientSecret.length > 8) {
+        print('使用的客户端密钥: ${clientSecret.substring(0, 4)}...${clientSecret.substring(clientSecret.length - 4)}');
+        print('客户端密钥长度: ${clientSecret.length}');
+      } else {
+        print('客户端密钥为空或格式不正确');
+      }
+
       // 先尝试自动登录
       if (await autoLogin()) {
         print('自动登录成功');
@@ -484,25 +581,60 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
       print('自动登录失败，尝试重新获取令牌...');
-      final result = await _spotifyService.login();
-      if (result == null) {
-        throw SpotifyAuthException('登录失败：无法获取访问令牌');
-      }
+      
+      try {
+        print('正在调用 SpotifySdk.getAccessToken...');
+        final result = await _spotifyService.login();
+        print('SpotifySdk.getAccessToken 调用成功，返回结果长度: ${result?.length ?? 0}');
+        
+        if (result == null) {
+          throw SpotifyAuthException('登录失败：无法获取访问令牌');
+        }
 
-      final userProfile = await _spotifyService.getUserProfile();
-      username = userProfile['display_name'];
+        print('正在获取用户信息...');
+        final userProfile = await _spotifyService.getUserProfile();
+        username = userProfile['display_name'];
+        
+        print('登录成功，用户名：$username');
+        print('用户信息: ${json.encode(userProfile)}');
+        
+        // 启动定时刷新任务
+        startTrackRefresh();
+        
+        // 登录后更新小部件
+        await updateWidget();
+      } catch (e) {
+        print('登录过程中出错: $e');
+        
+        // 检查是否是客户端凭据问题
+        if (e is SpotifyAuthException) {
+          if (e.code == '401' || 
+              e.message.toLowerCase().contains('invalid client') ||
+              e.message.toLowerCase().contains('unauthorized') ||
+              e.message.toLowerCase().contains('invalid api credentials')) {
+            // 这很可能是客户端ID或密钥无效
+            throw SpotifyAuthException(
+              'Spotify 认证失败：客户端 ID 或密钥无效。请检查您的 Spotify 开发者凭据。',
+              code: 'INVALID_CREDENTIALS'
+            );
+          }
+        }
+        
+        // 其他错误，直接传递
+        rethrow;
+      }
+    } catch (e, stack) {
+      print('Spotify 登录错误详情:');
+      print('错误类型: ${e.runtimeType}');
+      print('错误消息: $e');
+      print('堆栈跟踪:');
+      print(stack);
       
-      print('登录成功，用户名：$username');
-      
-      // 启动定时刷新任务
-      startTrackRefresh();
-      
-      // 登录后更新小部件
-      await updateWidget();
-      
-    } catch (e) {
-      print('登录失败: $e');
+      // 清理可能的无效状态
       username = null;
+      _refreshTimer?.cancel();
+      _progressTimer?.cancel();
+      
       rethrow;
     } finally {
       isLoading = false;

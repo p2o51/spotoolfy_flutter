@@ -86,8 +86,36 @@ class Login extends StatelessWidget {
                       }
                     } catch (e) {
                       if (context.mounted) {
+                        String errorMessage = 'Operation failed';
+                        
+                        print('登录/注销操作失败: $e');
+                        print('错误类型: ${e.runtimeType}');
+                        
+                        // 特殊处理 SpotifyAuthException
+                        if (e.toString().contains('INVALID_CREDENTIALS')) {
+                          errorMessage = 'Invalid Spotify API credentials. Please check your Client ID and Secret.';
+                        } else if (e.toString().contains('401')) {
+                          errorMessage = 'Authentication failed: Invalid credentials or insufficient permissions.';
+                        } else if (e.toString().contains('429')) {
+                          errorMessage = 'Too many requests. Please try again later.';
+                        } else if (e.toString().contains('客户端 ID 或密钥无效')) {
+                          errorMessage = 'Invalid Spotify API credentials. Please check your Client ID and Secret.';
+                        } else {
+                          // 使用原始错误
+                          errorMessage = 'Operation failed: $e';
+                        }
+                        
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Operation failed: $e')),
+                          SnackBar(
+                            content: Text(errorMessage),
+                            duration: const Duration(seconds: 8),
+                            action: SnackBarAction(
+                              label: 'Help',
+                              onPressed: () {
+                                launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
+                              },
+                            ),
+                          ),
                         );
                       }
                     }
@@ -286,6 +314,29 @@ class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
                       return;
                     }
                     
+                    // 验证客户端ID格式 (客户端ID应为32个字符的十六进制字符串)
+                    if (_clientIdController.text.length != 32 || 
+                        !RegExp(r'^[0-9a-f]{32}$').hasMatch(_clientIdController.text)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Client ID should be a 32-character hex string')),
+                      );
+                      return;
+                    }
+                    
+                    // 验证客户端密钥格式 (客户端密钥应为32个字符的十六进制字符串)
+                    if (_clientSecretController.text.length != 32 || 
+                        !RegExp(r'^[0-9a-f]{32}$').hasMatch(_clientSecretController.text)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Client Secret should be a 32-character hex string')),
+                      );
+                      return;
+                    }
+                    
+                    // 显示保存中提示
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Saving credentials...')),
+                    );
+                    
                     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
                     await spotifyProvider.setClientCredentials(
                       _clientIdController.text,
@@ -294,7 +345,7 @@ class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
                     
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Credentials saved')),
+                        const SnackBar(content: Text('Credentials saved. Please login to verify')),
                       );
                       setState(() {
                         _isEditing = false;

@@ -194,6 +194,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 初始化时更新主题
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ThemeProvider>().updateThemeFromSystem(context);
+    });
   }
 
   @override
@@ -205,10 +209,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 当应用从后台恢复时，刷新播放状态
+      // 当应用从后台恢复时，刷新播放状态和主题
       final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
       spotifyProvider.refreshCurrentTrack();
+      context.read<ThemeProvider>().updateThemeFromSystem(context);
     }
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    // 当系统主题改变时更新应用主题
+    context.read<ThemeProvider>().updateThemeFromSystem(context);
   }
   
   // 准备所有页面
@@ -254,7 +265,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 useSafeArea: true,
                 constraints: const BoxConstraints(
                   minWidth: 400,
-                  
                 ),
                 builder: (BuildContext context) {
                   return const DevicesPage();
@@ -263,7 +273,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             },
             icon: const Icon(Icons.devices),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 8,),
           IconButton.filledTonal(
             onPressed: () {
               showModalBottomSheet(

@@ -6,21 +6,35 @@ class ThemeProvider extends ChangeNotifier {
   
   ColorScheme get colorScheme => _colorScheme;
 
-  Future<void> updateThemeFromImage(ImageProvider imageProvider) async {
+  void updateThemeFromSystem(BuildContext context) {
+    final brightness = MediaQuery.platformBrightnessOf(context);
+    _updateColorScheme(brightness);
+    notifyListeners();
+  }
+
+  void _updateColorScheme(Brightness brightness) {
+    final seedColor = _colorScheme.primary;
+    _colorScheme = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      brightness: brightness,
+    );
+  }
+
+  Future<void> updateThemeFromImage(ImageProvider imageProvider, BuildContext context) async {
     try {
       final PaletteGenerator generator = await PaletteGenerator.fromImageProvider(
         imageProvider,
-        size: const Size(200, 200), // 减小图片尺寸以提高性能
+        size: const Size(200, 200),
       );
 
-      // 优先使用主色调，如果没有则使用最显眼的颜色
       final Color dominantColor = generator.dominantColor?.color ?? 
                                 generator.vibrantColor?.color ?? 
                                 Colors.blue;
 
+      final brightness = MediaQuery.platformBrightnessOf(context);
       _colorScheme = ColorScheme.fromSeed(
         seedColor: dominantColor,
-        brightness: Brightness.light,
+        brightness: brightness,
       );
       
       notifyListeners();
