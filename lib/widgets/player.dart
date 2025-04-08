@@ -24,6 +24,8 @@ class Player extends StatefulWidget {
 class _PlayerState extends State<Player> with TickerProviderStateMixin {
   final _dragDistanceNotifier = ValueNotifier<double>(0.0);
   double? _dragStartX;
+  double? _dragStartY;
+  bool _isHorizontalDragConfirmed = false;
   late AnimationController _fadeController;
   late AnimationController _transitionController;
   late Animation<double> _scaleAnimation;
@@ -102,21 +104,49 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     _fadeController.value = 1.0;
     _indicatorController.value = 0.0;
     _dragStartX = details.globalPosition.dx;
+    _dragStartY = details.globalPosition.dy;
     _dragDistanceNotifier.value = 0.0;
+    _isHorizontalDragConfirmed = false;
   }
 
   void _handleHorizontalDragUpdate(DragUpdateDetails details) {
-    if (_dragStartX == null) return;
+    if (_dragStartX == null || _dragStartY == null) return;
+
+    final dx = details.globalPosition.dx - _dragStartX!;
+    final dy = details.globalPosition.dy - _dragStartY!;
+
+    if (!_isHorizontalDragConfirmed) {
+      if (dy.abs() > dx.abs() * 1.5) {
+        _dragStartX = null;
+        _dragStartY = null;
+        _fadeController.reverse();
+        _transitionController.reverse();
+        _dragDistanceNotifier.value = 0.0;
+        return;
+      } else if (dx.abs() > 10.0) {
+         _isHorizontalDragConfirmed = true;
+      }
+    }
     
-    final dragDistance = details.globalPosition.dx - _dragStartX!;
-    _dragDistanceNotifier.value = widget.isLargeScreen ? dragDistance / 2 : dragDistance;
-    
-    final progress = (_dragDistanceNotifier.value.abs() / 100).clamp(0.0, 1.0);
-    _transitionController.value = progress;
+    if (_isHorizontalDragConfirmed) {
+      final dragDistance = widget.isLargeScreen ? dx / 2 : dx;
+      _dragDistanceNotifier.value = dragDistance;
+      
+      final progress = (_dragDistanceNotifier.value.abs() / 100).clamp(0.0, 1.0);
+      _transitionController.value = progress;
+    }
   }
 
   void _handleHorizontalDragEnd(DragEndDetails details, SpotifyProvider spotify) async {
-    if (_dragStartX == null) return;
+    if (_dragStartX == null || !_isHorizontalDragConfirmed) {
+       if (_fadeController.value > 0.0) _fadeController.reverse();
+       if (_transitionController.value > 0.0) _transitionController.reverse();
+       _dragDistanceNotifier.value = 0.0;
+       _dragStartX = null;
+       _dragStartY = null;
+       _isHorizontalDragConfirmed = false;
+       return;
+    }
     
     final velocity = details.velocity.pixelsPerSecond.dx;
     final threshold = widget.isLargeScreen ? 400.0 : 800.0;
@@ -157,6 +187,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
     
     _dragStartX = null;
+    _dragStartY = null;
+    _isHorizontalDragConfirmed = false;
     _fadeController.reverse().then((_) {
       _dragDistanceNotifier.value = 0.0;
     });
@@ -284,6 +316,32 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         onHorizontalDragStart: _handleHorizontalDragStart,
         onHorizontalDragUpdate: _handleHorizontalDragUpdate,
         onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(details, spotify),
+        onLongPress: () async {
+          final trackUrl = track?['external_urls']?['spotify'];
+          if (trackUrl != null) {
+            _launchSpotifyURL(context, trackUrl);
+          } else {
+            // If no track URL, try opening the Spotify app directly
+            final spotifyUri = Uri.parse('spotify:');
+            try {
+              if (await canLaunchUrl(spotifyUri)) {
+                await launchUrl(spotifyUri, mode: LaunchMode.externalApplication);
+              } else {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('无法打开 Spotify 应用')),
+                  );
+                }
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('打开 Spotify 应用失败')),
+                );
+              }
+            }
+          }
+        },
         child: RepaintBoundary(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
@@ -521,6 +579,29 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             key: const ValueKey('default_image'),
             fit: BoxFit.cover,
           );
+  }
+
+  void _launchSpotifyURL(BuildContext context, String? url) async {
+    if (url == null) return;
+    
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('无法打开 Spotify: $url')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('打开 Spotify 链接失败')),
+        );
+      }
+    }
   }
 }
 
@@ -905,33 +986,12 @@ class HeaderAndFooter extends StatelessWidget {
     this.track,
   });
 
-  void _launchSpotifyURL(BuildContext context, String? url) async {
-    if (url == null) return;
-    
-    try {
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('无法打开 Spotify: $url')),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('打开 Spotify 链接失败')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     
+    final playerState = context.findAncestorStateOfType<_PlayerState>();
+
     final albumUrl = track?['album']?['external_urls']?['spotify'];
     final artists = (track?['artists'] as List?)?.map((artist) => {
       'name': artist['name'],
@@ -942,7 +1002,9 @@ class HeaderAndFooter extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onTap: albumUrl != null ? () => _launchSpotifyURL(context, albumUrl) : null,
+          onTap: albumUrl != null && playerState != null 
+            ? () => playerState._launchSpotifyURL(context, albumUrl) 
+            : null,
           child: ScrollingText(
             text: header,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -960,8 +1022,8 @@ class HeaderAndFooter extends StatelessWidget {
                   color: Theme.of(context).colorScheme.secondary,
                 )),
                 GestureDetector(
-                  onTap: artists[i]['url'] != null 
-                    ? () => _launchSpotifyURL(context, artists[i]['url']) 
+                  onTap: artists[i]['url'] != null  && playerState != null
+                    ? () => playerState._launchSpotifyURL(context, artists[i]['url']) 
                     : null,
                   child: Text(
                     artists[i]['name'] as String,
