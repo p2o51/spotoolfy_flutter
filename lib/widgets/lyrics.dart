@@ -108,16 +108,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
           });
         }
         
-        // 检查自动滚动是否应该被重新启用
-        if (!_autoScroll && 
-            _lyrics.isNotEmpty && 
-            !_isCopyLyricsMode && 
-            _scrollController.hasClients &&
-            !_scrollController.position.isScrollingNotifier.value) {
-          setState(() {
-            _autoScroll = true;
-          });
-        }
+        // 删除这段自动重新启用滚动的逻辑，保持用户滑动后滚动禁用状态
+        // 直到用户明确点击按钮
       }
     });
   }
@@ -157,42 +149,35 @@ class _LyricsWidgetState extends State<LyricsWidget> {
         _lyrics = _parseLyrics(rawLyrics);
       });
       
-      // 设置回退滚动机制，以防行高未及时测量
-      if (mounted && _lyrics.isNotEmpty) {
-        Future.delayed(const Duration(seconds: 1), () {
-          if (!mounted || _lastTrackId != trackId) return;
-          
-          final provider = Provider.of<SpotifyProvider>(context, listen: false);
-          final isPlaying = provider.currentTrack?['is_playing'] ?? false;
-          final currentProgressMs = provider.currentTrack?['progress_ms'] ?? 0;
-          
-          if (isPlaying && _autoScroll && _lyrics.isNotEmpty) {
-            // 检查是否测量了足够的行高
-            final measuredHeights = _lineHeights.length;
-            if (measuredHeights < _lyrics.length * 0.5) { // 少于一半测量完成
-              // 使用已测量行高的平均值作为回退
-              final avgHeight = measuredHeights > 0 
-                  ? _lineHeights.values.reduce((a, b) => a + b) / measuredHeights 
-                  : 40.0; // 如果没有测量，使用默认值
-              
-              // 添加缺失的行高
+      // Trigger scroll check immediately after lyrics are loaded and state is set
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _lastTrackId != trackId) return; // Check if still relevant
+
+        final provider = Provider.of<SpotifyProvider>(context, listen: false);
+        final isPlaying = provider.currentTrack?['is_playing'] ?? false;
+        final currentProgressMs = provider.currentTrack?['progress_ms'] ?? 0;
+        
+        if (isPlaying && _autoScroll && _lyrics.isNotEmpty) {
+          final currentPosition = Duration(milliseconds: currentProgressMs);
+          final currentIndex = _getCurrentLineIndex(currentPosition);
+          if (currentIndex >= 0) {
+            // Ensure heights are estimated if not fully measured yet, similar to old logic
+            final measuredHeightsCount = _lineHeights.length;
+            if (measuredHeightsCount < _lyrics.length) {
+              // Use average or default if needed
+              final avgHeight = measuredHeightsCount > 0
+                  ? _lineHeights.values.fold(0.0, (sum, h) => sum + h) / measuredHeightsCount
+                  : 40.0; // Default fallback height
               for (int i = 0; i < _lyrics.length; i++) {
-                if (!_lineHeights.containsKey(i)) {
-                  _lineHeights[i] = avgHeight;
-                }
-              }
-              
-              // 强制滚动到当前位置
-              final currentPosition = Duration(milliseconds: currentProgressMs);
-              final currentIndex = _getCurrentLineIndex(currentPosition);
-              if (currentIndex >= 0) {
-                _previousLineIndex = currentIndex;
-                _scrollToCurrentLine(currentIndex);
+                _lineHeights.putIfAbsent(i, () => avgHeight);
               }
             }
+            // Set previous index and scroll
+            _previousLineIndex = currentIndex;
+            _scrollToCurrentLine(currentIndex);
           }
-        });
-      }
+        }
+      });
     } else {
       setState(() {
         _lyrics = [];

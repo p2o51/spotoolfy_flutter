@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'pages/nowplaying.dart';
-import 'pages/search.dart';
+import 'pages/library.dart';
 import 'pages/roam.dart';
 import 'pages/login.dart';
 import 'pages/devices.dart';
@@ -233,7 +233,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   // 准备所有页面
   final List<Widget> _pages = [
     const NowPlaying(),
-    const Search(),
+    const Library(),
     const Roam(),
   ];
 
@@ -338,8 +338,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   label: Text('NowPlaying'),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.search),
-                  label: Text('Search'),
+                  icon: Icon(Icons.library_music_outlined),
+                  label: Text('Library'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.radio),
@@ -372,8 +372,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               label: 'NowPlaying',
             ),
             NavigationDestination(
-              icon: Icon(Icons.search),
-              label: 'Search',
+              icon: Icon(Icons.library_music_outlined),
+              label: 'Library',
             ),
             NavigationDestination(
               icon: Icon(Icons.radio),

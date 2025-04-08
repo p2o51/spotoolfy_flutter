@@ -5,15 +5,16 @@ import '../providers/spotify_provider.dart';
 import '../widgets/materialui.dart' as custom_ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:collection/collection.dart';
 
-class Search extends StatefulWidget {
-  const Search({super.key});
+class Library extends StatefulWidget {
+  const Library({super.key});
 
   @override
-  State<Search> createState() => _SearchState();
+  State<Library> createState() => _LibraryState();
 }
 
-class _SearchState extends State<Search> {
+class _LibraryState extends State<Library> {
   bool showPlaylists = true;
   bool showAlbums = true;
   bool _isLoading = false;
@@ -652,7 +653,9 @@ class MyCarouselView extends StatefulWidget {
 
 class _MyCarouselViewState extends State<MyCarouselView> {
   List<Map<String, dynamic>> allItems = [];
+  Set<String> _currentDisplayedItemUris = {}; // Store current URIs
   bool _isLoading = false;
+  bool _isUpdating = false; // Flag for updates after initial load
   bool _hasLoadedOnce = false;
 
   @override
@@ -661,49 +664,111 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     _loadInitialItems();
   }
 
+  // Add a method to trigger refresh, could be called from parent if needed
+  Future<void> refreshItems() async {
+    if (!mounted || _isLoading || _isUpdating) return; // Prevent concurrent refreshes
+    await _loadItems(isRefresh: true);
+  }
+
   void _loadInitialItems() {
+    _loadItems(isRefresh: false);
+  }
+
+  // Combined loading and refresh logic
+  Future<void> _loadItems({required bool isRefresh}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
-    
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    
-    spotifyProvider.getRecentlyPlayed().then((recentItems) {
+
+    // Show appropriate loading indicator
+    setState(() {
+      if (!isRefresh) {
+        _isLoading = true; // Full loading indicator on initial load
+      } else {
+        _isUpdating = true; // Overlay indicator during refresh
+      }
+    });
+
+    try {
+      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+      final newItemsRaw = await spotifyProvider.getRecentlyPlayed();
       if (!mounted) return;
-      setState(() {
-        allItems = List.from(recentItems);
-        if (allItems.isNotEmpty) {
-          allItems.shuffle();
+
+      // Filter for valid items with images before comparison/processing
+      final newValidItems = newItemsRaw.where((item) {
+        final hasImage = item['images'] != null && item['images'].isNotEmpty && item['images'][0]['url'] != null;
+        return hasImage;
+      }).toList();
+
+      // Extract URIs from the new valid items
+      final newItemUris = newValidItems.map((item) => item['uri'] as String).toSet();
+
+      // Compare with current URIs
+      if (!const SetEquality().equals(newItemUris, _currentDisplayedItemUris)) {
+        print('Recently played items changed. Updating carousel.');
+
+        // Preload images for the new items
+        if (newValidItems.isNotEmpty) {
+          final imageFutures = newValidItems.map((item) {
+            final imageUrl = item['images'][0]['url'];
+            if (imageUrl != null) {
+              return precacheImage(CachedNetworkImageProvider(imageUrl), context);
+            }
+            return Future.value(); // Return a completed future if no image
+          }).toList();
+
+          // Wait for all images to preload
+          await Future.wait(imageFutures);
+          if (!mounted) return; // Check again after async gap
         }
-        _isLoading = false;
-        _hasLoadedOnce = true;
-      });
-    }).catchError((error) {
+
+        // Update state only after preloading and if URIs changed
+        setState(() {
+          allItems = List.from(newValidItems); // Use the filtered valid items
+          if (allItems.isNotEmpty) {
+             allItems.shuffle(); // Shuffle the new valid items
+          }
+          _currentDisplayedItemUris = newItemUris;
+          if (!isRefresh) _isLoading = false;
+          _isUpdating = false;
+          _hasLoadedOnce = true;
+        });
+
+      } else {
+        print('Recently played items unchanged. No carousel update needed.');
+        // No change, just stop loading indicators
+        setState(() {
+          if (!isRefresh) _isLoading = false;
+          _isUpdating = false;
+          _hasLoadedOnce = true; // Ensure this is set even if no change
+        });
+      }
+
+    } catch (error) {
       if (!mounted) return;
       print('加载轮播图数据失败: $error');
       setState(() {
-        _isLoading = false;
-        _hasLoadedOnce = true;
+        if (!isRefresh) _isLoading = false;
+        _isUpdating = false;
+        _hasLoadedOnce = true; // Still mark as loaded even on error
       });
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final validItems = allItems.where((item) {
-      final hasImage = item['images'] != null && item['images'].isNotEmpty && item['images'][0]['url'] != null;
-      return hasImage;
-    }).toList();
+    // Use 'allItems' directly as it's already filtered and shuffled in _loadItems
+    final validItems = allItems;
 
-    // 如果在加载中且从未加载过，显示占位轮播图
+    // If loading for the first time ever, show placeholder
     if (_isLoading && !_hasLoadedOnce) {
       return _buildLoadingCarousel(context);
     }
-    
-    // 如果加载完成但没有有效项目，返回空内容
-    if (validItems.isEmpty) {
-      return const SizedBox.shrink();
+
+    // If loaded but no items, show nothing
+    if (!_isLoading && !_isUpdating && validItems.isEmpty && _hasLoadedOnce) {
+      return const SizedBox.shrink(); // Or a placeholder message
     }
 
+    // If loaded and has items (or is updating), show the carousel
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
@@ -715,63 +780,68 @@ class _MyCarouselViewState extends State<MyCarouselView> {
             constraints: BoxConstraints(maxHeight: carouselHeight),
             child: Stack(
               children: [
-                custom_ui.CarouselView(
-                  itemExtent: itemExtent,
-                  shrinkExtent: 10,
-                  itemSnapping: true,
-                  children: validItems.map((item) {
-                    final imageUrl = item['images'][0]['url'];
-                    final type = item['type'];
-                    final id = item['id'];
+                // Show carousel only if there are items or it's the initial load phase (handled above)
+                 if (validItems.isNotEmpty)
+                   custom_ui.CarouselView(
+                     itemExtent: itemExtent,
+                     shrinkExtent: 10,
+                     itemSnapping: true,
+                     // Ensure children is never empty if validItems is empty
+                     children: validItems.map((item) {
+                        final imageUrl = item['images'][0]['url'];
+                        final type = item['type'];
+                        final id = item['id'];
 
-                    return GestureDetector(
-                      onTap: () {
-                        if (type != null && id != null) {
-                          final spotifyProvider = Provider.of<SpotifyProvider>(
-                            context, 
-                            listen: false
-                          );
-                          spotifyProvider.playContext(type: type, id: id);
-                        }
-                      },
-                      onLongPress: () => _openInSpotify(item),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              color: Theme.of(context).colorScheme.surfaceVariant,
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                        return GestureDetector(
+                          onTap: () {
+                            if (type != null && id != null) {
+                              final spotifyProvider = Provider.of<SpotifyProvider>(
+                                context,
+                                listen: false
+                              );
+                              spotifyProvider.playContext(type: type, id: id);
+                            }
+                          },
+                          onLongPress: () => _openInSpotify(item),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: Theme.of(context).colorScheme.surfaceVariant,
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
                                   ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Theme.of(context).colorScheme.surfaceVariant,
+                                  child: const Icon(Icons.error),
                                 ),
                               ),
                             ),
-                            errorWidget: (context, url, error) => Container(
-                              color: Theme.of(context).colorScheme.surfaceVariant,
-                              child: const Icon(Icons.error),
-                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                
-                // 显示正在加载中的覆盖层
-                if (_isLoading && _hasLoadedOnce)
+                        );
+                      }).toList(),
+                   ),
+
+                // Show overlay loading indicator only when updating after the first load
+                if (_isUpdating)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withOpacity(0.1),
+                      // Optional: Add a slight dimming effect during update
+                      // color: Colors.black.withOpacity(0.1),
                       child: const Center(
+                        // Use a smaller indicator for updates?
                         child: CircularProgressIndicator(),
                       ),
                     ),
