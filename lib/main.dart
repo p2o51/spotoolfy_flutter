@@ -15,6 +15,8 @@ import 'providers/theme_provider.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
+import 'providers/library_provider.dart';
+import 'providers/search_provider.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -35,6 +37,12 @@ void main() async {
         ChangeNotifierProvider.value(value: spotifyProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(
+          create: (context) => LibraryProvider(context.read<SpotifyProvider>()),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => SearchProvider(context.read<SpotifyProvider>()),
+        ),
         ChangeNotifierProxyProvider2<AuthProvider, SpotifyProvider, FirestoreProvider>(
           create: (context) => FirestoreProvider(
             context.read<AuthProvider>(),
