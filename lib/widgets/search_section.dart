@@ -33,9 +33,8 @@ class _SearchSectionState extends State<SearchSection> {
       builder: (context, searchProvider, child) {
         final screenWidth = MediaQuery.of(context).size.width;
         final gridCrossAxisCount = switch (screenWidth) {
-          > 1200 => 6,
-          > 900 => 5,
-          > 600 => 4,
+          > 900 => 6,
+          > 600 => 5,
           _ => 3,
         };
         

@@ -1340,37 +1340,6 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
-  /// 设置播放音量
-  Future<void> setVolume(int volumePercent, {String? deviceId}) async {
-    try {
-      final headers = await _spotifyService.getAuthenticatedHeaders();
-      
-      // 构建查询参数
-      final queryParams = {
-        'volume_percent': volumePercent.toString(),
-        if (deviceId != null) 'device_id': deviceId,
-      };
-      
-      final uri = Uri.https(
-        'api.spotify.com',
-        '/v1/me/player/volume',
-        queryParams,
-      );
-      
-      final response = await http.put(uri, headers: headers);
-
-      if (response.statusCode != 202 && response.statusCode != 204) {
-        throw SpotifyAuthException(
-          '设置音量失败: ${response.body}',
-          code: response.statusCode.toString(),
-        );
-      }
-    } catch (e) {
-      print('设置音量时出错: $e');
-      rethrow;
-    }
-  }
-
   /// Get authenticated headers from the Spotify service
   Future<Map<String, String>> getAuthenticatedHeaders() async {
     return await _spotifyService.getAuthenticatedHeaders();
@@ -1589,26 +1558,34 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
-  /// 搜索内容（歌曲、专辑、艺术家等）
-  Future<Map<String, List<Map<String, dynamic>>>> searchItems(String query, {List<String> types = const ['track', 'album', 'artist', 'playlist']}) async {
+  /// Search for items (tracks, albums, artists, playlists)
+  Future<Map<String, List<Map<String, dynamic>>>> searchItems(String query, {List<String> types = const ['track', 'album', 'artist', 'playlist'], int limit = 20}) async {
+    if (!_isInitialized) {
+      await _initSpotifyService();
+    }
+    if (!_isInitialized) {
+      throw Exception('Spotify service could not be initialized.');
+    }
+    
     try {
-      if (!await _spotifyService.isAuthenticated()) {
-        print('未登录，无法搜索');
-        return {};
-      }
-
       if (query.trim().isEmpty) return {};
 
-      final typesParam = types.join(',');
-      final response = await _spotifyService.apiGet(
-        '/search?q=${Uri.encodeComponent(query)}&type=$typesParam&limit=20'
-      );
+      // Call the search method in SpotifyAuthService
+      // Pass types as the second argument, and limit as a named argument
+      final response = await _spotifyService.search(query, types, limit: limit);
+
+      // --- Add logging for decoded response ---
+      print('SpotifyProvider.searchItems - Decoded Response:');
+      print(response);
+      // --- End logging ---
 
       final Map<String, List<Map<String, dynamic>>> results = {};
 
-      if (response['tracks'] != null && types.contains('track')) {
+      // Process tracks
+      if (response['tracks']?['items'] != null && types.contains('track')) {
+        print('Processing tracks...');
         results['tracks'] = List<Map<String, dynamic>>.from(
-          response['tracks']['items'].map((item) => {
+          (response['tracks']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['album']?['images'] != null).map((item) => {
             'id': item['id'],
             'type': 'track',
             'name': item['name'],
@@ -1616,53 +1593,68 @@ class SpotifyProvider extends ChangeNotifier {
             'album': item['album'],
             'artists': item['artists'],
             'duration_ms': item['duration_ms'],
-            'images': item['album']['images'],
-          })
+            'images': (item['album']?['images'] is List && (item['album']['images'] as List).isNotEmpty)
+                        ? item['album']['images']
+                        : null,
+          }).where((item) => item['images'] != null)
         );
       }
 
-      if (response['albums'] != null && types.contains('album')) {
+      // Process albums
+      if (response['albums']?['items'] != null && types.contains('album')) {
+        print('Processing albums...');
         results['albums'] = List<Map<String, dynamic>>.from(
-          response['albums']['items'].map((item) => {
+          (response['albums']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['images'] != null).map((item) => {
             'id': item['id'],
             'type': 'album',
             'name': item['name'],
             'uri': item['uri'],
             'artists': item['artists'],
             'images': item['images'],
-          })
+          }).where((item) => item['images'] != null && (item['images'] as List).isNotEmpty)
         );
       }
 
-      if (response['artists'] != null && types.contains('artist')) {
+      // Process artists
+      if (response['artists']?['items'] != null && types.contains('artist')) {
+        print('Processing artists...');
         results['artists'] = List<Map<String, dynamic>>.from(
-          response['artists']['items'].map((item) => {
+          (response['artists']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['images'] != null).map((item) => {
             'id': item['id'],
             'type': 'artist',
             'name': item['name'],
             'uri': item['uri'],
             'images': item['images'],
-          })
+          }).where((item) => item['images'] != null && (item['images'] as List).isNotEmpty)
         );
       }
 
-      if (response['playlists'] != null && types.contains('playlist')) {
+      // Process playlists
+      if (response['playlists']?['items'] != null && types.contains('playlist')) {
+        print('Processing playlists...');
         results['playlists'] = List<Map<String, dynamic>>.from(
-          response['playlists']['items'].map((item) => {
+          (response['playlists']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['images'] != null).map((item) => {
             'id': item['id'],
             'type': 'playlist',
             'name': item['name'],
             'uri': item['uri'],
             'owner': item['owner'],
             'images': item['images'],
-          })
+          }).where((item) => item['images'] != null && (item['images'] as List).isNotEmpty)
         );
       }
 
+      // --- Add logging for final results map ---
+      print('SpotifyProvider.searchItems - Final Results Map:');
+      print(results);
+      // --- End logging ---
+
       return results;
     } catch (e) {
-      print('搜索失败: $e');
-      return {};
+      print('Spotify search failed: $e');
+      // Depending on how you want to handle errors, you might return empty or rethrow
+      // rethrow;
+      return {}; // Return empty map on error for now
     }
   }
 }

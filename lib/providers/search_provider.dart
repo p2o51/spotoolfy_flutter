@@ -143,6 +143,7 @@ class SearchProvider extends ChangeNotifier {
     notifyListeners();
     
     try {
+      // Use default types: track, album, artist, playlist
       final results = await _spotifyProvider.searchItems(query);
       
       _searchResults = results;
@@ -156,12 +157,35 @@ class SearchProvider extends ChangeNotifier {
     }
   }
   
-  // Play a search result item
+  // Play a search result item based on its type
   void playItem(Map<String, dynamic> item) {
     final type = item['type'];
     final id = item['id'];
-    if (type != null && id != null) {
-      _spotifyProvider.playContext(type: type, id: id);
+    final uri = item['uri']; // Get the URI
+
+    if (type == null || (id == null && uri == null)) {
+      print('Error: Search item missing type or identifier (id/uri).');
+      return;
+    }
+
+    print('Playing item: type=$type, id=$id, uri=$uri');
+
+    try {
+      if (type == 'track' && uri != null) {
+        print('[SearchProvider.playItem] Calling playTrack for URI: $uri');
+        _spotifyProvider.playTrack(trackUri: uri);
+      } else if ((type == 'album' || type == 'playlist' || type == 'artist') && id != null) {
+        print('[SearchProvider.playItem] Calling playContext for type: $type, id: $id');
+        // For artist, playContext might play top tracks or fail gracefully
+        _spotifyProvider.playContext(type: type, id: id);
+      } else {
+        print('Error: Unsupported type ($type) or missing identifier for playback.');
+      }
+    } catch (e) {
+      print('Error initiating playback: $e');
+      // Optionally show a user-facing error message
+      _errorMessage = 'Failed to play item: $e';
+      notifyListeners();
     }
   }
   

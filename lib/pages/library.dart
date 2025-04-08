@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/search_provider.dart';
-import '../widgets/materialui.dart' as custom_ui;
 import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -22,7 +21,6 @@ class _LibraryState extends State<Library> {
   final FocusNode _searchFocusNode = FocusNode();
   bool _wasAuthenticated = false; // Track previous auth state
   VoidCallback? _refreshLibraryCallback;
-  VoidCallback? _scrollToTopCallback;
 
   @override
   void initState() {
@@ -150,9 +148,7 @@ class _LibraryState extends State<Library> {
                             registerRefreshCallback: (callback) {
                               _refreshLibraryCallback = callback;
                             },
-                            registerScrollToTopCallback: (callback) {
-                              _scrollToTopCallback = callback;
-                            },
+                            
                           ),
                     ),
                   ],
@@ -221,7 +217,13 @@ class _MyCarouselViewState extends State<MyCarouselView> {
         return hasImage;
       }).toList();
 
-      // Extract URIs from the new valid items
+      // --- Limit to 20 items --- START
+      if (newValidItems.length > 20) {
+        newValidItems.length = 20;
+      }
+      // --- Limit to 20 items --- END
+
+      // Extract URIs from the new valid items (now limited to 20)
       final newItemUris = newValidItems.map((item) => item['uri'] as String).toSet();
 
       // Compare with current URIs
@@ -296,7 +298,12 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
         final carouselHeight = screenWidth > 900 ? 300.0 : 190.0;
-        final itemExtent = screenWidth > 900 ? 300.0 : 190.0;
+        // Determine flex weights based on screen width
+        final flexWeights = screenWidth > 900
+            ? const [2, 7, 6, 5, 4, 3, 2] // Very wide screen weights
+            : screenWidth > 600
+            ? const [2, 6, 5, 4, 3, 2] // Wide screen weights
+            : const [3, 6, 3, 2];      // Default weights
 
         return Center(
           child: ConstrainedBox(
@@ -305,51 +312,51 @@ class _MyCarouselViewState extends State<MyCarouselView> {
               children: [
                 // Show carousel only if there are items or it's the initial load phase (handled above)
                  if (validItems.isNotEmpty)
-                   custom_ui.CarouselView(
-                     itemExtent: itemExtent,
-                     shrinkExtent: 10,
+                   CarouselView.weighted(
+                     flexWeights: flexWeights, // Use dynamic weights based on screen width
+                     shrinkExtent: 0,
                      itemSnapping: true,
-                     // Ensure children is never empty if validItems is empty
+                     onTap: (index) {
+                       if (index >= 0 && index < validItems.length) {
+                         final item = validItems[index];
+                         final type = item['type'];
+                         final id = item['id'];
+                         if (type != null && id != null) {
+                           final spotifyProvider = Provider.of<SpotifyProvider>(
+                             context,
+                             listen: false
+                           );
+                           spotifyProvider.playContext(type: type, id: id);
+                         }
+                       } else {
+                         print('Error: Invalid index ($index) tapped in CarouselView.');
+                       }
+                     },
                      children: validItems.map((item) {
                         final imageUrl = item['images'][0]['url'];
-                        final type = item['type'];
-                        final id = item['id'];
-
-                        return GestureDetector(
-                          onTap: () {
-                            if (type != null && id != null) {
-                              final spotifyProvider = Provider.of<SpotifyProvider>(
-                                context,
-                                listen: false
-                              );
-                              spotifyProvider.playContext(type: type, id: id);
-                            }
-                          },
-                          onLongPress: () => _openInSpotify(item),
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Theme.of(context).colorScheme.surfaceVariant,
-                                  child: const Center(
-                                    child: SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(32),
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
                                     ),
                                   ),
                                 ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Theme.of(context).colorScheme.surfaceVariant,
-                                  child: const Icon(Icons.error),
-                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                child: const Icon(Icons.error),
                               ),
                             ),
                           ),

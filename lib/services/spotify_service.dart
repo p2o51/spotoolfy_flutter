@@ -117,6 +117,11 @@ class SpotifyAuthService {
         },
       );
 
+      // --- Add logging for raw response ---
+      print('Spotify API GET Response [${response.statusCode}] for $endpoint:');
+      print(response.body);
+      // --- End logging ---
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body);
       } else if (response.statusCode == 401) {
@@ -1454,5 +1459,24 @@ class SpotifyAuthService {
     } catch (e) {
       print('断开Spotify连接时出错: $e');
     }
+  }
+
+  /// Search for items on Spotify
+  Future<Map<String, dynamic>> search(String query, List<String> types, {int limit = 20, int offset = 0, String? market}) async {
+    if (query.trim().isEmpty) {
+      throw SpotifyAuthException('Search query cannot be empty.');
+    }
+    
+    final typesParam = types.join(',');
+    final encodedQuery = Uri.encodeComponent(query);
+    String endpoint = '/search?q=$encodedQuery&type=$typesParam&limit=$limit&offset=$offset';
+    if (market != null) {
+      endpoint += '&market=$market';
+    }
+    
+    print('Spotify Search Endpoint: $endpoint'); // Log the endpoint
+    
+    // Use the existing apiGet method which handles token refresh etc.
+    return await apiGet(endpoint);
   }
 }

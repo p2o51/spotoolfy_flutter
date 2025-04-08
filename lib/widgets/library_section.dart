@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
-import '../widgets/carousel_section.dart';
 import '../widgets/library_grid.dart';
 import '../widgets/materialui.dart' as custom_ui;
+import '../pages/library.dart'; // Add import for MyCarouselView
 
 class LibrarySection extends StatefulWidget {
   // Optional controller to allow parent widget to initiate refresh
@@ -11,10 +11,10 @@ class LibrarySection extends StatefulWidget {
   final Function(VoidCallback)? registerScrollToTopCallback; // For parent scroll
   
   const LibrarySection({
-    Key? key,
+    super.key,
     this.registerRefreshCallback,
     this.registerScrollToTopCallback,
-  }) : super(key: key);
+  });
 
   @override
   State<LibrarySection> createState() => _LibrarySectionState();
@@ -22,7 +22,6 @@ class LibrarySection extends StatefulWidget {
 
 class _LibrarySectionState extends State<LibrarySection> {
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<CarouselSectionState> _carouselKey = GlobalKey<CarouselSectionState>();
   
   @override
   void initState() {
@@ -57,10 +56,7 @@ class _LibrarySectionState extends State<LibrarySection> {
   Future<void> _refreshData() async {
     // Refresh both library provider and carousel
     final libraryProvider = Provider.of<LibraryProvider>(context, listen: false);
-    await Future.wait([
-      libraryProvider.loadData(),
-      _carouselKey.currentState?.refreshItems() ?? Future.value(),
-    ]);
+    await libraryProvider.loadData();
   }
   
   void _scrollToTop() {
@@ -98,8 +94,7 @@ class _LibrarySectionState extends State<LibrarySection> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  // Pass the key to the CarouselSection
-                  child: CarouselSection(key: _carouselKey),
+                  child: const MyCarouselView(),
                 ),
               ),
               
