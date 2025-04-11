@@ -26,88 +26,98 @@ class Login extends StatelessWidget {
     // 设置edge to edge显示
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
+      const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarContrastEnforced: false,
       ),
     );
 
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: kDefaultPadding,
-          vertical: kSmallSpacing,
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: kDefaultPadding,
+      ),
+      width: double.infinity,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + kDefaultPadding,
+          bottom: MediaQuery.of(context).padding.bottom + kDefaultPadding,
         ),
-        width: double.infinity,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: kSmallSpacing),
-                    child: Text(
-                      'Settings',
-                      style: Theme.of(context).textTheme.headlineSmall,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: kSmallSpacing),
+                  child: Text(
+                    'Settings',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        final Uri emailLaunchUri = Uri(
+                          scheme: 'mailto',
+                          path: 'lastnatsu51@gmail.com',
+                        );
+                        launchUrl(emailLaunchUri);
+                      },
+                      icon: const Icon(Icons.email),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () {
-                          final Uri emailLaunchUri = Uri(
-                            scheme: 'mailto',
-                            path: 'lastnatsu51@gmail.com',
-                          );
-                          launchUrl(emailLaunchUri);
-                        },
-                        icon: const Icon(Icons.email),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: kSectionSpacing),
+            const CredentialsSection(),
+            const SizedBox(height: kSectionSpacing),
+            const AppSettingsSection(),
+            const SizedBox(height: kSectionSpacing),
+            Row(
+              children: [
+                Expanded(child: _buildSpotifyButton(context, spotifyProvider)),
+                const SizedBox(width: kElementSpacing),
+                Expanded(child: _buildGoogleButton(context, authProvider)),
+              ],
+            ),
+            if (spotifyProvider.username != null || authProvider.userDisplayName != null)
+              Padding(
+                padding: const EdgeInsets.only(top: kElementSpacing),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    if (spotifyProvider.username != null)
+                      Flexible(
+                        child: Text(
+                          'Spotify: ${spotifyProvider.username}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      IconButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.close),
+                    if (authProvider.userDisplayName != null)
+                      Flexible(
+                        child: Text(
+                          'Google: ${authProvider.userDisplayName}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: kSectionSpacing),
-              const SpotifyCredentialsConfig(),
-              const SizedBox(height: kSectionSpacing),
-              const AppSettingsConfig(),
-              const SizedBox(height: kSectionSpacing),
-              const CacheManagementSection(),
-              const SizedBox(height: kSectionSpacing),
-              _buildSpotifyButton(context, spotifyProvider),
-              if (spotifyProvider.username != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: kSmallSpacing),
-                  child: Text(
-                    'Welcome, ${spotifyProvider.username}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              const SizedBox(height: kElementSpacing),
-              _buildGoogleButton(context, authProvider),
-              if (authProvider.userDisplayName != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: kSmallSpacing),
-                  child: Text(
-                    'Welcome, ${authProvider.userDisplayName}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                // 底部添加额外的间距，确保内容不被系统导航栏遮挡
-                SizedBox(height: MediaQuery.of(context).padding.bottom + kDefaultPadding),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -116,7 +126,7 @@ class Login extends StatelessWidget {
   Widget _buildSpotifyButton(BuildContext context, SpotifyProvider spotifyProvider) {
     return FilledButton(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(double.infinity, 48),
+        minimumSize: const Size(0, 48),
         backgroundColor: spotifyProvider.username != null
             ? Theme.of(context).colorScheme.error
             : null,
@@ -189,7 +199,7 @@ class Login extends StatelessWidget {
   Widget _buildGoogleButton(BuildContext context, AuthProvider authProvider) {
     return FilledButton.tonal(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(double.infinity, 48),
+        minimumSize: const Size(0, 48),
         backgroundColor: authProvider.isSignedIn
             ? Theme.of(context).colorScheme.errorContainer
             : null,
@@ -234,17 +244,22 @@ class Login extends StatelessWidget {
   }
 }
 
-class SpotifyCredentialsConfig extends StatefulWidget {
-  const SpotifyCredentialsConfig({super.key});
+class CredentialsSection extends StatefulWidget {
+  const CredentialsSection({super.key});
 
   @override
-  State<SpotifyCredentialsConfig> createState() => _SpotifyCredentialsConfigState();
+  State<CredentialsSection> createState() => _CredentialsSectionState();
 }
 
-class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
-  final _clientIdController = TextEditingController();
-  final _clientSecretController = TextEditingController();
+class _CredentialsSectionState extends State<CredentialsSection> {
+  final _spotifyClientIdController = TextEditingController();
+  final _spotifyClientSecretController = TextEditingController();
+  final _geminiApiKeyController = TextEditingController();
+
+  final _settingsService = SettingsService();
   bool _isEditing = false;
+  bool _isLoadingSpotify = true;
+  bool _isLoadingGemini = true;
 
   @override
   void initState() {
@@ -254,23 +269,172 @@ class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
 
   @override
   void dispose() {
-    _clientIdController.dispose();
-    _clientSecretController.dispose();
+    _spotifyClientIdController.dispose();
+    _spotifyClientSecretController.dispose();
+    _geminiApiKeyController.dispose();
     super.dispose();
   }
 
   Future<void> _loadCredentials() async {
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    final credentials = await spotifyProvider.getClientCredentials();
-    
     setState(() {
-      _clientIdController.text = credentials['clientId'] ?? '';
-      _clientSecretController.text = credentials['clientSecret'] ?? '';
+      _isLoadingSpotify = true;
+      _isLoadingGemini = true;
     });
+    await _loadSpotifyCredentials();
+    await _loadGeminiKey();
+    if (mounted) {
+       setState(() {});
+    }
   }
+
+  Future<void> _loadSpotifyCredentials() async {
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    try {
+      final credentials = await spotifyProvider.getClientCredentials();
+      if (mounted) {
+        setState(() {
+          _spotifyClientIdController.text = credentials['clientId'] ?? '';
+          _spotifyClientSecretController.text = credentials['clientSecret'] ?? '';
+          _isLoadingSpotify = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading Spotify credentials: $e");
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Error loading Spotify credentials: $e')),
+         );
+         setState(() { _isLoadingSpotify = false; });
+       }
+    }
+  }
+
+ Future<void> _loadGeminiKey() async {
+    try {
+      final settings = await _settingsService.getSettings();
+      if (mounted) {
+        setState(() {
+          _geminiApiKeyController.text = settings['apiKey'] ?? '';
+          _isLoadingGemini = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading Gemini API key: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading Gemini API key: $e')),
+        );
+        setState(() { _isLoadingGemini = false; });
+      }
+    }
+  }
+
+  Future<void> _saveCredentials() async {
+     bool spotifySaved = false;
+     bool geminiSaved = false;
+
+     if (_spotifyClientIdController.text.isEmpty || _spotifyClientSecretController.text.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Please fill in both Spotify fields')),
+       );
+       return;
+     }
+     if (_spotifyClientIdController.text.length != 32 ||
+         !RegExp(r'^[0-9a-f]{32}$').hasMatch(_spotifyClientIdController.text)) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Spotify Client ID should be a 32-character hex string')),
+       );
+       return;
+     }
+     if (_spotifyClientSecretController.text.length != 32 ||
+         !RegExp(r'^[0-9a-f]{32}$').hasMatch(_spotifyClientSecretController.text)) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Spotify Client Secret should be a 32-character hex string')),
+       );
+       return;
+     }
+
+     try {
+       final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+       await spotifyProvider.setClientCredentials(
+         _spotifyClientIdController.text,
+         _spotifyClientSecretController.text,
+       );
+       spotifySaved = true;
+     } catch (e) {
+       print("Error saving Spotify credentials: $e");
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Error saving Spotify credentials: $e')),
+         );
+       }
+     }
+
+     if (_geminiApiKeyController.text.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Please enter a Gemini API Key')),
+       );
+       if (!spotifySaved) return;
+     } else {
+        try {
+           final settings = await _settingsService.getSettings();
+           String? currentLanguage = settings['languageCode'];
+
+           await _settingsService.saveSettings(
+             apiKey: _geminiApiKeyController.text,
+             languageCode: currentLanguage,
+           );
+           geminiSaved = true;
+         } catch (e) {
+           print("Error saving Gemini API key: $e");
+           if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text('Error saving Gemini API key: $e')),
+             );
+           }
+         }
+     }
+
+     if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+       if (spotifySaved && geminiSaved) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Credentials saved successfully. Please re-login if needed.')),
+         );
+         setState(() { _isEditing = false; });
+       } else if (spotifySaved) {
+           ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Spotify credentials saved. Gemini key failed.')),
+         );
+          setState(() { _isEditing = false; });
+       } else if (geminiSaved) {
+           ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Gemini API key saved. Spotify credentials failed.')),
+         );
+          setState(() { _isEditing = false; });
+       } else {
+       }
+     }
+  }
+
+   Future<void> _resetSpotifyCredentials() async {
+     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+     await spotifyProvider.resetClientCredentials();
+     if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Spotify Credentials reset to default')),
+       );
+       await _loadSpotifyCredentials();
+       setState(() {});
+     }
+   }
 
   @override
   Widget build(BuildContext context) {
+     if (_isLoadingSpotify || _isLoadingGemini) {
+       return const Center(child: CircularProgressIndicator());
+     }
+
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
@@ -287,120 +451,104 @@ class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Spotify API Credentials',
+                  'Credentials',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                IconButton(
-                  icon: Icon(_isEditing ? Icons.close : Icons.edit),
-                  onPressed: () {
-                    setState(() {
-                      if (_isEditing) {
-                        _loadCredentials();
-                      }
-                      _isEditing = !_isEditing;
-                    });
-                  },
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: kSmallSpacing),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Tutorial'),
+                    ),
+                    IconButton(
+                      icon: Icon(_isEditing ? Icons.close : Icons.edit),
+                      tooltip: _isEditing ? 'Cancel' : 'Edit Credentials',
+                      onPressed: () {
+                        setState(() {
+                          if (_isEditing) {
+                            _loadCredentials();
+                          }
+                          _isEditing = !_isEditing;
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: kSmallSpacing),
+            Text(
+              'Spotify API',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+             const SizedBox(height: kSmallSpacing / 2),
             TextField(
-              controller: _clientIdController,
+              controller: _spotifyClientIdController,
               enabled: _isEditing,
               decoration: _buildInputDecoration('Client ID'),
             ),
             const SizedBox(height: kSmallSpacing),
             TextField(
-              controller: _clientSecretController,
+              controller: _spotifyClientSecretController,
               enabled: _isEditing,
+              obscureText: true,
               decoration: _buildInputDecoration('Client Secret'),
             ),
+             if (_isEditing)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _resetSpotifyCredentials,
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    child: Text('Reset Spotify to Default', style: Theme.of(context).textTheme.bodySmall),
+                  ),
+                ),
+            const SizedBox(height: kElementSpacing),
+
+            Text(
+              'Google AI (Gemini)',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: kSmallSpacing / 2),
+            TextField(
+              controller: _geminiApiKeyController,
+              enabled: _isEditing,
+              decoration: _buildInputDecoration('Gemini API Key'),
+              obscureText: true,
+            ),
+             const SizedBox(height: kSmallSpacing),
+             Text(
+              'Needed for lyrics translation.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+
             if (_isEditing) ...[
               const SizedBox(height: kElementSpacing),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () async {
-                      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                      await spotifyProvider.resetClientCredentials();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Credentials reset to default')),
-                        );
-                        setState(() {
-                          _isEditing = false;
-                        });
-                        _loadCredentials();
-                      }
-                    },
-                    child: const Text('Reset to Default'),
-                  ),
                   FilledButton(
-                    onPressed: () async {
-                      if (_clientIdController.text.isEmpty || _clientSecretController.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please fill in both fields')),
-                        );
-                        return;
-                      }
-                      
-                      if (_clientIdController.text.length != 32 || 
-                          !RegExp(r'^[0-9a-f]{32}$').hasMatch(_clientIdController.text)) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Client ID should be a 32-character hex string')),
-                        );
-                        return;
-                      }
-                      
-                      if (_clientSecretController.text.length != 32 || 
-                          !RegExp(r'^[0-9a-f]{32}$').hasMatch(_clientSecretController.text)) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Client Secret should be a 32-character hex string')),
-                        );
-                        return;
-                      }
-                      
+                    onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Saving credentials...')),
                       );
-                      
-                      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                      await spotifyProvider.setClientCredentials(
-                        _clientIdController.text,
-                        _clientSecretController.text,
-                      );
-                      
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Credentials saved. Please login to verify')),
-                        );
-                        setState(() {
-                          _isEditing = false;
-                        });
-                      }
+                      _saveCredentials();
                     },
-                    child: const Text('Save'),
+                    child: const Text('Save All Credentials'),
                   ),
                 ],
               ),
             ],
-            const SizedBox(height: kSmallSpacing),
-            Text(
-              'Get your credentials from the Spotify Developer Dashboard',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            TextButton(
-              onPressed: () {
-                launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
-              },
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 0),
-              ),
-              child: const Text('Tutorial'),
-            ),
           ],
         ),
       ),
@@ -420,19 +568,24 @@ class _SpotifyCredentialsConfigState extends State<SpotifyCredentialsConfig> {
   }
 }
 
-class AppSettingsConfig extends StatefulWidget {
-  const AppSettingsConfig({super.key});
+class AppSettingsSection extends StatefulWidget {
+  const AppSettingsSection({super.key});
 
   @override
-  State<AppSettingsConfig> createState() => _AppSettingsConfigState();
+  State<AppSettingsSection> createState() => _AppSettingsSectionState();
 }
 
-class _AppSettingsConfigState extends State<AppSettingsConfig> {
+class _AppSettingsSectionState extends State<AppSettingsSection> {
   final _settingsService = SettingsService();
-  final _geminiApiKeyController = TextEditingController();
+  final LyricsService _lyricsService = LyricsService();
+  final TranslationService _translationService = TranslationService();
+
   String? _selectedLanguage;
-  bool _isEditing = false;
-  bool _isLoading = true;
+  int _lyricsCacheSize = 0;
+  int _translationCacheSize = 0;
+
+  bool _isLoadingSettings = true;
+  bool _isLoadingCache = true;
 
   final Map<String, String> _languageOptions = {
     'en': 'English',
@@ -444,211 +597,73 @@ class _AppSettingsConfigState extends State<AppSettingsConfig> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
+    _loadAllSettings();
   }
 
-  Future<void> _loadSettings() async {
-    setState(() { _isLoading = true; });
+  Future<void> _loadAllSettings() async {
+     setState(() {
+       _isLoadingSettings = true;
+       _isLoadingCache = true;
+      });
+    await _loadLanguageSetting();
+    await _loadCacheSizes();
+    if (mounted) {
+       setState(() {});
+    }
+  }
+
+  Future<void> _loadLanguageSetting() async {
     try {
       final settings = await _settingsService.getSettings();
       if (mounted) {
         setState(() {
-          _geminiApiKeyController.text = settings['apiKey'] ?? '';
-          if (settings['languageCode'] != null && 
+          if (settings['languageCode'] != null &&
               _languageOptions.containsKey(settings['languageCode'])) {
             _selectedLanguage = settings['languageCode'];
           } else {
-            _selectedLanguage = 'en'; 
+            _selectedLanguage = 'en';
           }
-          _isLoading = false;
+          _isLoadingSettings = false;
         });
       }
     } catch (e) {
-      print("Error loading settings: $e");
+      print("Error loading language setting: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading settings: $e')),
+          SnackBar(content: Text('Error loading language setting: $e')),
         );
-        setState(() { _isLoading = false; });
+        setState(() { _isLoadingSettings = false; });
       }
     }
   }
 
-  Future<void> _saveSettings() async {
-    if (_geminiApiKeyController.text.isEmpty) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a Gemini API Key')),
-      );
-      return;
-    }
-    if (_selectedLanguage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a target language')),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saving settings...')), 
-    );
-
+  Future<void> _saveLanguageSetting() async {
     try {
+      final settings = await _settingsService.getSettings();
+      String? currentApiKey = settings['apiKey'];
+
       await _settingsService.saveSettings(
-        apiKey: _geminiApiKeyController.text,
+        apiKey: currentApiKey,
         languageCode: _selectedLanguage,
       );
       if (mounted) {
-         ScaffoldMessenger.of(context).removeCurrentSnackBar();
-         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved successfully')),
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Language setting saved')),
         );
-        setState(() {
-          _isEditing = false;
-        });
       }
     } catch (e) {
-       print("Error saving settings: $e");
+      print("Error saving language setting: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving settings: $e')),
+          SnackBar(content: Text('Error saving language setting: $e')),
         );
       }
     }
   }
 
-  @override
-  void dispose() {
-    _geminiApiKeyController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(kDefaultPadding),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(kDefaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'App Settings',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(_isEditing ? Icons.close : Icons.edit),
-                  onPressed: () {
-                    setState(() {
-                      if (_isEditing) {
-                        _loadSettings();
-                      }
-                      _isEditing = !_isEditing;
-                    });
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: kSmallSpacing),
-            TextField(
-              controller: _geminiApiKeyController,
-              enabled: _isEditing,
-              decoration: _buildInputDecoration('Gemini API Key', 'Enter your Gemini API Key'),
-              obscureText: true,
-            ),
-            const SizedBox(height: kSmallSpacing),
-            DropdownButtonFormField<String>(
-              value: _selectedLanguage,
-              items: _languageOptions.entries.map((entry) {
-                return DropdownMenuItem<String>(
-                  value: entry.key,
-                  child: Text(entry.value),
-                );
-              }).toList(),
-              onChanged: _isEditing ? (String? newValue) {
-                setState(() {
-                  _selectedLanguage = newValue;
-                });
-              } : null,
-              decoration: _buildInputDecoration('Target Translation Language', null),
-              disabledHint: Text(_selectedLanguage != null 
-                ? _languageOptions[_selectedLanguage] ?? 'Select Language' 
-                : 'Select Language'),
-            ),
-            if (_isEditing) ...[
-              const SizedBox(height: kElementSpacing),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  FilledButton(
-                    onPressed: _saveSettings,
-                    child: const Text('Save'),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: kSmallSpacing),
-            Text(
-              'Configure your Gemini API Key and preferred translation language.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _buildInputDecoration(String label, String? hint) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      filled: true,
-      fillColor: Theme.of(context).colorScheme.surface,
-    );
-  }
-}
-
-class CacheManagementSection extends StatefulWidget {
-  const CacheManagementSection({super.key});
-
-  @override
-  State<CacheManagementSection> createState() => _CacheManagementSectionState();
-}
-
-class _CacheManagementSectionState extends State<CacheManagementSection> {
-  final LyricsService _lyricsService = LyricsService();
-  final TranslationService _translationService = TranslationService();
-
-  int _lyricsCacheSize = 0;
-  int _translationCacheSize = 0;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCacheSizes();
-  }
-
   Future<void> _loadCacheSizes() async {
-    setState(() { _isLoading = true; });
     try {
       final lyricsSize = await _lyricsService.getCacheSize();
       final translationSize = await _translationService.getTranslationCacheSize();
@@ -656,7 +671,7 @@ class _CacheManagementSectionState extends State<CacheManagementSection> {
         setState(() {
           _lyricsCacheSize = lyricsSize;
           _translationCacheSize = translationSize;
-          _isLoading = false;
+          _isLoadingCache = false;
         });
       }
     } catch (e) {
@@ -665,7 +680,7 @@ class _CacheManagementSectionState extends State<CacheManagementSection> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading cache sizes: $e')),
         );
-         setState(() { _isLoading = false; });
+         setState(() { _isLoadingCache = false; });
       }
     }
   }
@@ -699,6 +714,10 @@ class _CacheManagementSectionState extends State<CacheManagementSection> {
 
   @override
   Widget build(BuildContext context) {
+     if (_isLoadingSettings || _isLoadingCache) {
+       return const Center(child: CircularProgressIndicator());
+     }
+
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
@@ -711,30 +730,68 @@ class _CacheManagementSectionState extends State<CacheManagementSection> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Cache Management',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+             Text(
+              'App Settings',
+               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: kElementSpacing),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
-            else ...[
-              _buildCacheItem(
-                'Lyrics Cache',
-                _formatBytes(_lyricsCacheSize),
-                _clearLyricsCache,
-              ),
-              const SizedBox(height: kSmallSpacing),
-              _buildCacheItem(
-                'Translation Cache',
-                _formatBytes(_translationCacheSize),
-                _clearTranslationCache,
-              ),
-            ],
+
+            Row(
+               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+               children: [
+                 Text(
+                  'Translation',
+                  style: Theme.of(context).textTheme.titleSmall,
+                 ),
+               ],
+             ),
+            const SizedBox(height: kSmallSpacing / 2),
+            DropdownButtonFormField<String>(
+              value: _selectedLanguage,
+              items: _languageOptions.entries.map((entry) {
+                return DropdownMenuItem<String>(
+                  value: entry.key,
+                  child: Text(entry.value),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null && newValue != _selectedLanguage) {
+                  setState(() {
+                    _selectedLanguage = newValue;
+                  });
+                  _saveLanguageSetting();
+                }
+              },
+              decoration: _buildInputDecoration('Target Language', null),
+            ),
             const SizedBox(height: kSmallSpacing),
             Text(
+              'Preferred language for lyrics translation.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+
+            const SizedBox(height: kElementSpacing),
+
+            Text(
+              'Cache Management',
+               style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: kSmallSpacing / 2),
+            _buildCacheItem(
+              'Lyrics Cache',
+              _formatBytes(_lyricsCacheSize),
+              _clearLyricsCache,
+            ),
+            const SizedBox(height: kSmallSpacing),
+            _buildCacheItem(
+              'Translation Cache',
+              _formatBytes(_translationCacheSize),
+              _clearTranslationCache,
+            ),
+            const SizedBox(height: kSmallSpacing),
+             Text(
               'Clear cached data to free up space or resolve issues.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -746,7 +803,7 @@ class _CacheManagementSectionState extends State<CacheManagementSection> {
 
   Widget _buildCacheItem(String title, String size, VoidCallback onClear) {
     return Container(
-      padding: const EdgeInsets.all(kSmallSpacing),
+      padding: const EdgeInsets.symmetric(horizontal: kSmallSpacing, vertical: kSmallSpacing / 2),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -754,18 +811,32 @@ class _CacheManagementSectionState extends State<CacheManagementSection> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('$title: $size'),
+          Text('$title: $size', style: Theme.of(context).textTheme.bodyMedium),
           TextButton(
             onPressed: onClear,
             style: TextButton.styleFrom(
               minimumSize: Size.zero,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: Theme.of(context).colorScheme.error,
             ),
             child: const Text('Clear'),
           ),
         ],
       ),
+    );
+  }
+
+   InputDecoration _buildInputDecoration(String label, String? hint) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      filled: true,
+      fillColor: Theme.of(context).colorScheme.surface,
     );
   }
 }
