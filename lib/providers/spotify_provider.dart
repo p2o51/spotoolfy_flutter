@@ -312,8 +312,8 @@ class SpotifyProvider extends ChangeNotifier {
     
     try {
       // 打印当前的 ClientID
-      final credentials = await getClientCredentials();
-      print('当前使用的 ClientID: ${credentials['clientId']}');
+      // final credentials = await getClientCredentials();
+      // print('当前使用的 ClientID: ${credentials['clientId']}'); // 通常不需要在每次刷新时打印
       
       final track = await _spotifyService.getCurrentlyPlayingTrack();
       if (track != null) {
@@ -325,54 +325,79 @@ class SpotifyProvider extends ChangeNotifier {
         final newContextUri = track['context']?['uri'];
         final oldContextUri = currentTrack?['context']?['uri'];
 
-        // 检查是否需要更新状态
-        final shouldUpdate = currentTrack == null || 
-            newId != oldId || 
+        // 检查是否需要更新状态 (基于核心播放信息)
+        final shouldUpdateCoreState = currentTrack == null ||
+            newId != oldId ||
             isPlaying != oldIsPlaying ||
             newContextUri != oldContextUri;
+            
+        bool needsNotify = false;
 
-        if (shouldUpdate) {
+        if (shouldUpdateCoreState) {
           // 重置进度更新时间
           _lastProgressUpdate = DateTime.now();
           
-          // 在以下情况刷新播放队列：
-          // 1. 首次加载 (currentTrack == null)
-          // 2. 歌曲改变 (newId != oldId)
-          // 3. 播放状态改变 (isPlaying != oldIsPlaying)
-          // 4. 播放上下文改变 (newContextUri != oldContextUri)
+          // 在核心状态改变时刷新播放队列
           await refreshPlaybackQueue();
           
           // 获取 FirestoreProvider 实例并保存播放上下文
-          if (track['context'] != null) {
+          if (track['context'] != null && track['item'] != null) {
             final firestoreProvider = Provider.of<FirestoreProvider>(
               navigatorKey.currentContext!, 
               listen: false
             );
             
-            final enrichedContext = await _enrichPlayContext(track['context']);
-            await firestoreProvider.savePlayContext(
-              trackId: track['item']['id'],
-              context: enrichedContext,
-              timestamp: DateTime.now(),
-            );
+            try {
+              final enrichedContext = await _enrichPlayContext(track['context']);
+              await firestoreProvider.savePlayContext(
+                trackId: track['item']['id'],
+                context: enrichedContext,
+                timestamp: DateTime.now(),
+              );
+            } catch (e) {
+              print('保存播放上下文到 Firestore 失败: $e');
+            }
           }
 
           previousTrack = currentTrack;
           currentTrack = track;
-          
-          if (track['item'] != null) {
-            isCurrentTrackSaved = await _spotifyService.isTrackSaved(track['item']['id']);
-          }
-          
-          // 更新小部件
-          await updateWidget();
-          
-          notifyListeners();
+          needsNotify = true;
         } else if (progress != currentTrack!['progress_ms']) {
           // 即使只是进度变化，也更新进度值
           currentTrack!['progress_ms'] = progress;
+          needsNotify = true; // 只需要更新进度，也要通知
+        }
+        
+        // *** 总是检查收藏状态 ***
+        bool savedStateChanged = false;
+        if (track['item'] != null) {
+          try {
+            final currentSavedState = await _spotifyService.isTrackSaved(track['item']['id']);
+            if (isCurrentTrackSaved != currentSavedState) {
+              isCurrentTrackSaved = currentSavedState;
+              savedStateChanged = true;
+              needsNotify = true; // 如果收藏状态改变，需要通知
+            }
+          } catch (e) {
+            print('刷新时检查歌曲保存状态失败: $e');
+            // 即使检查失败，也继续执行，避免阻塞其他更新
+          }
+        } else if (isCurrentTrackSaved != null) {
+           // 如果没有 item 了，清除收藏状态
+           isCurrentTrackSaved = null;
+           savedStateChanged = true;
+           needsNotify = true;
+        }
+
+        // 如果核心状态或收藏状态有变化，更新 Widget 和通知监听器
+        if (shouldUpdateCoreState || savedStateChanged) {
+           await updateWidget();
+        }
+        
+        if (needsNotify) {
           notifyListeners();
         }
+        
       } else if (currentTrack != null) {
         // 如果当前没有播放任何内容，但之前有，则清除状态
         currentTrack = null;
@@ -380,10 +405,12 @@ class SpotifyProvider extends ChangeNotifier {
         nextTrack = null;
         isCurrentTrackSaved = null;
         upcomingTracks.clear();
+        await updateWidget(); // 更新 widget 为无播放状态
         notifyListeners();
       }
     } catch (e) {
       print('刷新当前播放失败: $e');
+      // Consider adding more specific error handling if needed
     }
   }
 
@@ -856,32 +883,48 @@ class SpotifyProvider extends ChangeNotifier {
   Future<void> toggleTrackSave() async {
     if (currentTrack == null || currentTrack!['item'] == null) return;
 
+    final trackId = currentTrack!['item']['id'];
+    final originalState = isCurrentTrackSaved; // 记录原始状态以便出错时恢复
+
     try {
-      final trackId = currentTrack!['item']['id'];
-      await _spotifyService.toggleTrackSave(trackId);
-      
-      // 添加延迟和验证
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // 从服务器重新获取实际的收藏状态
-      isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
+      // Optimistically update UI first for responsiveness
+      isCurrentTrackSaved = !(isCurrentTrackSaved ?? false);
       notifyListeners();
       
-      // 如果状态改变，等待一段时间后再次验证
-      await Future.delayed(const Duration(seconds: 2));
-      final finalState = await _spotifyService.isTrackSaved(trackId);
-      if (finalState != isCurrentTrackSaved) {
-        isCurrentTrackSaved = finalState;
+      // Call the API to toggle the save state
+      await _spotifyService.toggleTrackSave(trackId);
+      
+      // Immediately fetch the actual state from Spotify to confirm
+      final actualState = await _spotifyService.isTrackSaved(trackId);
+      
+      // If the actual state differs from the optimistic update, correct it
+      if (isCurrentTrackSaved != actualState) {
+        isCurrentTrackSaved = actualState;
         notifyListeners();
       }
+      
+      // Optional: Add a very short delay ONLY if needed due to API eventual consistency
+      // await Future.delayed(const Duration(milliseconds: 200));
+      // final finalState = await _spotifyService.isTrackSaved(trackId);
+      // if (finalState != isCurrentTrackSaved) {
+      //   isCurrentTrackSaved = finalState;
+      //   notifyListeners();
+      // }
+
     } catch (e) {
       print('切换收藏状态失败: $e');
-      // 发生错误时，重新检查状态
-      final trackId = currentTrack?['item']?['id'];
-      if (trackId != null) {
-        isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
+      // Revert to the original state on error
+      if (isCurrentTrackSaved != originalState) {
+        isCurrentTrackSaved = originalState;
         notifyListeners();
       }
+      // Optionally re-check the state after error
+      // try {
+      //   isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
+      //   notifyListeners();
+      // } catch (recheckError) {
+      //   print('重新检查收藏状态失败: $recheckError');
+      // }
     }
   }
 
