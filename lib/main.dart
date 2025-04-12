@@ -84,6 +84,11 @@ class MyThemedApp extends StatelessWidget {
         appBarTheme: AppBarTheme(
           systemOverlayStyle: systemUiOverlayStyle, // Use the dynamic style
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: <TargetPlatform, PageTransitionsBuilder>{
+            TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          },
+        ),
       ),
       home: const MyApp(),
     );

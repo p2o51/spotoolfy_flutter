@@ -28,12 +28,25 @@ class _LibrarySectionState extends State<LibrarySection> {
     super.initState();
     _scrollController.addListener(_scrollListener);
     
+    // Register callbacks from parent
     if (widget.registerRefreshCallback != null) {
       widget.registerRefreshCallback!(_refreshData);
     }
     if (widget.registerScrollToTopCallback != null) {
       widget.registerScrollToTopCallback!(_scrollToTop);
     }
+
+    // Trigger initial load if needed after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Use listen: false as we only need to trigger the load, not react to changes here
+      final libraryProvider = Provider.of<LibraryProvider>(context, listen: false);
+      // Check if it's the first load and not already loading
+      if (libraryProvider.isFirstLoad && !libraryProvider.isLoading) {
+         // Use _refreshData to ensure consistency with pull-to-refresh logic
+         // (although calling libraryProvider.loadData() directly would also work)
+         _refreshData();
+      }
+    });
   }
   
   @override
