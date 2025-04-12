@@ -6,7 +6,7 @@ import '../services/lyrics_service.dart';
 import '../services/translation_service.dart';
 import './translation_result_sheet.dart';
 import 'dart:async';
-import 'dart:math' as math;
+import '../services/settings_service.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -26,6 +26,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   List<LyricLine> _lyrics = [];
   final LyricsService _lyricsService = LyricsService();
   final TranslationService _translationService = TranslationService();
+  final SettingsService _settingsService = SettingsService();
   String? _lastTrackId;
   Timer? _progressTimer;
   Duration _currentPosition = Duration.zero;
@@ -215,6 +216,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       // Combine lyric lines into a single string
       final originalLyricsText = _lyrics.map((line) => line.text).join('\n');
       
+      // Fetch the translation style BEFORE calling translate
+      final currentStyle = await _settingsService.getTranslationStyle();
+
       // Pass trackId to the translation service
       final translatedText = await _translationService.translateLyrics(
         originalLyricsText, 
@@ -232,13 +236,18 @@ class _LyricsWidgetState extends State<LyricsWidget> {
           builder: (context) => TranslationResultSheet(
             originalLyrics: originalLyricsText,
             translatedLyrics: translatedText,
+            translationStyle: currentStyle,
             onReTranslate: () async {
               try {
+                // Fetch the latest style again in case it changed while sheet was open
+                final latestStyle = await _settingsService.getTranslationStyle();
                 final newTranslation = await _translationService.translateLyrics(
                   originalLyricsText,
                   currentTrackId,
                   forceRefresh: true,
                 );
+                // Note: We return the translation text, the sheet will use its initial style for display
+                // If the style changed, the *next* time translate is pressed, it will use the new style.
                 return newTranslation;
               } catch (e) {
                 print("Error during re-translation from sheet: $e");

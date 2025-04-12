@@ -332,62 +332,61 @@ class _CredentialsSectionState extends State<CredentialsSection> {
   Future<void> _saveCredentials() async {
      bool spotifySaved = false;
      bool geminiSaved = false;
+     bool spotifyAttempted = false;
+     bool geminiAttempted = false;
+     String? spotifyError;
 
-     if (_spotifyClientIdController.text.isEmpty || _spotifyClientSecretController.text.isEmpty) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text('Please fill in both Spotify fields')),
-       );
-       return;
-     }
-     if (_spotifyClientIdController.text.length != 32 ||
-         !RegExp(r'^[0-9a-f]{32}$').hasMatch(_spotifyClientIdController.text)) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text('Spotify Client ID should be a 32-character hex string')),
-       );
-       return;
-     }
-     if (_spotifyClientSecretController.text.length != 32 ||
-         !RegExp(r'^[0-9a-f]{32}$').hasMatch(_spotifyClientSecretController.text)) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text('Spotify Client Secret should be a 32-character hex string')),
-       );
-       return;
-     }
+     // Check Spotify fields only if at least one is not empty
+     if (_spotifyClientIdController.text.isNotEmpty || _spotifyClientSecretController.text.isNotEmpty) {
+       spotifyAttempted = true;
+       // Both must be non-empty to attempt saving
+       if (_spotifyClientIdController.text.isEmpty || _spotifyClientSecretController.text.isEmpty) {
+          spotifyError = 'Both Spotify Client ID and Secret are required if providing one.';
+       } else {
+          // Validate format only if non-empty
+         if (_spotifyClientIdController.text.length != 32 ||
+             !RegExp(r'^[0-9a-f]{32}$').hasMatch(_spotifyClientIdController.text)) {
+           spotifyError = 'Spotify Client ID must be a 32-character hex string.';
+         } else if (_spotifyClientSecretController.text.length != 32 ||
+             !RegExp(r'^[0-9a-f]{32}$').hasMatch(_spotifyClientSecretController.text)) {
+            spotifyError = 'Spotify Client Secret must be a 32-character hex string.';
+         }
+       }
 
-     try {
-       final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-       await spotifyProvider.setClientCredentials(
-         _spotifyClientIdController.text,
-         _spotifyClientSecretController.text,
-       );
-       spotifySaved = true;
-     } catch (e) {
-       print("Error saving Spotify credentials: $e");
-       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Error saving Spotify credentials: $e')),
-         );
+       // If no validation errors, attempt to save Spotify credentials
+       if (spotifyError == null) {
+         try {
+           final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+           await spotifyProvider.setClientCredentials(
+             _spotifyClientIdController.text,
+             _spotifyClientSecretController.text,
+           );
+           spotifySaved = true;
+         } catch (e) {
+           print("Error saving Spotify credentials: $e");
+           spotifyError = 'Error saving Spotify credentials: $e';
+         }
        }
      }
 
-     if (_geminiApiKeyController.text.isEmpty) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text('Please enter a Gemini API Key')),
-       );
-       if (!spotifySaved) return;
-     } else {
+     // Attempt to save Gemini key if not empty
+     if (_geminiApiKeyController.text.isNotEmpty) {
+       geminiAttempted = true;
         try {
            final settings = await _settingsService.getSettings();
            String? currentLanguage = settings['languageCode'];
+           TranslationStyle? currentStyle = settings['style'];
 
            await _settingsService.saveSettings(
              apiKey: _geminiApiKeyController.text,
              languageCode: currentLanguage,
+             style: currentStyle,
            );
            geminiSaved = true;
          } catch (e) {
            print("Error saving Gemini API key: $e");
            if (mounted) {
+             // Show Gemini specific error immediately
              ScaffoldMessenger.of(context).showSnackBar(
                SnackBar(content: Text('Error saving Gemini API key: $e')),
              );
@@ -396,23 +395,53 @@ class _CredentialsSectionState extends State<CredentialsSection> {
      }
 
      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-       if (spotifySaved && geminiSaved) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('Credentials saved successfully. Please re-login if needed.')),
-         );
+        ScaffoldMessenger.of(context).removeCurrentSnackBar(); // Remove potential "Saving..." snackbar
+
+        // Show Spotify error if any
+        if (spotifyError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text(spotifyError)),
+           );
+        }
+
+        // Determine overall success message
+        String successMessage = '';
+        if (spotifySaved && geminiSaved) {
+          successMessage = 'Credentials saved successfully.';
+        } else if (spotifySaved) {
+          successMessage = 'Spotify credentials saved.';
+          if (geminiAttempted && !geminiSaved) successMessage += ' Gemini key failed.';
+        } else if (geminiSaved) {
+           successMessage = 'Gemini API key saved.';
+           if (spotifyAttempted && !spotifySaved && spotifyError == null) successMessage += ' Spotify credentials failed.';
+           // If spotifyError is not null, it was already shown
+        } else if (spotifyAttempted && !spotifySaved && spotifyError == null) {
+            // If only Spotify was attempted and failed without a validation error shown above
+             ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(content: Text('Failed to save Spotify credentials.')),
+            );
+        } else if (!spotifyAttempted && !geminiAttempted) {
+           successMessage = 'No credentials entered to save.'; // Or maybe no message?
+        }
+
+
+        if (successMessage.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text(successMessage)),
+            );
+        }
+
+       // Close edit mode only if there were no Spotify validation errors
+       // and at least one save was successful OR no save was attempted.
+       if (spotifyError == null && (spotifySaved || geminiSaved || (!spotifyAttempted && !geminiAttempted))) {
          setState(() { _isEditing = false; });
-       } else if (spotifySaved) {
-           ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('Spotify credentials saved. Gemini key failed.')),
-         );
-          setState(() { _isEditing = false; });
-       } else if (geminiSaved) {
-           ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('Gemini API key saved. Spotify credentials failed.')),
-         );
-          setState(() { _isEditing = false; });
-       } else {
+       } else if (spotifyError != null && geminiSaved) {
+         // If spotify failed validation but gemini saved, still potentially close edit mode?
+         // Let's keep it open so user can fix spotify error.
+          // setState(() { _isEditing = false; });
+       } else if (spotifyError == null && (!spotifySaved && !geminiSaved) && (spotifyAttempted || geminiAttempted)) {
+         // If saves were attempted but both failed due to API/network issues (not validation)
+         // Keep edit mode open
        }
      }
   }
@@ -581,6 +610,8 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
   final TranslationService _translationService = TranslationService();
 
   String? _selectedLanguage;
+  TranslationStyle? _selectedStyle;
+  bool? _copyAsSingleLine;
   int _lyricsCacheSize = 0;
   int _translationCacheSize = 0;
 
@@ -605,35 +636,42 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
        _isLoadingSettings = true;
        _isLoadingCache = true;
       });
-    await _loadLanguageSetting();
-    await _loadCacheSizes();
-    if (mounted) {
-       setState(() {});
-    }
-  }
-
-  Future<void> _loadLanguageSetting() async {
     try {
       final settings = await _settingsService.getSettings();
       if (mounted) {
         setState(() {
-          if (settings['languageCode'] != null &&
-              _languageOptions.containsKey(settings['languageCode'])) {
-            _selectedLanguage = settings['languageCode'];
+          final langCode = settings['languageCode'] as String?;
+          if (langCode != null && _languageOptions.containsKey(langCode)) {
+            _selectedLanguage = langCode;
           } else {
             _selectedLanguage = 'en';
           }
+
+          _selectedStyle = settings['style'] as TranslationStyle? ?? TranslationStyle.faithful;
+
+          _copyAsSingleLine = settings['copyLyricsAsSingleLine'] as bool? ?? false;
+
           _isLoadingSettings = false;
         });
       }
     } catch (e) {
-      print("Error loading language setting: $e");
+      print("Error loading settings: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading language setting: $e')),
+          SnackBar(content: Text('Error loading settings: $e')),
         );
-        setState(() { _isLoadingSettings = false; });
+        setState(() {
+          _selectedLanguage = 'en';
+          _selectedStyle = TranslationStyle.faithful;
+          _copyAsSingleLine = false;
+          _isLoadingSettings = false;
+        });
       }
+    }
+
+    await _loadCacheSizes();
+    if (mounted) {
+       setState(() {});
     }
   }
 
@@ -645,6 +683,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
       await _settingsService.saveSettings(
         apiKey: currentApiKey,
         languageCode: _selectedLanguage,
+        style: _selectedStyle,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -658,6 +697,55 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving language setting: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveStyleSetting() async {
+    try {
+      final settings = await _settingsService.getSettings();
+      String? currentApiKey = settings['apiKey'];
+      String? currentLanguage = settings['languageCode'] as String?;
+
+      await _settingsService.saveSettings(
+        apiKey: currentApiKey,
+        languageCode: currentLanguage,
+        style: _selectedStyle,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Translation style saved')),
+        );
+      }
+    } catch (e) {
+      print("Error saving translation style: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving translation style: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveCopyFormatSetting() async {
+     if (_copyAsSingleLine == null) return;
+    try {
+      await _settingsService.saveCopyLyricsAsSingleLine(_copyAsSingleLine!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Copy format setting saved')),
+        );
+      }
+    } catch (e) {
+      print("Error saving copy format setting: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving copy format setting: $e')),
         );
       }
     }
@@ -709,6 +797,17 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         const SnackBar(content: Text('Translation cache cleared')),
       );
       _loadCacheSizes();
+    }
+  }
+
+  String getTranslationStyleDisplayName(TranslationStyle style) {
+    switch (style) {
+      case TranslationStyle.faithful:
+        return 'Faithful (Accuracy First)';
+      case TranslationStyle.melodramaticPoet:
+        return 'Melodramatic Poet (Artistic)';
+      case TranslationStyle.machineClassic:
+        return 'Machine Classic (Literal)';
     }
   }
 
@@ -767,8 +866,27 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
               decoration: _buildInputDecoration('Target Language', null),
             ),
             const SizedBox(height: kSmallSpacing),
+            DropdownButtonFormField<TranslationStyle>(
+              value: _selectedStyle,
+              items: TranslationStyle.values.map((style) {
+                return DropdownMenuItem<TranslationStyle>(
+                  value: style,
+                  child: Text(getTranslationStyleDisplayName(style)),
+                );
+              }).toList(),
+              onChanged: (TranslationStyle? newValue) {
+                if (newValue != null && newValue != _selectedStyle) {
+                  setState(() {
+                    _selectedStyle = newValue;
+                  });
+                  _saveStyleSetting();
+                }
+              },
+              decoration: _buildInputDecoration('Translation Style', null),
+            ),
+            const SizedBox(height: kSmallSpacing),
             Text(
-              'Preferred language for lyrics translation.',
+              'Choose the preferred style for lyrics translation.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
 
@@ -795,6 +913,22 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
               'Clear cached data to free up space or resolve issues.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+
+            SwitchListTile(
+              title: const Text('Copy lyrics as single line'),
+              subtitle: const Text('Replaces line breaks with spaces when copying.'),
+              value: _copyAsSingleLine ?? false,
+              onChanged: (bool newValue) {
+                setState(() {
+                  _copyAsSingleLine = newValue;
+                });
+                _saveCopyFormatSetting();
+              },
+              contentPadding: const EdgeInsets.symmetric(horizontal: kSmallSpacing),
+              dense: true,
+            ),
+
+            const SizedBox(height: kElementSpacing),
           ],
         ),
       ),

@@ -17,9 +17,11 @@ class TranslationService {
 
     final language = targetLanguage ?? await _settingsService.getTargetLanguage();
     final languageName = _getLanguageName(language); // Get full language name for the prompt
-    
-    // Generate cache key
-    final cacheKey = '$_cacheKeyPrefix${trackId}_$language';
+    final style = await _settingsService.getTranslationStyle(); // Get selected style
+    final styleName = translationStyleToString(style); // Get style name for cache key
+
+    // Generate cache key including language and style
+    final cacheKey = '$_cacheKeyPrefix${trackId}_${language}_$styleName'; 
     final prefs = await SharedPreferences.getInstance();
 
     // Try fetching from cache first
@@ -36,23 +38,8 @@ class TranslationService {
 
     final url = Uri.parse('$_geminiApiBaseUrl:generateContent?key=$apiKey');
     
-    // Prepare the prompt correctly
-    final prompt = '''
-Please translate the following song lyrics into $languageName. 
-Preserve the line breaks and general structure of the original lyrics. 
-Your lyrics need to be accurate in meaning and retain the artistry of the original lyrics.
-Based on the principles above, the lyrics can be vivid, or some conjunctions can be appropriately added to make them flow smoothly.
-
-Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
-
-Original Lyrics:
-"""
-$lyricsText
-"""
-
-Translated Lyrics ($languageName):
-###
-'''; // Request AI to wrap result in ###
+    // Get the prompt based on the selected style
+    final prompt = _getPromptForStyle(style, languageName, lyricsText);
 
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -144,9 +131,10 @@ Translated Lyrics ($languageName):
             print('Final cleaned translation:\n$translatedText');
             
             // Save to cache (even if refreshed, save the new result)
-            await prefs.setString(cacheKey, translatedText);
+            // Use the style-specific cache key but save only the clean text
+            await prefs.setString(cacheKey, translatedText); 
 
-            return translatedText;
+            return translatedText; // Return clean text
           }
         }
         // Handle cases where the expected structure isn't found
@@ -169,6 +157,97 @@ Translated Lyrics ($languageName):
       rethrow; 
     }
     return null; // Should not be reached if error handling is correct, but added for safety
+  }
+
+  // Helper function to generate the prompt based on the selected style
+  String _getPromptForStyle(TranslationStyle style, String languageName, String lyricsText) {
+    switch (style) {
+      case TranslationStyle.faithful:
+        // Updated Faithful Style Prompt
+        return '''
+Please translate the following song lyrics into $languageName in a **Faithful** style.
+
+Your **absolute primary goal** is **accuracy in conveying the most likely intended meaning** of the original words and phrases.
+**Secondly**, strive to **retain the artistry, tone, and feeling** that are **explicitly present in the original wording**, without making assumptions about broader context.
+**Preserve the line breaks and general sentence structure** of the original lyrics as closely as grammatically possible in $languageName.
+
+**Handling Potential Issues:**
+
+*   **Ambiguity:** If a word or phrase has multiple possible meanings, choose the **most common or literal interpretation** *unless* the immediately surrounding lyrics strongly suggest a specific alternative meaning. Do not guess based on assumed context.
+*   **Idioms & Figurative Language:** Translate common, well-understood idioms and metaphors by conveying their **conceptual meaning** in $languageName, finding the closest natural equivalent if one exists. If an expression is obscure, highly ambiguous without context, or seems like unique wordplay, lean towards a **more literal translation** that preserves the original image or phrasing, even if it feels slightly unusual in $languageName.
+*   **Adjustments for Flow:** Only make **minimal grammatical adjustments** (e.g., adding necessary particles, slightly altering word order to fit $languageName syntax) if a direct, literal rendering is **grammatically incorrect or completely unintelligible** in $languageName. **Prioritize fidelity to the original phrasing and structure** over achieving perfect colloquial fluency. Avoid adding conjunctions or smoothing transitions unless grammatically essential.
+
+**Strictly avoid:**
+*   Adding embellishments, explanations, or information not present in the source text.
+*   Significantly deviating from the source text's meaning or structure to enhance poetic effect or appeal.
+*   Guessing at deeper meanings or contexts not explicitly stated.
+*   Translating based on assumed real-world context or common sense if it contradicts a literal reading of the text.
+
+**Prioritize fidelity to the text itself above all else.**
+
+Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
+
+Original Lyrics:
+"""
+$lyricsText
+"""
+
+Translated Lyrics ($languageName) [Faithful Style]:
+###
+''';
+      case TranslationStyle.melodramaticPoet:
+        // Unchanged Melodramatic Poet Style Prompt
+        return '''
+Please translate the following song lyrics into $languageName in a **Melodramatic Poet** style.
+Preserve the line breaks and general structure of the original lyrics.
+Your main goal is to create lyrics that are **highly emotionally resonant, poetic, and appealing** .
+Feel free to use **embellished, flowery, and evocative language** to capture or even **heighten the mood and sentiment**.
+You have permission and are encouraged to **deviate somewhat from the literal meaning** if it serves the emotional impact and makes the lyrics more captivating or 'popular' (讨好大众).
+**Prioritize poetic flair, emotional punch, and audience appeal** over strict fidelity to the original text. However, the core theme should remain recognizable.
+
+Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
+Even though you are a poet, the output format should still be lyrics, and **DO NOT** input punctuation marks that does not exist in the original text.
+
+Original Lyrics:
+"""
+$lyricsText
+"""
+
+Translated Lyrics ($languageName) [Melodramatic Poet Style]:
+###
+''';
+      case TranslationStyle.machineClassic:
+        // Updated Machine Classic Style Prompt
+        return '''
+Please translate the following song lyrics into $languageName, strictly adhering to the **"Machine Translation Classic" (circa 2004) style**, aiming for a result that sounds deliberately awkward and unnatural, sometimes even humorously so.
+Preserve the line breaks and general structure of the original lyrics.
+
+Your **absolute top priority** is ensuring the output strongly exhibits a **stiff, overly literal, and context-ignoring** machine translation style. The goal is **maximum literalness**, even at the cost of naturalness, fluency, idiomatic meaning, or even perfect semantic accuracy in context.
+
+**Key Characteristics to Emulate:**
+*   **Word-for-word:** Stick as closely as possible to the original word order and word choices, even if it results in awkward phrasing in $languageName.
+*   **Ignore Context & Idioms:** Translate words based on their most basic or literal dictionary meaning, ignoring idiomatic usage, figurative language, or common sense context.
+*   **Awkward & Unnatural Phrasing:** Do not try to make the translation sound smooth or natural in $languageName. Embrace stiffness and potential grammatical oddities if they arise from literal translation.
+
+**Examples of the desired style:**
+*   "Yes, and?" should NOT be translated as "是的，然后呢？" (natural), but as something like "是的，而且。" (literal 'and').
+*   "Don't think twice about it" should NOT be translated as "不要再多想它" (natural), but as "不要想两次关于它。" (literal structure).
+*   "I need a, yeah, I need, fuck it, I need a minute." should NOT be "我需要，是啊，我需要，妈的，我需要一分钟" (natural flow & interpretation), but rather "我需要一个，耶，我需要，操它，我需要一分钟。" (literal particles and interjections).
+
+**Do NOT prioritize:** Naturalness, fluency, idiomatic correctness, poetic quality, or conveying subtle nuances. The goal is a **grammatically possible but pragmatically strange, literal output characteristic of early, non-contextual MT.**
+**Do not enter too many spaces in the same line of lyrics.**
+
+Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
+
+Original Lyrics:
+"""
+$lyricsText
+"""
+
+Translated Lyrics ($languageName) [Machine Translation Classic Style]:
+###
+''';
+    }
   }
 
   // Helper to get the full language name for the prompt
