@@ -132,6 +132,7 @@ class Login extends StatelessWidget {
               try {
                 if (spotifyProvider.username != null) {
                   await spotifyProvider.logout();
+                  HapticFeedback.lightImpact();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Logged out from Spotify')),
@@ -139,6 +140,7 @@ class Login extends StatelessWidget {
                   }
                 } else {
                   await spotifyProvider.login();
+                  HapticFeedback.lightImpact();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Logged in with Spotify')),
@@ -278,6 +280,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
   }
 
   Future<void> _saveCredentials() async {
+     HapticFeedback.lightImpact();
      bool spotifySaved = false;
      bool geminiSaved = false;
      bool spotifyAttempted = false;
@@ -395,6 +398,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
   }
 
    Future<void> _resetSpotifyCredentials() async {
+     HapticFeedback.lightImpact();
      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
      await spotifyProvider.resetClientCredentials();
      if (mounted) {
@@ -438,6 +442,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
                   children: [
                     TextButton(
                       onPressed: () {
+                        HapticFeedback.lightImpact();
                         launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
                       },
                       style: TextButton.styleFrom(
@@ -485,7 +490,10 @@ class _CredentialsSectionState extends State<CredentialsSection> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: _resetSpotifyCredentials,
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _resetSpotifyCredentials();
+                    },
                     style: TextButton.styleFrom(padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                     child: Text('Reset Spotify to Default', style: Theme.of(context).textTheme.bodySmall),
                   ),
@@ -516,6 +524,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
                 children: [
                   FilledButton(
                     onPressed: () {
+                      HapticFeedback.lightImpact();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Saving credentials...')),
                       );
@@ -729,6 +738,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
   }
 
   Future<void> _clearLyricsCache() async {
+    HapticFeedback.lightImpact();
     await _lyricsService.clearCache();
     if (mounted) {
        ScaffoldMessenger.of(context).showSnackBar(
@@ -739,6 +749,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
   }
 
    Future<void> _clearTranslationCache() async {
+    HapticFeedback.lightImpact();
     await _translationService.clearTranslationCache();
     if (mounted) {
        ScaffoldMessenger.of(context).showSnackBar(
@@ -803,10 +814,11 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
                   child: Text(entry.value),
                 );
               }).toList(),
-              onChanged: (String? newValue) {
-                if (newValue != null && newValue != _selectedLanguage) {
+              onChanged: (value) {
+                if (value != null) {
+                  HapticFeedback.selectionClick();
                   setState(() {
-                    _selectedLanguage = newValue;
+                    _selectedLanguage = value;
                   });
                   _saveLanguageSetting();
                 }
@@ -969,7 +981,10 @@ class DataManagementSection extends StatelessWidget {
             leading: const Icon(Icons.upload_file),
             title: const Text('Export Data'),
             subtitle: const Text('Save all your notes and translations to a JSON file.'),
-            onTap: () => _handleExport(context),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _handleExport(context);
+            },
             trailing: const Icon(Icons.chevron_right),
           ),
         ),
@@ -982,7 +997,10 @@ class DataManagementSection extends StatelessWidget {
             leading: const Icon(Icons.file_download),
             title: const Text('Import Data'),
             subtitle: const Text('Load data from a previously exported JSON file.'),
-            onTap: () => _handleImport(context), // Call new handler
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _handleImport(context);
+            }, // Call new handler
             trailing: const Icon(Icons.chevron_right),
           ),
         ),

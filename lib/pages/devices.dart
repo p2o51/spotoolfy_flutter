@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../models/spotify_device.dart';
+import 'package:flutter/services.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({super.key});
@@ -125,6 +126,7 @@ class DeviceListItem extends StatelessWidget {
       color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.6),
       child: InkWell(
         onTap: isDisabled ? null : () {
+          HapticFeedback.lightImpact();
           spotify.transferPlaybackToDevice(device.id!, play: true);
         },
         child: Padding(

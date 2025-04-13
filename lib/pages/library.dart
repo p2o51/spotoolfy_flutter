@@ -7,6 +7,7 @@ import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/services.dart';
 
 class Library extends StatefulWidget {
   const Library({super.key});
@@ -105,6 +106,7 @@ class _LibraryState extends State<Library> {
                               IconButton(
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
+                                  HapticFeedback.lightImpact();
                                   // Clear controller and provider
                                   _searchController.clear();
                                   searchProvider.clearSearch();
@@ -134,21 +136,47 @@ class _LibraryState extends State<Library> {
                     
                     // Main content - either search results or library
                     Expanded(
-                      child: isSearchActive
-                        ? SearchSection(
-                            onBackPressed: () {
-                              _searchController.clear();
-                              searchProvider.clearSearch();
-                              _searchFocusNode.unfocus();
-                            },
-                          )
-                        : LibrarySection(
-                            // Register callbacks to allow LibrarySection to trigger actions
-                            registerRefreshCallback: (callback) {
-                              _refreshLibraryCallback = callback;
-                            },
-                            
+                      child: Stack( // Wrap content with Stack
+                        children: [
+                          // Original content
+                          isSearchActive
+                            ? SearchSection(
+                                onBackPressed: () {
+                                  _searchController.clear();
+                                  searchProvider.clearSearch();
+                                  _searchFocusNode.unfocus();
+                                },
+                              )
+                            : LibrarySection(
+                                // Register callbacks to allow LibrarySection to trigger actions
+                                registerRefreshCallback: (callback) {
+                                  _refreshLibraryCallback = callback;
+                                },
+                              ),
+                          
+                          // Gradient overlay
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 24.0, // Adjust height as needed
+                            child: IgnorePointer( // Prevent gradient from intercepting gestures
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Theme.of(context).scaffoldBackgroundColor, // Match background
+                                      Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -267,6 +295,16 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     }
   }
 
+  void _playItem(BuildContext context, Map<String, dynamic> item) {
+    HapticFeedback.lightImpact();
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final type = item['type'];
+    final id = item['id'];
+    if (type != null && id != null) {
+      spotifyProvider.playContext(type: type, id: id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Use 'allItems' directly as it's already filtered and shuffled in _loadItems
@@ -307,16 +345,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                      itemSnapping: true,
                      onTap: (index) {
                        if (index >= 0 && index < validItems.length) {
-                         final item = validItems[index];
-                         final type = item['type'];
-                         final id = item['id'];
-                         if (type != null && id != null) {
-                           final spotifyProvider = Provider.of<SpotifyProvider>(
-                             context,
-                             listen: false
-                           );
-                           spotifyProvider.playContext(type: type, id: id);
-                         }
+                         _playItem(context, validItems[index]);
                        } else {
                          // print('Error: Invalid index ($index) tapped in CarouselView.');
                        }

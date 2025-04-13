@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/spotify_provider.dart';
+import 'package:flutter/services.dart';
 
 class LibraryGrid extends StatelessWidget {
   final List<Map<String, dynamic>> items;
@@ -173,8 +174,14 @@ class _LibraryGridItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       key: key, // Use the key provided
-      onTap: onTap,
-      onLongPress: onLongPress,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        onLongPress();
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

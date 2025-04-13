@@ -4,6 +4,7 @@ import '../providers/spotify_provider.dart';
 import '../providers/local_database_provider.dart';
 import '../services/lyrics_service.dart';
 import '../models/track.dart';
+import 'package:flutter/services.dart';
 
 class AddNoteSheet extends StatefulWidget {
   const AddNoteSheet({super.key});
@@ -24,6 +25,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
   }
 
   Future<void> _handleSubmit(BuildContext context) async {
+    HapticFeedback.lightImpact();
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
     final lyricsService = Provider.of<LyricsService>(context, listen: false);

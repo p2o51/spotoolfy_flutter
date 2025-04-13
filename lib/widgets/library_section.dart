@@ -4,6 +4,7 @@ import '../providers/library_provider.dart';
 import '../widgets/library_grid.dart';
 import '../widgets/materialui.dart' as custom_ui;
 import '../pages/library.dart'; // Add import for MyCarouselView
+import 'package:flutter/services.dart'; // 新增导入
 
 class LibrarySection extends StatefulWidget {
   // Optional controller to allow parent widget to initiate refresh
@@ -67,6 +68,7 @@ class _LibrarySectionState extends State<LibrarySection> {
   }
   
   Future<void> _refreshData() async {
+    HapticFeedback.mediumImpact();
     // Refresh both library provider and carousel
     final libraryProvider = Provider.of<LibraryProvider>(context, listen: false);
     await libraryProvider.loadData();
@@ -135,6 +137,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                         selected: libraryProvider.showPlaylists,
                         label: const Text('Playlists'),
                         onSelected: (bool selected) {
+                          HapticFeedback.lightImpact();
                           libraryProvider.setFilters(showPlaylists: selected);
                         },
                       ),
@@ -142,6 +145,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                         selected: libraryProvider.showAlbums,
                         label: const Text('Albums'),
                         onSelected: (bool selected) {
+                          HapticFeedback.lightImpact();
                           libraryProvider.setFilters(showAlbums: selected);
                         },
                       ),

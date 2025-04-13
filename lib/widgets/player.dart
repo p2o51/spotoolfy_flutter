@@ -7,6 +7,7 @@ import '../providers/theme_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/physics.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 class Player extends StatefulWidget {
   final bool isLargeScreen;
@@ -166,6 +167,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       final simulation = SpringSimulation(spring, _transitionController.value, 1.0, velocity / 1500);
       await _transitionController.animateWith(simulation);
       
+      HapticFeedback.mediumImpact();
       if (distance > 0) {
         spotify.skipToPrevious();
       } else {
@@ -229,7 +231,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     right: 10,
                     child: PlayButton(
                       isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
-                      onPressed: () => spotifyProvider.togglePlayPause(),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        spotifyProvider.togglePlayPause();
+                      },
                     ),
                   ),
                   Positioned(
@@ -240,7 +245,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       height: 64,
                       radius: 20,
                       icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
-                      onPressed: () => spotifyProvider.togglePlayMode(),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        spotifyProvider.togglePlayMode();
+                      },
                     ),
                   ),
                   _buildDragIndicators(),
@@ -268,7 +276,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                         ),
                         IconButton.filledTonal(
                           onPressed: spotifyProvider.username != null && track != null
-                            ? () => spotifyProvider.toggleTrackSave()
+                            ? () {
+                                HapticFeedback.lightImpact();
+                                spotifyProvider.toggleTrackSave();
+                              }
                             : null,
                           icon: Icon(
                             context.select<SpotifyProvider, bool>((provider) => 
@@ -530,7 +541,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                onPressed: () => spotify.togglePlayPause(),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  spotify.togglePlayPause();
+                },
               ),
               IconButton(
                 icon: Icon(

@@ -7,6 +7,7 @@ import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
 import 'package:spotoolfy_flutter/widgets/mdtab.dart';
+import 'package:flutter/services.dart';
 
 class NowPlaying extends StatefulWidget {
   const NowPlaying({super.key});
@@ -86,6 +87,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
               Ratings(
                 initialRating: 'good',
                 onRatingChanged: (rating) {
+                  HapticFeedback.lightImpact();
                   // Handle rating change if needed
                 },
               ),
@@ -189,6 +191,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          HapticFeedback.lightImpact();
           showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -272,6 +275,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
+            HapticFeedback.lightImpact();
             showModalBottomSheet(
               context: context,
               isScrollControlled: true,

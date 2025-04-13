@@ -55,6 +55,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
     });
 
     try {
+      HapticFeedback.lightImpact();
       final newTranslation = await widget.onReTranslate();
       if (mounted) {
         setState(() {
@@ -79,6 +80,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
 
   // Helper function to copy lyrics - Reads setting now
   Future<void> _copyToClipboard(bool isWideScreen) async {
+    HapticFeedback.lightImpact();
     // print('[DEBUG] _copyToClipboard called.'); // DEBUG REMOVED
 
     // Fetch the setting
@@ -205,7 +207,10 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                         IconButton.filledTonal(
                           icon: const Icon(Icons.copy, size: 20),
                           tooltip: 'Copy Lyrics', // Updated tooltip
-                          onPressed: () => _copyToClipboard(isWideScreen), // Pass screen type
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            _copyToClipboard(isWideScreen);
+                          }, // Pass screen type
                           style: IconButton.styleFrom(
                             padding: const EdgeInsets.all(8),
                           ),
@@ -220,6 +225,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                                 icon: const Icon(Icons.translate, size: 20),
                                 tooltip: 'Show Original',
                                 onPressed: () {
+                                  HapticFeedback.lightImpact();
                                   setState(() => _showTranslated = !_showTranslated);
                                 },
                                 style: IconButton.styleFrom(
@@ -233,6 +239,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                                 icon: const Icon(Icons.translate, size: 20),
                                 tooltip: 'Show Translation',
                                 onPressed: () {
+                                  HapticFeedback.lightImpact();
                                   setState(() => _showTranslated = !_showTranslated);
                                 },
                                 style: IconButton.styleFrom(

@@ -273,6 +273,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ],
           IconButton.filledTonal(
             onPressed: () {
+              HapticFeedback.lightImpact();
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -290,6 +291,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           const SizedBox(width: 8,),
           IconButton.filledTonal(
             onPressed: () {
+              HapticFeedback.lightImpact();
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -334,6 +336,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             NavigationRail(
               selectedIndex: _selectedIndex,
               onDestinationSelected: (int index) {
+                HapticFeedback.lightImpact();
                 setState(() {
                   _selectedIndex = index;
                 });
@@ -368,6 +371,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
           selectedIndex: _selectedIndex,
           onDestinationSelected: (int index) {
+            HapticFeedback.lightImpact();
             setState(() {
               _selectedIndex = index;
             });
