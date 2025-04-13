@@ -11,7 +11,6 @@ import './translation_result_sheet.dart';
 import 'dart:async';
 import '../services/settings_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -526,85 +525,92 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             },
             child: Stack(
               children: [
-                Listener(
-                  onPointerDown: (_) {
-                    // 用户开始触摸屏幕时，禁用自动滚动
-                    if (_autoScroll) {
-                      setState(() {
-                        _autoScroll = false;
-                      });
+                ListView.builder(
+                  key: _listViewKey,
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.only(
+                    top: 80 + MediaQuery.of(context).padding.top,
+                    bottom: 40 + MediaQuery.of(context).padding.bottom,
+                  ),
+                  itemCount: _lyrics.length + 10,
+                  itemBuilder: (context, index) {
+                    if (index >= _lyrics.length) {
+                      return const SizedBox(height: 50.0);
                     }
-                  },
-                  child: ListView.builder(
-                    key: _listViewKey,
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    padding: EdgeInsets.only(
-                      top: 80 + MediaQuery.of(context).padding.top,
-                      bottom: 40 + MediaQuery.of(context).padding.bottom,
-                    ),
-                    itemCount: _lyrics.length + 10,
-                    itemBuilder: (context, index) {
-                      if (index >= _lyrics.length) {
-                        return const SizedBox(height: 50.0);
-                      }
-                      
-                      return MeasureSize(
-                        onChange: (size) {
-                          if (_lineHeights[index] != size.height) {
-                            _lineHeights[index] = size.height;
-                          }
-                        },
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            if (!mounted) return;
-                            
-                            final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                            spotifyProvider.seekToPosition(_lyrics[index].timestamp);
+                    
+                    return MeasureSize(
+                      onChange: (size) {
+                        if (_lineHeights[index] != size.height) {
+                          _lineHeights[index] = size.height;
+                        }
+                      },
+                      child: GestureDetector(
+                        onTap: () {
+                          if (!mounted) return;
+                          
+                          final provider = Provider.of<SpotifyProvider>(context, listen: false);
+                          final tappedTimestamp = _lyrics[index].timestamp;
+                          provider.seekToPosition(tappedTimestamp);
+
+                          bool needsScrollTrigger = false;
+                          if (_isCopyLyricsMode) {
+                            _toggleCopyLyricsMode();
+                          } else {
                             if (!_autoScroll) {
+                              needsScrollTrigger = true; 
                               setState(() {
-                                _autoScroll = true;
+                                _autoScroll = true; 
                               });
                             }
-                          },
-                          child: AnimatedPadding(
+                          }
+
+                          if (needsScrollTrigger) {
+                             WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted && _autoScroll) {
+                                   final latestCurrentIndex = _getCurrentLineIndex(_currentPosition);
+                                   _scrollToCurrentLine(latestCurrentIndex);
+                                   _previousLineIndex = latestCurrentIndex;
+                                }
+                             });
+                          }
+                        },
+                        child: AnimatedPadding(
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOutCubic,
+                          padding: EdgeInsets.symmetric(
+                            vertical: index == currentLineIndex ? 12.0 : 8.0,
+                            horizontal: MediaQuery.of(context).size.width > 600 ? 24.0 : 40.0,
+                          ),
+                          child: AnimatedDefaultTextStyle(
                             duration: const Duration(milliseconds: 400),
                             curve: Curves.easeOutCubic,
-                            padding: EdgeInsets.symmetric(
-                              vertical: index == currentLineIndex ? 12.0 : 8.0,
-                              horizontal: MediaQuery.of(context).size.width > 600 ? 24.0 : 40.0,
+                            style: TextStyle(
+                              fontSize: MediaQuery.of(context).size.width > 600 ? 24 : 22,
+                              fontWeight: index == currentLineIndex 
+                                ? FontWeight.w700 
+                                : FontWeight.w600,
+                              color: index < currentLineIndex
+                                ? Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()) // Updated opacity
+                                : index == currentLineIndex
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.secondaryContainer,
+                              height: 1.1,
                             ),
-                            child: AnimatedDefaultTextStyle(
+                            child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 400),
                               curve: Curves.easeOutCubic,
-                              style: TextStyle(
-                                fontSize: MediaQuery.of(context).size.width > 600 ? 24 : 22,
-                                fontWeight: index == currentLineIndex 
-                                  ? FontWeight.w700 
-                                  : FontWeight.w600,
-                                color: index < currentLineIndex
-                                  ? Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()) // Updated opacity
-                                  : index == currentLineIndex
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.secondaryContainer,
-                                height: 1.1,
-                              ),
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.easeOutCubic,
-                                opacity: index == currentLineIndex ? 1.0 : 0.8,
-                                child: Text(
-                                  _lyrics[index].text,
-                                  textAlign: TextAlign.left,
-                                ),
+                              opacity: index == currentLineIndex ? 1.0 : 0.8,
+                              child: Text(
+                                _lyrics[index].text,
+                                textAlign: TextAlign.left,
                               ),
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
                 Positioned(
                   top: 0,
@@ -636,7 +642,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                         IconButton.filledTonal(
                           icon: const Icon(Icons.vertical_align_center),
                           onPressed: () {
-                            HapticFeedback.lightImpact();
                             if (!mounted) return;
                             
                             if (_isCopyLyricsMode) {
@@ -650,15 +655,16 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                           tooltip: 'Center Current Line',
                         ),
                         const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'Translate lyrics',
-                          icon: _isTranslating
-                              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                        IconButton.filledTonal(
+                          icon: _isTranslating 
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
                               : const Icon(Icons.translate),
-                          onPressed: _isTranslating ? null : () {
-                            HapticFeedback.lightImpact();
-                            _translateAndShowLyrics();
-                          },
+                          onPressed: _isTranslating ? null : _translateAndShowLyrics,
+                          tooltip: 'Translate Lyrics',
                         ),
                         const SizedBox(width: 8),
                         IconButton.filledTonal(
