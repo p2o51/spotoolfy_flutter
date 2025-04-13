@@ -148,7 +148,7 @@ class QueueDisplay extends StatelessWidget {
       // 先尝试使用URI启动Spotify应用
       if (spotifyUri != null) {
         final uri = Uri.parse(spotifyUri);
-        print('尝试打开Spotify应用：$uri');
+        debugPrint('尝试打开Spotify应用：$uri');
         
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
@@ -159,7 +159,7 @@ class QueueDisplay extends StatelessWidget {
       // 如果无法打开应用，尝试打开网页
       if (webUrl != null) {
         final uri = Uri.parse(webUrl);
-        print('尝试打开网页链接：$uri');
+        debugPrint('尝试打开网页链接：$uri');
         
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -172,7 +172,7 @@ class QueueDisplay extends StatelessWidget {
         SnackBar(content: Text('无法打开Spotify'))
       );
     } catch (e) {
-      print('打开Spotify出错: $e');
+      debugPrint('打开Spotify出错: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('打开Spotify失败: $e'))
       );

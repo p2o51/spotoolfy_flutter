@@ -15,11 +15,11 @@ String translationStyleToString(TranslationStyle style) {
 // Helper to convert string back to enum from storage
 TranslationStyle stringToTranslationStyle(String? styleString) {
   if (styleString == null) {
-    return TranslationStyle.faithful; // Default style
+    return SettingsService._defaultStyle; // Use the class-qualified constant default style
   }
   return TranslationStyle.values.firstWhere(
         (e) => e.name == styleString,
-        orElse: () => TranslationStyle.faithful, // Default if value is invalid
+        orElse: () => SettingsService._defaultStyle, // Use the class-qualified constant default if value is invalid
       );
 }
 
@@ -48,7 +48,6 @@ class SettingsService {
 
   static const _defaultLanguage = 'en'; // Default to English
   static const _defaultStyle = TranslationStyle.faithful; // Default style
-  static const _defaultCopyLyricsAsSingleLine = false; // Default for new setting
 
   Future<void> saveGeminiApiKey(String apiKey) async {
     await _secureStorage.write(key: _geminiApiKey, value: apiKey);
@@ -85,8 +84,8 @@ class SettingsService {
   // Method to get the copy format setting
   Future<bool> getCopyLyricsAsSingleLine() async {
     final valueString = await _secureStorage.read(key: _copyLyricsAsSingleLineKey);
-    // Parse the string to bool, default to false if null or invalid
-    return valueString?.toLowerCase() == 'true' ?? _defaultCopyLyricsAsSingleLine;
+    // Parse the string to bool. Handles null and defaults to false.
+    return valueString?.toLowerCase() == 'true';
   }
 
   // Method to save both settings at once, potentially useful in the UI

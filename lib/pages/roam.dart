@@ -1,7 +1,8 @@
 //roam.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/firestore_provider.dart';
+// import '../providers/firestore_provider.dart'; // Remove old provider
+import '../providers/local_database_provider.dart'; // Import new provider
 
 class Roam extends StatefulWidget {
   const Roam({super.key});
@@ -15,18 +16,21 @@ class _RoamState extends State<Roam> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<FirestoreProvider>(context, listen: false).fetchRandomThought();
+      // Fetch initial data using the new provider
+      Provider.of<LocalDatabaseProvider>(context, listen: false).fetchRandomRecords(15); // Fetch 15 records initially
     });
   }
 
   Future<void> _refreshThoughts() async {
-    await Provider.of<FirestoreProvider>(context, listen: false).fetchRandomThought();
+    // Refresh data using the new provider
+    await Provider.of<LocalDatabaseProvider>(context, listen: false).fetchRandomRecords(15); // Fetch 15 records on refresh
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<FirestoreProvider>(
-      builder: (context, firestoreProvider, child) {
+    // Consume the new provider
+    return Consumer<LocalDatabaseProvider>(
+      builder: (context, localDbProvider, child) {
         return Scaffold(
           body: RefreshIndicator(
             onRefresh: _refreshThoughts,
@@ -48,13 +52,15 @@ class _RoamState extends State<Roam> {
                     centerTitle: true,
                   ),
                 ),
-                if (firestoreProvider.isLoading)
+                // Use the new provider's loading state
+                if (localDbProvider.isLoading)
                   const SliverFillRemaining(
                     child: Center(
                       child: CircularProgressIndicator(),
                     ),
                   )
-                else if (firestoreProvider.randomThoughts.isEmpty)
+                // Use the new provider's data list
+                else if (localDbProvider.randomRecords.isEmpty)
                   SliverFillRemaining(
                     child: Center(
                       child: Text(
@@ -69,13 +75,15 @@ class _RoamState extends State<Roam> {
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          if (index >= firestoreProvider.randomThoughts.length) {
+                          // Use the new provider's data list
+                          if (index >= localDbProvider.randomRecords.length) {
                             return null;
                           }
                           
-                          final thought = firestoreProvider.randomThoughts[index];
+                          // Access data using map keys
+                          final record = localDbProvider.randomRecords[index];
                           final isFirst = index == 0;
-                          final isLast = index == firestoreProvider.randomThoughts.length - 1;
+                          final isLast = index == localDbProvider.randomRecords.length - 1;
                           
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 16.0),
@@ -106,7 +114,8 @@ class _RoamState extends State<Roam> {
                                         const SizedBox(width: 16),
                                         Expanded(
                                           child: Text(
-                                            thought['content'],
+                                            // Use correct map key for note content
+                                            record['noteContent'] ?? '', // Handle potential null
                                             style: Theme.of(context).textTheme.bodyLarge,
                                           ),
                                         ),
@@ -122,7 +131,8 @@ class _RoamState extends State<Roam> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  '${thought['trackName']}',
+                                                  // Use correct map key for track name
+                                                  '${record['trackName'] ?? 'Unknown Track'}',
                                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                                     fontWeight: FontWeight.bold,
                                                     color: Theme.of(context).colorScheme.primary,
@@ -131,7 +141,8 @@ class _RoamState extends State<Roam> {
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                                 Text(
-                                                  '${thought['artistName']}',
+                                                  // Use correct map key for artist name
+                                                  '${record['artistName'] ?? 'Unknown Artist'}',
                                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                                     color: Theme.of(context).colorScheme.secondary,
                                                   ),
@@ -142,21 +153,24 @@ class _RoamState extends State<Roam> {
                                             ),
                                           ),
                                         ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context).colorScheme.primaryContainer,
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          child: Text(
-                                            thought['rating'],
-                                            style: TextStyle(
-                                              color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
+                                        // Display rating if available
+                                        if (record['rating'] != null && record['rating'].isNotEmpty)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).colorScheme.primaryContainer,
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                            child: Text(
+                                              // Use correct map key for rating
+                                              record['rating']!,
+                                              style: TextStyle(
+                                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
-                                        ),
                                       ],
                                     ),
                                   ],
@@ -165,12 +179,13 @@ class _RoamState extends State<Roam> {
                             ),
                           );
                         },
-                        childCount: firestoreProvider.randomThoughts.length,
+                        // Use the new provider's data list length
+                        childCount: localDbProvider.randomRecords.length,
                       ),
                     ),
                   ),
                 SliverToBoxAdapter(
-                  child: SizedBox(height: 100),
+                  child: SizedBox(height: 100), // Keep padding at the bottom
                 ),
               ],
             ),

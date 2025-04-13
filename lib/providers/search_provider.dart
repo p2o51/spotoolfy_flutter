@@ -150,7 +150,7 @@ class SearchProvider extends ChangeNotifier {
       _isSearching = false;
       notifyListeners();
     } catch (e) {
-      print('Search failed: $e');
+      debugPrint('Search failed: $e');
       _errorMessage = 'Search failed: $e';
       _isSearching = false;
       notifyListeners();
@@ -164,25 +164,25 @@ class SearchProvider extends ChangeNotifier {
     final uri = item['uri']; // Get the URI
 
     if (type == null || (id == null && uri == null)) {
-      print('Error: Search item missing type or identifier (id/uri).');
+      debugPrint('Error: Search item missing type or identifier (id/uri).');
       return;
     }
 
-    print('Playing item: type=$type, id=$id, uri=$uri');
+    debugPrint('Playing item: type=$type, id=$id, uri=$uri');
 
     try {
       if (type == 'track' && uri != null) {
-        print('[SearchProvider.playItem] Calling playTrack for URI: $uri');
+        debugPrint('[SearchProvider.playItem] Calling playTrack for URI: $uri');
         _spotifyProvider.playTrack(trackUri: uri);
       } else if ((type == 'album' || type == 'playlist' || type == 'artist') && id != null) {
-        print('[SearchProvider.playItem] Calling playContext for type: $type, id: $id');
+        debugPrint('[SearchProvider.playItem] Calling playContext for type: $type, id: $id');
         // For artist, playContext might play top tracks or fail gracefully
         _spotifyProvider.playContext(type: type, id: id);
       } else {
-        print('Error: Unsupported type ($type) or missing identifier for playback.');
+        debugPrint('Error: Unsupported type ($type) or missing identifier for playback.');
       }
     } catch (e) {
-      print('Error initiating playback: $e');
+      debugPrint('Error initiating playback: $e');
       // Optionally show a user-facing error message
       _errorMessage = 'Failed to play item: $e';
       notifyListeners();

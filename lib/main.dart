@@ -6,10 +6,6 @@ import 'pages/login.dart';
 import 'pages/devices.dart';
 import 'package:provider/provider.dart';
 import 'providers/spotify_provider.dart';
-import 'providers/auth_provider.dart';
-import 'firebase_options.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'providers/firestore_provider.dart';
 import 'package:flutter/services.dart';
 import 'providers/theme_provider.dart';
 import 'dart:async';
@@ -17,25 +13,21 @@ import 'dart:math' as math;
 import 'dart:io' show Platform;
 import 'providers/library_provider.dart';
 import 'providers/search_provider.dart';
+import 'providers/local_database_provider.dart';
+import 'services/lyrics_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
   final spotifyProvider = SpotifyProvider();
-  // 尝试自动登录
   await spotifyProvider.autoLogin();
   
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: spotifyProvider),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(
           create: (context) => LibraryProvider(context.read<SpotifyProvider>()),
@@ -43,14 +35,15 @@ void main() async {
         ChangeNotifierProvider(
           create: (context) => SearchProvider(context.read<SpotifyProvider>()),
         ),
-        ChangeNotifierProxyProvider2<AuthProvider, SpotifyProvider, FirestoreProvider>(
-          create: (context) => FirestoreProvider(
-            context.read<AuthProvider>(),
-            context.read<SpotifyProvider>(),
-          ),
-          update: (context, auth, spotify, previous) =>
-              previous ?? FirestoreProvider(auth, spotify),
+        ChangeNotifierProxyProvider<SpotifyProvider, LocalDatabaseProvider>(
+           create: (context) => LocalDatabaseProvider(context.read<SpotifyProvider>()),
+           update: (context, spotify, previous) {
+              final provider = previous ?? LocalDatabaseProvider(spotify);
+              provider.spotifyProviderUpdated(spotify);
+              return provider;
+           },
         ),
+        Provider<LyricsService>(create: (_) => LyricsService()),
       ],
       child: const MyThemedApp(),
     ),
@@ -192,7 +185,7 @@ class _ProgressIndicatorState extends State<ProgressIndicator> with SingleTicker
         return LinearProgressIndicator(
           value: displayProgress / widget.duration,
           minHeight: 4.0,
-          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
           valueColor: AlwaysStoppedAnimation<Color>(
             Theme.of(context).colorScheme.primary,
           ),

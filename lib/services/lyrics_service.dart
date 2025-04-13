@@ -2,12 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LyricsService {
   static const String _baseSearchUrl = 'https://c.y.qq.com/soso/fcgi-bin/client_search_cp';
   static const String _baseLyricUrl = 'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg';
   
+  final Logger _logger = Logger(); // Initialize logger
+
   final Map<String, String> _headers = {
     'referer': 'https://y.qq.com/',
     'user-agent': 'Mozilla/5.0'
@@ -26,12 +29,12 @@ class LyricsService {
       final cachedLyrics = prefs.getString(cacheKey);
       
       if (cachedLyrics != null) {
-        print('从缓存获取歌词: $trackId');
+        _logger.i('从缓存获取歌词: $trackId'); // Use logger.i for info
         return cachedLyrics;
       }
 
       // 如果缓存中没有，从网络获取
-      print('从网络获取歌词: $songName - $artistName');
+      _logger.i('从网络获取歌词: $songName - $artistName'); // Use logger.i for info
       
       final songmid = await _searchSong('$songName $artistName');
       if (songmid == null) return null;
@@ -41,12 +44,12 @@ class LyricsService {
       // 使用 trackId 存储缓存
       if (lyrics != null) {
         await prefs.setString(cacheKey, lyrics);
-        print('歌词已缓存: $trackId');
+        _logger.i('歌词已缓存: $trackId'); // Use logger.i for info
       }
 
       return lyrics;
     } catch (e) {
-      print('获取歌词失败: $e');
+      _logger.e('获取歌词失败: $e'); // Use logger.e for errors
       return null;
     }
   }
@@ -68,7 +71,7 @@ class LyricsService {
       );
 
       if (response.statusCode != 200) {
-        print('搜索请求失败，状态码: ${response.statusCode}');
+        _logger.w('搜索请求失败，状态码: ${response.statusCode}'); // Use logger.w for warnings
         return null;
       }
 
@@ -78,11 +81,11 @@ class LyricsService {
       }
       return null;
     } catch (e) {
-      print('搜索歌曲失败: $e');
+      _logger.e('搜索歌曲失败: $e'); // Use logger.e for errors
       if (e is SocketException) {
-        print('网络连接错误: ${e.message}');
+        _logger.e('网络连接错误: ${e.message}'); // Use logger.e for errors
       } else if (e is TimeoutException) {
-        print('请求超时: ${e.message}');
+        _logger.w('请求超时: ${e.message}'); // Use logger.w for warnings
       }
       return null;
     }
@@ -104,7 +107,7 @@ class LyricsService {
       );
 
       if (response.statusCode != 200) {
-        print('获取歌词请求失败，状态码: ${response.statusCode}');
+        _logger.w('获取歌词请求失败，状态码: ${response.statusCode}'); // Use logger.w for warnings
         return null;
       }
 
@@ -114,11 +117,11 @@ class LyricsService {
       }
       return null;
     } catch (e) {
-      print('获取歌词详情失败: $e');
+      _logger.e('获取歌词详情失败: $e'); // Use logger.e for errors
       if (e is SocketException) {
-        print('网络连接错误: ${e.message}');
+        _logger.e('网络连接错误: ${e.message}'); // Use logger.e for errors
       } else if (e is TimeoutException) {
-        print('请求超时: ${e.message}');
+        _logger.w('请求超时: ${e.message}'); // Use logger.w for warnings
       }
       return null;
     }
@@ -136,9 +139,9 @@ class LyricsService {
           await prefs.remove(key);
         }
       }
-      print('歌词缓存已清除');
+      _logger.i('歌词缓存已清除'); // Use logger.i for info
     } catch (e) {
-      print('清除缓存失败: $e');
+      _logger.e('清除缓存失败: $e'); // Use logger.e for errors
     }
   }
 
@@ -160,7 +163,7 @@ class LyricsService {
       
       return totalSize;
     } catch (e) {
-      print('获取缓存大小失败: $e');
+      _logger.e('获取缓存大小失败: $e'); // Use logger.e for errors
       return 0;
     }
   }

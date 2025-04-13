@@ -151,38 +151,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     );
   }
 
-  Widget _buildExpandedLayout(bool isLargeScreen) {
-    return Scaffold(
-      body: Column(
-        children: [
-          Player(isLargeScreen: isLargeScreen, isMiniPlayer: true),
-          _buildTabHeader(),
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPageIndex = index;
-                });
-              },
-              children: _pages.map((page) => page.page).toList(),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            builder: (context) => const AddNoteSheet(),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
   Widget _buildCollapsedLargeLayout() {
     return Scaffold(
       body: Row(
@@ -215,39 +183,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            builder: (context) => const AddNoteSheet(),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildCollapsedSmallLayout() {
-    return Scaffold(
-      body: Column(
-        children: [
-          const Player(isLargeScreen: false),
-          const SizedBox(height: 16),
-          _buildTabHeader(),
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPageIndex = index;
-                });
-              },
-              children: _pages.map((page) => page.page).toList(),
             ),
           ),
         ],
@@ -347,39 +282,5 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         ),
       );
     }
-  }
-}
-
-class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-  final bool showMiniPlayer;
-  final Color backgroundColor;
-
-  _StickyTabDelegate({
-    required this.child,
-    required this.showMiniPlayer,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      padding: EdgeInsets.only(top: showMiniPlayer ? 64.0 : 0),
-      height: maxExtent,
-      color: backgroundColor,
-      child: child,
-    );
-  }
-
-  @override
-  double get maxExtent => showMiniPlayer ? 120.0 : 56.0;
-
-  @override
-  double get minExtent => showMiniPlayer ? 120.0 : 56.0;
-
-  @override
-  bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) {
-    return oldDelegate.showMiniPlayer != showMiniPlayer ||
-           oldDelegate.backgroundColor != backgroundColor;
   }
 }

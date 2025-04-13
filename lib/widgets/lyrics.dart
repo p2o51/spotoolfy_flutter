@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
+import '../providers/local_database_provider.dart';
 import '../services/lyrics_service.dart';
 import '../services/translation_service.dart';
+import '../models/translation.dart';
+import '../models/track.dart';
 import './translation_result_sheet.dart';
 import 'dart:async';
 import '../services/settings_service.dart';
+import 'package:flutter/foundation.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -16,7 +20,7 @@ class LyricLine {
 }
 
 class LyricsWidget extends StatefulWidget {
-  const LyricsWidget({Key? key}) : super(key: key);
+  const LyricsWidget({super.key});
 
   @override
   State<LyricsWidget> createState() => _LyricsWidgetState();
@@ -140,8 +144,11 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
     final rawLyrics = await _lyricsService.getLyrics(songName, artistName, trackId);
     
+    // Check mounted *before* accessing context again after await
+    if (!mounted) return;
+    
     final latestTrackId = Provider.of<SpotifyProvider>(context, listen: false).currentTrack?['item']?['id'];
-    if (!mounted || latestTrackId != trackId) {
+    if (latestTrackId != trackId) {
       return;
     }
 
@@ -198,9 +205,10 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       _isTranslating = true;
     });
 
-    // Get the current track ID
-    final provider = Provider.of<SpotifyProvider>(context, listen: false);
-    final currentTrackId = provider.currentTrack?['item']?['id'];
+    // Get providers and services
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
 
     if (currentTrackId == null) {
        if (mounted) {
@@ -212,47 +220,116 @@ class _LyricsWidgetState extends State<LyricsWidget> {
        return;
     }
 
+    String? translatedText;
+    String? errorMsg;
+
     try {
       // Combine lyric lines into a single string
       final originalLyricsText = _lyrics.map((line) => line.text).join('\n');
       
-      // Fetch the translation style BEFORE calling translate
+      // Get current settings
       final currentStyle = await _settingsService.getTranslationStyle();
+      final currentLanguage = await _settingsService.getTargetLanguage();
+      final styleString = translationStyleToString(currentStyle);
 
-      // Pass trackId to the translation service
-      final translatedText = await _translationService.translateLyrics(
-        originalLyricsText, 
-        currentTrackId, // Pass the track ID here
-      );
+      // *** TRY LOADING FROM DATABASE FIRST ***
+      debugPrint('Attempting to load translation from DB: $currentTrackId, $currentLanguage, $styleString');
+      final cachedTranslation = await localDbProvider.fetchTranslation(currentTrackId, currentLanguage, styleString);
 
+      if (cachedTranslation != null) {
+        debugPrint('Translation found in DB!');
+        translatedText = cachedTranslation.translatedLyrics;
+      } else {
+        debugPrint('Translation not found in DB, fetching from API...');
+        // *** FETCH FROM API IF NOT IN DB ***
+        translatedText = await _translationService.translateLyrics(
+          originalLyricsText, 
+          currentTrackId, 
+          targetLanguage: currentLanguage,
+        );
+
+        // *** SAVE TO DB IF FETCHED FROM API ***
+        if (mounted && translatedText != null) {
+          try {
+            // Ensure track exists first (logic copied from previous step)
+            final existingTrack = await localDbProvider.getTrack(currentTrackId);
+            if (existingTrack == null) {
+              debugPrint('Track $currentTrackId not found in DB when saving API translation, adding it...');
+              final trackItem = spotifyProvider.currentTrack?['item'];
+              if (trackItem != null) {
+                 final trackToAdd = Track(
+                   trackId: currentTrackId,
+                   trackName: trackItem['name'] as String,
+                   artistName: (trackItem['artists'] as List).map((a) => a['name']).join(', '),
+                   albumName: trackItem['album']?['name'] as String? ?? 'Unknown Album',
+                   albumCoverUrl: (trackItem['album']?['images'] as List?)?.isNotEmpty == true
+                                  ? trackItem['album']['images'][0]['url']
+                                  : null,
+                 );
+                 await localDbProvider.addTrack(trackToAdd);
+                 debugPrint('Track $currentTrackId added to DB.');
+              } else {
+                 throw Exception('Could not fetch track details for $currentTrackId');
+              }
+            }
+            // Now save the translation
+            final translationToSave = Translation(
+              trackId: currentTrackId,
+              languageCode: currentLanguage,
+              style: styleString,
+              translatedLyrics: translatedText,
+              generatedAt: DateTime.now().millisecondsSinceEpoch,
+            );
+            await localDbProvider.saveTranslation(translationToSave);
+            debugPrint('Translation fetched from API and saved to local DB for track $currentTrackId');
+          } catch (dbOrTrackError) {
+            debugPrint('Error ensuring track/saving API translation to local DB: $dbOrTrackError');
+            errorMsg = 'Failed to save fetched translation: ${dbOrTrackError.toString()}'; 
+            // Continue to show the fetched translation, but log the save error
+          }
+        }
+      } // End else (fetch from API)
+
+      // *** SHOW BOTTOM SHEET IF TRANSLATION IS AVAILABLE ***
       if (mounted && translatedText != null) {
-        // Store the current _autoScroll state before showing the modal
         final wasAutoScrolling = _autoScroll;
-
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (context) => TranslationResultSheet(
             originalLyrics: originalLyricsText,
-            translatedLyrics: translatedText,
+            translatedLyrics: translatedText!, // Now non-nullable here
             translationStyle: currentStyle,
             onReTranslate: () async {
+              // Re-translate logic fetches from API and saves to DB again
               try {
-                // Fetch the latest style again in case it changed while sheet was open
-                final latestStyle = await _settingsService.getTranslationStyle();
-                final newTranslation = await _translationService.translateLyrics(
-                  originalLyricsText,
-                  currentTrackId,
-                  forceRefresh: true,
-                );
-                // Note: We return the translation text, the sheet will use its initial style for display
-                // If the style changed, the *next* time translate is pressed, it will use the new style.
-                return newTranslation;
-              } catch (e) {
-                print("Error during re-translation from sheet: $e");
-                rethrow;
-              }
+                  final newTranslation = await _translationService.translateLyrics(
+                    originalLyricsText,
+                    currentTrackId,
+                    forceRefresh: true,
+                    targetLanguage: currentLanguage,
+                  );
+                  if (mounted && newTranslation != null) {
+                    try {
+                       final retranslatedToSave = Translation(
+                         trackId: currentTrackId,
+                         languageCode: currentLanguage,
+                         style: styleString,
+                         translatedLyrics: newTranslation,
+                         generatedAt: DateTime.now().millisecondsSinceEpoch,
+                       );
+                       await localDbProvider.saveTranslation(retranslatedToSave);
+                       debugPrint('Re-translation saved to local DB for track $currentTrackId');
+                    } catch (reSaveError) {
+                       debugPrint('Error saving re-translation to local DB: $reSaveError');
+                    }
+                  }
+                  return newTranslation;
+                } catch (e) {
+                  debugPrint('Error during re-translation: $e');
+                  rethrow;
+                }
             },
           ),
         ).then((_) {
@@ -273,14 +350,21 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             });
           }
         });
+      } else if (mounted && translatedText == null) {
+          // Handle case where translation failed (either DB check failed or API failed)
+          errorMsg = errorMsg ?? 'Failed to get translation.'; // Use specific save error or general error
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMsg)),
+          );
       }
+
     } catch (e) {
-      if (mounted) {
-        print("Translation Error: $e");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Translation failed: $e')),
-        );
-      }
+       debugPrint('Error in translation process: $e');
+       if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Translation failed: ${e.toString()}')),
+          );
+       }
     } finally {
       if (mounted) {
         setState(() {
@@ -507,7 +591,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                                 ? FontWeight.w700 
                                 : FontWeight.w600,
                               color: index < currentLineIndex
-                                ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                                ? Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()) // Updated opacity
                                 : index == currentLineIndex
                                   ? Theme.of(context).colorScheme.primary
                                   : Theme.of(context).colorScheme.secondaryContainer,
@@ -541,8 +625,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                         colors: [
                           Theme.of(context).scaffoldBackgroundColor,
                           Theme.of(context).scaffoldBackgroundColor,
-                          Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
-                          Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                          Theme.of(context).scaffoldBackgroundColor.withAlpha((0.8 * 255).round()), // Updated opacity
+                          Theme.of(context).scaffoldBackgroundColor.withAlpha((0.0 * 255).round()), // Updated opacity
                         ],
                         stops: const [0.0, 0.3, 0.6, 1.0],
                       ),
@@ -595,8 +679,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                               : 'Enter Copy Lyrics Mode (Single Repeat)',
                           style: ButtonStyle(
                             backgroundColor: _isCopyLyricsMode 
-                              ? MaterialStateProperty.all(
-                                  Theme.of(context).colorScheme.primary.withOpacity(0.3)
+                              ? WidgetStateProperty.all( // Updated property
+                                  Theme.of(context).colorScheme.primary.withAlpha((0.3 * 255).round()) // Updated opacity
                                 ) 
                               : null,
                           ),
@@ -667,7 +751,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
               }
             }
           } catch (e) {
-            print('解析歌词行失败: $line, Error: $e'); // Log error too
+            // print('解析歌词行失败: $line, Error: $e'); // Log error too
           }
         }
       }
@@ -731,12 +815,13 @@ class MeasureSize extends StatefulWidget {
   final Function(Size) onChange;
 
   const MeasureSize({
-    Key? key,
+    super.key, // Use super parameter
     required this.onChange,
     required this.child,
-  }) : super(key: key);
+  });
 
   @override
+  // ignore: library_private_types_in_public_api
   _MeasureSizeState createState() => _MeasureSizeState();
 }
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../providers/library_provider.dart';
 import '../providers/spotify_provider.dart';
 
 class LibraryGrid extends StatelessWidget {
@@ -13,13 +12,13 @@ class LibraryGrid extends StatelessWidget {
   final int gridCrossAxisCount; // Pass cross axis count from parent
   
   const LibraryGrid({
-    Key? key,
+    super.key,
     required this.items,
     this.isLoadingMore = false,
     this.onItemTap,
     this.onItemLongPress,
     required this.gridCrossAxisCount,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -164,11 +163,11 @@ class _LibraryGridItem extends StatelessWidget {
   final VoidCallback onLongPress;
 
   const _LibraryGridItem({
-    Key? key,
+    super.key,
     required this.item,
     required this.onTap,
     required this.onLongPress,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +188,7 @@ class _LibraryGridItem extends StatelessWidget {
                   width: double.infinity,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: const Center(
                       child: SizedBox(
                         width: 24,
@@ -201,7 +200,7 @@ class _LibraryGridItem extends StatelessWidget {
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: const Icon(Icons.error),
                   ),
                 ),
@@ -223,7 +222,7 @@ class _LibraryGridItem extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+              color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((255 * 0.7).round()),
             ),
           ),
         ],
@@ -259,10 +258,10 @@ class LibraryGridSkeleton extends StatelessWidget {
   final int gridCrossAxisCount; // Add cross axis count here too
 
   const LibraryGridSkeleton({
-    Key? key,
+    super.key,
     this.itemCount = 12,
     required this.gridCrossAxisCount,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -290,7 +289,7 @@ class LibraryGridSkeleton extends StatelessWidget {
             aspectRatio: 1,
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
@@ -301,7 +300,7 @@ class LibraryGridSkeleton extends StatelessWidget {
           width: double.infinity,
           height: 14,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -310,7 +309,7 @@ class LibraryGridSkeleton extends StatelessWidget {
           width: 100,
           height: 12,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.7).round()),
             borderRadius: BorderRadius.circular(2),
           ),
         ),

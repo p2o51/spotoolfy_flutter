@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:collection/collection.dart';
 import 'spotify_provider.dart';
 
 class LibraryProvider extends ChangeNotifier {
@@ -112,7 +111,6 @@ class LibraryProvider extends ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('Failed to load library data: $e');
       _errorMessage = 'Failed to load data: $e';
       _isLoading = false;
       notifyListeners();
@@ -145,7 +143,6 @@ class LibraryProvider extends ChangeNotifier {
       _isLoadingMore = false;
       notifyListeners();
     } catch (e) {
-      print('Failed to load more data: $e');
       _errorMessage = 'Failed to load more data: $e';
       _isLoadingMore = false;
       notifyListeners();

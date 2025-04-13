@@ -7,7 +7,6 @@ import 'package:collection/collection.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
 import 'package:provider/provider.dart';
-import '../providers/firestore_provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import '../config/secrets.dart';
@@ -68,7 +67,7 @@ class SpotifyProvider extends ChangeNotifier {
       );
       _isInitialized = true;
     } catch (e) {
-      print('初始化 SpotifyService 失败: $e');
+      debugPrint('初始化 SpotifyService 失败: $e');
       _isInitialized = false;
     }
   }
@@ -95,7 +94,7 @@ class SpotifyProvider extends ChangeNotifier {
         try {
           await _spotifyService.logout();
         } catch (e) {
-          print('注销旧凭据时出错: $e');
+          debugPrint('注销旧凭据时出错: $e');
         }
       }
       
@@ -105,7 +104,7 @@ class SpotifyProvider extends ChangeNotifier {
       // 不立即验证凭据，让用户在登录时再验证
       notifyListeners();
     } catch (e) {
-      print('设置客户端凭据失败: $e');
+      debugPrint('设置客户端凭据失败: $e');
       // 不自动恢复默认凭据，让用户自己决定是否重置
       rethrow;
     }
@@ -140,7 +139,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       await _spotifyService.logout();
     } catch (e) {
-      print('注销时出错: $e');
+      debugPrint('注销时出错: $e');
     }
     
     // 用默认凭据重新初始化服务
@@ -187,7 +186,7 @@ class SpotifyProvider extends ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('刷新可用设备列表失败: $e');
+      debugPrint('刷新可用设备列表失败: $e');
     }
   }
 
@@ -218,7 +217,7 @@ class SpotifyProvider extends ChangeNotifier {
         refreshCurrentTrack(),
       ]);
     } catch (e) {
-      print('转移播放失败: $e');
+      debugPrint('转移播放失败: $e');
       rethrow;
     }
   }
@@ -246,7 +245,7 @@ class SpotifyProvider extends ChangeNotifier {
       
       await refreshAvailableDevices();
     } catch (e) {
-      print('设置音量失败: $e');
+      debugPrint('设置音量失败: $e');
       rethrow;
     }
   }
@@ -275,7 +274,7 @@ class SpotifyProvider extends ChangeNotifier {
             await refreshCurrentTrack();
             await refreshAvailableDevices();
           } catch (e) {
-            print('定时刷新失败: $e');
+            debugPrint('定时刷新失败: $e');
             // 如果刷新失败，可能是令牌问题，尝试重新登录
             if (e is SpotifyAuthException) {
               await logout();
@@ -341,23 +340,23 @@ class SpotifyProvider extends ChangeNotifier {
           await refreshPlaybackQueue();
           
           // 获取 FirestoreProvider 实例并保存播放上下文
-          if (track['context'] != null && track['item'] != null) {
-            final firestoreProvider = Provider.of<FirestoreProvider>(
-              navigatorKey.currentContext!, 
-              listen: false
-            );
+          // if (track['context'] != null && track['item'] != null) { // Commented out Firestore logic
+          //   final firestoreProvider = Provider.of<FirestoreProvider>(
+          //     navigatorKey.currentContext!, 
+          //     listen: false
+          //   );
             
-            try {
-              final enrichedContext = await _enrichPlayContext(track['context']);
-              await firestoreProvider.savePlayContext(
-                trackId: track['item']['id'],
-                context: enrichedContext,
-                timestamp: DateTime.now(),
-              );
-            } catch (e) {
-              print('保存播放上下文到 Firestore 失败: $e');
-            }
-          }
+          //   try {
+          //     final enrichedContext = await _enrichPlayContext(track['context']);
+          //     await firestoreProvider.savePlayContext(
+          //       trackId: track['item']['id'],
+          //       context: enrichedContext,
+          //       timestamp: DateTime.now(),
+          //     );
+          //   } catch (e) {
+          //     debugPrint('保存播放上下文到 Firestore 失败: $e');
+          //   }
+          // } // End commented out Firestore logic
 
           previousTrack = currentTrack;
           currentTrack = track;
@@ -379,7 +378,7 @@ class SpotifyProvider extends ChangeNotifier {
               needsNotify = true; // 如果收藏状态改变，需要通知
             }
           } catch (e) {
-            print('刷新时检查歌曲保存状态失败: $e');
+            debugPrint('刷新时检查歌曲保存状态失败: $e');
             // 即使检查失败，也继续执行，避免阻塞其他更新
           }
         } else if (isCurrentTrackSaved != null) {
@@ -409,7 +408,7 @@ class SpotifyProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('刷新当前播放失败: $e');
+      debugPrint('刷新当前播放失败: $e');
       // Consider adding more specific error handling if needed
     }
   }
@@ -429,29 +428,25 @@ class SpotifyProvider extends ChangeNotifier {
       if (type == 'album') {
         final albumId = uri.split(':').last;
         final fullAlbum = await _spotifyService.getAlbum(albumId);
-        if (fullAlbum != null) {
-          enrichedContext.addAll({
-            'name': fullAlbum['name'],
-            'images': fullAlbum['images'],
-            'external_urls': fullAlbum['external_urls'],
-          });
-        }
+        enrichedContext.addAll({
+          'name': fullAlbum['name'],
+          'images': fullAlbum['images'],
+          'external_urls': fullAlbum['external_urls'],
+        });
       } else if (type == 'playlist') {
         final playlistId = uri.split(':').last;
         final fullPlaylist = await _spotifyService.getPlaylist(playlistId);
-        if (fullPlaylist != null) {
-          enrichedContext.addAll({
-            'name': fullPlaylist['name'],
-            'images': fullPlaylist['images'],
-            'external_urls': fullPlaylist['external_urls'],
-            'owner': fullPlaylist['owner'],
-            'public': fullPlaylist['public'],
-            'collaborative': fullPlaylist['collaborative'],
-          });
-        }
+        enrichedContext.addAll({
+          'name': fullPlaylist['name'],
+          'images': fullPlaylist['images'],
+          'external_urls': fullPlaylist['external_urls'],
+          'owner': fullPlaylist['owner'],
+          'public': fullPlaylist['public'],
+          'collaborative': fullPlaylist['collaborative'],
+        });
       }
     } catch (e) {
-      print('获取完整上下文信息失败: $e');
+      debugPrint('获取完整上下文信息失败: $e');
     }
     
     // 确保必要的字段存在
@@ -473,7 +468,7 @@ class SpotifyProvider extends ChangeNotifier {
       isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
       notifyListeners();
     } catch (e) {
-      print('检查歌曲保存状态失败: $e');
+      debugPrint('检查歌曲保存状态失败: $e');
     }
   }
 
@@ -483,28 +478,28 @@ class SpotifyProvider extends ChangeNotifier {
       isLoading = true;
       notifyListeners();
 
-      print('开始自动登录检查...');
+      debugPrint('开始自动登录检查...');
       
       // 打印当前使用的凭据信息（隐藏部分内容以保护安全）
       final credentials = await getClientCredentials();
       String? clientId = credentials['clientId'];
       
       if (clientId != null && clientId.length > 8) {
-        print('自动登录使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}');
-        print('客户端ID长度: ${clientId.length}');
+        debugPrint('自动登录使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}');
+        debugPrint('客户端ID长度: ${clientId.length}');
       } else {
-        print('自动登录的客户端ID为空或格式不正确');
+        debugPrint('自动登录的客户端ID为空或格式不正确');
       }
 
       // 检查是否有有效的 token
       if (await _spotifyService.isAuthenticated()) {
         try {
-          print('发现有效的认证信息，尝试获取用户信息');
+          debugPrint('发现有效的认证信息，尝试获取用户信息');
           final userProfile = await _spotifyService.getUserProfile();
           username = userProfile['display_name'];
           
-          print('成功获取用户信息：$username');
-          print('用户信息: ${json.encode(userProfile)}');
+          debugPrint('成功获取用户信息：$username');
+          debugPrint('用户信息: ${json.encode(userProfile)}');
           
           // 启动定时刷新任务
           startTrackRefresh();
@@ -514,13 +509,13 @@ class SpotifyProvider extends ChangeNotifier {
           
           return true;
         } catch (e) {
-          print('获取用户信息失败: $e');
-          print('错误类型: ${e.runtimeType}');
+          debugPrint('获取用户信息失败: $e');
+          debugPrint('错误类型: ${e.runtimeType}');
           
           // 检查是否为客户端ID/密钥错误 (401 Unauthorized)
           if (e is SpotifyAuthException && 
               (e.code == '401' || e.message.contains('401'))) {
-            print('认证错误，可能是客户端ID或密钥无效');
+            debugPrint('认证错误，可能是客户端ID或密钥无效');
             
             // 清除保存的token，但保留客户端凭据
             await _spotifyService.logout();
@@ -530,36 +525,36 @@ class SpotifyProvider extends ChangeNotifier {
           }
           
           // 尝试刷新令牌
-          print('尝试刷新令牌...');
+          debugPrint('尝试刷新令牌...');
           try {
             final newToken = await _spotifyService.refreshToken();
             if (newToken != null) {
-              print('令牌刷新成功，重新获取用户信息');
+              debugPrint('令牌刷新成功，重新获取用户信息');
               final userProfile = await _spotifyService.getUserProfile();
               username = userProfile['display_name'];
               startTrackRefresh();
               await updateWidget();
               return true;
             } else {
-              print('令牌刷新失败，需要重新登录');
+              debugPrint('令牌刷新失败，需要重新登录');
             }
           } catch (refreshError) {
-            print('刷新令牌时出错: $refreshError');
-            print('错误类型: ${refreshError.runtimeType}');
+            debugPrint('刷新令牌时出错: $refreshError');
+            debugPrint('错误类型: ${refreshError.runtimeType}');
             // 如果刷新也失败，可能是客户端凭据问题
             if (refreshError is SpotifyAuthException && 
                 (refreshError.code == '401' || refreshError.message.contains('401'))) {
-              print('刷新令牌时遇到认证错误，可能是客户端ID或密钥无效');
+              debugPrint('刷新令牌时遇到认证错误，可能是客户端ID或密钥无效');
             }
           }
         }
       } else {
-        print('未找到有效的认证信息，需要重新登录');
+        debugPrint('未找到有效的认证信息，需要重新登录');
       }
       return false;
     } catch (e) {
-      print('自动登录失败: $e');
-      print('错误类型: ${e.runtimeType}');
+      debugPrint('自动登录失败: $e');
+      debugPrint('错误类型: ${e.runtimeType}');
       return false;
     } finally {
       isLoading = false;
@@ -572,7 +567,7 @@ class SpotifyProvider extends ChangeNotifier {
       isLoading = true;
       notifyListeners();
 
-      print('开始登录流程...');
+      debugPrint('开始登录流程...');
 
       // 确保 SpotifyService 已初始化
       if (!_isInitialized) {
@@ -588,42 +583,42 @@ class SpotifyProvider extends ChangeNotifier {
       String? clientSecret = credentials['clientSecret'];
       
       if (clientId != null && clientId.length > 8) {
-        print('使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}');
-        print('客户端ID长度: ${clientId.length}');
+        debugPrint('使用的客户端ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}');
+        debugPrint('客户端ID长度: ${clientId.length}');
       } else {
-        print('客户端ID为空或格式不正确');
+        debugPrint('客户端ID为空或格式不正确');
       }
       
       if (clientSecret != null && clientSecret.length > 8) {
-        print('使用的客户端密钥: ${clientSecret.substring(0, 4)}...${clientSecret.substring(clientSecret.length - 4)}');
-        print('客户端密钥长度: ${clientSecret.length}');
+        debugPrint('使用的客户端密钥: ${clientSecret.substring(0, 4)}...${clientSecret.substring(clientSecret.length - 4)}');
+        debugPrint('客户端密钥长度: ${clientSecret.length}');
       } else {
-        print('客户端密钥为空或格式不正确');
+        debugPrint('客户端密钥为空或格式不正确');
       }
 
       // 先尝试自动登录
       if (await autoLogin()) {
-        print('自动登录成功');
+        debugPrint('自动登录成功');
         return;
       }
 
-      print('自动登录失败，尝试重新获取令牌...');
+      debugPrint('自动登录失败，尝试重新获取令牌...');
       
       try {
-        print('正在调用 SpotifySdk.getAccessToken...');
+        debugPrint('正在调用 SpotifySdk.getAccessToken...');
         final result = await _spotifyService.login();
-        print('SpotifySdk.getAccessToken 调用成功，返回结果长度: ${result?.length ?? 0}');
+        debugPrint('SpotifySdk.getAccessToken 调用成功，返回结果长度: ${result?.length ?? 0}');
         
         if (result == null) {
           throw SpotifyAuthException('登录失败：无法获取访问令牌');
         }
 
-        print('正在获取用户信息...');
+        debugPrint('正在获取用户信息...');
         final userProfile = await _spotifyService.getUserProfile();
         username = userProfile['display_name'];
         
-        print('登录成功，用户名：$username');
-        print('用户信息: ${json.encode(userProfile)}');
+        debugPrint('登录成功，用户名：$username');
+        debugPrint('用户信息: ${json.encode(userProfile)}');
         
         // 启动定时刷新任务
         startTrackRefresh();
@@ -631,7 +626,7 @@ class SpotifyProvider extends ChangeNotifier {
         // 登录后更新小部件
         await updateWidget();
       } catch (e) {
-        print('登录过程中出错: $e');
+        debugPrint('登录过程中出错: $e');
         
         // 检查是否是客户端凭据问题
         if (e is SpotifyAuthException) {
@@ -651,11 +646,11 @@ class SpotifyProvider extends ChangeNotifier {
         rethrow;
       }
     } catch (e, stack) {
-      print('Spotify 登录错误详情:');
-      print('错误类型: ${e.runtimeType}');
-      print('错误消息: $e');
-      print('堆栈跟踪:');
-      print(stack);
+      debugPrint('Spotify 登录错误详情:');
+      debugPrint('错误类型: ${e.runtimeType}');
+      debugPrint('错误消息: $e');
+      debugPrint('堆栈跟踪:');
+      debugPrint(stack.toString());
       
       // 清理可能的无效状态
       username = null;
@@ -679,9 +674,9 @@ class SpotifyProvider extends ChangeNotifier {
       playbackState = await _spotifyService.getPlaybackState();
       hasActiveDevice = playbackState['device'] != null;
       isCurrentlyPlaying = playbackState['is_playing'] ?? false;
-      print('Playback State: HasDevice=$hasActiveDevice, IsPlaying=$isCurrentlyPlaying');
+      debugPrint('Playback State: HasDevice=$hasActiveDevice, IsPlaying=$isCurrentlyPlaying');
     } catch (e) {
-      print('获取播放状态失败: $e');
+      debugPrint('获取播放状态失败: $e');
       // Assume no active device if state fetch fails
       hasActiveDevice = false;
       isCurrentlyPlaying = false;
@@ -691,7 +686,7 @@ class SpotifyProvider extends ChangeNotifier {
       if (!isCurrentlyPlaying) {
         // Logic to Start Playback
         if (!hasActiveDevice) {
-          print('没有活跃设备，尝试连接并启动 Spotify...');
+          debugPrint('没有活跃设备，尝试连接并启动 Spotify...');
           bool connected = false;
           try {
             // This might prompt the user to open Spotify
@@ -699,11 +694,11 @@ class SpotifyProvider extends ChangeNotifier {
               clientId: _spotifyService.clientId,
               redirectUrl: _spotifyService.redirectUrl,
             );
-            print('连接尝试结果: $connected');
+            debugPrint('连接尝试结果: $connected');
 
             if (connected) {
               // Connection succeeded, refresh devices and try to transfer playback
-              print('连接成功，刷新设备列表并尝试转移播放...');
+              debugPrint('连接成功，刷新设备列表并尝试转移播放...');
               await refreshAvailableDevices();
               // Short delay for provider state update
               await Future.delayed(const Duration(milliseconds: 500)); 
@@ -714,32 +709,32 @@ class SpotifyProvider extends ChangeNotifier {
               );
 
               if (localDevice != null && localDevice.id != null) {
-                print('找到本地设备: ${localDevice.name} (ID: ${localDevice.id}), 尝试转移播放...');
+                debugPrint('找到本地设备: ${localDevice.name} (ID: ${localDevice.id}), 尝试转移播放...');
                 await transferPlaybackToDevice(localDevice.id!, play: true);
               } else {
-                print('无法确定本地设备，尝试通用播放命令...');
+                debugPrint('无法确定本地设备，尝试通用播放命令...');
                 await _spotifyService.apiPut('/me/player/play');
               }
             } else {
               // Even if connect returns false, Spotify might be open/opening.
               // Wait a bit longer before trying the generic play command.
-              print('连接返回 false，等待后尝试通用播放命令...');
+              debugPrint('连接返回 false，等待后尝试通用播放命令...');
               await Future.delayed(const Duration(milliseconds: 3000));
               await _spotifyService.apiPut('/me/player/play');
             }
           } catch (e) {
-            print('连接或播放启动失败: $e. 尝试通用播放命令...');
+            debugPrint('连接或播放启动失败: $e. 尝试通用播放命令...');
             // Wait a bit before fallback API call
             await Future.delayed(const Duration(milliseconds: 1000)); 
              try {
                await _spotifyService.apiPut('/me/player/play');
              } catch (fallbackError) {
-               print('通用播放命令也失败: $fallbackError');
+               debugPrint('通用播放命令也失败: $fallbackError');
              }
           }
         } else {
            // Device already active, just send play command
-           print('已有活跃设备，调用 API 播放...');
+           debugPrint('已有活跃设备，调用 API 播放...');
            await _spotifyService.apiPut('/me/player/play');
         }
         
@@ -757,7 +752,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       } else {
         // Logic to Pause Playback
-        print('调用 API 暂停...');
+        debugPrint('调用 API 暂停...');
         await _spotifyService.apiPut('/me/player/pause');
         
         // Optimistically update UI
@@ -774,7 +769,7 @@ class SpotifyProvider extends ChangeNotifier {
         await updateWidget();
       }
     } catch (e) {
-      print('播放/暂停切换失败: $e');
+      debugPrint('播放/暂停切换失败: $e');
       // Revert optimistic update on error
       if (currentTrack != null) {
         currentTrack!['is_playing'] = isCurrentlyPlaying; // Revert to original state
@@ -820,7 +815,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
       
     } catch (e) {
-      print('下一首失败: $e');
+      debugPrint('下一首失败: $e');
       // 如果失败，恢复到原来的状态
       if (previousTrack != null) {
         currentTrack = {'item': previousTrack, 'is_playing': true};
@@ -868,7 +863,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
       
     } catch (e) {
-      print('上一首失败: $e');
+      debugPrint('上一首失败: $e');
       // 如果失败，恢复到原来的状态
       if (nextTrack != null) {
         currentTrack = {'item': nextTrack, 'is_playing': true};
@@ -912,7 +907,7 @@ class SpotifyProvider extends ChangeNotifier {
       // }
 
     } catch (e) {
-      print('切换收藏状态失败: $e');
+      debugPrint('切换收藏状态失败: $e');
       // Revert to the original state on error
       if (isCurrentTrackSaved != originalState) {
         isCurrentTrackSaved = originalState;
@@ -948,7 +943,7 @@ class SpotifyProvider extends ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('刷新播放队列失败: $e');
+      debugPrint('刷新播放队列失败: $e');
       upcomingTracks = [];
       nextTrack = null;
       notifyListeners();
@@ -967,7 +962,7 @@ class SpotifyProvider extends ChangeNotifier {
         await _preloadImage(imageUrl);
       }
     } catch (e) {
-      print('批量缓存队列图片失败: $e');
+      debugPrint('批量缓存队列图片失败: $e');
     }
   }
 
@@ -991,7 +986,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      print('同步播放模式失败: $e');
+      debugPrint('同步播放模式失败: $e');
     }
   }
 
@@ -1016,7 +1011,7 @@ class SpotifyProvider extends ChangeNotifier {
       await refreshPlaybackQueue();
       notifyListeners();
     } catch (e) {
-      print('设置播放模式失败: $e');
+      debugPrint('设置播放模式失败: $e');
     }
   }
 
@@ -1035,7 +1030,7 @@ class SpotifyProvider extends ChangeNotifier {
       await precacheImage(imageProvider, navigatorKey.currentContext!);
       _imageCache[imageUrl] = imageUrl;
     } catch (e) {
-      print('预加载图片失败: $e');
+      debugPrint('预加载图片失败: $e');
     }
   }
 
@@ -1058,10 +1053,10 @@ class SpotifyProvider extends ChangeNotifier {
       final List<Map<String, dynamic>> uniqueAlbums = [];
       
       // 获取 FirestoreProvider 实例
-      final firestoreProvider = Provider.of<FirestoreProvider>(
-        navigatorKey.currentContext!, 
-        listen: false
-      );
+      // final firestoreProvider = Provider.of<FirestoreProvider>(
+      //   navigatorKey.currentContext!, 
+      //   listen: false
+      // );
       
       for (var item in items) {
         final context = item['context'];
@@ -1072,11 +1067,11 @@ class SpotifyProvider extends ChangeNotifier {
           final playedAt = DateTime.parse(item['played_at']);
           
           // 保存播放上下文到 Firestore
-          await firestoreProvider.savePlayContext(
-            trackId: trackId,
-            context: context,
-            timestamp: playedAt,
-          );
+          // await firestoreProvider.savePlayContext(
+          //   trackId: trackId,
+          //   context: context,
+          //   timestamp: playedAt,
+          // );
           
           // 处理播放列表
           if (type == 'playlist' && !playlistUris.contains(uri)) {
@@ -1087,7 +1082,7 @@ class SpotifyProvider extends ChangeNotifier {
               uniquePlaylists.add(playlist);
               if (uniquePlaylists.length >= 10) break;
             } catch (e) {
-              print('获取播放列表 $playlistId 详情失败: $e');
+              debugPrint('获取播放列表 $playlistId 详情失败: $e');
             }
           }
           
@@ -1100,7 +1095,7 @@ class SpotifyProvider extends ChangeNotifier {
               uniqueAlbums.add(album);
               if (uniqueAlbums.length >= 10) break;
             } catch (e) {
-              print('获取专辑 $albumId 详情失败: $e');
+              debugPrint('获取专辑 $albumId 详情失败: $e');
             }
           }
         }
@@ -1111,7 +1106,7 @@ class SpotifyProvider extends ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('刷新最近播放记录失败: $e');
+      debugPrint('刷新最近播放记录失败: $e');
     }
   }
 
@@ -1144,12 +1139,12 @@ class SpotifyProvider extends ChangeNotifier {
             'isPlaying': false,
           });
         } catch (e) {
-          print('更新 widget 失败: $e');
+          debugPrint('更新 widget 失败: $e');
         }
       }
 
     } catch (e) {
-      print('退出登录失败: $e');
+      debugPrint('退出登录失败: $e');
       rethrow;
     } finally {
       isLoading = false;
@@ -1168,7 +1163,7 @@ class SpotifyProvider extends ChangeNotifier {
           'isPlaying': currentTrack?['is_playing'] ?? false,
         });
       } catch (e) {
-        print('更新 widget 失败: $e');
+        debugPrint('更新 widget 失败: $e');
       }
     }
   }
@@ -1180,7 +1175,7 @@ class SpotifyProvider extends ChangeNotifier {
       // 跳转位置后刷新队列
       await refreshPlaybackQueue();
     } catch (e) {
-      print('跳转播放位置失败: $e');
+      debugPrint('跳转播放位置失败: $e');
       rethrow;
     }
   }
@@ -1229,7 +1224,7 @@ class SpotifyProvider extends ChangeNotifier {
         await refreshPlaybackQueue();
       }
     } catch (e) {
-      print('播放 $type 失败: $e');
+      debugPrint('播放 $type 失败: $e');
       rethrow;
     }
   }
@@ -1285,7 +1280,7 @@ class SpotifyProvider extends ChangeNotifier {
         await refreshPlaybackQueue();
       }
     } catch (e) {
-      print('播放歌曲失败: $e');
+      debugPrint('播放歌曲失败: $e');
       rethrow;
     }
   }
@@ -1378,7 +1373,7 @@ class SpotifyProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print('在上下文中播放歌曲时出错: $e');
+      debugPrint('在上下文中播放歌曲时出错: $e');
       rethrow;
     }
   }
@@ -1402,15 +1397,15 @@ class SpotifyProvider extends ChangeNotifier {
       );
       
       if (connected) {
-        print('重新连接成功');
+        debugPrint('重新连接成功');
         // 连接成功后刷新状态
         await refreshCurrentTrack();
         await refreshAvailableDevices();
       } else {
-        print('重新连接失败');
+        debugPrint('重新连接失败');
       }
     } catch (e) {
-      print('重新连接时出错: $e');
+      debugPrint('重新连接时出错: $e');
     } finally {
       _isReconnecting = false;
     }
@@ -1422,22 +1417,22 @@ class SpotifyProvider extends ChangeNotifier {
       SpotifySdk.subscribeConnectionStatus().listen(
         (status) async {
           if (!status.connected && !_isReconnecting) {
-            print('检测到连接断开，开始重连流程...');
+            debugPrint('检测到连接断开，开始重连流程...');
             await _handleDisconnection();
           } else if (status.connected) {
-            print('检测到连接成功，刷新播放状态...');
+            debugPrint('检测到连接成功，刷新播放状态...');
             // 连接成功时刷新播放状态
             await refreshCurrentTrack();
             await refreshAvailableDevices();
           }
         },
         onError: (e) {
-          print('连接状态监听错误: $e');
+          debugPrint('连接状态监听错误: $e');
           _handleDisconnection();
         },
       );
     } catch (e) {
-      print('设置连接监听器失败: $e');
+      debugPrint('设置连接监听器失败: $e');
     }
   }
 
@@ -1445,7 +1440,7 @@ class SpotifyProvider extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getUserPlaylists({int limit = 50, int offset = 0}) async {
     try {
       if (!await _spotifyService.isAuthenticated()) {
-        print('未登录，无法获取播放列表');
+        debugPrint('未登录，无法获取播放列表');
         return [];
       }
 
@@ -1490,7 +1485,7 @@ class SpotifyProvider extends ChangeNotifier {
       
       return playlists;
     } catch (e) {
-      print('获取用户播放列表失败: $e');
+      debugPrint('获取用户播放列表失败: $e');
       return [];
     }
   }
@@ -1499,7 +1494,7 @@ class SpotifyProvider extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getUserSavedAlbums({int limit = 50, int offset = 0}) async {
     try {
       if (!await _spotifyService.isAuthenticated()) {
-        print('未登录，无法获取收藏专辑');
+        debugPrint('未登录，无法获取收藏专辑');
         return [];
       }
 
@@ -1543,7 +1538,7 @@ class SpotifyProvider extends ChangeNotifier {
       
       return albums;
     } catch (e) {
-      print('获取收藏专辑失败: $e');
+      debugPrint('获取收藏专辑失败: $e');
       return [];
     }
   }
@@ -1552,7 +1547,7 @@ class SpotifyProvider extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getRecentlyPlayed() async {
     try {
       if (!await _spotifyService.isAuthenticated()) {
-        print('未登录，无法获取最近播放');
+        debugPrint('未登录，无法获取最近播放');
         return [];
       }
 
@@ -1572,9 +1567,9 @@ class SpotifyProvider extends ChangeNotifier {
             // 为上下文获取更详细信息
             Map<String, dynamic> details = {};
             try {
-              details = await _spotifyService.apiGet('/$contextType' + 's/$contextId');
+              details = await _spotifyService.apiGet('/$contextType' 's/$contextId');
             } catch (e) {
-              print('获取上下文详情失败: $e');
+              debugPrint('获取上下文详情失败: $e');
             }
 
             uniqueContexts[contextUri] = {
@@ -1596,7 +1591,21 @@ class SpotifyProvider extends ChangeNotifier {
       
       return uniqueContexts.values.toList();
     } catch (e) {
-      print('获取最近播放记录失败: $e');
+      debugPrint('获取最近播放记录失败: $e');
+      return [];
+    }
+  }
+
+  /// Fetches the raw list of recently played track items from Spotify.
+  Future<List<Map<String, dynamic>>> getRecentlyPlayedRawTracks({int limit = 50}) async {
+    try {
+      if (!await _spotifyService.isAuthenticated()) {
+        debugPrint('未登录，无法获取原始最近播放记录');
+        return [];
+      }
+      return await _spotifyService.getRecentlyPlayedRawTracks(limit: limit);
+    } catch (e) {
+      debugPrint('获取原始最近播放记录失败: $e');
       return [];
     }
   }
@@ -1618,15 +1627,15 @@ class SpotifyProvider extends ChangeNotifier {
       final response = await _spotifyService.search(query, types, limit: limit);
 
       // --- Add logging for decoded response ---
-      print('SpotifyProvider.searchItems - Decoded Response:');
-      print(response);
+      debugPrint('SpotifyProvider.searchItems - Decoded Response:');
+      debugPrint(json.encode(response));
       // --- End logging ---
 
       final Map<String, List<Map<String, dynamic>>> results = {};
 
       // Process tracks
       if (response['tracks']?['items'] != null && types.contains('track')) {
-        print('Processing tracks...');
+        debugPrint('Processing tracks...');
         results['tracks'] = List<Map<String, dynamic>>.from(
           (response['tracks']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['album']?['images'] != null).map((item) => {
             'id': item['id'],
@@ -1645,7 +1654,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       // Process albums
       if (response['albums']?['items'] != null && types.contains('album')) {
-        print('Processing albums...');
+        debugPrint('Processing albums...');
         results['albums'] = List<Map<String, dynamic>>.from(
           (response['albums']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['images'] != null).map((item) => {
             'id': item['id'],
@@ -1660,7 +1669,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       // Process artists
       if (response['artists']?['items'] != null && types.contains('artist')) {
-        print('Processing artists...');
+        debugPrint('Processing artists...');
         results['artists'] = List<Map<String, dynamic>>.from(
           (response['artists']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['images'] != null).map((item) => {
             'id': item['id'],
@@ -1674,7 +1683,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       // Process playlists
       if (response['playlists']?['items'] != null && types.contains('playlist')) {
-        print('Processing playlists...');
+        debugPrint('Processing playlists...');
         results['playlists'] = List<Map<String, dynamic>>.from(
           (response['playlists']['items'] as List).where((item) => item != null && item['id'] != null && item['name'] != null && item['images'] != null).map((item) => {
             'id': item['id'],
@@ -1688,13 +1697,13 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
       // --- Add logging for final results map ---
-      print('SpotifyProvider.searchItems - Final Results Map:');
-      print(results);
+      debugPrint('SpotifyProvider.searchItems - Final Results Map:');
+      debugPrint(json.encode(results));
       // --- End logging ---
 
       return results;
     } catch (e) {
-      print('Spotify search failed: $e');
+      debugPrint('Spotify search failed: $e');
       // Depending on how you want to handle errors, you might return empty or rethrow
       // rethrow;
       return {}; // Return empty map on error for now

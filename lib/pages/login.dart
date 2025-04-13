@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/local_database_provider.dart'; // Import LocalDatabaseProvider
 import 'package:url_launcher/url_launcher.dart';
 import '../services/settings_service.dart';
 import '../services/lyrics_service.dart'; // Import LyricsService
 import '../services/translation_service.dart'; // Import TranslationService
 import 'dart:math' as math; // Import dart:math
+import 'package:logger/logger.dart'; // Import logger
 
 // 定义统一的间距常量
 const double kDefaultPadding = 16.0;
@@ -15,13 +16,15 @@ const double kSectionSpacing = 24.0;
 const double kElementSpacing = 16.0;
 const double kSmallSpacing = 8.0;
 
+// Add a logger instance
+final logger = Logger();
+
 class Login extends StatelessWidget {
   const Login({super.key});
 
   @override
   Widget build(BuildContext context) {
     final spotifyProvider = Provider.of<SpotifyProvider>(context);
-    final authProvider = Provider.of<AuthProvider>(context);
     
     // 设置edge to edge显示
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -85,31 +88,23 @@ class Login extends StatelessWidget {
             const SizedBox(height: kSectionSpacing),
             const AppSettingsSection(),
             const SizedBox(height: kSectionSpacing),
+            const DataManagementSection(),
+            const SizedBox(height: kSectionSpacing),
             Row(
               children: [
                 Expanded(child: _buildSpotifyButton(context, spotifyProvider)),
-                const SizedBox(width: kElementSpacing),
-                Expanded(child: _buildGoogleButton(context, authProvider)),
               ],
             ),
-            if (spotifyProvider.username != null || authProvider.userDisplayName != null)
+            if (spotifyProvider.username != null)
               Padding(
                 padding: const EdgeInsets.only(top: kElementSpacing),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (spotifyProvider.username != null)
                       Flexible(
                         child: Text(
                           'Spotify: ${spotifyProvider.username}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    if (authProvider.userDisplayName != null)
-                      Flexible(
-                        child: Text(
-                          'Google: ${authProvider.userDisplayName}',
                           style: Theme.of(context).textTheme.bodySmall,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -154,8 +149,8 @@ class Login extends StatelessWidget {
                 if (context.mounted) {
                   String errorMessage = 'Operation failed';
                   
-                  print('登录/注销操作失败: $e');
-                  print('错误类型: ${e.runtimeType}');
+                  logger.e('登录/注销操作失败: $e');
+                  logger.e('错误类型: ${e.runtimeType}');
                   
                   if (e.toString().contains('INVALID_CREDENTIALS')) {
                     errorMessage = 'Invalid Spotify API credentials. Please check your Client ID and Secret.';
@@ -193,53 +188,6 @@ class Login extends StatelessWidget {
           : Text(spotifyProvider.username != null
               ? 'Logout from Spotify'
               : 'Authorize Spotify'),
-    );
-  }
-
-  Widget _buildGoogleButton(BuildContext context, AuthProvider authProvider) {
-    return FilledButton.tonal(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 48),
-        backgroundColor: authProvider.isSignedIn
-            ? Theme.of(context).colorScheme.errorContainer
-            : null,
-      ),
-      onPressed: authProvider.isLoading
-          ? null
-          : () async {
-              try {
-                if (authProvider.isSignedIn) {
-                  await authProvider.signOut();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Logged out from Google')),
-                    );
-                  }
-                } else {
-                  final credential = await authProvider.signInWithGoogle();
-                  if (context.mounted && credential != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Logged in with Google')),
-                    );
-                  }
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Operation failed: $e')),
-                  );
-                }
-              }
-            },
-      child: authProvider.isLoading
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Text(authProvider.isSignedIn
-              ? 'Logout from Google'
-              : 'Login with Google'),
     );
   }
 }
@@ -299,7 +247,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
         });
       }
     } catch (e) {
-      print("Error loading Spotify credentials: $e");
+      logger.e("Error loading Spotify credentials: $e");
        if (mounted) {
          ScaffoldMessenger.of(context).showSnackBar(
            SnackBar(content: Text('Error loading Spotify credentials: $e')),
@@ -319,7 +267,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
         });
       }
     } catch (e) {
-      print("Error loading Gemini API key: $e");
+      logger.e("Error loading Gemini API key: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading Gemini API key: $e')),
@@ -363,7 +311,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
            );
            spotifySaved = true;
          } catch (e) {
-           print("Error saving Spotify credentials: $e");
+           logger.e("Error saving Spotify credentials: $e");
            spotifyError = 'Error saving Spotify credentials: $e';
          }
        }
@@ -384,7 +332,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
            );
            geminiSaved = true;
          } catch (e) {
-           print("Error saving Gemini API key: $e");
+           logger.e("Error saving Gemini API key: $e");
            if (mounted) {
              // Show Gemini specific error immediately
              ScaffoldMessenger.of(context).showSnackBar(
@@ -467,7 +415,7 @@ class _CredentialsSectionState extends State<CredentialsSection> {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.3).round()),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kDefaultPadding),
       ),
@@ -655,7 +603,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         });
       }
     } catch (e) {
-      print("Error loading settings: $e");
+      logger.e("Error loading settings: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading settings: $e')),
@@ -692,7 +640,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         );
       }
     } catch (e) {
-      print("Error saving language setting: $e");
+      logger.e("Error saving language setting: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -720,7 +668,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         );
       }
     } catch (e) {
-      print("Error saving translation style: $e");
+      logger.e("Error saving translation style: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -741,7 +689,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         );
       }
     } catch (e) {
-      print("Error saving copy format setting: $e");
+      logger.e("Error saving copy format setting: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -763,7 +711,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         });
       }
     } catch (e) {
-      print("Error loading cache sizes: $e");
+      logger.e("Error loading cache sizes: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading cache sizes: $e')),
@@ -820,7 +768,7 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.3).round()),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kDefaultPadding),
       ),
@@ -972,5 +920,199 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
       filled: true,
       fillColor: Theme.of(context).colorScheme.surface,
     );
+  }
+}
+
+class DataManagementSection extends StatelessWidget {
+  const DataManagementSection({super.key});
+
+  Future<void> _handleExport(BuildContext context) async {
+    final provider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    try {
+      final success = await provider.exportDataToJson();
+      if (context.mounted) {
+         if (success) {
+            // Share sheet was shown, no specific success message needed here
+            // as the share sheet itself provides feedback.
+            debugPrint('Export process initiated, share sheet shown.');
+         } else {
+           // Export or sharing failed or was cancelled
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Export failed or cancelled.')),
+           );
+         }
+      }
+    } catch (e) {
+       debugPrint('Export Exception: $e');
+       if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('Export failed: ${e.toString()}')),
+          );
+       }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Data Management',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: kSmallSpacing),
+        Card(
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: ListTile(
+            leading: const Icon(Icons.upload_file),
+            title: const Text('Export Data'),
+            subtitle: const Text('Save all your notes and translations to a JSON file.'),
+            onTap: () => _handleExport(context),
+            trailing: const Icon(Icons.chevron_right),
+          ),
+        ),
+        // Add Import Button Here
+        const SizedBox(height: kSmallSpacing),
+        Card(
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: ListTile(
+            leading: const Icon(Icons.file_download),
+            title: const Text('Import Data'),
+            subtitle: const Text('Load data from a previously exported JSON file.'),
+            onTap: () => _handleImport(context), // Call new handler
+            trailing: const Icon(Icons.chevron_right),
+          ),
+        ),
+        const SizedBox(height: kElementSpacing),
+        Card(
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: ListTile(
+            leading: Icon(Icons.cleaning_services_outlined, color: Theme.of(context).colorScheme.error),
+            title: Text('Clear Cache', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            subtitle: const Text('Clear lyrics and translation cache (does not delete notes).'),
+            onTap: () => _showClearCacheConfirmation(context),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Add the confirmation dialog logic here
+  void _showClearCacheConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirm Clear Cache'),
+          content: const Text('Are you sure you want to clear the lyrics and translation cache? This cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+              },
+            ),
+            TextButton(
+              child: Text('Clear Cache', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+                _handleClearCache(context); // Call the actual clear cache logic
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Add the clear cache handling logic here
+  Future<void> _handleClearCache(BuildContext context) async {
+    // You need instances of your services or a way to access them.
+    // Assuming they are simple classes for now:
+    final lyricsService = LyricsService();
+    final translationService = TranslationService();
+
+    try {
+      // Show a loading indicator maybe?
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Clearing cache...'), duration: Duration(seconds: 1)),
+      );
+      
+      await lyricsService.clearCache();
+      await translationService.clearTranslationCache();
+      
+      // Show success message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cache cleared successfully!')),
+        );
+      }
+    } catch (e) {
+      logger.e('Failed to clear cache: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to clear cache: $e')),
+        );
+      }
+    }
+  }
+
+  // --- Add Import Handler ---
+  Future<void> _handleImport(BuildContext context) async {
+    // Show confirmation dialog before importing
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirm Import'),
+          content: const Text(
+            'Importing data will replace existing tracks and translations with the same identifiers, and add all records from the file. This cannot be undone. Are you sure you want to continue?'
+            '\n\nEnsure the JSON file is valid and was previously exported from Spotoolfy.'
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(dialogContext).pop(false), // Return false if cancelled
+            ),
+            TextButton(
+              child: Text('Import Data', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+              onPressed: () => Navigator.of(dialogContext).pop(true), // Return true if confirmed
+            ),
+          ],
+        );
+      },
+    );
+
+    // Proceed only if user confirmed
+    if (confirmed == true) {
+      final provider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+      try {
+        final success = await provider.importDataFromJson();
+        if (context.mounted) {
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Data imported successfully!')),
+            );
+            // Optionally, trigger a refresh of UI data if needed
+          } else {
+            // Import failed or was cancelled during file picking
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Import failed or cancelled.')),
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('Import Exception: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Import failed: ${e.toString()}')),
+          );
+        }
+      }
+    }
   }
 }

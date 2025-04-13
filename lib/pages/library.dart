@@ -6,7 +6,6 @@ import '../providers/search_provider.dart';
 import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:collection/collection.dart';
 
 class Library extends StatefulWidget {
@@ -119,7 +118,7 @@ class _LibraryState extends State<Library> {
                         backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
                         side: WidgetStatePropertyAll(
                           BorderSide(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                            color: Theme.of(context).colorScheme.outline.withAlpha((0.5 * 255).round()),
                           ),
                         ),
                         padding: const WidgetStatePropertyAll<EdgeInsets>(
@@ -228,7 +227,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
 
       // Compare with current URIs
       if (!const SetEquality().equals(newItemUris, _currentDisplayedItemUris)) {
-        print('Recently played items changed. Updating carousel.');
+        // print('Recently played items changed. Updating carousel.');
 
         // Preload images for the new items
         if (newValidItems.isNotEmpty) {
@@ -248,33 +247,23 @@ class _MyCarouselViewState extends State<MyCarouselView> {
         // Update state only after preloading and if URIs changed
         setState(() {
           allItems = List.from(newValidItems); // Use the filtered valid items
-          if (allItems.isNotEmpty) {
-             allItems.shuffle(); // Shuffle the new valid items
-          }
           _currentDisplayedItemUris = newItemUris;
-          if (!isRefresh) _isLoading = false;
-          _isUpdating = false;
-          _hasLoadedOnce = true;
+          // print('Carousel updated with ${allItems.length} items.');
+          if (!_hasLoadedOnce) _hasLoadedOnce = true;
         });
-
       } else {
-        print('Recently played items unchanged. No carousel update needed.');
-        // No change, just stop loading indicators
+        // print('Recently played items haven\'t changed significantly.');
+        if (!_hasLoadedOnce) _hasLoadedOnce = true; // Still mark as loaded
+      }
+    } catch (e) {
+      // print('Error loading recently played: $e');
+      if (mounted) {
         setState(() {
+          if (!_hasLoadedOnce) _hasLoadedOnce = true; // Ensure loading finishes
           if (!isRefresh) _isLoading = false;
           _isUpdating = false;
-          _hasLoadedOnce = true; // Ensure this is set even if no change
         });
       }
-
-    } catch (error) {
-      if (!mounted) return;
-      print('加载轮播图数据失败: $error');
-      setState(() {
-        if (!isRefresh) _isLoading = false;
-        _isUpdating = false;
-        _hasLoadedOnce = true; // Still mark as loaded even on error
-      });
     }
   }
 
@@ -329,7 +318,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                            spotifyProvider.playContext(type: type, id: id);
                          }
                        } else {
-                         print('Error: Invalid index ($index) tapped in CarouselView.');
+                         // print('Error: Invalid index ($index) tapped in CarouselView.');
                        }
                      },
                      children: validItems.map((item) {
@@ -343,7 +332,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                               width: double.infinity,
                               fit: BoxFit.cover,
                               placeholder: (context, url) => Container(
-                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest, // Use surfaceContainerHighest
                                 child: const Center(
                                   child: SizedBox(
                                     width: 24,
@@ -355,7 +344,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                                 ),
                               ),
                               errorWidget: (context, url, error) => Container(
-                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest, // Use surfaceContainerHighest
                                 child: const Icon(Icons.error),
                               ),
                             ),
@@ -367,13 +356,9 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                 // Show overlay loading indicator only when updating after the first load
                 if (_isUpdating)
                   Positioned.fill(
-                    child: Container(
-                      // Optional: Add a slight dimming effect during update
-                      // color: Colors.black.withOpacity(0.1),
-                      child: const Center(
-                        // Use a smaller indicator for updates?
-                        child: CircularProgressIndicator(),
-                      ),
+                    child: const Center(
+                      // Use a smaller indicator for updates?
+                      child: CircularProgressIndicator(),
                     ),
                   ),
               ],
@@ -404,8 +389,8 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                   margin: const EdgeInsets.symmetric(horizontal: 8),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
+                    child: ColoredBox(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: Center(
                         child: index == 1 ? const CircularProgressIndicator() : null,
                       ),
@@ -418,86 +403,5 @@ class _MyCarouselViewState extends State<MyCarouselView> {
         );
       },
     );
-  }
-  
-  // 打开 Spotify 应用或网页
-  Future<void> _openInSpotify(Map<String, dynamic> item) async {
-    String? webUrl;
-    String? spotifyUri;
-    
-    // 先尝试获取URI
-    if (item['uri'] != null && item['uri'].toString().startsWith('spotify:')) {
-      // 直接使用原始URI格式，如 spotify:album:37vIh6I03bNlWKlVMjGRK3
-      spotifyUri = item['uri'].toString();
-      
-      // 从URI构建web URL
-      final segments = spotifyUri.split(':');
-      if (segments.length >= 3) {
-        final type = segments[1]; // album, playlist, artist, track
-        final id = segments[2];
-        webUrl = 'https://open.spotify.com/$type/$id';
-      }
-    } 
-    // 尝试构建URI
-    else if (item['type'] != null && item['id'] != null) {
-      final type = item['type'].toString();
-      final id = item['id'].toString();
-      spotifyUri = 'spotify:$type:$id';
-      webUrl = 'https://open.spotify.com/$type/$id';
-    }
-    // 后备方案：尝试从external_urls
-    else if (item['external_urls'] != null && item['external_urls']['spotify'] != null) {
-      webUrl = item['external_urls']['spotify'].toString();
-      
-      // 尝试从URL创建URI
-      if (webUrl.contains('open.spotify.com/')) {
-        final path = webUrl.split('open.spotify.com/')[1].split('?')[0];
-        final segments = path.split('/');
-        if (segments.length >= 2) {
-          spotifyUri = 'spotify:${segments[0]}:${segments[1]}';
-        }
-      }
-    }
-    
-    if (spotifyUri == null && webUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法构建Spotify链接'))
-      );
-      return;
-    }
-    
-    try {
-      // 先尝试使用URI启动Spotify应用
-      if (spotifyUri != null) {
-        final uri = Uri.parse(spotifyUri);
-        print('尝试打开Spotify应用：$uri');
-        
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
-          return; // 成功打开应用后直接返回
-        }
-      }
-      
-      // 如果无法打开应用，尝试打开网页
-      if (webUrl != null) {
-        final uri = Uri.parse(webUrl);
-        print('尝试打开网页链接：$uri');
-        
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
-      }
-      
-      // 两种方式都失败
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法打开Spotify'))
-      );
-    } catch (e) {
-      print('打开Spotify出错: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('打开Spotify失败: $e'))
-      );
-    }
   }
 }

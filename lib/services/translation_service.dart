@@ -154,9 +154,8 @@ class TranslationService {
       }
     } catch (e) {
       // Re-throw the exception to be handled by the caller
-      rethrow; 
+      rethrow;
     }
-    return null; // Should not be reached if error handling is correct, but added for safety
   }
 
   // Helper function to generate the prompt based on the selected style
