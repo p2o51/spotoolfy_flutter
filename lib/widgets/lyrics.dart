@@ -11,6 +11,7 @@ import './translation_result_sheet.dart';
 import 'dart:async';
 import '../services/settings_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -547,6 +548,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                       },
                       child: GestureDetector(
                         onTap: () {
+                          HapticFeedback.lightImpact();
                           if (!mounted) return;
                           
                           final provider = Provider.of<SpotifyProvider>(context, listen: false);
@@ -642,6 +644,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                         IconButton.filledTonal(
                           icon: const Icon(Icons.vertical_align_center),
                           onPressed: () {
+                            HapticFeedback.lightImpact();
                             if (!mounted) return;
                             
                             if (_isCopyLyricsMode) {
@@ -663,7 +666,10 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.translate),
-                          onPressed: _isTranslating ? null : _translateAndShowLyrics,
+                          onPressed: _isTranslating ? null : () {
+                            HapticFeedback.lightImpact();
+                            _translateAndShowLyrics();
+                          },
                           tooltip: 'Translate Lyrics',
                         ),
                         const SizedBox(width: 8),
@@ -673,7 +679,10 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                               ? Icons.playlist_play_rounded
                               : Icons.edit_note_rounded,
                           ),
-                          onPressed: _toggleCopyLyricsMode, 
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            _toggleCopyLyricsMode();
+                          }, 
                           tooltip: _isCopyLyricsMode 
                               ? 'Exit Copy Mode & Resume Scroll' 
                               : 'Enter Copy Lyrics Mode (Single Repeat)',
