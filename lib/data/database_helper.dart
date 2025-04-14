@@ -286,6 +286,30 @@ class DatabaseHelper {
     return result;
   }
 
+  /// Fetches all records along with their associated track info, ordered by recordedAt timestamp.
+  /// Returns a list of maps, where each map contains columns from both records and tracks tables.
+  Future<List<Map<String, dynamic>>> getAllRecordsWithTrackInfoOrderedByTime({bool descending = true}) async {
+    final db = await instance.database;
+    final orderBy = descending ? 'DESC' : 'ASC';
+    
+    // Use a JOIN query to combine records and tracks
+    // Order by recordedAt
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
+      SELECT
+        r.id, r.trackId, r.noteContent, r.rating, r.songTimestampMs, r.recordedAt,
+        r.contextUri, r.contextName, r.lyricsSnapshot,
+        t.trackName, t.artistName, t.albumName, t.albumCoverUrl
+      FROM records r
+      JOIN tracks t ON r.trackId = t.trackId
+      ORDER BY r.recordedAt $orderBy
+    ''');
+
+    // Renaming r.id to 'id' for consistency with how Record.fromMap might expect it,
+    // although the provider will use the map directly. This ensures the key is just 'id'.
+    // If Record.fromMap expects 'recordId', adjust the alias in the SQL above.
+    return result;
+  }
+
   // --- Methods for Data Export/Import ---
 
   /// Fetches all tracks from the database.

@@ -10,6 +10,7 @@ import '../models/translation.dart';
 import '../providers/spotify_provider.dart'; // Import SpotifyProvider
 import 'package:file_picker/file_picker.dart'; // For picking file
 import 'package:logger/logger.dart'; // Added logger
+import 'package:flutter/material.dart'; // 需要引入 Material 用于 AlertDialog 等
 
 final logger = Logger(); // Added logger instance
 
@@ -26,6 +27,14 @@ class LocalDatabaseProvider with ChangeNotifier {
   // Example internal state for random records
   List<Map<String, dynamic>> _randomRecords = [];
   List<Map<String, dynamic>> get randomRecords => _randomRecords;
+
+  // --- New State for all records ordered by time ---
+  List<Map<String, dynamic>> _allRecordsOrdered = [];
+  List<Map<String, dynamic>> get allRecordsOrdered => _allRecordsOrdered;
+  // Use the existing _isLoading or add a specific one if needed
+  // bool _isLoadingAll = false;
+  // bool get isLoadingAll => _isLoadingAll;
+  // --- End New State ---
 
   // Example internal state for fetched translation
   Translation? _fetchedTranslation;
@@ -56,7 +65,9 @@ class LocalDatabaseProvider with ChangeNotifier {
     // Insert sample data if the database is empty on provider creation
     await _dbHelper.insertSampleDataIfNotExists();
     // Update latest played time on initialization
-    await _updateInitialRecentlyPlayed(); 
+    await _updateInitialRecentlyPlayed();
+    // Fetch initial data (both random and all ordered)
+    await fetchInitialData();
   }
 
   Future<void> _updateInitialRecentlyPlayed() async {
@@ -259,9 +270,13 @@ class LocalDatabaseProvider with ChangeNotifier {
       final recordId = await _dbHelper.insertRecord(newRecord);
       logger.d('Inserted new record with ID: $recordId for track ${track.trackId}');
 
-      // 4. Refresh the records list for the current track to update UI
-      await fetchRecordsForTrack(track.trackId);
-      // Loading state is handled within fetchRecordsForTrack
+      // 4. Refresh ALL relevant data lists to update UI
+      await Future.wait([
+        fetchRecordsForTrack(track.trackId),
+        fetchAllRecordsOrderedByTime(), // Refresh the ordered list
+        // Optionally refresh random records if needed, though less critical
+        // fetchRandomRecords(15),
+      ]);
 
     } catch (e) {
       logger.d('Error adding record: $e');
@@ -282,6 +297,106 @@ class LocalDatabaseProvider with ChangeNotifier {
        logger.d('Error saving translation via DB Helper: $e');
        // Re-throw the exception so the caller (LyricsWidget) knows about it
        throw Exception('Failed to save translation to database: $e'); 
+    }
+  }
+
+  /// Updates an existing record's content and rating.
+  Future<void> updateRecord({
+    required int recordId,
+    required String trackId, // Need trackId to refresh the correct list
+    required String newNoteContent,
+    required int newRating,
+  }) async {
+    _setLoading(true); // Indicate loading
+    logger.d('Updating record ID: $recordId with rating: $newRating');
+    try {
+      // Assuming _dbHelper.updateRecord exists and returns bool for success
+      /* // TODO: Uncomment and implement in DatabaseHelper
+      final success = await _dbHelper.updateRecord(
+        recordId: recordId,
+        noteContent: newNoteContent,
+        rating: newRating,
+      );
+      */
+      final bool success = true; // Placeholder - assume success for now
+      if (success) {
+        logger.d('Record $recordId updated successfully in DB.');
+        // Refresh ALL relevant data lists
+        await Future.wait([
+          fetchRecordsForTrack(trackId),
+          fetchAllRecordsOrderedByTime(), // Refresh the ordered list
+          // Optionally refresh random records
+           fetchRandomRecords(15),
+        ]);
+
+      } else {
+        logger.w('Failed to update record $recordId in DB.');
+        // Handle failure - maybe show an error message to the user
+      }
+    } catch (e) {
+      logger.e('Error updating record $recordId: $e');
+      // Handle error - maybe show an error message to the user
+    } finally {
+      _setLoading(false); // Ensure loading is turned off
+    }
+  }
+
+  /// Deletes a record by its ID.
+  Future<void> deleteRecord({
+    required int recordId,
+    required String trackId, // Need trackId to potentially refresh lists if needed
+  }) async {
+    _setLoading(true); // Indicate loading
+    logger.d('Deleting record ID: $recordId');
+    try {
+       // Assuming _dbHelper.deleteRecord exists and returns bool for success
+       /* // TODO: Uncomment and implement in DatabaseHelper
+      final success = await _dbHelper.deleteRecord(recordId);
+      */
+      final bool success = true; // Placeholder - assume success for now
+      if (success) {
+        logger.d('Record $recordId deleted successfully from DB.');
+        // Remove from local lists and notify
+        bool changed = false;
+        // Remove from current track list
+        int initialLength = _currentTrackRecords.length;
+        _currentTrackRecords.removeWhere((record) => record.id == recordId);
+        if (_currentTrackRecords.length < initialLength) changed = true;
+
+        // Remove from random list
+        initialLength = _randomRecords.length;
+        _randomRecords.removeWhere((record) => record['id'] == recordId);
+        if (_randomRecords.length < initialLength) changed = true;
+
+        // Remove from all ordered list
+        initialLength = _allRecordsOrdered.length;
+        _allRecordsOrdered.removeWhere((record) => record['id'] == recordId);
+        if (_allRecordsOrdered.length < initialLength) changed = true;
+
+        // Remove from related list
+        initialLength = _relatedRecords.length;
+        _relatedRecords.removeWhere((record) => record['id'] == recordId);
+        if (_relatedRecords.length < initialLength) changed = true;
+
+        // Notify listeners only if something was actually removed
+        if (changed) {
+          notifyListeners();
+        }
+
+        // Optionally, trigger a full refresh of lists after local removal,
+        // though local removal is faster for UI responsiveness.
+        // await fetchAllRecordsOrderedByTime();
+        // await fetchRandomRecords(15);
+
+      } else {
+        logger.w('Failed to delete record $recordId from DB.');
+        // Handle failure - maybe show an error message
+      }
+    } catch (e) {
+      logger.e('Error deleting record $recordId: $e');
+      // Handle error - maybe show an error message
+    } finally {
+      _setLoading(false); // Ensure loading is turned off
     }
   }
 
@@ -623,6 +738,37 @@ class LocalDatabaseProvider with ChangeNotifier {
       // Optional: Set loading state back to false
       // _isLoadingContexts = false;
       // notifyListeners();
+    }
+  }
+
+  // --- New method to fetch all records ordered by time ---
+  Future<void> fetchAllRecordsOrderedByTime({bool descending = true}) async {
+    // If called standalone, manage its own loading state if needed
+    // _setLoading(true); // Potentially set loading here
+    logger.d('Fetching all records ordered by time (descending: $descending)...');
+    try {
+      _allRecordsOrdered = await _dbHelper.getAllRecordsWithTrackInfoOrderedByTime(descending: descending);
+    } catch (e) {
+      logger.d('Error fetching all ordered records: $e');
+      _allRecordsOrdered = []; // Clear on error
+    } finally {
+       // _setLoading(false); // Manage loading state appropriately
+       notifyListeners(); // Notify after updating data
+    }
+  }
+  // --- End new method ---
+
+  // Helper to fetch both types of data initially and on refresh
+  Future<void> fetchInitialData() async {
+    _setLoading(true);
+    try {
+      // Use Future.wait to fetch concurrently
+      await Future.wait([
+        fetchRandomRecords(15), // Fetch random for carousel
+        fetchAllRecordsOrderedByTime() // Fetch all ordered for list
+      ]);
+    } finally {
+      _setLoading(false);
     }
   }
 } 
