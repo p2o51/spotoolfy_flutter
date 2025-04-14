@@ -37,6 +37,13 @@ class LocalDatabaseProvider with ChangeNotifier {
   bool _isLoadingRelated = false; // Separate loading state
   bool get isLoadingRelated => _isLoadingRelated;
 
+  // State for recent play contexts
+  List<Map<String, dynamic>> _recentContexts = [];
+  List<Map<String, dynamic>> get recentContexts => _recentContexts;
+  // Optional: Separate loading state for contexts if needed
+  // bool _isLoadingContexts = false;
+  // bool get isLoadingContexts => _isLoadingContexts;
+
   String? _lastProcessedTrackIdForPlayedAt; // Re-introduce state to track changes
 
   // Constructor accepts SpotifyProvider
@@ -94,7 +101,7 @@ class LocalDatabaseProvider with ChangeNotifier {
         }
         
         if (updatedCount > 0) {
-          final results = await batch.commit(noResult: true); // Don't need individual results
+          await batch.commit(noResult: true); // Don't need individual results
           logger.d('Batch update for $updatedCount recently played tracks committed.');
         } else {
           logger.d('No valid recently played tracks found to update.');
@@ -205,15 +212,15 @@ class LocalDatabaseProvider with ChangeNotifier {
   Future<void> addRecord({
     required Track track, // Current track info from SpotifyProvider
     required String? noteContent,
-    required String? rating,
+    required int? rating,
     required int? songTimestampMs,
     required String? contextUri,
     required String? contextName,
-    required String? lyricsSnapshot, // Lyrics snapshot from AddNoteSheet
+    // required String? lyricsSnapshot, // Removed: Lyrics snapshot functionality deferred
   }) async {
     _setLoading(true); // Indicate loading state
     final recordedAt = DateTime.now().millisecondsSinceEpoch;
-    logger.d('Adding record for track: ${track.trackId}');
+    logger.d('Adding record for track: ${track.trackId} with rating: $rating');
 
     try {
       // 1. Check if track exists, insert or update lastRecordedAt
@@ -240,12 +247,12 @@ class LocalDatabaseProvider with ChangeNotifier {
       final newRecord = Record(
         trackId: track.trackId,
         noteContent: noteContent,
-        rating: rating,
+        rating: rating, // Passed the int? rating directly
         songTimestampMs: songTimestampMs,
         recordedAt: recordedAt, // Use the timestamp generated at the start
         contextUri: contextUri,
         contextName: contextName,
-        lyricsSnapshot: lyricsSnapshot,
+        lyricsSnapshot: null, // TODO: Implement saving lyrics snippet instead of full lyrics or null
       );
 
       // 3. Insert the new record
@@ -358,12 +365,14 @@ class LocalDatabaseProvider with ChangeNotifier {
       final List<Track> tracks = await _dbHelper.getAllTracks();
       final List<Record> records = await _dbHelper.getAllRecords();
       final List<Translation> translations = await _dbHelper.getAllTranslations();
+      final List<Map<String, dynamic>> playContexts = await _dbHelper.getAllPlayContexts();
 
       // 2. Convert data to a JSON-compatible structure (List of Maps)
       final Map<String, dynamic> exportData = {
         'tracks': tracks.map((t) => t.toMap()).toList(), // Use toMap defined in models
         'records': records.map((r) => r.toMap()).toList(),
         'translations': translations.map((tr) => tr.toMap()).toList(),
+        'play_contexts': playContexts,
       };
 
       // 3. Encode data to JSON string
@@ -441,9 +450,10 @@ class LocalDatabaseProvider with ChangeNotifier {
       final tracksData = jsonData['tracks'] as List?;
       final recordsData = jsonData['records'] as List?;
       final translationsData = jsonData['translations'] as List?;
+      final playContextsData = jsonData['play_contexts'] as List?;
 
-      if (tracksData == null || recordsData == null || translationsData == null) {
-        throw Exception('Invalid JSON format: Missing required keys (tracks, records, translations).');
+      if (tracksData == null || recordsData == null || translationsData == null || playContextsData == null) {
+        throw Exception('Invalid JSON format: Missing required keys (tracks, records, translations, play_contexts).');
       }
 
       // 5. Convert JSON maps to Model objects
@@ -463,8 +473,22 @@ class LocalDatabaseProvider with ChangeNotifier {
       List<Record> recordsToImport = [];
        for (var recordMap in recordsData) {
          if (recordMap is Map<String, dynamic>) {
+            // ** Compatibility check for rating type **
+            final dynamic rawRating = recordMap['rating'];
+            if (rawRating is String) {
+              // If rating is a string (old format), set it to the default int value (3)
+              recordMap['rating'] = 3;
+              logger.d('Old string rating found for record, converting to default 3.');
+            } else if (rawRating != null && rawRating is! int) {
+              // If rating is not null, not string, and not int, treat as invalid -> null (default 3)
+              recordMap['rating'] = null;
+              logger.d('Invalid rating type found (${rawRating.runtimeType}), setting to null (default 3).');
+            }
+            // If rawRating is int or null, it's already compatible
+
              // Add robust checking for required fields
             if (recordMap['trackId'] != null && recordMap['recordedAt'] != null) {
+               // Now that rating is compatible (int? or null), create the Record object
                recordsToImport.add(Record.fromMap(recordMap));
             } else {
                logger.d('Skipping invalid record data: $recordMap');
@@ -486,7 +510,48 @@ class LocalDatabaseProvider with ChangeNotifier {
          }
       }
       
-      logger.d('Parsed ${tracksToImport.length} tracks, ${recordsToImport.length} records, ${translationsToImport.length} translations.');
+      // --- Add validation and conversion for play contexts ---
+      List<Map<String, dynamic>> contextsToImport = [];
+      for (var contextMap in playContextsData) {
+        if (contextMap is Map<String, dynamic>) {
+          // Validate required fields and types
+          if (contextMap['contextUri'] is String &&
+              contextMap['contextType'] is String &&
+              contextMap['contextName'] is String &&
+              contextMap['lastPlayedAt'] != null) { // Check for existence first
+            
+            // Ensure lastPlayedAt is an int
+            int? lastPlayedAtInt;
+            if (contextMap['lastPlayedAt'] is int) {
+              lastPlayedAtInt = contextMap['lastPlayedAt'] as int;
+            } else if (contextMap['lastPlayedAt'] is String) {
+              lastPlayedAtInt = int.tryParse(contextMap['lastPlayedAt']);
+            } else if (contextMap['lastPlayedAt'] is double) {
+              lastPlayedAtInt = (contextMap['lastPlayedAt'] as double).toInt();
+            }
+
+            if (lastPlayedAtInt != null) {
+              // Add the validated/converted map
+              contextsToImport.add({
+                'contextUri': contextMap['contextUri'],
+                'contextType': contextMap['contextType'],
+                'contextName': contextMap['contextName'],
+                'imageUrl': contextMap['imageUrl'], // Allow null
+                'lastPlayedAt': lastPlayedAtInt,
+              });
+            } else {
+              logger.w('Skipping invalid play context data (lastPlayedAt not convertible to int): ${json.encode(contextMap)}');
+            }
+          } else {
+            logger.w('Skipping invalid play context data (missing fields or wrong types): ${json.encode(contextMap)}');
+          }
+        } else {
+          logger.w('Skipping non-map item in play_contexts data: $contextMap');
+        }
+      }
+      // --- End validation and conversion ---
+      
+      logger.d('Parsed ${tracksToImport.length} tracks, ${recordsToImport.length} records, ${translationsToImport.length} translations, ${contextsToImport.length} play contexts.');
 
       // 6. Perform Batch Insert/Replace
       // IMPORTANT: Consider wrapping this in a transaction if possible with sqflite batches,
@@ -494,6 +559,7 @@ class LocalDatabaseProvider with ChangeNotifier {
       await _dbHelper.batchInsertOrReplaceTracks(tracksToImport);
       await _dbHelper.batchInsertRecords(recordsToImport); // Note: Using Insert, not Replace
       await _dbHelper.batchInsertOrReplaceTranslations(translationsToImport);
+      await _dbHelper.batchInsertOrReplacePlayContexts(contextsToImport);
 
       logger.d('Data import completed successfully.');
        _setLoading(false);
@@ -503,6 +569,60 @@ class LocalDatabaseProvider with ChangeNotifier {
       logger.d('Error during data import: $e');
       _setLoading(false);
       return false;
+    }
+  }
+
+  // --- Methods for Play Contexts ---
+
+  /// Inserts or updates a play context in the database.
+  Future<void> insertOrUpdatePlayContext({
+    required String contextUri,
+    required String contextType,
+    required String contextName,
+    required String? imageUrl,
+    required int lastPlayedAt,
+  }) async {
+    logger.d('[LocalDBProvider] insertOrUpdatePlayContext called for URI: $contextUri'); // Log: Method entry
+    try {
+      logger.d('[LocalDBProvider] Calling _dbHelper.insertOrUpdatePlayContext...'); // Log: Before helper call
+      await _dbHelper.insertOrUpdatePlayContext(
+        contextUri: contextUri,
+        contextType: contextType,
+        contextName: contextName,
+        imageUrl: imageUrl,
+        lastPlayedAt: lastPlayedAt,
+      );
+      logger.d('[LocalDBProvider] Successfully called _dbHelper.insertOrUpdatePlayContext for $contextUri'); // Log: After helper call success
+      // Optional: Fetch immediately after update if UI needs real-time carousel update
+      // await fetchRecentContexts(); 
+      // --- Fetch recent contexts to update the UI --- 
+      await fetchRecentContexts();
+      // --- End fetching ---
+    } catch (e, s) { // Log: Catch internal error
+      logger.e('[LocalDBProvider] Error in insertOrUpdatePlayContext', error: e, stackTrace: s);
+    }
+  }
+
+  /// Fetches the most recent play contexts from the database and updates the state.
+  Future<void> fetchRecentContexts({int limit = 15}) async {
+    // Optional: Set loading state if you added one
+    // _isLoadingContexts = true;
+    // notifyListeners(); 
+    logger.d('[LocalDBProvider] fetchRecentContexts called (limit: $limit)...'); // Log: Method entry
+    try {
+      logger.d('[LocalDBProvider] Calling _dbHelper.getRecentPlayContexts...'); // Log: Before helper call
+      final contextsFromDb = await _dbHelper.getRecentPlayContexts(limit);
+      logger.d('[LocalDBProvider] Received ${contextsFromDb.length} contexts from DB: ${json.encode(contextsFromDb)}'); // Log: Data received from helper
+      _recentContexts = contextsFromDb;
+      notifyListeners(); // Notify listeners after fetching data
+    } catch (e, s) { // Log: Catch internal error
+      logger.e('[LocalDBProvider] Error in fetchRecentContexts', error: e, stackTrace: s);
+      _recentContexts = []; // Clear on error
+      notifyListeners(); // Notify listeners even on error
+    } finally {
+      // Optional: Set loading state back to false
+      // _isLoadingContexts = false;
+      // notifyListeners();
     }
   }
 } 

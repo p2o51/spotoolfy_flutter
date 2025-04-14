@@ -5,6 +5,7 @@ import '../providers/local_database_provider.dart';
 import '../services/lyrics_service.dart';
 import '../models/track.dart';
 import 'package:flutter/services.dart';
+import './materialui.dart';
 
 class AddNoteSheet extends StatefulWidget {
   const AddNoteSheet({super.key});
@@ -15,7 +16,7 @@ class AddNoteSheet extends StatefulWidget {
 
 class _AddNoteSheetState extends State<AddNoteSheet> {
   final _controller = TextEditingController();
-  String? _selectedRating;
+  int? _selectedRatingValue;
   bool _isSubmitting = false;
 
   @override
@@ -42,7 +43,6 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
 
     setState(() => _isSubmitting = true);
 
-    String? lyricsSnapshot;
     String errorMsg = '';
 
     try {
@@ -62,20 +62,13 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       final contextUri = spotifyContext?['uri'] as String?;
       final contextName = trackItem['album']?['name'] as String? ?? 'Unknown Context';
 
-      try {
-        lyricsSnapshot = await lyricsService.getLyrics(track.trackName, track.artistName, track.trackId);
-      } catch (e) {
-        print('Error fetching lyrics snapshot: $e');
-      }
-
       await localDbProvider.addRecord(
         track: track,
         noteContent: _controller.text,
-        rating: _selectedRating,
+        rating: _selectedRatingValue,
         songTimestampMs: songTimestampMs,
         contextUri: contextUri,
         contextName: contextName,
-        lyricsSnapshot: lyricsSnapshot,
       );
 
       if (mounted) {
@@ -160,6 +153,26 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
             onChanged: (value) => setState(() {}),
             enabled: !_isSubmitting,
           ),
+          const SizedBox(height: 16),
+          // --- Add the Ratings Widget Here ---
+          Center(
+            child: Ratings(
+              initialRating: _selectedRatingValue, // Pass the current int rating
+              onRatingChanged: (selectedIndex) {
+                 // Map index 0, 1, 2 to rating 0, 3, 5
+                setState(() {
+                  if (selectedIndex == 0) {
+                    _selectedRatingValue = 0; // Bad
+                  } else if (selectedIndex == 1) {
+                    _selectedRatingValue = 3; // Neutral/Good (matches default)
+                  } else { // selectedIndex == 2
+                    _selectedRatingValue = 5; // Fire
+                  }
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

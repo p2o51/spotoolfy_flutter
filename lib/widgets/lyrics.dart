@@ -222,7 +222,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
        return;
     }
 
-    String? translatedText;
     String? errorMsg;
 
     try {
@@ -238,99 +237,139 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       debugPrint('Attempting to load translation from DB: $currentTrackId, $currentLanguage, $styleString');
       final cachedTranslation = await localDbProvider.fetchTranslation(currentTrackId, currentLanguage, styleString);
 
+      Map<String, String?>? translationData;
+      String? fetchedTranslatedText;
+
       if (cachedTranslation != null) {
         debugPrint('Translation found in DB!');
-        translatedText = cachedTranslation.translatedLyrics;
+        fetchedTranslatedText = cachedTranslation.translatedLyrics;
+        // Use the language and style stored in the DB record
+        translationData = {
+          'text': fetchedTranslatedText,
+          'languageCode': cachedTranslation.languageCode,
+          'style': cachedTranslation.style,
+        };
       } else {
         debugPrint('Translation not found in DB, fetching from API...');
         // *** FETCH FROM API IF NOT IN DB ***
-        translatedText = await _translationService.translateLyrics(
+        // Store the result map
+        translationData = await _translationService.translateLyrics(
           originalLyricsText, 
           currentTrackId, 
-          targetLanguage: currentLanguage,
+          targetLanguage: currentLanguage, // Pass current target language
         );
+        fetchedTranslatedText = translationData?['text']; // Extract text from map
 
         // *** SAVE TO DB IF FETCHED FROM API ***
-        if (mounted && translatedText != null) {
-          try {
-            // Ensure track exists first (logic copied from previous step)
-            final existingTrack = await localDbProvider.getTrack(currentTrackId);
-            if (existingTrack == null) {
-              debugPrint('Track $currentTrackId not found in DB when saving API translation, adding it...');
-              final trackItem = spotifyProvider.currentTrack?['item'];
-              if (trackItem != null) {
-                 final trackToAdd = Track(
-                   trackId: currentTrackId,
-                   trackName: trackItem['name'] as String,
-                   artistName: (trackItem['artists'] as List).map((a) => a['name']).join(', '),
-                   albumName: trackItem['album']?['name'] as String? ?? 'Unknown Album',
-                   albumCoverUrl: (trackItem['album']?['images'] as List?)?.isNotEmpty == true
+        if (mounted && fetchedTranslatedText != null && translationData != null) {
+          final languageCodeUsed = translationData['languageCode'];
+          final styleUsed = translationData['style']; // String name of the style
+
+          if (languageCodeUsed != null && styleUsed != null) {
+            try {
+              // Ensure track exists first (logic copied from previous step)
+              final existingTrack = await localDbProvider.getTrack(currentTrackId);
+              if (existingTrack == null) {
+                debugPrint('Track $currentTrackId not found in DB when saving API translation, adding it...');
+                final trackItem = spotifyProvider.currentTrack?['item'];
+                if (trackItem != null) {
+                   final trackToAdd = Track(
+                     trackId: currentTrackId,
+                     trackName: trackItem['name'] as String,
+                     artistName: (trackItem['artists'] as List).map((a) => a['name']).join(', '),
+                     albumName: trackItem['album']?['name'] as String? ?? 'Unknown Album',
+                     albumCoverUrl: (trackItem['album']?['images'] as List?)?.isNotEmpty == true
                                   ? trackItem['album']['images'][0]['url']
                                   : null,
-                 );
-                 await localDbProvider.addTrack(trackToAdd);
-                 debugPrint('Track $currentTrackId added to DB.');
-              } else {
-                 throw Exception('Could not fetch track details for $currentTrackId');
+                   );
+                   await localDbProvider.addTrack(trackToAdd);
+                   debugPrint('Track $currentTrackId added to DB.');
+                } else {
+                   throw Exception('Could not fetch track details for $currentTrackId');
+                }
               }
+              // Now save the translation using fetched details
+              final translationToSave = Translation(
+                trackId: currentTrackId,
+                languageCode: languageCodeUsed, // Use language code from result
+                style: styleUsed,             // Use style string from result
+                translatedLyrics: fetchedTranslatedText,
+                generatedAt: DateTime.now().millisecondsSinceEpoch,
+              );
+              await localDbProvider.saveTranslation(translationToSave);
+              debugPrint('Translation fetched from API and saved to local DB for track $currentTrackId');
+            } catch (dbOrTrackError) {
+              debugPrint('Error ensuring track/saving API translation to local DB: $dbOrTrackError');
+              errorMsg = 'Failed to save fetched translation: ${dbOrTrackError.toString()}';
             }
-            // Now save the translation
-            final translationToSave = Translation(
-              trackId: currentTrackId,
-              languageCode: currentLanguage,
-              style: styleString,
-              translatedLyrics: translatedText,
-              generatedAt: DateTime.now().millisecondsSinceEpoch,
-            );
-            await localDbProvider.saveTranslation(translationToSave);
-            debugPrint('Translation fetched from API and saved to local DB for track $currentTrackId');
-          } catch (dbOrTrackError) {
-            debugPrint('Error ensuring track/saving API translation to local DB: $dbOrTrackError');
-            errorMsg = 'Failed to save fetched translation: ${dbOrTrackError.toString()}'; 
-            // Continue to show the fetched translation, but log the save error
+          } else {
+             debugPrint('Translation result map missing language or style after API fetch.');
+             errorMsg = 'Translation result incomplete.';
           }
         }
       } // End else (fetch from API)
 
       // *** SHOW BOTTOM SHEET IF TRANSLATION IS AVAILABLE ***
-      if (mounted && translatedText != null) {
+      if (mounted && fetchedTranslatedText != null) {
         final wasAutoScrolling = _autoScroll;
+        final displayLanguageCode = translationData?['languageCode'] ?? currentLanguage;
+        final displayStyleString = translationData?['style'] ?? styleString;
+        final displayStyleEnum = TranslationStyle.values.firstWhere(
+          (e) => translationStyleToString(e) == displayStyleString,
+          orElse: () => currentStyle,
+        );
+
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (context) => TranslationResultSheet(
             originalLyrics: originalLyricsText,
-            translatedLyrics: translatedText!, // Now non-nullable here
-            translationStyle: currentStyle,
+            translatedLyrics: fetchedTranslatedText!,
+            translationStyle: displayStyleEnum,
             onReTranslate: () async {
               // Re-translate logic fetches from API and saves to DB again
+              String? newTranslationText;
               try {
-                  final newTranslation = await _translationService.translateLyrics(
+                  // Call service, get the map
+                  final retranslateResult = await _translationService.translateLyrics(
                     originalLyricsText,
                     currentTrackId,
                     forceRefresh: true,
-                    targetLanguage: currentLanguage,
+                    targetLanguage: displayLanguageCode, // Use the language code from this context
                   );
-                  if (mounted && newTranslation != null) {
-                    try {
-                       final retranslatedToSave = Translation(
-                         trackId: currentTrackId,
-                         languageCode: currentLanguage,
-                         style: styleString,
-                         translatedLyrics: newTranslation,
-                         generatedAt: DateTime.now().millisecondsSinceEpoch,
-                       );
-                       await localDbProvider.saveTranslation(retranslatedToSave);
-                       debugPrint('Re-translation saved to local DB for track $currentTrackId');
-                    } catch (reSaveError) {
-                       debugPrint('Error saving re-translation to local DB: $reSaveError');
-                    }
+
+                  newTranslationText = retranslateResult?['text']; // Extract text
+
+                  // Save if successful and component is mounted
+                  if (mounted && newTranslationText != null && retranslateResult != null) {
+                     final langCode = retranslateResult['languageCode'];
+                     final styleStr = retranslateResult['style'];
+
+                     if (langCode != null && styleStr != null) {
+                        try {
+                           final retranslatedToSave = Translation(
+                             trackId: currentTrackId,
+                             languageCode: langCode,
+                             style: styleStr,
+                             translatedLyrics: newTranslationText,
+                             generatedAt: DateTime.now().millisecondsSinceEpoch,
+                           );
+                           await localDbProvider.saveTranslation(retranslatedToSave);
+                           debugPrint('Re-translation saved to local DB for track $currentTrackId');
+                        } catch (reSaveError) {
+                           debugPrint('Error saving re-translation to local DB: $reSaveError');
+                        }
+                     } else {
+                        debugPrint('Retranslate result map missing language or style.');
+                     }
                   }
-                  return newTranslation;
+                  // Return ONLY the text (String?) as expected by the sheet
+                  return newTranslationText;
                 } catch (e) {
                   debugPrint('Error during re-translation: $e');
-                  rethrow;
+                  // Return null or rethrow depending on how sheet handles error
+                  return null; 
                 }
             },
           ),
@@ -352,9 +391,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             });
           }
         });
-      } else if (mounted && translatedText == null) {
-          // Handle case where translation failed (either DB check failed or API failed)
-          errorMsg = errorMsg ?? 'Failed to get translation.'; // Use specific save error or general error
+      } else if (mounted) {
+          // Handle case where translation failed
+          errorMsg = errorMsg ?? 'Failed to get translation.';
           notificationService.showErrorSnackBar(errorMsg);
       }
 

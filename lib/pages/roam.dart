@@ -153,24 +153,35 @@ class _RoamState extends State<Roam> {
                                             ),
                                           ),
                                         ),
-                                        // Display rating if available
-                                        if (record['rating'] != null && record['rating'].isNotEmpty)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(context).colorScheme.primaryContainer,
-                                              borderRadius: BorderRadius.circular(16),
-                                            ),
-                                            child: Text(
-                                              // Use correct map key for rating
-                                              record['rating']!,
-                                              style: TextStyle(
-                                                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
+                                        // Display rating icon based on integer value
+                                        () { // Wrap the logic in a builder function or IIFE
+                                          final dynamic ratingRaw = record['rating']; // Get the raw value first
+                                          int? ratingValue;
+
+                                          if (ratingRaw is int) {
+                                            ratingValue = ratingRaw;
+                                          } else if (ratingRaw is String) {
+                                            // If it's a string (old data), treat it as the default rating 3
+                                            ratingValue = 3;
+                                          }
+                                          // If ratingRaw is null or other type, ratingValue remains null
+
+                                          IconData ratingIcon;
+                                          switch (ratingValue) { // Use the potentially parsed value
+                                            case 0:
+                                              ratingIcon = Icons.thumb_down_outlined;
+                                              break;
+                                            case 5:
+                                              ratingIcon = Icons.whatshot_outlined;
+                                              break;
+                                            case 3:
+                                            default:
+                                              ratingIcon = Icons.sentiment_neutral_rounded;
+                                              break;
+                                          }
+                                          // Return the Icon widget directly
+                                          return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 20);
+                                        }(), // Immediately invoke the function to get the Icon widget
                                       ],
                                     ),
                                   ],

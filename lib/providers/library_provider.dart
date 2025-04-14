@@ -8,7 +8,6 @@ class LibraryProvider extends ChangeNotifier {
   // Data
   List<Map<String, dynamic>> _userPlaylists = [];
   List<Map<String, dynamic>> _userSavedAlbums = [];
-  List<Map<String, dynamic>> _recentlyPlayed = [];
   
   // Filters
   bool _showPlaylists = true;
@@ -25,7 +24,6 @@ class LibraryProvider extends ChangeNotifier {
   // Getters
   List<Map<String, dynamic>> get userPlaylists => _userPlaylists;
   List<Map<String, dynamic>> get userSavedAlbums => _userSavedAlbums;
-  List<Map<String, dynamic>> get recentlyPlayed => _recentlyPlayed;
   bool get showPlaylists => _showPlaylists;
   bool get showAlbums => _showAlbums;
   bool get isLoading => _isLoading;
@@ -100,12 +98,10 @@ class LibraryProvider extends ChangeNotifier {
       final results = await Future.wait([
         _spotifyProvider.getUserPlaylists(),
         _spotifyProvider.getUserSavedAlbums(),
-        _spotifyProvider.getRecentlyPlayed(),
       ]);
       
       _userPlaylists = results[0];
       _userSavedAlbums = results[1];
-      _recentlyPlayed = results[2];
       _isFirstLoad = false;
       _isLoading = false;
       
@@ -159,7 +155,6 @@ class LibraryProvider extends ChangeNotifier {
       // Clear data on logout
       _userPlaylists = [];
       _userSavedAlbums = [];
-      _recentlyPlayed = [];
       _isFirstLoad = true;
       notifyListeners();
     }

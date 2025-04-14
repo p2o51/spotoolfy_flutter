@@ -4,10 +4,15 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
+import 'dart:convert';
+import 'package:logger/logger.dart';
 
 import '../models/record.dart';
 import '../models/track.dart';
 import '../models/translation.dart';
+
+// Define logger instance for this file
+final logger = Logger();
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -63,7 +68,7 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         trackId TEXT NOT NULL,
         noteContent TEXT,
-        rating TEXT,
+        rating INTEGER DEFAULT 3,
         songTimestampMs INTEGER,
         recordedAt INTEGER NOT NULL,
         contextUri TEXT,
@@ -95,6 +100,19 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_translation_trackId ON translations (trackId);');
      // Index for the unique constraint might also improve lookups if needed
     await db.execute('CREATE INDEX idx_translation_unique ON translations (trackId, languageCode, style);');
+
+    // Create play_contexts table
+    await db.execute('''
+      CREATE TABLE play_contexts (
+        contextUri TEXT PRIMARY KEY,
+        contextType TEXT NOT NULL, 
+        contextName TEXT NOT NULL,
+        imageUrl TEXT,
+        lastPlayedAt INTEGER NOT NULL
+      );
+    ''');
+    // Add index for sorting by lastPlayedAt
+    await db.execute('CREATE INDEX idx_play_contexts_lastPlayedAt ON play_contexts (lastPlayedAt);');
 
   }
 
@@ -339,6 +357,104 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
+  // --- Methods for Play Contexts ---
+
+  /// Inserts or updates a play context.
+  /// If a context with the same URI exists, it updates the lastPlayedAt timestamp.
+  /// Otherwise, it inserts a new context.
+  Future<void> insertOrUpdatePlayContext({
+    required String contextUri,
+    required String contextType,
+    required String contextName,
+    required String? imageUrl,
+    required int lastPlayedAt,
+  }) async {
+    final db = await instance.database;
+    final dataToInsert = {
+      'contextUri': contextUri,
+      'contextType': contextType,
+      'contextName': contextName,
+      'imageUrl': imageUrl,
+      'lastPlayedAt': lastPlayedAt,
+    };
+    logger.d('[DBHelper] Attempting to insert/update play_context: ${json.encode(dataToInsert)}'); // Log: Data to insert
+    try {
+      await db.insert(
+        'play_contexts',
+        dataToInsert,
+        conflictAlgorithm: ConflictAlgorithm.replace, // Replace updates if PK exists
+      );
+      logger.d('[DBHelper] Successfully inserted/updated play_context for URI: $contextUri'); // Log: Success
+    } catch (e, s) {
+      logger.e('[DBHelper] Error inserting/updating play_context', error: e, stackTrace: s); // Log: Error
+      rethrow; // Re-throw the error so the provider layer can potentially handle it
+    }
+  }
+
+  /// Retrieves the most recent play contexts, ordered by lastPlayedAt descending.
+  /// Limits the results to the specified number.
+  Future<List<Map<String, dynamic>>> getRecentPlayContexts(int limit) async {
+    final db = await instance.database;
+    logger.d('[DBHelper] Querying play_contexts, orderBy: lastPlayedAt DESC, limit: $limit'); // Log: Query details
+    try {
+      final List<Map<String, dynamic>> maps = await db.query(
+        'play_contexts',
+        orderBy: 'lastPlayedAt DESC',
+        limit: limit,
+      );
+      logger.d('[DBHelper] Query successful, returned ${maps.length} contexts.'); // Log: Query success
+      return maps;
+    } catch (e, s) {
+      logger.e('[DBHelper] Error querying play_contexts', error: e, stackTrace: s); // Log: Error
+      rethrow; // Re-throw the error
+    }
+  }
+
+  /// Fetches all play contexts from the database.
+  Future<List<Map<String, dynamic>>> getAllPlayContexts() async {
+    final db = await instance.database;
+    logger.d('[DBHelper] Querying all play_contexts...');
+    try {
+      final List<Map<String, dynamic>> maps = await db.query('play_contexts');
+      logger.d('[DBHelper] getAllPlayContexts successful, returned ${maps.length} contexts.');
+      return maps;
+    } catch (e, s) {
+      logger.e('[DBHelper] Error querying all play_contexts', error: e, stackTrace: s);
+      rethrow;
+    }
+  }
+
+  /// Inserts or replaces multiple play contexts in a batch.
+  Future<void> batchInsertOrReplacePlayContexts(List<Map<String, dynamic>> contexts) async {
+    if (contexts.isEmpty) return;
+    final db = await instance.database;
+    final batch = db.batch();
+    logger.d('[DBHelper] Starting batch insert/replace for ${contexts.length} play contexts...');
+    int count = 0;
+    for (final context in contexts) {
+      // Basic validation before adding to batch
+      if (context['contextUri'] != null &&
+          context['contextType'] != null &&
+          context['contextName'] != null &&
+          context['lastPlayedAt'] is int) { // Ensure lastPlayedAt is int
+        batch.insert(
+          'play_contexts',
+          context, // Assuming the map structure matches the table columns
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        count++;
+      } else {
+        logger.w('[DBHelper] Skipping invalid play context data in batch: ${json.encode(context)}');
+      }
+    }
+    if (count > 0) {
+      await batch.commit(noResult: true);
+      logger.d('[DBHelper] Batch insert/replace for $count play contexts committed.');
+    } else {
+       logger.w('[DBHelper] No valid play contexts found to commit in batch.');
+    }
+  }
+
   // --- Debug/Testing Methods ---
 
   /// Inserts sample data for testing if the database appears empty.
@@ -390,7 +506,7 @@ class DatabaseHelper {
             Record(
               trackId: 'spotify:track:sample1', // Matches Track 1
               noteContent: 'This is a test note for Sample Track One.',
-              rating: 'good',
+              rating: 3,
               songTimestampMs: 30000,
               recordedAt: DateTime.now().subtract(Duration(days: 1, hours: 1)).millisecondsSinceEpoch,
               contextUri: 'spotify:playlist:testplaylist',
@@ -405,7 +521,7 @@ class DatabaseHelper {
             Record(
               trackId: 'spotify:track:sample2', // Matches Track 2
               noteContent: 'A quick thought about Another Sample Song.',
-              rating: 'fire',
+              rating: 3,
               recordedAt: DateTime.now().millisecondsSinceEpoch,
               // songTimestampMs, context, lyricsSnapshot are optional
             ).toMap(),

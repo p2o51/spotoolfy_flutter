@@ -9,25 +9,31 @@ class TranslationService {
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest'; // Use the latest flash model
   static const String _cacheKeyPrefix = 'translation_cache_'; // Cache key prefix
 
-  Future<String?> translateLyrics(String lyricsText, String trackId, {String? targetLanguage, bool forceRefresh = false}) async {
+  Future<Map<String, String?>?> translateLyrics(String lyricsText, String trackId, {String? targetLanguage, bool forceRefresh = false}) async {
     final apiKey = await _settingsService.getGeminiApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw Exception('Gemini API Key not configured.');
     }
 
-    final language = targetLanguage ?? await _settingsService.getTargetLanguage();
-    final languageName = _getLanguageName(language); // Get full language name for the prompt
-    final style = await _settingsService.getTranslationStyle(); // Get selected style
-    final styleName = translationStyleToString(style); // Get style name for cache key
+    final languageCodeUsed = targetLanguage ?? await _settingsService.getTargetLanguage(); // Capture the language used
+    final languageName = _getLanguageName(languageCodeUsed);
+    final styleUsed = await _settingsService.getTranslationStyle(); // Capture the style used
+    final styleNameUsed = translationStyleToString(styleUsed); // Get style name for cache key and return value
 
     // Generate cache key including language and style
-    final cacheKey = '$_cacheKeyPrefix${trackId}_${language}_$styleName'; 
+    final cacheKey = '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed';
     final prefs = await SharedPreferences.getInstance();
 
     // Try fetching from cache first
     final cachedTranslation = prefs.getString(cacheKey);
     if (cachedTranslation != null && !forceRefresh) {
-      return cachedTranslation;
+      print('Translation cache hit for $cacheKey');
+      // Return cached text along with the language/style it was created with
+      return {
+        'text': cachedTranslation,
+        'languageCode': languageCodeUsed,
+        'style': styleNameUsed,
+      };
     }
 
     // If forcing refresh, remove existing cache entry
@@ -39,7 +45,7 @@ class TranslationService {
     final url = Uri.parse('$_geminiApiBaseUrl:generateContent?key=$apiKey');
     
     // Get the prompt based on the selected style
-    final prompt = _getPromptForStyle(style, languageName, lyricsText);
+    final prompt = _getPromptForStyle(styleUsed, languageName, lyricsText);
 
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -134,7 +140,12 @@ class TranslationService {
             // Use the style-specific cache key but save only the clean text
             await prefs.setString(cacheKey, translatedText); 
 
-            return translatedText; // Return clean text
+            // Return the result map
+            return {
+              'text': translatedText,
+              'languageCode': languageCodeUsed,
+              'style': styleNameUsed,
+            };
           }
         }
         // Handle cases where the expected structure isn't found
@@ -153,8 +164,9 @@ class TranslationService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      // Re-throw the exception to be handled by the caller
-      rethrow;
+      print('Error during translation API call or processing: $e');
+      // Return null if translation fails
+      return null;
     }
   }
 
@@ -297,5 +309,10 @@ Translated Lyrics ($languageName) [Machine Translation Classic Style]:
       print('Failed to get translation cache size: $e');
       return 0;
     }
+  }
+
+  // Helper to convert enum to string for saving/cache key
+  String translationStyleToString(TranslationStyle style) {
+    return style.toString().split('.').last;
   }
 } 

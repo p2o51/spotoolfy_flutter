@@ -14,7 +14,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:spotify_sdk/spotify_sdk.dart';
+import '../providers/local_database_provider.dart';
+import 'package:logger/logger.dart';
 
+final logger = Logger();
 
 enum PlayMode {
   singleRepeat,    // 单曲循环（曲循环+顺序播放）
@@ -251,37 +254,44 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   void startTrackRefresh() {
+    logger.d("Attempting to start track refresh timers..."); // Log: Start attempt
     _refreshTimer?.cancel();
     _progressTimer?.cancel();
     
     if (username != null) {
+      logger.d("Username confirmed ($username), proceeding with timer setup."); // Log: Username OK
       // 立即执行一次刷新
       refreshCurrentTrack();
       refreshAvailableDevices();
       
       // API 刷新计时器 - 每 3.5 秒从服务器获取一次
       _refreshTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) async {
+        logger.d("_refreshTimer ticked!"); // Log: Timer ticked
         if (!_isSkipping) {
           try {
             // 在每次 API 调用前检查令牌是否需要刷新
             final token = await _spotifyService.getAccessToken();
             if (token == null) {
-              // 如果获取不到有效令牌，可能需要重新登录
+              logger.w("_refreshTimer: No valid token, logging out."); // Log: Token issue
               await logout();
               return;
             }
             
+            logger.d("_refreshTimer: Calling refreshCurrentTrack and refreshAvailableDevices..."); // Log: Before refresh calls
             await refreshCurrentTrack();
             await refreshAvailableDevices();
           } catch (e) {
-            debugPrint('定时刷新失败: $e');
+            logger.e('定时刷新失败 (_refreshTimer)', error: e); // Log: Timer error
             // 如果刷新失败，可能是令牌问题，尝试重新登录
             if (e is SpotifyAuthException) {
               await logout();
             }
           }
+        } else {
+            logger.d("_refreshTimer skipped due to _isSkipping flag."); // Log: Skipped
         }
       });
+      logger.d("_refreshTimer created: active=${_refreshTimer?.isActive}"); // Log: Timer created
       
       // 本地进度计时器保持不变
       _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -296,6 +306,9 @@ class SpotifyProvider extends ChangeNotifier {
           _lastProgressUpdate = now;
         }
       });
+      logger.d("_progressTimer created: active=${_progressTimer?.isActive}"); // Log: Timer created
+    } else {
+      logger.w("startTrackRefresh called but username is null. Timers not started."); // Log: No username
     }
   }
 
@@ -310,12 +323,15 @@ class SpotifyProvider extends ChangeNotifier {
     if (_isSkipping) return;
     
     try {
-      // 打印当前的 ClientID
-      // final credentials = await getClientCredentials();
-      // print('当前使用的 ClientID: ${credentials['clientId']}'); // 通常不需要在每次刷新时打印
-      
       final track = await _spotifyService.getCurrentlyPlayingTrack();
+      
+      // --- Log 1: Log the entire track data from API ---
+      logger.d('Received track data from API: ${json.encode(track)}'); 
+
       if (track != null) {
+        // --- Log 2: Log the context field specifically ---
+        logger.d('Context field value from API: ${track['context']}');
+
         final newId = track['item']?['id'];
         final oldId = currentTrack?['item']?['id'];
         final isPlaying = track['is_playing'];
@@ -323,6 +339,14 @@ class SpotifyProvider extends ChangeNotifier {
         final progress = track['progress_ms'];
         final newContextUri = track['context']?['uri'];
         final oldContextUri = currentTrack?['context']?['uri'];
+
+        // *** Add LocalDatabaseProvider Access ***
+        // Assuming LocalDatabaseProvider is accessible via context or injected dependency
+        // This might require adjusting how providers are set up (e.g., using ChangeNotifierProxyProvider)
+        final localDbProvider = Provider.of<LocalDatabaseProvider>(
+          navigatorKey.currentContext!, // Assuming navigatorKey provides context
+          listen: false
+        );
 
         // 检查是否需要更新状态 (基于核心播放信息)
         final shouldUpdateCoreState = currentTrack == null ||
@@ -332,31 +356,60 @@ class SpotifyProvider extends ChangeNotifier {
             
         bool needsNotify = false;
 
+        // *** Moved Context Saving Logic OUTSIDE shouldUpdateCoreState check ***
+        if (track['context'] != null && track['item'] != null) {
+          // Log 3: Log before saving context
+          logger.d('Context found, starting save process...'); 
+          try {
+            final context = track['context'];
+            final contextUri = context['uri'] as String;
+            final contextType = context['type'] as String;
+
+            // --- Log 4: Before enriching context --- 
+            logger.d('Attempting to enrich context for URI: $contextUri');
+            final enrichedContext = await _enrichPlayContext(context); // 检查这里是否会出错
+            // --- Log 5: After enriching context --- 
+            logger.d('Enriched context result: ${json.encode(enrichedContext)}');
+
+            final contextName = enrichedContext['name'] as String? ?? 'Unknown';
+            final imageUrlList = enrichedContext['images'] as List?;
+            final imageUrl = imageUrlList?.isNotEmpty == true ? imageUrlList![0]['url'] : null;
+
+            // --- Log 6: Before getting LocalDatabaseProvider --- 
+            logger.d('Attempting to get LocalDatabaseProvider...');
+            final localDbProvider = Provider.of<LocalDatabaseProvider>(
+              navigatorKey.currentContext!, // 检查这里是否会出错
+              listen: false
+            );
+            // --- Log 7: After getting LocalDatabaseProvider --- 
+            logger.d('Got LocalDatabaseProvider instance: $localDbProvider');
+
+            // --- Log 8: Before calling insertOrUpdatePlayContext --- 
+            logger.d('Calling insertOrUpdatePlayContext with: URI=$contextUri, Name=$contextName, Image=$imageUrl');
+            await localDbProvider.insertOrUpdatePlayContext(
+              contextUri: contextUri,
+              contextType: contextType,
+              contextName: contextName,
+              imageUrl: imageUrl,
+              lastPlayedAt: DateTime.now().millisecondsSinceEpoch,
+            );
+            // --- Log 9: After calling insertOrUpdatePlayContext --- 
+            logger.d('Successfully called insertOrUpdatePlayContext for $contextUri');
+          } catch (e, s) { // Catch error and stack trace
+            // Log 10: Log error during context saving
+            logger.e('Error saving play context to local DB', error: e, stackTrace: s);
+          }
+        }
+        // *** End of Moved Context Saving Logic ***
+
         if (shouldUpdateCoreState) {
-          // 重置进度更新时间
+          // Reset progress update time
           _lastProgressUpdate = DateTime.now();
           
-          // 在核心状态改变时刷新播放队列
+          // Refresh playback queue on core state change
           await refreshPlaybackQueue();
           
-          // 获取 FirestoreProvider 实例并保存播放上下文
-          // if (track['context'] != null && track['item'] != null) { // Commented out Firestore logic
-          //   final firestoreProvider = Provider.of<FirestoreProvider>(
-          //     navigatorKey.currentContext!, 
-          //     listen: false
-          //   );
-            
-          //   try {
-          //     final enrichedContext = await _enrichPlayContext(track['context']);
-          //     await firestoreProvider.savePlayContext(
-          //       trackId: track['item']['id'],
-          //       context: enrichedContext,
-          //       timestamp: DateTime.now(),
-          //     );
-          //   } catch (e) {
-          //     debugPrint('保存播放上下文到 Firestore 失败: $e');
-          //   }
-          // } // End commented out Firestore logic
+          // No longer save context here
 
           previousTrack = currentTrack;
           currentTrack = track;

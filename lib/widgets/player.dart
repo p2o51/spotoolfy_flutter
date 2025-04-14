@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/physics.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import 'dart:math';
 
 class Player extends StatefulWidget {
   final bool isLargeScreen;
@@ -685,14 +686,20 @@ class DragIndicator extends StatelessWidget {
       );
     } else {
       // 小屏幕模式
-      final maxHeight = MediaQuery.of(context).size.height - 64;
+      final availableHeight = MediaQuery.of(context).size.height - 64;
+      // Ensure maxHeight is not negative
+      final maxHeight = max(0.0, availableHeight); 
       final minHeight = maxHeight * 0.8;
       final heightProgress = (width / maxWidth).clamp(0.0, 1.0);
       final height = minHeight + (maxHeight - minHeight) * heightProgress;
       
+      // Ensure top and bottom calculation doesn't result in negative values if availableHeight was initially negative.
+      // This prevents issues if the widget is somehow rendered in a space smaller than 64 logical pixels high.
+      final verticalPadding = max(0.0, (availableHeight - height) / 2);
+
       return Positioned(
-        top: 32 + (MediaQuery.of(context).size.height - 64 - height) / 2,
-        bottom: 32 + (MediaQuery.of(context).size.height - 64 - height) / 2,
+        top: 32 + verticalPadding,
+        bottom: 32 + verticalPadding,
         right: isNext ? 0 : null,
         left: isNext ? null : 0,
         child: RepaintBoundary(
@@ -712,7 +719,7 @@ class DragIndicator extends StatelessWidget {
               },
               child: Container(
                 width: width,
-                height: height,
+                height: height, // height is now guaranteed >= 0
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.9),
                   borderRadius: BorderRadius.horizontal(

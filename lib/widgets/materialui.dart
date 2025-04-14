@@ -80,7 +80,7 @@ class HeaderAndFooter extends StatelessWidget {
 }
 
 class Ratings extends StatelessWidget {
-  final String initialRating;
+  final int? initialRating;
   final Function(int) onRatingChanged;
 
   const Ratings({
@@ -89,11 +89,16 @@ class Ratings extends StatelessWidget {
     required this.onRatingChanged,
   });
 
-  int _getRatingIndex(String rating) {
+  // Maps the integer rating (0, 3, 5) or null/default (3) to the Segmented Button index (0, 1, 2)
+  int _getRatingIndex(int? rating) {
     switch (rating) {
-      case 'bad': return 0;
-      case 'fire': return 2;
-      default: return 1; // 'good'
+      case 0: // bad
+        return 0;
+      case 5: // fire
+        return 2;
+      case 3: // good/neutral (or null/default)
+      default:
+        return 1; // Default to neutral (index 1) if rating is null, 3, or unexpected
     }
   }
 

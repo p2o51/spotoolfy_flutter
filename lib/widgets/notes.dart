@@ -120,6 +120,20 @@ class _NotesDisplayState extends State<NotesDisplay> {
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final record = localDbProvider.currentTrackRecords[index];
+                  // Determine the icon based on the integer rating
+                  IconData ratingIcon;
+                  switch (record.rating) {
+                    case 0:
+                      ratingIcon = Icons.thumb_down_outlined;
+                      break;
+                    case 5:
+                      ratingIcon = Icons.whatshot_outlined;
+                      break;
+                    case 3:
+                    default:
+                      ratingIcon = Icons.sentiment_neutral_rounded;
+                      break;
+                  }
                   return ListTile(
                     leading: CircleAvatar(
                       child: Text(
@@ -133,6 +147,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       record.noteContent ?? '',
                       style: const TextStyle(fontSize: 16, height: 0.95),
                     ),
+                    // Add the rating icon as the trailing widget
+                    trailing: Icon(ratingIcon, color: Theme.of(context).colorScheme.secondary),
                   );
                 },
               ),
@@ -164,6 +180,21 @@ class _NotesDisplayState extends State<NotesDisplay> {
                 itemBuilder: (context, index) {
                   // Access data from the map
                   final relatedRecord = localDbProvider.relatedRecords[index];
+                  // Determine the icon based on the integer rating from the map
+                  IconData relatedRatingIcon;
+                  final int? ratingValue = relatedRecord['rating'] as int?;
+                  switch (ratingValue) {
+                    case 0:
+                      relatedRatingIcon = Icons.thumb_down_outlined;
+                      break;
+                    case 5:
+                      relatedRatingIcon = Icons.whatshot_outlined;
+                      break;
+                    case 3:
+                    default:
+                      relatedRatingIcon = Icons.sentiment_neutral_rounded;
+                      break;
+                  }
                   return ListTile(
                     leading: CircleAvatar(
                       child: Text(
@@ -184,6 +215,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       '${relatedRecord['artistName'] ?? 'Unknown Artist'} - ${relatedRecord['trackName'] ?? 'Unknown Track'}',
                       style: const TextStyle(fontSize: 12),
                     ),
+                    // Add the rating icon as the trailing widget for related records
+                    trailing: Icon(relatedRatingIcon, color: Theme.of(context).colorScheme.secondary),
                   );
                 },
               ),

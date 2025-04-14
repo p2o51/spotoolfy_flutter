@@ -86,7 +86,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
             children: [
               const SizedBox(height: 8),
               Ratings(
-                initialRating: 'good',
+                initialRating: 3,
                 onRatingChanged: (rating) {
                   HapticFeedback.lightImpact();
                   // Handle rating change if needed
