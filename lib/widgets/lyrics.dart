@@ -12,6 +12,7 @@ import 'dart:async';
 import '../services/settings_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../services/notification_service.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -121,6 +122,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
   }
 
   Future<void> _loadLyrics() async {
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
     if (!mounted) return;
     
     final provider = Provider.of<SpotifyProvider>(context, listen: false);
@@ -196,9 +198,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
   Future<void> _translateAndShowLyrics() async {
     if (_lyrics.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No lyrics to translate.')),
-      );
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar('No lyrics to translate.');
       return;
     }
 
@@ -211,12 +212,12 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
     final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
 
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+
     if (currentTrackId == null) {
        if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not get current track ID.')),
-        );
-        setState(() { _isTranslating = false; });
+         notificationService.showErrorSnackBar('Could not get current track ID.');
+         setState(() { _isTranslating = false; });
        }
        return;
     }
@@ -354,17 +355,13 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       } else if (mounted && translatedText == null) {
           // Handle case where translation failed (either DB check failed or API failed)
           errorMsg = errorMsg ?? 'Failed to get translation.'; // Use specific save error or general error
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMsg)),
-          );
+          notificationService.showErrorSnackBar(errorMsg);
       }
 
     } catch (e) {
        debugPrint('Error in translation process: $e');
        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Translation failed: ${e.toString()}')),
-          );
+          notificationService.showErrorSnackBar('Translation failed: ${e.toString()}');
        }
     } finally {
       if (mounted) {
@@ -800,18 +797,11 @@ class _LyricsWidgetState extends State<LyricsWidget> {
         _previousPlayMode = provider.currentMode;
         provider.setPlayMode(PlayMode.singleRepeat);
         
-        // Show SnackBar hint
+        // Use the NotificationService to show the hint
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Copy Lyrics Mode: Single repeat active, auto-scroll disabled, until you continue to scroll or skip the song.'),
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10.0),
-              ),
-              margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-            ),
+          Provider.of<NotificationService>(context, listen: false).showSnackBar(
+            'Copy Lyrics Mode: Single repeat active, auto-scroll disabled.',
+            duration: const Duration(seconds: 3),
           );
         }
       }

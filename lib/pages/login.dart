@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/settings_service.dart';
 import '../services/lyrics_service.dart'; // Import LyricsService
 import '../services/translation_service.dart'; // Import TranslationService
+import '../services/notification_service.dart'; // Import NotificationService
 import 'dart:math' as math; // Import dart:math
 import 'package:logger/logger.dart'; // Import logger
 
@@ -119,6 +120,8 @@ class Login extends StatelessWidget {
   }
 
   Widget _buildSpotifyButton(BuildContext context, SpotifyProvider spotifyProvider) {
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+
     return FilledButton(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 48),
@@ -133,19 +136,12 @@ class Login extends StatelessWidget {
                 if (spotifyProvider.username != null) {
                   await spotifyProvider.logout();
                   HapticFeedback.lightImpact();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Logged out from Spotify')),
-                    );
-                  }
+                  notificationService.showSuccessSnackBar('Logged out from Spotify');
                 } else {
                   await spotifyProvider.login();
                   HapticFeedback.lightImpact();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Logged in with Spotify')),
-                    );
-                  }
+                  notificationService.showSuccessSnackBar('Logged in with Spotify');
+                  if (context.mounted) Navigator.pop(context);
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -166,17 +162,12 @@ class Login extends StatelessWidget {
                     errorMessage = 'Operation failed: $e';
                   }
                   
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(errorMessage),
-                      duration: const Duration(seconds: 8),
-                      action: SnackBarAction(
-                        label: 'Help',
-                        onPressed: () {
-                          launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
-                        },
-                      ),
-                    ),
+                  notificationService.showErrorSnackBar(
+                    errorMessage,
+                    actionLabel: 'Help',
+                    onActionPressed: () {
+                      launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
+                    },
                   );
                 }
               }
@@ -251,9 +242,8 @@ class _CredentialsSectionState extends State<CredentialsSection> {
     } catch (e) {
       logger.e("Error loading Spotify credentials: $e");
        if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Error loading Spotify credentials: $e')),
-         );
+         Provider.of<NotificationService>(context, listen: false)
+             .showErrorSnackBar('Error loading Spotify credentials: $e');
          setState(() { _isLoadingSpotify = false; });
        }
     }
@@ -271,9 +261,8 @@ class _CredentialsSectionState extends State<CredentialsSection> {
     } catch (e) {
       logger.e("Error loading Gemini API key: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading Gemini API key: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Error loading Gemini API key: $e');
         setState(() { _isLoadingGemini = false; });
       }
     }
@@ -338,21 +327,18 @@ class _CredentialsSectionState extends State<CredentialsSection> {
            logger.e("Error saving Gemini API key: $e");
            if (mounted) {
              // Show Gemini specific error immediately
-             ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text('Error saving Gemini API key: $e')),
-             );
+             Provider.of<NotificationService>(context, listen: false)
+                 .showErrorSnackBar('Error saving Gemini API key: $e');
            }
          }
      }
 
      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar(); // Remove potential "Saving..." snackbar
+        final notificationService = Provider.of<NotificationService>(context, listen: false);
 
         // Show Spotify error if any
         if (spotifyError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text(spotifyError)),
-           );
+          notificationService.showErrorSnackBar(spotifyError);
         }
 
         // Determine overall success message
@@ -368,18 +354,14 @@ class _CredentialsSectionState extends State<CredentialsSection> {
            // If spotifyError is not null, it was already shown
         } else if (spotifyAttempted && !spotifySaved && spotifyError == null) {
             // If only Spotify was attempted and failed without a validation error shown above
-             ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content: Text('Failed to save Spotify credentials.')),
-            );
+             notificationService.showErrorSnackBar('Failed to save Spotify credentials.');
         } else if (!spotifyAttempted && !geminiAttempted) {
            successMessage = 'No credentials entered to save.'; // Or maybe no message?
         }
 
 
         if (successMessage.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-               SnackBar(content: Text(successMessage)),
-            );
+            notificationService.showSuccessSnackBar(successMessage);
         }
 
        // Close edit mode only if there were no Spotify validation errors
@@ -402,9 +384,8 @@ class _CredentialsSectionState extends State<CredentialsSection> {
      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
      await spotifyProvider.resetClientCredentials();
      if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(content: Text('Spotify Credentials reset to default')),
-       );
+       Provider.of<NotificationService>(context, listen: false)
+           .showSuccessSnackBar('Spotify Credentials reset to default');
        await _loadSpotifyCredentials();
        setState(() {});
      }
@@ -525,9 +506,6 @@ class _CredentialsSectionState extends State<CredentialsSection> {
                   FilledButton(
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Saving credentials...')),
-                      );
                       _saveCredentials();
                     },
                     child: const Text('Save All Credentials'),
@@ -614,9 +592,8 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
     } catch (e) {
       logger.e("Error loading settings: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading settings: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Error loading settings: $e');
         setState(() {
           _selectedLanguage = 'en';
           _selectedStyle = TranslationStyle.faithful;
@@ -643,18 +620,14 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         style: _selectedStyle,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Language setting saved')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showSuccessSnackBar('Language setting saved');
       }
     } catch (e) {
       logger.e("Error saving language setting: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving language setting: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Error saving language setting: $e');
       }
     }
   }
@@ -671,18 +644,14 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
         style: _selectedStyle,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Translation style saved')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showSuccessSnackBar('Translation style saved');
       }
     } catch (e) {
       logger.e("Error saving translation style: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving translation style: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Error saving translation style: $e');
       }
     }
   }
@@ -692,18 +661,14 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
     try {
       await _settingsService.saveCopyLyricsAsSingleLine(_copyAsSingleLine!);
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Copy format setting saved')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showSuccessSnackBar('Copy format setting saved');
       }
     } catch (e) {
       logger.e("Error saving copy format setting: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving copy format setting: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Error saving copy format setting: $e');
       }
     }
   }
@@ -722,9 +687,8 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
     } catch (e) {
       logger.e("Error loading cache sizes: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading cache sizes: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Error loading cache sizes: $e');
          setState(() { _isLoadingCache = false; });
       }
     }
@@ -741,9 +705,8 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
     HapticFeedback.lightImpact();
     await _lyricsService.clearCache();
     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lyrics cache cleared')),
-      );
+       Provider.of<NotificationService>(context, listen: false)
+           .showSuccessSnackBar('Lyrics cache cleared');
       _loadCacheSizes();
     }
   }
@@ -752,9 +715,8 @@ class _AppSettingsSectionState extends State<AppSettingsSection> {
     HapticFeedback.lightImpact();
     await _translationService.clearTranslationCache();
     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Translation cache cleared')),
-      );
+       Provider.of<NotificationService>(context, listen: false)
+           .showSuccessSnackBar('Translation cache cleared');
       _loadCacheSizes();
     }
   }
@@ -940,6 +902,7 @@ class DataManagementSection extends StatelessWidget {
 
   Future<void> _handleExport(BuildContext context) async {
     final provider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
     try {
       final success = await provider.exportDataToJson();
       if (context.mounted) {
@@ -949,17 +912,13 @@ class DataManagementSection extends StatelessWidget {
             debugPrint('Export process initiated, share sheet shown.');
          } else {
            // Export or sharing failed or was cancelled
-           ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('Export failed or cancelled.')),
-           );
+           notificationService.showErrorSnackBar('Export failed or cancelled.');
          }
       }
     } catch (e) {
        debugPrint('Export Exception: $e');
        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('Export failed: ${e.toString()}')),
-          );
+          notificationService.showErrorSnackBar('Export failed: ${e.toString()}');
        }
     }
   }
@@ -1056,25 +1015,22 @@ class DataManagementSection extends StatelessWidget {
 
     try {
       // Show a loading indicator maybe?
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Clearing cache...'), duration: Duration(seconds: 1)),
-      );
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar('Clearing cache...', duration: const Duration(seconds: 1));
       
       await lyricsService.clearCache();
       await translationService.clearTranslationCache();
       
       // Show success message
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cache cleared successfully!')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showSuccessSnackBar('Cache cleared successfully!');
       }
     } catch (e) {
       logger.e('Failed to clear cache: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to clear cache: $e')),
-        );
+        Provider.of<NotificationService>(context, listen: false)
+            .showErrorSnackBar('Failed to clear cache: $e');
       }
     }
   }
@@ -1112,23 +1068,20 @@ class DataManagementSection extends StatelessWidget {
         final success = await provider.importDataFromJson();
         if (context.mounted) {
           if (success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Data imported successfully!')),
-            );
+            Provider.of<NotificationService>(context, listen: false)
+                .showSuccessSnackBar('Data imported successfully!');
             // Optionally, trigger a refresh of UI data if needed
           } else {
             // Import failed or was cancelled during file picking
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Import failed or cancelled.')),
-            );
+            Provider.of<NotificationService>(context, listen: false)
+                .showErrorSnackBar('Import failed or cancelled.');
           }
         }
       } catch (e) {
         debugPrint('Import Exception: $e');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Import failed: ${e.toString()}')),
-          );
+          Provider.of<NotificationService>(context, listen: false)
+              .showErrorSnackBar('Import failed: ${e.toString()}');
         }
       }
     }

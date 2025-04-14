@@ -48,6 +48,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   }
 
   void _toggleExpand() {
+    HapticFeedback.lightImpact();
     final currentPage = _pageController.hasClients ? (_pageController.page?.round() ?? _currentPageIndex) : _currentPageIndex;
     
     setState(() {
@@ -245,7 +246,10 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
               child: _isExpanded
                 ? KeyedSubtree(
                     key: const ValueKey('expanded_header'),
-                    child: const Player(isLargeScreen: false, isMiniPlayer: true),
+                    child: GestureDetector(
+                      onTap: _toggleExpand,
+                      child: const Player(isLargeScreen: false, isMiniPlayer: true),
+                    ),
                   )
                 : KeyedSubtree(
                     key: const ValueKey('collapsed_header'),

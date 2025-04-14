@@ -15,8 +15,10 @@ import 'providers/library_provider.dart';
 import 'providers/search_provider.dart';
 import 'providers/local_database_provider.dart';
 import 'services/lyrics_service.dart';
+import 'services/notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +46,9 @@ void main() async {
            },
         ),
         Provider<LyricsService>(create: (_) => LyricsService()),
+        Provider<NotificationService>(
+          create: (_) => NotificationService(scaffoldMessengerKey),
+        ),
       ],
       child: const MyThemedApp(),
     ),
@@ -70,6 +75,7 @@ class MyThemedApp extends StatelessWidget {
     );
 
     return MaterialApp(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       navigatorKey: navigatorKey,
       theme: ThemeData(
         colorScheme: themeProvider.colorScheme,
