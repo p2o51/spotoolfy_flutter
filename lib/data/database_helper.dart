@@ -233,6 +233,61 @@ class DatabaseHelper {
     );
   }
 
+  /// Deletes a record from the database by its primary key ID.
+  /// Returns the number of rows affected (should be 1 if successful).
+  Future<int> deleteRecord(int recordId) async {
+    final db = await instance.database;
+    final rowsAffected = await db.delete(
+      'records',
+      where: 'id = ?',
+      whereArgs: [recordId],
+    );
+    if (rowsAffected == 1) {
+       logger.d('[DBHelper] Deleted record with id: $recordId');
+    } else {
+       logger.w('[DBHelper] Attempted to delete record id: $recordId, but $rowsAffected rows were affected.');
+    }
+    return rowsAffected;
+  }
+
+  /// Updates a record in the database with new content and rating.
+  /// Returns true if update was successful (1 row affected), false otherwise.
+  Future<bool> updateRecord({
+    required int recordId,
+    required String newNoteContent,
+    required int newRating,
+  }) async {
+    final db = await instance.database;
+    
+    // Update only specified fields
+    final updateData = {
+      'noteContent': newNoteContent,
+      'rating': newRating,
+    };
+    
+    logger.d('[DBHelper] Updating record ID: $recordId with rating: $newRating');
+    
+    try {
+      final rowsAffected = await db.update(
+        'records',
+        updateData,
+        where: 'id = ?',
+        whereArgs: [recordId],
+      );
+      
+      if (rowsAffected == 1) {
+        logger.d('[DBHelper] Record ID: $recordId updated successfully');
+        return true;
+      } else {
+        logger.w('[DBHelper] Attempted to update record ID: $recordId, but $rowsAffected rows were affected.');
+        return false;
+      }
+    } catch (e, s) {
+      logger.e('[DBHelper] Error updating record ID: $recordId', error: e, stackTrace: s);
+      return false;
+    }
+  }
+
   // --- Query Methods for Specific Use Cases ---
 
   /// Fetches a specified number of random records along with their associated track info.
@@ -308,23 +363,6 @@ class DatabaseHelper {
     // although the provider will use the map directly. This ensures the key is just 'id'.
     // If Record.fromMap expects 'recordId', adjust the alias in the SQL above.
     return result;
-  }
-
-  /// Deletes a record from the database by its primary key ID.
-  /// Returns the number of rows affected (should be 1 if successful).
-  Future<int> deleteRecord(int recordId) async {
-    final db = await instance.database;
-    final rowsAffected = await db.delete(
-      'records',
-      where: 'id = ?',
-      whereArgs: [recordId],
-    );
-    if (rowsAffected == 1) {
-       logger.d('[DBHelper] Deleted record with id: $recordId');
-    } else {
-       logger.w('[DBHelper] Attempted to delete record id: $recordId, but $rowsAffected rows were affected.');
-    }
-    return rowsAffected;
   }
 
   // --- Methods for Data Export/Import ---

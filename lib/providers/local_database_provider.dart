@@ -306,25 +306,23 @@ class LocalDatabaseProvider with ChangeNotifier {
     }
   }
 
-  /// Updates an existing record's content and rating.
+  /// Updates an existing record.
   Future<void> updateRecord({
     required int recordId,
-    required String trackId, // Need trackId to refresh the correct list
+    required String trackId,
     required String newNoteContent,
     required int newRating,
   }) async {
     _setLoading(true); // Indicate loading
     logger.d('Updating record ID: $recordId with rating: $newRating');
     try {
-      // Assuming _dbHelper.updateRecord exists and returns bool for success
-      /* // TODO: Uncomment and implement in DatabaseHelper
+      // 调用 DatabaseHelper 的 updateRecord 方法
       final success = await _dbHelper.updateRecord(
         recordId: recordId,
-        noteContent: newNoteContent,
-        rating: newRating,
+        newNoteContent: newNoteContent,
+        newRating: newRating,
       );
-      */
-      final bool success = true; // Placeholder - assume success for now
+      
       if (success) {
         logger.d('Record $recordId updated successfully in DB.');
         // Refresh ALL relevant data lists

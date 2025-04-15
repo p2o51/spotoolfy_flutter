@@ -368,18 +368,18 @@ class _RoamState extends State<Roam> {
                                             borderRadius: BorderRadius.circular(50.0),
                                             child: CachedNetworkImage(
                                               imageUrl: albumCoverUrl ?? '',
-                                              width: 100, // 改为80
-                                              height: 100, // 改为80
+                                              width: 80, // 改为80
+                                              height: 80, // 改为80
                                               fit: BoxFit.cover,
                                               placeholder: (context, url) => Container(
-                                                width: 100, // 改为80
-                                                height: 100, // 改为80
+                                                width: 80, // 改为80
+                                                height: 80, // 改为80
                                                 color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
                                                 child: Icon(Icons.music_note_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
                                               ),
                                               errorWidget: (context, url, error) => Container(
-                                                width: 100, // 改为80
-                                                height: 100, // 改为80
+                                                width: 80, // 改为80
+                                                height: 80, // 改为80
                                                 color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
                                                 child: Icon(Icons.broken_image_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
                                               ),
