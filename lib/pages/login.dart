@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart'; // Import AppLocalizations
 import '../providers/spotify_provider.dart';
 import '../providers/local_database_provider.dart'; // Import LocalDatabaseProvider
 import 'package:url_launcher/url_launcher.dart';
@@ -26,6 +27,7 @@ class Login extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spotifyProvider = Provider.of<SpotifyProvider>(context);
+    final l10n = AppLocalizations.of(context)!; // Get AppLocalizations instance
     
     // 设置edge to edge显示
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -58,8 +60,10 @@ class Login extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: kSmallSpacing),
                   child: Text(
-                    'Settings',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    l10n.settingsTitle, // Use localization
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary.withAlpha((255 * 0.8).round()), // Use withAlpha as recommended alternative
+                    ),
                   ),
                 ),
                 Row(
@@ -101,7 +105,8 @@ class Login extends StatelessWidget {
                     if (spotifyProvider.username != null)
                       Flexible(
                         child: Text(
-                          'Spotify: ${spotifyProvider.username}',
+                          // Use localization with placeholder
+                          spotifyProvider.username != null ? l10n.loggedInAs(spotifyProvider.username!) : '', 
                           style: Theme.of(context).textTheme.bodySmall,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -117,6 +122,7 @@ class Login extends StatelessWidget {
 
   Widget _buildSpotifyButton(BuildContext context, SpotifyProvider spotifyProvider) {
     final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!; // Get AppLocalizations instance here too
 
     return FilledButton(
       style: FilledButton.styleFrom(
@@ -132,35 +138,33 @@ class Login extends StatelessWidget {
                 if (spotifyProvider.username != null) {
                   await spotifyProvider.logout();
                   HapticFeedback.lightImpact();
-                  notificationService.showSuccessSnackBar('Logged out from Spotify');
+                  notificationService.showSuccessSnackBar(l10n.logoutSuccess); // Use localization
                 } else {
                   await spotifyProvider.login();
                   HapticFeedback.lightImpact();
-                  notificationService.showSuccessSnackBar('Logged in with Spotify');
+                  notificationService.showSuccessSnackBar(l10n.loginSuccess); // Use localization
                   if (context.mounted) Navigator.pop(context);
                 }
               } catch (e) {
                 if (context.mounted) {
-                  String errorMessage = 'Operation failed';
+                  String errorMessage = l10n.operationFailed; // Use localization
                   
                   logger.e('登录/注销操作失败: $e');
                   logger.e('错误类型: ${e.runtimeType}');
                   
-                  if (e.toString().contains('INVALID_CREDENTIALS')) {
-                    errorMessage = 'Invalid Spotify API credentials. Please check your Client ID and Secret.';
+                  if (e.toString().contains('INVALID_CREDENTIALS') || e.toString().contains('客户端 ID 或密钥无效')) {
+                    errorMessage = l10n.invalidCredentialsError; // Use localization
                   } else if (e.toString().contains('401')) {
-                    errorMessage = 'Authentication failed: Invalid credentials or insufficient permissions.';
+                    errorMessage = l10n.authenticationError; // Use localization
                   } else if (e.toString().contains('429')) {
-                    errorMessage = 'Too many requests. Please try again later.';
-                  } else if (e.toString().contains('客户端 ID 或密钥无效')) {
-                    errorMessage = 'Invalid Spotify API credentials. Please check your Client ID and Secret.';
+                    errorMessage = l10n.tooManyRequestsError; // Use localization
                   } else {
-                    errorMessage = 'Operation failed: $e';
+                    errorMessage = l10n.loginLogoutFailed(e.toString()); // Use localization with error detail
                   }
                   
                   notificationService.showErrorSnackBar(
                     errorMessage,
-                    actionLabel: 'Help',
+                    actionLabel: l10n.helpAction, // Use localization
                     onActionPressed: () {
                       launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
                     },
@@ -175,8 +179,8 @@ class Login extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : Text(spotifyProvider.username != null
-              ? 'Logout from Spotify'
-              : 'Authorize Spotify'),
+              ? l10n.logoutSpotifyButton // Use localization
+              : l10n.authorizeSpotifyButton), // Use localization
     );
   }
 }
@@ -186,6 +190,8 @@ class SettingsMenuSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!; // Get AppLocalizations instance
+    
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
@@ -200,7 +206,7 @@ class SettingsMenuSection extends StatelessWidget {
           children: [
             // 凭据设置部分
             Text(
-              'Setup',
+              l10n.setupTitle, // Use localization
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
@@ -210,64 +216,95 @@ class SettingsMenuSection extends StatelessWidget {
             _buildSettingMenuItem(
               context,
               icon: Icons.vpn_key,
-              title: 'Google AI API key',
-              subtitle: 'Set up your Google AI Studio API key for Gemini translation',
-              onTap: () => _showGeminiApiKeyDialog(context),
+              title: l10n.googleAiApiKeyTitle, // Use localization
+              subtitle: l10n.googleAiApiKeySubtitle, // Use localization
+              onTap: () => _showGeminiApiKeyDialog(context, l10n),
             ),
             const SizedBox(height: kElementSpacing),
             _buildSettingMenuItem(
               context,
               icon: Icons.api,
-              title: 'Spotify API',
-              subtitle: 'Set Spotify Client ID and Secret',
-              onTap: () => _showSpotifyCredentialsDialog(context),
+              title: l10n.spotifyApiTitle, // Use localization
+              subtitle: l10n.spotifyApiSubtitle, // Use localization
+              onTap: () => _showSpotifyCredentialsDialog(context, l10n),
             ),
             const SizedBox(height: kElementSpacing),
             _buildSettingMenuItem(
               context,
               icon: Icons.help_outline,
-              title: 'Tutorial',
-              subtitle: 'See tutorial for setting up',
+              title: l10n.tutorialTitle, // Use localization
+              subtitle: l10n.tutorialSubtitle, // Use localization
               onTap: () => launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy')),
             ),
             const SizedBox(height: kSectionSpacing),
             
             // 常规设置部分
             Text(
-              'General',
+              l10n.generalTitle, // Use localization
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: kElementSpacing),
-            _buildSettingMenuItem(
-              context,
-              icon: Icons.language,
-              title: 'Translation Language',
-              subtitle: 'Choose the target language for translations',
-              onTap: () => _showLanguageSelectionDialog(context),
+            FutureBuilder<String>(
+              future: context.read<SettingsService>().getTargetLanguage(),
+              builder: (context, snapshot) {
+                String languageDisplay = "";
+                if (snapshot.hasData) {
+                  // 显示语言名称
+                  switch (snapshot.data) {
+                    case 'en': languageDisplay = "English"; break;
+                    case 'zh-CN': languageDisplay = "简体中文"; break;
+                    case 'zh-TW': languageDisplay = "繁體中文"; break;
+                    case 'ja': languageDisplay = "日本語"; break;
+                    default: languageDisplay = snapshot.data ?? "";
+                  }
+                }
+                return _buildSettingMenuItem(
+                  context,
+                  icon: Icons.language,
+                  title: l10n.translationLanguageTitle,
+                  subtitle: languageDisplay.isNotEmpty ? languageDisplay : l10n.translationLanguageSubtitle,
+                  onTap: () => _showLanguageDialog(context, l10n),
+                );
+              },
             ),
             const SizedBox(height: kElementSpacing),
-            _buildSettingMenuItem(
-              context,
-              icon: Icons.style,
-              title: 'Translation Style',
-              subtitle: 'Set Gemini\'s Spirit',
-              onTap: () => _showTranslationStyleDialog(context),
+            FutureBuilder<TranslationStyle>(
+              future: context.read<SettingsService>().getTranslationStyle(),
+              builder: (context, snapshot) {
+                String styleDisplay = "";
+                if (snapshot.hasData) {
+                  // 显示翻译样式名称
+                  switch (snapshot.data) {
+                    case TranslationStyle.faithful: styleDisplay = "Faithful"; break;
+                    case TranslationStyle.melodramaticPoet: styleDisplay = "Melodramatic Poet"; break;
+                    case TranslationStyle.machineClassic: styleDisplay = "Machine Classic"; break;
+                    default: styleDisplay = "";
+                  }
+                }
+                return _buildSettingMenuItem(
+                  context,
+                  icon: Icons.style,
+                  title: l10n.translationStyleTitle,
+                  subtitle: styleDisplay.isNotEmpty ? styleDisplay : l10n.translationStyleSubtitle,
+                  onTap: () => _showTranslationStyleDialog(context, l10n),
+                );
+              },
             ),
             const SizedBox(height: kElementSpacing),
             _buildSwitchMenuItem(
               context,
               icon: Icons.text_format,
-              title: 'Copy lyrics as single line',
-              subtitle: 'Replaces line breaks with spaces when copying',
+              title: l10n.copyLyricsAsSingleLineTitle, // Use localization
+              subtitle: l10n.copyLyricsAsSingleLineSubtitle, // Use localization
             ),
             const SizedBox(height: kSectionSpacing),
             
             // 数据管理部分
             Text(
-              'Data Management',
+              l10n.dataManagementTitle, // Use localization
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
@@ -277,25 +314,25 @@ class SettingsMenuSection extends StatelessWidget {
             _buildSettingMenuItem(
               context,
               icon: Icons.upload_file,
-              title: 'Export Data',
-              subtitle: 'Export all data as JSON file',
-              onTap: () => _handleExport(context),
+              title: l10n.exportDataTitle, // Use localization
+              subtitle: l10n.exportDataSubtitle, // Use localization
+              onTap: () => _exportData(context, l10n),
             ),
             const SizedBox(height: kElementSpacing),
             _buildSettingMenuItem(
               context,
               icon: Icons.download,
-              title: 'Import Data',
-              subtitle: 'Import data from exported JSON file',
-              onTap: () => _handleImport(context),
+              title: l10n.importDataTitle, // Use localization
+              subtitle: l10n.importDataSubtitle, // Use localization
+              onTap: () => _showImportDialog(context, l10n),
             ),
             const SizedBox(height: kElementSpacing),
             _buildSettingMenuItem(
               context,
               icon: Icons.cleaning_services,
-              title: 'Clear All Cache',
-              subtitle: 'Clear lyrics and translation cache',
-              onTap: () => _showClearCacheConfirmation(context),
+              title: l10n.clearCacheTitle, // Use localization
+              subtitle: l10n.clearCacheSubtitle, // Use localization
+              onTap: () => _showClearCacheDialog(context, l10n),
               isDestructive: true,
             ),
           ],
@@ -377,11 +414,11 @@ class SettingsMenuSection extends StatelessWidget {
     required String title,
     required String subtitle,
   }) {
-    final _settingsService = SettingsService();
+    final settingsService = Provider.of<SettingsService>(context, listen: false);
     return StatefulBuilder(
       builder: (context, setState) {
         return FutureBuilder<Map<String, dynamic>>(
-          future: _settingsService.getSettings(),
+          future: settingsService.getSettings(),
           builder: (context, snapshot) {
             bool copyAsSingleLine = false;
             if (snapshot.hasData) {
@@ -393,7 +430,7 @@ class SettingsMenuSection extends StatelessWidget {
                 if (snapshot.hasData) {
                   HapticFeedback.lightImpact();
                   final newValue = !copyAsSingleLine;
-                  _settingsService.saveCopyLyricsAsSingleLine(newValue);
+                  settingsService.saveCopyLyricsAsSingleLine(newValue);
                   setState(() {});
                 }
               },
@@ -438,7 +475,7 @@ class SettingsMenuSection extends StatelessWidget {
                       value: copyAsSingleLine,
                       onChanged: (bool value) {
                         HapticFeedback.lightImpact();
-                        _settingsService.saveCopyLyricsAsSingleLine(value);
+                        settingsService.saveCopyLyricsAsSingleLine(value);
                         setState(() {});
                       },
                     ),
@@ -452,56 +489,68 @@ class SettingsMenuSection extends StatelessWidget {
     );
   }
 
-  Future<void> _showGeminiApiKeyDialog(BuildContext context) async {
-    final _settingsService = SettingsService();
-    final settings = await _settingsService.getSettings();
-    final currentApiKey = settings['apiKey'] as String? ?? '';
-    
-    final TextEditingController _apiKeyController = TextEditingController(text: currentApiKey);
+  Future<void> _exportData(BuildContext context, AppLocalizations l10n) async {
+    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final currentContext = context;
 
-    return showDialog(
-      context: context,
-      builder: (context) {
+    try {
+      bool success = await localDbProvider.exportDataToJson();
+      if (!currentContext.mounted) return; 
+      if (success) {
+        notificationService.showSuccessSnackBar(l10n.exportSuccess); 
+      } else {
+        notificationService.showErrorSnackBar(l10n.exportFailed);
+      }
+    } catch (e) {
+      if (currentContext.mounted) { 
+        notificationService.showErrorSnackBar(l10n.exportFailed);
+      }
+    }
+  }
+
+  Future<void> _showGeminiApiKeyDialog(BuildContext context, AppLocalizations l10n) async {
+    final settingsService = context.read<SettingsService>();
+    final notificationService = context.read<NotificationService>();
+    final navigator = Navigator.of(context);
+    final currentContext = context;
+
+    final currentApiKey = await settingsService.getGeminiApiKey() ?? '';
+    if (!currentContext.mounted) return; 
+    final apiKeyController = TextEditingController(text: currentApiKey);
+
+    showDialog(
+      context: currentContext, 
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Gemini API key'),
+          title: Text(l10n.geminiApiKeyDialogTitle), 
           content: SizedBox(
             width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
             child: TextField(
-              controller: _apiKeyController,
+              controller: apiKeyController,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                hintText: '输入你的Gemini API密钥',
+                hintText: l10n.geminiApiKeyDialogHint, 
               ),
               obscureText: true,
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancelButton), 
             ),
             TextButton(
               onPressed: () async {
-                final newApiKey = _apiKeyController.text.trim();
-                if (newApiKey.isNotEmpty) {
-                  await _settingsService.saveSettings(
-                    apiKey: newApiKey,
-                    languageCode: settings['languageCode'] as String?,
-                    style: settings['style'] as TranslationStyle?,
-                  );
-                  
-                  if (context.mounted) {
-                    Provider.of<NotificationService>(context, listen: false)
-                        .showSuccessSnackBar('Gemini API key saved');
-                    Navigator.of(context).pop();
-                  }
-                }
+                final apiKey = apiKeyController.text.trim();
+                await settingsService.saveGeminiApiKey(apiKey);
+                if (!currentContext.mounted) return; 
+                navigator.pop();
+                notificationService.showSuccessSnackBar(l10n.apiKeySaved);
               },
-              child: const Text('OK'),
+              child: Text(l10n.okButton), 
             ),
           ],
         );
@@ -509,91 +558,337 @@ class SettingsMenuSection extends StatelessWidget {
     );
   }
 
-  Future<void> _showSpotifyCredentialsDialog(BuildContext context) async {
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    final credentials = await spotifyProvider.getClientCredentials();
-    
-    final TextEditingController _clientIdController = TextEditingController(text: credentials['clientId'] ?? '');
-    final TextEditingController _clientSecretController = TextEditingController(text: credentials['clientSecret'] ?? '');
+  Future<void> _showSpotifyCredentialsDialog(BuildContext context, AppLocalizations l10n) async {
+    final spotifyProvider = context.read<SpotifyProvider>();
+    final notificationService = context.read<NotificationService>();
+    final navigator = Navigator.of(context);
+    final currentContext = context;
 
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Spotify API'),
-          content: SizedBox(
-            width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _clientIdController,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+    final credentials = await spotifyProvider.getClientCredentials();
+    if (!currentContext.mounted) return; 
+    final clientIdController = TextEditingController(text: credentials['clientId'] ?? '');
+    final clientSecretController = TextEditingController(text: credentials['clientSecret'] ?? '');
+
+    showDialog(
+      context: currentContext, 
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(l10n.spotifyCredentialsDialogTitle), 
+              content: SizedBox(
+                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: clientIdController,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        labelText: l10n.clientIdLabel, 
+                      ),
                     ),
-                    labelText: 'Client ID',
-                  ),
+                    const SizedBox(height: kSmallSpacing),
+                    TextField(
+                      controller: clientSecretController,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        labelText: l10n.clientSecretLabel, 
+                      ),
+                      obscureText: true,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: kSmallSpacing),
-                TextField(
-                  controller: _clientSecretController,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    labelText: 'Client Secret',
-                  ),
-                  obscureText: true,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l10n.cancelButton), 
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final clientId = clientIdController.text;
+                    final clientSecret = clientSecretController.text;
+                    if (clientId.isEmpty || clientSecret.isEmpty) {
+                      notificationService.showErrorSnackBar(l10n.emptyCredentialsError);
+                      return;
+                    }
+                    final hexRegex = RegExp(r'^[0-9a-fA-F]{32}$');
+                    if (!hexRegex.hasMatch(clientId)) {
+                      notificationService.showErrorSnackBar(l10n.invalidClientIdError);
+                      return;
+                    }
+                    if (!hexRegex.hasMatch(clientSecret)) {
+                      notificationService.showErrorSnackBar(l10n.invalidClientSecretError);
+                      return;
+                    }
+                    try {
+                      await spotifyProvider.setClientCredentials(
+                        clientId,
+                        clientSecret
+                      );
+                      navigator.pop();
+                      notificationService.showSuccessSnackBar(l10n.credentialsSaved);
+                    } catch (e) {
+                      if (currentContext.mounted) { 
+                        notificationService.showErrorSnackBar(l10n.credentialsSaveFailed);
+                      }
+                    }
+                  },
+                  child: Text(l10n.okButton), 
                 ),
               ],
+            );
+          }
+        );
+      },
+    );
+  }
+
+  Future<void> _showLanguageDialog(BuildContext context, AppLocalizations l10n) async {
+    final settingsService = context.read<SettingsService>();
+    final notificationService = context.read<NotificationService>();
+    final navigator = Navigator.of(context);
+    final currentContext = context;
+
+    final currentLanguage = await settingsService.getTargetLanguage();
+    if (!currentContext.mounted) return; 
+
+    showDialog(
+      context: currentContext, 
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(l10n.languageDialogTitle), 
+              content: SizedBox(
+                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<String>(
+                      title: const Text('English'),
+                      value: 'en',
+                      groupValue: currentLanguage,
+                      onChanged: (value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTargetLanguage(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.languageSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('简体中文 (Simplified Chinese)'),
+                      value: 'zh-CN',
+                      groupValue: currentLanguage,
+                      onChanged: (value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTargetLanguage(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.languageSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('繁體中文 (Traditional Chinese)'),
+                      value: 'zh-TW',
+                      groupValue: currentLanguage,
+                      onChanged: (value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTargetLanguage(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.languageSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('日本語 (Japanese)'),
+                      value: 'ja',
+                      groupValue: currentLanguage,
+                      onChanged: (value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTargetLanguage(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.languageSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l10n.cancelButton), 
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
+  }
+
+  Future<void> _showTranslationStyleDialog(BuildContext context, AppLocalizations l10n) async {
+    final settingsService = context.read<SettingsService>();
+    final notificationService = context.read<NotificationService>();
+    final navigator = Navigator.of(context);
+    final currentContext = context;
+
+    final currentStyle = await settingsService.getTranslationStyle();
+    if (!currentContext.mounted) return; 
+
+    showDialog(
+      context: currentContext, 
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(l10n.translationStyleDialogTitle), 
+              content: SizedBox(
+                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<TranslationStyle>(
+                      title: const Text("Faithful"), // Use enum name
+                      value: TranslationStyle.faithful, 
+                      groupValue: currentStyle,
+                      onChanged: (TranslationStyle? value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTranslationStyle(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                    RadioListTile<TranslationStyle>(
+                      title: const Text("Melodramatic Poet"), // Use formatted enum name
+                      value: TranslationStyle.melodramaticPoet, 
+                      groupValue: currentStyle,
+                      onChanged: (TranslationStyle? value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTranslationStyle(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                    RadioListTile<TranslationStyle>(
+                      title: const Text("Machine Classic"), // Use formatted enum name
+                      value: TranslationStyle.machineClassic, 
+                      groupValue: currentStyle,
+                      onChanged: (TranslationStyle? value) async {
+                        if (value != null) {
+                          try {
+                            await settingsService.saveTranslationStyle(value);
+                            navigator.pop();
+                            notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                          } catch (e) {
+                            if (currentContext.mounted) { 
+                              notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l10n.cancelButton), 
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
+  }
+
+  Future<void> _showImportDialog(BuildContext context, AppLocalizations l10n) async {
+    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final currentContext = context;
+
+    showDialog(
+      context: currentContext, 
+      builder: (dialogContext) { 
+        return AlertDialog(
+          title: Text(l10n.importDialogTitle), 
+          content: SizedBox(
+            width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+            child: Text(
+              l10n.importDialogMessage, 
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancelButton), 
             ),
             TextButton(
               onPressed: () async {
-                final clientId = _clientIdController.text.trim();
-                final clientSecret = _clientSecretController.text.trim();
-                
-                String? errorMessage;
-                
-                if (clientId.isEmpty || clientSecret.isEmpty) {
-                  errorMessage = 'Both Client ID and Secret are required.';
-                } else if (clientId.length != 32 || !RegExp(r'^[0-9a-f]{32}$').hasMatch(clientId)) {
-                  errorMessage = 'Client ID must be a 32-character hex string.';
-                } else if (clientSecret.length != 32 || !RegExp(r'^[0-9a-f]{32}$').hasMatch(clientSecret)) {
-                  errorMessage = 'Client Secret must be a 32-character hex string.';
-                }
-                
-                if (errorMessage != null) {
-                  if (context.mounted) {
-                    Provider.of<NotificationService>(context, listen: false)
-                        .showErrorSnackBar(errorMessage);
-                  }
-                  return;
-                }
-                
+                navigator.pop(); 
                 try {
-                  await spotifyProvider.setClientCredentials(clientId, clientSecret);
-                  if (context.mounted) {
-                    Provider.of<NotificationService>(context, listen: false)
-                        .showSuccessSnackBar('Spotify credentials saved');
-                    Navigator.of(context).pop();
+                  bool success = await localDbProvider.importDataFromJson(); 
+                  if (!currentContext.mounted) return; 
+                  if (success) {
+                    notificationService.showSuccessSnackBar(l10n.importSuccess); 
+                  } else {
+                    notificationService.showErrorSnackBar(l10n.importFailed); 
                   }
                 } catch (e) {
-                  if (context.mounted) {
-                    Provider.of<NotificationService>(context, listen: false)
-                        .showErrorSnackBar('Failed to save: $e');
+                  if (currentContext.mounted) { 
+                    notificationService.showErrorSnackBar(l10n.importFailed);
                   }
                 }
               },
-              child: const Text('OK'),
+              child: Text(l10n.importButton), 
             ),
           ],
         );
@@ -601,271 +896,68 @@ class SettingsMenuSection extends StatelessWidget {
     );
   }
 
-  Future<void> _showLanguageSelectionDialog(BuildContext context) async {
-    final _settingsService = SettingsService();
-    final settings = await _settingsService.getSettings();
-    String selectedLanguage = settings['languageCode'] as String? ?? 'en';
-    
-    final Map<String, String> languageOptions = {
-      'en': 'English',
-      'zh-CN': '简体中文 (Simplified Chinese)',
-      'zh-TW': '繁體中文 (Traditional Chinese)',
-      'ja': '日本語 (Japanese)',
-    };
-
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Select Language'),
-              content: SizedBox(
-                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: languageOptions.entries.map((entry) {
-                    return RadioListTile<String>(
-                      title: Text(entry.value),
-                      value: entry.key,
-                      groupValue: selectedLanguage,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            selectedLanguage = value;
-                          });
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    await _settingsService.saveSettings(
-                      apiKey: settings['apiKey'] as String?,
-                      languageCode: selectedLanguage,
-                      style: settings['style'] as TranslationStyle?,
-                    );
-                    
-                    if (context.mounted) {
-                      Provider.of<NotificationService>(context, listen: false)
-                          .showSuccessSnackBar('Language setting saved');
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: const Text('OK'),
-                ),
-              ],
-            );
-          }
-        );
-      },
-    );
-  }
-
-  Future<void> _showTranslationStyleDialog(BuildContext context) async {
-    final _settingsService = SettingsService();
-    final settings = await _settingsService.getSettings();
-    TranslationStyle selectedStyle = settings['style'] as TranslationStyle? ?? TranslationStyle.faithful;
-    
-    String getTranslationStyleDisplayName(TranslationStyle style) {
-      switch (style) {
-        case TranslationStyle.faithful:
-          return 'Faithful (Accuracy First)';
-        case TranslationStyle.melodramaticPoet:
-          return 'Melodramatic Poet (Artistic)';
-        case TranslationStyle.machineClassic:
-          return 'Machine Classic (Literal)';
-      }
-    }
-
-    return showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Select AI model to use'),
-              content: SizedBox(
-                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: TranslationStyle.values.map((style) {
-                    return RadioListTile<TranslationStyle>(
-                      title: Text(getTranslationStyleDisplayName(style)),
-                      value: style,
-                      groupValue: selectedStyle,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            selectedStyle = value;
-                          });
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    await _settingsService.saveSettings(
-                      apiKey: settings['apiKey'] as String?,
-                      languageCode: settings['languageCode'] as String?,
-                      style: selectedStyle,
-                    );
-                    
-                    if (context.mounted) {
-                      Provider.of<NotificationService>(context, listen: false)
-                          .showSuccessSnackBar('Translation style saved');
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: const Text('OK'),
-                ),
-              ],
-            );
-          }
-        );
-      },
-    );
-  }
-
-  Future<void> _handleExport(BuildContext context) async {
-    final provider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+  Future<void> _showClearCacheDialog(BuildContext context, AppLocalizations l10n) async {
+    final lyricsService = Provider.of<LyricsService>(context, listen: false);
+    final translationService = Provider.of<TranslationService>(context, listen: false);
     final notificationService = Provider.of<NotificationService>(context, listen: false);
-    try {
-      final success = await provider.exportDataToJson();
-      if (context.mounted) {
-         if (success) {
-            debugPrint('Export process initiated, share sheet shown.');
-         } else {
-           notificationService.showErrorSnackBar('Export failed or cancelled.');
-         }
-      }
-    } catch (e) {
-       debugPrint('Export Exception: $e');
-       if (context.mounted) {
-          notificationService.showErrorSnackBar('Export failed: ${e.toString()}');
-       }
-    }
-  }
+    final navigator = Navigator.of(context);
+    final currentContext = context;
 
-  Future<void> _handleImport(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Confirm Import'),
-          content: SizedBox(
-            width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-            child: const Text(
-              'Importing data will replace existing tracks and translations with the same identifiers, and add all records from the file. This cannot be undone. Are you sure you want to continue?'
-              '\n\nEnsure the JSON file is valid and was previously exported from Spotoolfy.'
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-            ),
-            TextButton(
-              child: Text('Import Data', style: TextStyle(color: Theme.of(dialogContext).colorScheme.primary)),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      final provider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-      try {
-        final success = await provider.importDataFromJson();
-        if (context.mounted) {
-          if (success) {
-            Provider.of<NotificationService>(context, listen: false)
-                .showSuccessSnackBar('Data imported successfully!');
-          } else {
-            Provider.of<NotificationService>(context, listen: false)
-                .showErrorSnackBar('Import failed or cancelled.');
-          }
-        }
-      } catch (e) {
-        debugPrint('Import Exception: $e');
-        if (context.mounted) {
-          Provider.of<NotificationService>(context, listen: false)
-              .showErrorSnackBar('Import failed: ${e.toString()}');
-        }
-      }
-    }
-  }
-
-  void _showClearCacheConfirmation(BuildContext context) {
     showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
+      context: currentContext, 
+      builder: (dialogContext) { 
         return AlertDialog(
-          title: const Text('Confirm Clear Cache'),
+          title: Text(l10n.clearCacheDialogTitle), 
           content: SizedBox(
             width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-            child: const Text('Are you sure you want to clear the lyrics and translation cache? This cannot be undone.'),
+            child: Text(
+              l10n.clearCacheDialogMessage, 
+            ),
           ),
-          actions: <Widget>[
+          actions: [
             TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancelButton), 
             ),
             TextButton(
-              child: Text('Clear Cache', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
               onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                _handleClearCache(context);
+                navigator.pop(); 
+                showDialog(
+                  context: currentContext, 
+                  barrierDismissible: false,
+                  builder: (progressContext) => AlertDialog(
+                    content: Row(
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(width: 16), 
+                        Text(l10n.clearingCache), 
+                      ],
+                    ),
+                  ),
+                );
+
+                try {
+                  await lyricsService.clearCache();
+                  await translationService.clearTranslationCache();
+
+                  if (!currentContext.mounted) return; 
+                  navigator.pop(); 
+                  if (!currentContext.mounted) return; 
+                  notificationService.showSuccessSnackBar(l10n.cacheCleared); 
+                } catch (e) {
+                  if (currentContext.mounted) { 
+                    navigator.pop(); 
+                    if (currentContext.mounted) { 
+                      notificationService.showErrorSnackBar(l10n.cacheClearFailed); 
+                    }
+                  }
+                }
               },
+              child: Text(l10n.clearCacheButton), 
             ),
           ],
         );
       },
     );
-  }
-
-  Future<void> _handleClearCache(BuildContext context) async {
-    final lyricsService = LyricsService();
-    final translationService = TranslationService();
-
-    try {
-      Provider.of<NotificationService>(context, listen: false)
-          .showSnackBar('Clearing cache...', duration: const Duration(seconds: 1));
-      
-      await lyricsService.clearCache();
-      await translationService.clearTranslationCache();
-      
-      if (context.mounted) {
-        Provider.of<NotificationService>(context, listen: false)
-            .showSuccessSnackBar('Cache cleared successfully!');
-      }
-    } catch (e) {
-      logger.e('Failed to clear cache: $e');
-      if (context.mounted) {
-        Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('Failed to clear cache: $e');
-      }
-    }
   }
 }

@@ -17,5 +17,94 @@
   },
   "nowPlayingTab": "NowPlaying",
   "libraryTab": "Library",
-  "roamTab": "Roam"
+  "roamTab": "Roam",
+  "loginSuccess": "Logged in with Spotify",
+  "logoutSuccess": "Logged out from Spotify",
+  "operationFailed": "Operation failed",
+  "invalidCredentialsError": "Invalid Spotify API credentials. Please check your Client ID and Secret.",
+  "authenticationError": "Authentication failed: Invalid credentials or insufficient permissions.",
+  "tooManyRequestsError": "Too many requests. Please try again later.",
+  "loginLogoutFailed": "Login/Logout failed: {error}",
+  "@loginLogoutFailed": {
+    "description": "Error message for login or logout failure",
+    "placeholders": {
+      "error": {
+        "type": "Object",
+        "example": "Exception details"
+      }
+    }
+  },
+  "helpAction": "Help",
+  "setupTitle": "Setup",
+  "googleAiApiKeyTitle": "Google AI API key",
+  "googleAiApiKeySubtitle": "Set up your Google AI Studio API key for Gemini translation",
+  "spotifyApiTitle": "Spotify API",
+  "spotifyApiSubtitle": "Set Spotify Client ID and Secret",
+  "tutorialTitle": "Tutorial",
+  "tutorialSubtitle": "See tutorial for setting up",
+  "generalTitle": "General",
+  "translationLanguageTitle": "Translation Language",
+  "translationLanguageSubtitle": "Choose the target language for translations",
+  "translationStyleTitle": "Translation Style",
+  "translationStyleSubtitle": "Set Gemini's Spirit",
+  "copyLyricsAsSingleLineTitle": "Copy lyrics as single line",
+  "copyLyricsAsSingleLineSubtitle": "Replaces line breaks with spaces when copying",
+  "dataManagementTitle": "Data Management",
+  "exportDataTitle": "Export Data",
+  "exportDataSubtitle": "Export all data as JSON file",
+  "importDataTitle": "Import Data",
+  "importDataSubtitle": "Import data from exported JSON file",
+  "clearCacheTitle": "Clear All Cache",
+  "clearCacheSubtitle": "Clear lyrics and translation cache",
+  "geminiApiKeyDialogTitle": "Gemini API key",
+  "geminiApiKeyDialogHint": "Enter your Gemini API key",
+  "cancelButton": "Cancel",
+  "apiKeySaved": "Gemini API key saved",
+  "okButton": "OK",
+  "spotifyCredentialsDialogTitle": "Spotify API",
+  "clientIdLabel": "Client ID",
+  "clientSecretLabel": "Client Secret",
+  "emptyCredentialsError": "Both Client ID and Secret are required.",
+  "invalidClientIdError": "Client ID must be a 32-character hex string.",
+  "invalidClientSecretError": "Client Secret must be a 32-character hex string.",
+  "credentialsSaved": "Spotify credentials saved",
+  "credentialsSaveFailed": "Failed to save credentials",
+  "languageDialogTitle": "Select Language",
+  "languageSaved": "Language setting saved",
+  "translationStyleDialogTitle": "Select Translation Style",
+  "translationStyleSaved": "Translation style saved",
+  "exportFailed": "Export failed or cancelled.",
+  "importDialogTitle": "Confirm Import",
+  "importDialogMessage": "Importing data will replace existing tracks and translations with the same identifiers, and add all records from the file. This cannot be undone. Are you sure you want to continue?\n\nEnsure the JSON file is valid and was previously exported from Spotoolfy.",
+  "importButton": "Import Data",
+  "importSuccess": "Data imported successfully!",
+  "importFailed": "Failed to import data.",
+  "exportSuccess": "Data exported successfully!",
+  "clearCacheDialogTitle": "Confirm Clear Cache",
+  "clearCacheDialogMessage": "Are you sure you want to clear the lyrics and translation cache? This cannot be undone.",
+  "clearCacheButton": "Clear Cache",
+  "clearingCache": "Clearing cache...",
+  "cacheCleared": "Cache cleared successfully!",
+  "cacheClearFailed": "Failed to clear cache",
+  "@cacheClearFailed": {},
+  "failedToChangeLanguage": "Failed to change language: {error}",
+  "@failedToChangeLanguage": {
+    "description": "Error message when changing language fails",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Network error"
+      }
+    }
+  },
+  "failedToChangeStyle": "Failed to change translation style: {error}",
+  "@failedToChangeStyle": {
+    "description": "Error message when changing translation style fails",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Invalid style"
+      }
+    }
+  }
 }

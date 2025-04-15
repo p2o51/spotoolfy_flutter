@@ -18,6 +18,7 @@ import 'providers/search_provider.dart';
 import 'providers/local_database_provider.dart';
 import 'services/lyrics_service.dart';
 import 'services/notification_service.dart';
+import 'services/settings_service.dart'; // Add this line
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -51,6 +52,7 @@ void main() async {
         Provider<NotificationService>(
           create: (_) => NotificationService(scaffoldMessengerKey),
         ),
+        Provider<SettingsService>(create: (_) => SettingsService()), // Add this line
       ],
       child: const MyThemedApp(),
     ),
