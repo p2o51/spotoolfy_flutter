@@ -31,6 +31,8 @@
   "translationStyleSubtitle": "设置 Gemini 的灵魂",
   "copyLyricsAsSingleLineTitle": "将歌词复制为单行",
   "copyLyricsAsSingleLineSubtitle": "复制时将换行符替换为空格",
+  "deepTranslationTitle": "深度翻译",
+  "deepTranslationSubtitle": "允许 Gemini 思考以提升翻译质量",
   "dataManagementTitle": "数据管理",
   "exportDataTitle": "导出数据",
   "exportDataSubtitle": "将所有数据导出为 JSON 文件",

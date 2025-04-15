@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:spotoolfy_flutter/widgets/player.dart';
 import 'package:spotoolfy_flutter/widgets/notes.dart';
-import 'package:spotoolfy_flutter/widgets/materialui.dart';
 import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';

@@ -6,9 +6,8 @@ import '../providers/local_database_provider.dart'; // Import new provider
 // import 'package:flutter/services.dart'; // Unnecessary import removed
 import 'package:cached_network_image/cached_network_image.dart'; // Import CachedNetworkImage
 import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
-// import '../widgets/carousel_view.dart'; // Removed incorrect import
-import '../widgets/materialui.dart'; // Import materialui which contains CarouselView
 import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导入
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 class Roam extends StatefulWidget {
   const Roam({super.key});
@@ -242,14 +241,237 @@ class _RoamState extends State<Roam> {
                 else
                   SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    sliver: SliverList(
+                    sliver: SliverLayoutBuilder(
+                      builder: (context, constraints) {
+                        // 获取屏幕宽度，使用SliverLayoutBuilder提供的约束
+                        final double width = constraints.crossAxisExtent;
+                        // 如果屏幕宽度大于600，使用双列布局
+                        final bool useTwoColumns = width > 600;
+                        
+                        if (useTwoColumns) {
+                          // 使用MasonryGridView实现交错的网格布局
+                          return SliverMasonryGrid.count(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            itemBuilder: (context, index) {
+                              // 移除对索引的检查，改用childCount来限制项目数量
+                              // Access data using map keys from the ALL records list
+                              final record = localDbProvider.allRecordsOrdered[index];
+                              final recordId = record['id'] as int?;
+                              final trackId = record['trackId'] as String?;
+                              final albumCoverUrl = record['albumCoverUrl'] as String?; // Get album cover URL
+                              final recordedAtRaw = record['recordedAt']; // CORRECT KEY: Get timestamp using 'recordedAt'
+                              String formattedTime = 'Unknown Time';
+                              
+                              if (recordedAtRaw is int) { 
+                                 final recordedDateTime = DateTime.fromMillisecondsSinceEpoch(recordedAtRaw).toLocal();
+                                 final now = DateTime.now();
+                                 final today = DateTime(now.year, now.month, now.day);
+                                 final yesterday = DateTime(now.year, now.month, now.day - 1);
+                                 final recordDate = DateTime(recordedDateTime.year, recordedDateTime.month, recordedDateTime.day);
+
+                                 final timeStr = '${recordedDateTime.hour.toString().padLeft(2, '0')}:${recordedDateTime.minute.toString().padLeft(2, '0')}';
+
+                                 if (recordDate == today) {
+                                   formattedTime = 'Today $timeStr';
+                                 } else if (recordDate == yesterday) {
+                                   formattedTime = 'Yesterday $timeStr';
+                                 } else {
+                                   // Format as MM-DD HH:mm for other dates
+                                   final dateStr = '${recordedDateTime.month.toString().padLeft(2, '0')}-${recordedDateTime.day.toString().padLeft(2, '0')}';
+                                   formattedTime = '$dateStr $timeStr';
+                                 }
+                              } else if (recordedAtRaw is String) { 
+                                // Fallback for potential string format (attempt to parse)
+                                try {
+                                  final recordedDateTime = DateTime.parse(recordedAtRaw).toLocal();
+                                  // Apply same logic as above for parsed string date
+                                   final now = DateTime.now();
+                                   final today = DateTime(now.year, now.month, now.day);
+                                   final yesterday = DateTime(now.year, now.month, now.day - 1);
+                                   final recordDate = DateTime(recordedDateTime.year, recordedDateTime.month, recordedDateTime.day);
+                                   final timeStr = '${recordedDateTime.hour.toString().padLeft(2, '0')}:${recordedDateTime.minute.toString().padLeft(2, '0')}';
+                                   if (recordDate == today) {
+                                     formattedTime = '今天 $timeStr';
+                                   } else if (recordDate == yesterday) {
+                                     formattedTime = '昨天 $timeStr';
+                                   } else {
+                                     final dateStr = '${recordedDateTime.month.toString().padLeft(2, '0')}-${recordedDateTime.day.toString().padLeft(2, '0')}';
+                                     formattedTime = '$dateStr $timeStr';
+                                   }
+                                } catch (e) {
+                                  print("Error parsing timestamp string: $e");
+                                  // Keep 'Unknown Time' if parsing fails
+                                }
+                              }
+
+                              return InkWell(
+                                onTap: trackId != null ? () {
+                                  print('Tapped on card with trackId: $trackId');
+                                  final trackUri = 'spotify:track:$trackId';
+                                  print('Attempting to play URI: $trackUri');
+                                  try {
+                                    spotifyProvider.playTrack(trackUri: trackUri);
+                                  } catch (e) {
+                                     print('Error calling playTrack: $e');
+                                     ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('播放失败: $e'),
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                } : null,
+                                onLongPress: recordId != null ? () { 
+                                  print('Long pressed on card with recordId: $recordId'); 
+                                  _showActionSheet(context, record); 
+                                } : null,
+                                borderRadius: BorderRadius.circular(16),
+                                child: Card(
+                                  elevation: 0,
+                                  color: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(
+                                      color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Timestamp Row
+                                        Row(
+                                          children: [
+                                            const Spacer(),
+                                            Text(
+                                              'Records at $formattedTime',
+                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
+                                                fontWeight: FontWeight.normal,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        
+                                        // Main Content Row (Cover + Text Column) - 改为与小屏幕一致的水平布局
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            // 左侧专辑封面
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(50.0),
+                                              child: CachedNetworkImage(
+                                                imageUrl: albumCoverUrl ?? '',
+                                                width: 80,
+                                                height: 80,
+                                                fit: BoxFit.cover,
+                                                placeholder: (context, url) => Container(
+                                                  width: 80,
+                                                  height: 80,
+                                                  color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                  child: Icon(Icons.music_note_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                ),
+                                                errorWidget: (context, url, error) => Container(
+                                                  width: 80,
+                                                  height: 80,
+                                                  color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                  child: Icon(Icons.broken_image_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            
+                                            // 右侧文本内容
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisAlignment: MainAxisAlignment.end,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  // Note Content
+                                                  if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(bottom: 8.0),
+                                                      child: Text(
+                                                        record['noteContent'] ?? '',
+                                                        style: Theme.of(context).textTheme.bodyMedium,
+                                                        overflow: TextOverflow.visible,
+                                                      ),
+                                                    ),
+                                                  
+                                                  // Track Info and Rating in a row
+                                                  Row(
+                                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                                    children: [
+                                                      // Track and Artist info
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            // Track Name
+                                                            Text(
+                                                              '${record['trackName'] ?? 'Unknown Track'}',
+                                                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                                                color: Theme.of(context).colorScheme.primary,
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                              softWrap: false,
+                                                            ),
+                                                            // Artist Name
+                                                            Text(
+                                                              '${record['artistName'] ?? 'Unknown Artist'}',
+                                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                color: Theme.of(context).colorScheme.secondary,
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                              softWrap: false,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      // Rating Icon
+                                                      (() {
+                                                        final dynamic ratingRaw = record['rating'];
+                                                        int? ratingValue;
+                                                        if (ratingRaw is int) { ratingValue = ratingRaw; }
+                                                        else if (ratingRaw is String) { ratingValue = 3; }
+                                                        IconData ratingIcon;
+                                                        switch (ratingValue) {
+                                                          case 0: ratingIcon = Icons.thumb_down_outlined; break;
+                                                          case 5: ratingIcon = Icons.whatshot_outlined; break;
+                                                          case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
+                                                        }
+                                                        return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
+                                                      }()),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: localDbProvider.allRecordsOrdered.length,
+                          );
+                        } else {
+                          // 保持原有的单列SliverList布局
+                          return SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          // Use the ALL records list now
-                          if (index >= localDbProvider.allRecordsOrdered.length) {
-                            return null;
-                          }
-                          
+                                // 原有的单列实现代码
                           // Access data using map keys from the ALL records list
                           final record = localDbProvider.allRecordsOrdered[index];
                           // Determine if it's the first/last item in the ALL list
@@ -332,7 +554,7 @@ class _RoamState extends State<Roam> {
                               ),
                               child: Card(
                                 elevation: 0,
-                                color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(153),
+                                      color: Colors.transparent,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.only(
                                     topLeft: Radius.circular(isFirst ? 24 : 8),
@@ -340,6 +562,10 @@ class _RoamState extends State<Roam> {
                                     bottomLeft: Radius.circular(isLast ? 24 : 8),
                                     bottomRight: Radius.circular(isLast ? 24 : 8),
                                   ),
+                                        side: BorderSide(
+                                          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                          width: 1,
+                                        ),
                                 ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16.0),
@@ -354,6 +580,7 @@ class _RoamState extends State<Roam> {
                                             'Records at $formattedTime',
                                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                               color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
+                                                    fontWeight: FontWeight.normal,
                                             ),
                                           ),
                                         ],
@@ -400,9 +627,8 @@ class _RoamState extends State<Roam> {
                                                     padding: const EdgeInsets.only(bottom: 8.0),
                                                     child: Text(
                                                       record['noteContent'] ?? '',
-                                                      style: Theme.of(context).textTheme.bodyLarge,
-                                                      maxLines: 3,
-                                                      overflow: TextOverflow.ellipsis,
+                                                      style: Theme.of(context).textTheme.bodyMedium,
+                                                      overflow: TextOverflow.visible,
                                                     ),
                                                   ),
                                                 
@@ -419,8 +645,7 @@ class _RoamState extends State<Roam> {
                                                           // Track Name
                                                           Text(
                                                             '${record['trackName'] ?? 'Unknown Track'}',
-                                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                              fontWeight: FontWeight.bold,
+                                                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                                               color: Theme.of(context).colorScheme.primary,
                                                             ),
                                                             maxLines: 1,
@@ -470,6 +695,9 @@ class _RoamState extends State<Roam> {
                         },
                         childCount: localDbProvider.allRecordsOrdered.length,
                       ),
+                          );
+                        }
+                      },
                     ),
                   ),
                 SliverToBoxAdapter(
@@ -634,11 +862,11 @@ class NotesCarouselView extends StatelessWidget {
                                     Expanded(
                                       child: Text(
                                         record['noteContent'] ?? '',
-                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                           color: Colors.white,
                                         ),
                                         overflow: TextOverflow.ellipsis,
-                                        maxLines: 3,
+                                        maxLines: 5,
                                       ),
                                     ),
                                   ],
@@ -657,7 +885,6 @@ class NotesCarouselView extends StatelessWidget {
                                         Text(
                                           '${record['trackName'] ?? 'Unknown Track'}',
                                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                            fontWeight: FontWeight.bold,
                                             color: Colors.white,
                                           ),
                                           maxLines: 1,

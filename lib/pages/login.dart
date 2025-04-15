@@ -300,6 +300,13 @@ class SettingsMenuSection extends StatelessWidget {
               title: l10n.copyLyricsAsSingleLineTitle, // Use localization
               subtitle: l10n.copyLyricsAsSingleLineSubtitle, // Use localization
             ),
+            const SizedBox(height: kElementSpacing),
+            _buildThinkingModeSwitchMenuItem(
+              context,
+              icon: Icons.psychology,
+              title: l10n.deepTranslationTitle, // 使用多语言
+              subtitle: l10n.deepTranslationSubtitle, // 使用多语言
+            ),
             const SizedBox(height: kSectionSpacing),
             
             // 数据管理部分
@@ -476,6 +483,87 @@ class SettingsMenuSection extends StatelessWidget {
                       onChanged: (bool value) {
                         HapticFeedback.lightImpact();
                         settingsService.saveCopyLyricsAsSingleLine(value);
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Widget _buildThinkingModeSwitchMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final settingsService = Provider.of<SettingsService>(context, listen: false);
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return FutureBuilder<bool>(
+          future: settingsService.getEnableThinkingForTranslation(),
+          builder: (context, snapshot) {
+            bool enableThinking = false;
+            if (snapshot.hasData) {
+              enableThinking = snapshot.data!;
+            }
+            
+            return InkWell(
+              onTap: () {
+                if (snapshot.hasData) {
+                  HapticFeedback.lightImpact();
+                  final newValue = !enableThinking;
+                  settingsService.saveEnableThinkingForTranslation(newValue);
+                  setState(() {});
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(kSmallSpacing),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: kElementSpacing),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: enableThinking,
+                      onChanged: (bool value) {
+                        HapticFeedback.lightImpact();
+                        settingsService.saveEnableThinkingForTranslation(value);
                         setState(() {});
                       },
                     ),

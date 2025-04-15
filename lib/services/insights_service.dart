@@ -43,6 +43,7 @@ class InsightsService {
       // Enforce JSON output from the model
       'generationConfig': {
         'response_mime_type': 'application/json',
+        'temperature': 0.9,
       },
       // Optional: Add safety settings if needed
       // 'safetySettings': [ ... ]
@@ -166,11 +167,8 @@ $contextListString
 1. Analyze the overall mood conveyed by this listening history. Say something to them in 2~5 concise sentences about their mood and daily life.
 2. Your language should be:
 - Mysterious and suggestive, like the whispers of a fortune teller, sparking the imagination.
-- Carrying a subtle, almost imperceptible sense of solace or vague hope, like a glimmer in the mist, touched upon lightly, avoiding directness.
-- The wording is soft and delicate, yet shrouded in a layer of gray and ambiguity, full of unsolved mysteries.
-- Containing hints of foreshadowing or subtle clues, pointing towards the flow of feelings or inner exploration.
-- Absolutely avoid mentioning any specific song, singer, or playlist name.
-- The language is highly indirect and vague, using metaphors or symbolism, avoiding any direct judgment or statement.
+- Carrying a subtle, almost imperceptible sense of solace. Touched upon lightly, avoiding directness. The wording is soft and delicate, yet of unsolved mysteries.
+- Containing hints of foreshadowing or subtle clues, pointing towards the flow of feelings or inner exploration, and using metaphors or symbolism.
 
 
 Please provide the response strictly in JSON format with the following structure:

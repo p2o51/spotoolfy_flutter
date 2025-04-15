@@ -45,6 +45,7 @@ class SettingsService {
   static const _targetLanguageKey = 'target_translation_language';
   static const _translationStyleKey = 'translation_style'; // Key for style
   static const _copyLyricsAsSingleLineKey = 'copy_lyrics_single_line'; // Key for new setting
+  static const _enableThinkingForTranslationKey = 'enable_thinking_for_translation'; // Key for thinking mode
 
   static const _defaultLanguage = 'en'; // Default to English
   static const _defaultStyle = TranslationStyle.faithful; // Default style
@@ -88,8 +89,20 @@ class SettingsService {
     return valueString?.toLowerCase() == 'true';
   }
 
+  // Method to save the thinking mode for translation setting
+  Future<void> saveEnableThinkingForTranslation(bool value) async {
+    await _secureStorage.write(key: _enableThinkingForTranslationKey, value: value.toString());
+  }
+
+  // Method to get the thinking mode for translation setting
+  Future<bool> getEnableThinkingForTranslation() async {
+    final valueString = await _secureStorage.read(key: _enableThinkingForTranslationKey);
+    // Parse the string to bool. Handles null and defaults to false.
+    return valueString?.toLowerCase() == 'true';
+  }
+
   // Method to save both settings at once, potentially useful in the UI
-  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine}) async {
+  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForTranslation}) async {
     if (apiKey != null) {
       await saveGeminiApiKey(apiKey);
     }
@@ -102,6 +115,9 @@ class SettingsService {
     if (copyAsSingleLine != null) {
       await saveCopyLyricsAsSingleLine(copyAsSingleLine);
     }
+    if (enableThinkingForTranslation != null) {
+      await saveEnableThinkingForTranslation(enableThinkingForTranslation);
+    }
   }
 
   // Method to get all settings, useful for initialization
@@ -111,6 +127,7 @@ class SettingsService {
       'languageCode': await getTargetLanguage(),
       'style': await getTranslationStyle(),
       'copyLyricsAsSingleLine': await getCopyLyricsAsSingleLine(),
+      'enableThinkingForTranslation': await getEnableThinkingForTranslation(),
     };
   }
 
@@ -120,5 +137,6 @@ class SettingsService {
     await _secureStorage.delete(key: _targetLanguageKey);
     await _secureStorage.delete(key: _translationStyleKey);
     await _secureStorage.delete(key: _copyLyricsAsSingleLineKey);
+    await _secureStorage.delete(key: _enableThinkingForTranslationKey);
   }
 } 

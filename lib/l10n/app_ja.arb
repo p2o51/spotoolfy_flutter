@@ -31,6 +31,8 @@
   "translationStyleSubtitle": "Gemini のスピリットを設定する",
   "copyLyricsAsSingleLineTitle": "歌詞を 1 行でコピー",
   "copyLyricsAsSingleLineSubtitle": "コピー時に改行をスペースに置き換える",
+  "deepTranslationTitle": "思考 -> 翻訳",
+  "deepTranslationSubtitle": "Gemini の思考モードを有効にして翻訳品質を向上させる",
   "dataManagementTitle": "データ管理",
   "exportDataTitle": "データのエクスポート",
   "exportDataSubtitle": "すべてのデータを JSON ファイルとしてエクスポートする",

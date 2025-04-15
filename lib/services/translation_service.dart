@@ -5,8 +5,10 @@ import '../services/settings_service.dart';
 
 class TranslationService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiApiBaseUrl = 
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest'; // Use the latest flash model
+  static const String _geminiBaseUrl = 
+      'https://generativelanguage.googleapis.com/v1beta/models/';
+  static const String _geminiDefaultModel = 'gemini-2.0-flash';
+  static const String _geminiThinkingModel = 'gemini-2.0-flash-thinking-exp';
   static const String _cacheKeyPrefix = 'translation_cache_'; // Cache key prefix
 
   Future<Map<String, String?>?> translateLyrics(String lyricsText, String trackId, {String? targetLanguage, bool forceRefresh = false}) async {
@@ -19,6 +21,11 @@ class TranslationService {
     final languageName = _getLanguageName(languageCodeUsed);
     final styleUsed = await _settingsService.getTranslationStyle(); // Capture the style used
     final styleNameUsed = translationStyleToString(styleUsed); // Get style name for cache key and return value
+    final enableThinking = await _settingsService.getEnableThinkingForTranslation(); // 获取思考模式设置
+
+    // 选择合适的模型
+    final model = enableThinking ? _geminiThinkingModel : _geminiDefaultModel;
+    final modelUrl = '$_geminiBaseUrl$model';
 
     // Generate cache key including language and style
     final cacheKey = '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed';
@@ -42,7 +49,7 @@ class TranslationService {
       print('Forcing refresh: Removed cache for $cacheKey');
     }
 
-    final url = Uri.parse('$_geminiApiBaseUrl:generateContent?key=$apiKey');
+    final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     
     // Get the prompt based on the selected style
     final prompt = _getPromptForStyle(styleUsed, languageName, lyricsText);
