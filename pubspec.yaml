@@ -51,8 +51,6 @@ dependencies:
   path_provider:
   flutter_dotenv: ^5.1.0
   flutter_cache_manager: ^3.3.2
-  just_audio: ^0.9.38
-  just_audio_background: ^0.0.1-beta.14
   audio_session: ^0.1.21
   rxdart: ^0.28.0
   get_it: ^7.7.0
