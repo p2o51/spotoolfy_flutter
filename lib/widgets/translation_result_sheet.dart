@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard
 import '../services/settings_service.dart'; // Import TranslationStyle and SettingsService
+import 'package:provider/provider.dart'; // 添加provider import
+import '../providers/local_database_provider.dart'; // 添加数据库Provider
+import '../models/translation.dart'; // 添加Translation模型
 
 // Helper to get display name for style (copied from settings_service or shared location)
 String _getTranslationStyleDisplayName(TranslationStyle style) {
@@ -14,11 +17,48 @@ String _getTranslationStyleDisplayName(TranslationStyle style) {
   }
 }
 
+// 根据翻译风格获取对应的图标
+IconData _getTranslationStyleIcon(TranslationStyle style) {
+  switch (style) {
+    case TranslationStyle.faithful:
+      return Icons.straight; // 忠实翻译
+    case TranslationStyle.melodramaticPoet:
+      return Icons.auto_stories; // 诗意翻译
+    case TranslationStyle.machineClassic:
+      return Icons.smart_toy; // 机器翻译
+  }
+}
+
+// 获取下一个翻译风格
+TranslationStyle _getNextTranslationStyle(TranslationStyle currentStyle) {
+  switch (currentStyle) {
+    case TranslationStyle.faithful:
+      return TranslationStyle.melodramaticPoet;
+    case TranslationStyle.melodramaticPoet:
+      return TranslationStyle.machineClassic;
+    case TranslationStyle.machineClassic:
+      return TranslationStyle.faithful;
+  }
+}
+
+// 获取翻译风格的提示文本
+String _getTranslationStyleTooltip(TranslationStyle style) {
+  switch (style) {
+    case TranslationStyle.faithful:
+      return '当前: 忠实翻译 - 点击切换';
+    case TranslationStyle.melodramaticPoet:
+      return '当前: 诗意翻译 - 点击切换';
+    case TranslationStyle.machineClassic:
+      return '当前: 机器翻译 - 点击切换';
+  }
+}
+
 class TranslationResultSheet extends StatefulWidget {
   final String originalLyrics;
   final String translatedLyrics;
   final Future<String?> Function() onReTranslate;
   final TranslationStyle translationStyle; // Add style parameter
+  final String trackId; // 添加trackId参数，用于查询数据库中的翻译
 
   const TranslationResultSheet({
     Key? key,
@@ -26,6 +66,7 @@ class TranslationResultSheet extends StatefulWidget {
     required this.translatedLyrics,
     required this.onReTranslate,
     required this.translationStyle, // Make style required
+    required this.trackId, // 要求传入trackId
   }) : super(key: key);
 
   @override
@@ -36,6 +77,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
   bool _isTranslating = false;
   String? _translationError;
   late String _currentTranslatedLyrics;
+  late TranslationStyle _currentStyle;
 
   // Instantiate SettingsService here or within the function where needed
   final SettingsService _settingsService = SettingsService();
@@ -44,6 +86,73 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
   void initState() {
     super.initState();
     _currentTranslatedLyrics = widget.translatedLyrics;
+    _currentStyle = widget.translationStyle;
+  }
+
+  // 循环切换到下一个翻译风格并尝试从数据库获取对应翻译，没有则重新翻译
+  Future<void> _toggleTranslationStyle() async {
+    if (_isTranslating) return;
+    
+    final nextStyle = _getNextTranslationStyle(_currentStyle);
+    final nextStyleString = translationStyleToString(nextStyle);
+    
+    setState(() {
+      _isTranslating = true;
+      _translationError = null;
+    });
+    
+    try {
+      HapticFeedback.lightImpact();
+      // 保存新风格到设置
+      await _settingsService.saveTranslationStyle(nextStyle);
+      
+      // 更新当前风格状态
+      setState(() {
+        _currentStyle = nextStyle;
+      });
+      
+      // 获取当前语言设置
+      final currentLanguage = await _settingsService.getTargetLanguage();
+      
+      // 先尝试从数据库获取对应风格的翻译
+      final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+      final cachedTranslation = await localDbProvider.fetchTranslation(
+        widget.trackId, 
+        currentLanguage, 
+        nextStyleString
+      );
+      
+      if (cachedTranslation != null) {
+        // 数据库中已有该风格的翻译，直接使用
+        if (mounted) {
+          setState(() {
+            _currentTranslatedLyrics = cachedTranslation.translatedLyrics;
+            _isTranslating = false;
+          });
+        }
+      } else {
+        // 数据库中没有该风格的翻译，调用API重新翻译
+        final newTranslation = await widget.onReTranslate();
+        if (mounted) {
+          setState(() {
+            if (newTranslation != null) {
+              _currentTranslatedLyrics = newTranslation;
+              _translationError = null;
+            } else {
+              _translationError = '重新翻译失败，请再试一次';
+            }
+            _isTranslating = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _translationError = '错误: ${e.toString()}';
+          _isTranslating = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleReTranslate() async {
@@ -184,6 +293,16 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                     // Action Buttons Row
                     Row(
                       children: [
+                        // 翻译风格按钮 - 修改为直接切换风格
+                        IconButton.filledTonal(
+                          icon: Icon(_getTranslationStyleIcon(_currentStyle), size: 20),
+                          tooltip: _getTranslationStyleTooltip(_currentStyle),
+                          onPressed: _isTranslating ? null : _toggleTranslationStyle,
+                          style: IconButton.styleFrom(
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
                         // Retranslate Button
                         _isTranslating
                           ? const SizedBox(
@@ -272,7 +391,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
   // Narrow Layout (Existing Logic)
   Widget _buildNarrowLayout(BuildContext context, ScrollController scrollController) {
     final lyricsToShow = _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
-    final styleDisplayName = _getTranslationStyleDisplayName(widget.translationStyle);
+    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle);
     final attributionText = "Translated by Gemini 2.0 Flash\nSpirit: $styleDisplayName";
     final theme = Theme.of(context);
 
@@ -344,7 +463,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
   // Wide Layout (New Side-by-Side Logic)
   Widget _buildWideLayout(BuildContext context, ScrollController scrollController) {
     final theme = Theme.of(context);
-    final styleDisplayName = _getTranslationStyleDisplayName(widget.translationStyle);
+    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle);
     final attributionText = "Translated by Gemini 2.0 Flash\nSpirit: $styleDisplayName";
 
     // Define consistent padding

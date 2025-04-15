@@ -534,8 +534,8 @@ class NotesCarouselView extends StatelessWidget {
         final flexWeights = screenWidth > 900
             ? const [1, 2, 5, 2, 1]
             : screenWidth > 600
-            ? const [1, 4, 1]
-            : const [1, 5, 1];
+            ? const [1, 4, 5, 1]
+            : const [2, 5, 1];
 
         return Center(
           child: ConstrainedBox(

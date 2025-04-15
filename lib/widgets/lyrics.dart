@@ -327,6 +327,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             originalLyrics: originalLyricsText,
             translatedLyrics: fetchedTranslatedText!,
             translationStyle: displayStyleEnum,
+            trackId: currentTrackId,
             onReTranslate: () async {
               // Re-translate logic fetches from API and saves to DB again
               String? newTranslationText;
