@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   logger: ^2.5.0
 
   # The following adds the Cupertino Icons font to your application.
@@ -45,7 +47,7 @@ dependencies:
   flutter_launcher_icons: ^0.14.2
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.1
-  intl: ^0.20.2
+  intl: ^0.19.0
   collection: ^1.19.0
   sqflite:
   path_provider:
@@ -68,6 +70,7 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:

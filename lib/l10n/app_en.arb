@@ -1,0 +1,21 @@
+{
+  "@@locale": "en",
+  "settingsTitle": "Settings",
+  "devicesTitle": "Devices",
+  "noDeviceFound": "No devices found",
+  "authorizeSpotifyButton": "Authorize Spotify",
+  "logoutSpotifyButton": "Logout from Spotify",
+  "loggedInAs": "Spotify: {username}",
+  "@loggedInAs": {
+    "description": "Status text showing the logged in Spotify username",
+    "placeholders": {
+      "username": {
+        "type": "String",
+        "example": "User123"
+      }
+    }
+  },
+  "nowPlayingTab": "NowPlaying",
+  "libraryTab": "Library",
+  "roamTab": "Roam"
+}

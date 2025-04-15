@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'pages/nowplaying.dart';
 import 'pages/library.dart';
 import 'pages/roam.dart';
@@ -77,6 +79,18 @@ class MyThemedApp extends StatelessWidget {
     return MaterialApp(
       scaffoldMessengerKey: scaffoldMessengerKey,
       navigatorKey: navigatorKey,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),       // English
+        Locale('zh'),       // Simplified Chinese
+        Locale('zh', 'TW'), // Traditional Chinese
+        Locale('ja'),       // Japanese
+      ],
       theme: ThemeData(
         colorScheme: themeProvider.colorScheme,
         useMaterial3: true,

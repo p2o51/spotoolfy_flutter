@@ -1,0 +1,12 @@
+{
+  "@@locale": "zh_TW",
+  "settingsTitle": "設定",
+  "devicesTitle": "裝置",
+  "noDeviceFound": "找不到可用裝置",
+  "authorizeSpotifyButton": "授權 Spotify",
+  "logoutSpotifyButton": "登出 Spotify",
+  "loggedInAs": "Spotify: {username}",
+  "nowPlayingTab": "播放中",
+  "libraryTab": "音樂庫",
+  "roamTab": "漫遊"
+}

@@ -1,0 +1,12 @@
+{
+  "@@locale": "ja",
+  "settingsTitle": "設定",
+  "devicesTitle": "デバイス",
+  "noDeviceFound": "利用可能なデバイスが見つかりません",
+  "authorizeSpotifyButton": "Spotifyを承認",
+  "logoutSpotifyButton": "Spotifyからログアウト",
+  "loggedInAs": "Spotify: {username}",
+  "nowPlayingTab": "再生中",
+  "libraryTab": "ライブラリ",
+  "roamTab": "探索"
+}
