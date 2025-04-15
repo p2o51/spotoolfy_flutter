@@ -85,14 +85,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 8),
-              Ratings(
-                initialRating: 3,
-                onRatingChanged: (rating) {
-                  HapticFeedback.lightImpact();
-                  // Handle rating change if needed
-                },
-              ),
-              const SizedBox(height: 16),
               const NotesDisplay(),
               const SizedBox(height: 80),
             ],

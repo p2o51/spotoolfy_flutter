@@ -30,7 +30,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
 
     if (recordId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法操作：记录信息不完整')),
+        const SnackBar(content: Text('Cannot proceed: Incomplete record information')),
       );
       return;
     }
@@ -38,19 +38,20 @@ class _NotesDisplayState extends State<NotesDisplay> {
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
         return CupertinoActionSheet(
-          title: const Text('笔记操作'),
+          title: const Text('Options'),
           actions: <CupertinoActionSheetAction>[
             CupertinoActionSheetAction(
-              child: const Text('编辑笔记'),
+              child: const Text('Edit Note'),
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
                 _showEditDialogForRecord(context, record);
               },
             ),
             CupertinoActionSheetAction(
-              child: const Text('删除笔记'),
+              child: const Text('Delete Note'),
               isDestructiveAction: true,
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
@@ -59,7 +60,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
-            child: const Text('取消'),
+            child: const Text('Cancel'),
             onPressed: () => Navigator.pop(bottomSheetContext),
           ),
         );
@@ -75,7 +76,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
 
     if (recordId == null || trackId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法操作：记录信息不完整')),
+        const SnackBar(content: Text('Cannot proceed: Incomplete record information')),
       );
       return;
     }
@@ -83,19 +84,20 @@ class _NotesDisplayState extends State<NotesDisplay> {
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
         return CupertinoActionSheet(
-          title: Text(record['trackName'] ?? '笔记操作'),
+          title: Text(record['trackName'] ?? 'Options'),
           actions: <CupertinoActionSheetAction>[
             CupertinoActionSheetAction(
-              child: const Text('编辑笔记'),
+              child: const Text('Edit Note'),
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
                 _showEditDialogForRelatedRecord(context, record);
               },
             ),
             CupertinoActionSheetAction(
-              child: const Text('删除笔记'),
+              child: const Text('Delete Note'),
               isDestructiveAction: true,
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
@@ -104,7 +106,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
-            child: const Text('取消'),
+            child: const Text('Cancel'),
             onPressed: () => Navigator.pop(bottomSheetContext),
           ),
         );
@@ -128,7 +130,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('编辑笔记'),
+              title: const Text('Edit Note'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -137,12 +139,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       controller: textController,
                       maxLines: null,
                       decoration: const InputDecoration(
-                        labelText: '笔记内容',
+                        labelText: 'Note Content',
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text('评价:', style: TextStyle(fontWeight: FontWeight.bold)),
                     SegmentedButton<int>(
                       segments: const <ButtonSegment<int>>[
                         ButtonSegment<int>(value: 0, icon: Icon(Icons.thumb_down_outlined)),
@@ -165,11 +166,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
               ),
               actions: [
                 TextButton(
-                  child: const Text('取消'),
+                  child: const Text('Cancel'),
                   onPressed: () => Navigator.pop(dialogContext),
                 ),
                 TextButton(
-                  child: const Text('保存'),
+                  child: const Text('Save'),
                   onPressed: () {
                     localDbProvider.updateRecord(
                       recordId: recordId,
@@ -212,7 +213,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('编辑笔记'),
+              title: const Text('Edit Note'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -221,12 +222,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       controller: textController,
                       maxLines: null,
                       decoration: const InputDecoration(
-                        labelText: '笔记内容',
+                        labelText: 'Note Content',
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text('评价:', style: TextStyle(fontWeight: FontWeight.bold)),
                     SegmentedButton<int>(
                       segments: const <ButtonSegment<int>>[
                         ButtonSegment<int>(value: 0, icon: Icon(Icons.thumb_down_outlined)),
@@ -249,11 +249,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
               ),
               actions: [
                 TextButton(
-                  child: const Text('取消'),
+                  child: const Text('Cancel'),
                   onPressed: () => Navigator.pop(dialogContext),
                 ),
                 TextButton(
-                  child: const Text('保存'),
+                  child: const Text('Save'),
                   onPressed: () {
                     localDbProvider.updateRecord(
                       recordId: recordId,
@@ -277,16 +277,16 @@ class _NotesDisplayState extends State<NotesDisplay> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('确认删除'),
-          content: const Text('确定要删除这条笔记吗？此操作无法撤销。'),
+          title: const Text('Confirm Delete'),
+          content: const Text('Are you sure you want to delete this note? This action cannot be undone.'),
           actions: [
             TextButton(
-              child: const Text('取消'),
+              child: const Text('Cancel'),
               onPressed: () => Navigator.pop(dialogContext),
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text('删除'),
+              child: const Text('Delete'),
               onPressed: () {
                 Provider.of<LocalDatabaseProvider>(context, listen: false).deleteRecord(
                   recordId: recordId,
@@ -436,7 +436,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       ),
                       title: Text(
                         record.noteContent ?? '',
-                        style: const TextStyle(fontSize: 16, height: 0.95),
+                        style: const TextStyle(fontSize: 16, height: 1.05),
                       ),
                       // Add the rating icon as the trailing widget
                       trailing: Icon(ratingIcon, color: Theme.of(context).colorScheme.secondary),
@@ -504,7 +504,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       title: Text(
                         // Access note content from map
                         relatedRecord['noteContent'] ?? '',
-                        style: const TextStyle(fontSize: 16, height: 0.95),
+                        style: const TextStyle(fontSize: 16, height: 1.05),
                       ),
                       subtitle: Text(
                         // Access track/artist name from map

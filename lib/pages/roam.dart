@@ -42,7 +42,7 @@ class _RoamState extends State<Roam> {
 
     if (recordId == null || trackId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法操作：记录信息不完整')),
+        const SnackBar(content: Text('Cannot proceed: Incomplete record information')),
       );
       return;
     }
@@ -51,21 +51,22 @@ class _RoamState extends State<Roam> {
       context: context,
       // Use RootNavigator to ensure it appears above bottom nav bar if applicable
       useRootNavigator: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
         // Using CupertinoActionSheet for iOS style, you can use Column + ListTiles for Material
         return CupertinoActionSheet(
-          title: Text(record['trackName'] ?? '笔记操作'),
+          title: Text(record['trackName'] ?? 'Options'),
           // message: Text(record['noteContent'] ?? ''), // Optional: show content snippet
           actions: <CupertinoActionSheetAction>[
             CupertinoActionSheetAction(
-              child: const Text('编辑笔记'),
+              child: const Text('Edit Note'),
               onPressed: () {
                 Navigator.pop(bottomSheetContext); // Close the sheet
                 _showEditDialog(context, record); // Show edit dialog
               },
             ),
             CupertinoActionSheetAction(
-              child: const Text('删除笔记'),
+              child: const Text('Delete Note'),
               isDestructiveAction: true,
               onPressed: () {
                 Navigator.pop(bottomSheetContext); // Close the sheet
@@ -74,7 +75,7 @@ class _RoamState extends State<Roam> {
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
-            child: const Text('取消'),
+            child: const Text('Cancel'),
             onPressed: () {
               Navigator.pop(bottomSheetContext);
             },
@@ -109,7 +110,7 @@ class _RoamState extends State<Roam> {
         return StatefulBuilder( // Use StatefulBuilder to update rating selection within the dialog
            builder: (context, setDialogState) {
               return AlertDialog(
-                title: const Text('编辑笔记'),
+                title: const Text('Edit Note'),
                 content: SingleChildScrollView( // Allow scrolling if content is long
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -118,12 +119,11 @@ class _RoamState extends State<Roam> {
                         controller: textController,
                         maxLines: null, // Allow multiple lines
                         decoration: const InputDecoration(
-                          labelText: '笔记内容',
+                          labelText: 'Note Content',
                           border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text('评价:', style: TextStyle(fontWeight: FontWeight.bold)),
                       // Using SegmentedButton for rating selection
                       SegmentedButton<int>(
                         segments: const <ButtonSegment<int>>[
@@ -148,11 +148,11 @@ class _RoamState extends State<Roam> {
                 ),
                 actions: [
                   TextButton(
-                    child: const Text('取消'),
+                    child: const Text('Cancel'),
                     onPressed: () => Navigator.pop(dialogContext),
                   ),
                   TextButton(
-                    child: const Text('保存'),
+                    child: const Text('Save'),
                     onPressed: () {
                       // TODO: Ensure provider has updateRecord method implemented
                       localDbProvider.updateRecord(
@@ -177,16 +177,16 @@ class _RoamState extends State<Roam> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('确认删除'),
-          content: const Text('确定要删除这条笔记吗？此操作无法撤销。'),
+          title: const Text('Confirm Delete'),
+          content: const Text('Are you sure you want to delete this note? This action cannot be undone.'),
           actions: [
             TextButton(
-              child: const Text('取消'),
+              child: const Text('Cancel'),
               onPressed: () => Navigator.pop(dialogContext),
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text('删除'),
+              child: const Text('Delete'),
               onPressed: () {
                 // TODO: Ensure provider has deleteRecord method implemented
                 Provider.of<LocalDatabaseProvider>(context, listen: false).deleteRecord(
@@ -257,28 +257,65 @@ class _RoamState extends State<Roam> {
                           final isLast = index == localDbProvider.allRecordsOrdered.length - 1;
                           final recordId = record['id'] as int?;
                           final trackId = record['trackId'] as String?;
+                          final albumCoverUrl = record['albumCoverUrl'] as String?; // Get album cover URL
+                          final recordedAtRaw = record['recordedAt']; // CORRECT KEY: Get timestamp using 'recordedAt'
+                          String formattedTime = 'Unknown Time';
+                          
+                          if (recordedAtRaw is int) { 
+                             final recordedDateTime = DateTime.fromMillisecondsSinceEpoch(recordedAtRaw).toLocal();
+                             final now = DateTime.now();
+                             final today = DateTime(now.year, now.month, now.day);
+                             final yesterday = DateTime(now.year, now.month, now.day - 1);
+                             final recordDate = DateTime(recordedDateTime.year, recordedDateTime.month, recordedDateTime.day);
+
+                             final timeStr = '${recordedDateTime.hour.toString().padLeft(2, '0')}:${recordedDateTime.minute.toString().padLeft(2, '0')}';
+
+                             if (recordDate == today) {
+                               formattedTime = 'Today $timeStr';
+                             } else if (recordDate == yesterday) {
+                               formattedTime = 'Yesterday $timeStr';
+                             } else {
+                               // Format as MM-DD HH:mm for other dates
+                               final dateStr = '${recordedDateTime.month.toString().padLeft(2, '0')}-${recordedDateTime.day.toString().padLeft(2, '0')}';
+                               formattedTime = '$dateStr $timeStr';
+                             }
+                          } else if (recordedAtRaw is String) { 
+                            // Fallback for potential string format (attempt to parse)
+                            try {
+                              final recordedDateTime = DateTime.parse(recordedAtRaw).toLocal();
+                              // Apply same logic as above for parsed string date
+                               final now = DateTime.now();
+                               final today = DateTime(now.year, now.month, now.day);
+                               final yesterday = DateTime(now.year, now.month, now.day - 1);
+                               final recordDate = DateTime(recordedDateTime.year, recordedDateTime.month, recordedDateTime.day);
+                               final timeStr = '${recordedDateTime.hour.toString().padLeft(2, '0')}:${recordedDateTime.minute.toString().padLeft(2, '0')}';
+                               if (recordDate == today) {
+                                 formattedTime = '今天 $timeStr';
+                               } else if (recordDate == yesterday) {
+                                 formattedTime = '昨天 $timeStr';
+                               } else {
+                                 final dateStr = '${recordedDateTime.month.toString().padLeft(2, '0')}-${recordedDateTime.day.toString().padLeft(2, '0')}';
+                                 formattedTime = '$dateStr $timeStr';
+                               }
+                            } catch (e) {
+                              print("Error parsing timestamp string: $e");
+                              // Keep 'Unknown Time' if parsing fails
+                            }
+                          }
 
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0), 
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
                             child: InkWell(
                               onTap: trackId != null ? () {
                                 print('Tapped on card with trackId: $trackId');
-                                // 构建 Spotify URI
                                 final trackUri = 'spotify:track:$trackId';
-                                print('Attempting to play URI: $trackUri'); 
-                                // 调用 SpotifyProvider 的播放方法 (使用命名参数 trackUri)
+                                print('Attempting to play URI: $trackUri');
                                 try {
                                   spotifyProvider.playTrack(trackUri: trackUri);
-                                  // 可以加一个短暂的视觉反馈，比如 SnackBar
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('正在尝试播放: ${record['trackName'] ?? trackId}'),
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
+                                  // REMOVED Playback SnackBar
                                 } catch (e) {
                                    print('Error calling playTrack: $e');
-                                   ScaffoldMessenger.of(context).showSnackBar(
+                                   ScaffoldMessenger.of(context).showSnackBar( // Keep error SnackBar
                                     SnackBar(
                                       content: Text('播放失败: $e'),
                                       duration: const Duration(seconds: 2),
@@ -306,71 +343,122 @@ class _RoamState extends State<Roam> {
                                 ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16.0),
-                                  child: Column(
+                                  child: Column( // Outer column for timestamp + main content row
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      // Timestamp Row (stays at top right)
                                       Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Icon(
-                                            Icons.note_alt_outlined,
-                                            size: 32,
-                                            color: Theme.of(context).colorScheme.primary,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Text(
-                                              record['noteContent'] ?? '',
-                                              style: Theme.of(context).textTheme.bodyLarge,
+                                          const Spacer(),
+                                          Text(
+                                            'Records at $formattedTime',
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
                                             ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 16),
+
+                                      // Main Content Row (Cover + Text Column)
                                       Row(
+                                        crossAxisAlignment: CrossAxisAlignment.end, // 保持底部对齐
                                         children: [
-                                          Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(left: 48.0),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '${record['trackName'] ?? 'Unknown Track'}',
-                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Theme.of(context).colorScheme.primary,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.clip,
-                                                    softWrap: false,
-                                                  ),
-                                                  Text(
-                                                    '${record['artistName'] ?? 'Unknown Artist'}',
-                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                      color: Theme.of(context).colorScheme.secondary,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.clip,
-                                                    softWrap: false,
-                                                  ),
-                                                ],
+                                          // Column 1: Album Cover (No Align needed here)
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(50.0),
+                                            child: CachedNetworkImage(
+                                              imageUrl: albumCoverUrl ?? '',
+                                              width: 100, // 改为80
+                                              height: 100, // 改为80
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) => Container(
+                                                width: 100, // 改为80
+                                                height: 100, // 改为80
+                                                color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                child: Icon(Icons.music_note_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                              ),
+                                              errorWidget: (context, url, error) => Container(
+                                                width: 100, // 改为80
+                                                height: 100, // 改为80
+                                                color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                child: Icon(Icons.broken_image_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
                                               ),
                                             ),
                                           ),
-                                          () { 
-                                             final dynamic ratingRaw = record['rating'];
-                                             int? ratingValue;
-                                             if (ratingRaw is int) { ratingValue = ratingRaw; }
-                                             else if (ratingRaw is String) { ratingValue = 3; }
-                                             IconData ratingIcon;
-                                             switch (ratingValue) {
-                                               case 0: ratingIcon = Icons.thumb_down_outlined; break;
-                                               case 5: ratingIcon = Icons.whatshot_outlined; break;
-                                               case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
-                                             }
-                                             return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 20);
-                                          }(),
+                                          const SizedBox(width: 16), // Space between columns
+
+                                          // Column 2: Text Info & Rating
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisAlignment: MainAxisAlignment.end, // 使列底部对齐
+                                              mainAxisSize: MainAxisSize.min, // 保持内容紧凑
+                                              children: [
+                                                // Note Content (remains at top)
+                                                if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                                    child: Text(
+                                                      record['noteContent'] ?? '',
+                                                      style: Theme.of(context).textTheme.bodyLarge,
+                                                      maxLines: 3,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                
+                                                // 将评分图标和歌曲信息放在同一行，实现底部对齐
+                                                Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                                  children: [
+                                                    // 歌曲和艺术家信息
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          // Track Name
+                                                          Text(
+                                                            '${record['trackName'] ?? 'Unknown Track'}',
+                                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                              fontWeight: FontWeight.bold,
+                                                              color: Theme.of(context).colorScheme.primary,
+                                                            ),
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            softWrap: false,
+                                                          ),
+                                                          // Artist Name
+                                                          Text(
+                                                            '${record['artistName'] ?? 'Unknown Artist'}',
+                                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                              color: Theme.of(context).colorScheme.secondary,
+                                                            ),
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            softWrap: false,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    // 评分图标
+                                                    (() { // IIFE for rating logic
+                                                      final dynamic ratingRaw = record['rating'];
+                                                      int? ratingValue;
+                                                      if (ratingRaw is int) { ratingValue = ratingRaw; }
+                                                      else if (ratingRaw is String) { ratingValue = 3; }
+                                                      IconData ratingIcon;
+                                                      switch (ratingValue) {
+                                                        case 0: ratingIcon = Icons.thumb_down_outlined; break;
+                                                        case 5: ratingIcon = Icons.whatshot_outlined; break;
+                                                        case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
+                                                      }
+                                                      return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
+                                                    }()),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ],
@@ -468,15 +556,16 @@ class NotesCarouselView extends StatelessWidget {
                     print('Attempting to play URI from carousel: $trackUri');
                     try {
                       spotifyProvider.playTrack(trackUri: trackUri);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('正在尝试播放: ${record['trackName'] ?? trackId}'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+                      // REMOVED SnackBar for playback attempt in carousel
+                      // ScaffoldMessenger.of(context).showSnackBar(
+                      //   SnackBar(
+                      //     content: Text('正在尝试播放: ${record['trackName'] ?? trackId}'),
+                      //     duration: const Duration(seconds: 2),
+                      //   ),
+                      // );
                     } catch (e) {
                       print('Error calling playTrack from carousel: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar( // Keep error SnackBar
                         SnackBar(
                           content: Text('播放失败: $e'),
                           duration: const Duration(seconds: 2),

@@ -138,7 +138,9 @@ class LocalDatabaseProvider with ChangeNotifier {
   Future<void> fetchRecordsForTrack(String trackId) async {
     _setLoading(true);
     try {
-      _currentTrackRecords = await _dbHelper.getRecordsForTrack(trackId);
+      // Ensure the list is mutable
+      final recordsFromDb = await _dbHelper.getRecordsForTrack(trackId);
+      _currentTrackRecords = List<Record>.from(recordsFromDb);
       // Consider error handling if needed
     } catch (e) {
       logger.d('Error fetching records for track $trackId: $e');
@@ -153,7 +155,9 @@ class LocalDatabaseProvider with ChangeNotifier {
      _setLoading(true);
      logger.d('Fetching $count random records with track info...');
      try {
-       _randomRecords = await _dbHelper.getRandomRecordsWithTrackInfo(count);
+       // Ensure the list is mutable
+       final recordsFromDb = await _dbHelper.getRandomRecordsWithTrackInfo(count);
+       _randomRecords = List<Map<String, dynamic>>.from(recordsFromDb);
      } catch (e) {
        logger.d('Error fetching random records: $e');
        _randomRecords = []; // Clear on error
@@ -189,7 +193,9 @@ class LocalDatabaseProvider with ChangeNotifier {
     _setLoadingRelated(true);
     logger.d('Fetching related records for "$trackName" (excluding $currentTrackId)...');
     try {
-      _relatedRecords = await _dbHelper.fetchRelatedRecords(currentTrackId, trackName, limit);
+      // Ensure the list is mutable
+      final recordsFromDb = await _dbHelper.fetchRelatedRecords(currentTrackId, trackName, limit);
+      _relatedRecords = List<Map<String, dynamic>>.from(recordsFromDb);
     } catch (e) {
       logger.d('Error fetching related records: $e');
       _relatedRecords = []; // Clear on error
@@ -347,53 +353,55 @@ class LocalDatabaseProvider with ChangeNotifier {
     required String trackId, // Need trackId to potentially refresh lists if needed
   }) async {
     _setLoading(true); // Indicate loading
-    logger.d('Deleting record ID: $recordId');
+    logger.d('Attempting to delete record ID: $recordId from DB...');
     try {
-       // Assuming _dbHelper.deleteRecord exists and returns bool for success
-       /* // TODO: Uncomment and implement in DatabaseHelper
-      final success = await _dbHelper.deleteRecord(recordId);
-      */
-      final bool success = true; // Placeholder - assume success for now
-      if (success) {
-        logger.d('Record $recordId deleted successfully from DB.');
-        // Remove from local lists and notify
-        bool changed = false;
-        // Remove from current track list
-        int initialLength = _currentTrackRecords.length;
-        _currentTrackRecords.removeWhere((record) => record.id == recordId);
-        if (_currentTrackRecords.length < initialLength) changed = true;
+       // Actually call the database helper to delete the record
+       final rowsAffected = await _dbHelper.deleteRecord(recordId);
 
-        // Remove from random list
-        initialLength = _randomRecords.length;
-        _randomRecords.removeWhere((record) => record['id'] == recordId);
-        if (_randomRecords.length < initialLength) changed = true;
+       // Check if the deletion was successful (1 row affected)
+       final bool success = rowsAffected > 0;
 
-        // Remove from all ordered list
-        initialLength = _allRecordsOrdered.length;
-        _allRecordsOrdered.removeWhere((record) => record['id'] == recordId);
-        if (_allRecordsOrdered.length < initialLength) changed = true;
+       if (success) {
+         logger.i('Record $recordId deleted successfully from DB (rows affected: $rowsAffected). Now updating provider state.');
 
-        // Remove from related list
-        initialLength = _relatedRecords.length;
-        _relatedRecords.removeWhere((record) => record['id'] == recordId);
-        if (_relatedRecords.length < initialLength) changed = true;
+         // Remove from local lists and notify
+         bool changed = false;
+         // Remove from current track list
+         int initialLength = _currentTrackRecords.length;
+         _currentTrackRecords.removeWhere((record) => record.id == recordId);
+         if (_currentTrackRecords.length < initialLength) changed = true;
 
-        // Notify listeners only if something was actually removed
-        if (changed) {
-          notifyListeners();
-        }
+         // Remove from random list
+         initialLength = _randomRecords.length;
+         _randomRecords.removeWhere((record) => record['id'] == recordId);
+         if (_randomRecords.length < initialLength) changed = true;
 
-        // Optionally, trigger a full refresh of lists after local removal,
-        // though local removal is faster for UI responsiveness.
-        // await fetchAllRecordsOrderedByTime();
-        // await fetchRandomRecords(15);
+         // Remove from all ordered list
+         initialLength = _allRecordsOrdered.length;
+         _allRecordsOrdered.removeWhere((record) => record['id'] == recordId);
+         if (_allRecordsOrdered.length < initialLength) changed = true;
 
-      } else {
-        logger.w('Failed to delete record $recordId from DB.');
-        // Handle failure - maybe show an error message
-      }
-    } catch (e) {
-      logger.e('Error deleting record $recordId: $e');
+         // Remove from related list
+         initialLength = _relatedRecords.length;
+         _relatedRecords.removeWhere((record) => record['id'] == recordId);
+         if (_relatedRecords.length < initialLength) changed = true;
+
+         // Notify listeners only if something was actually removed
+         if (changed) {
+           notifyListeners();
+         }
+
+         // Optionally, trigger a full refresh of lists after local removal,
+         // though local removal is faster for UI responsiveness.
+         // await fetchAllRecordsOrderedByTime();
+         // await fetchRandomRecords(15);
+
+       } else {
+         logger.w('Failed to delete record $recordId from DB (rows affected: $rowsAffected).');
+         // Handle failure - maybe show an error message
+       }
+    } catch (e, s) {
+      logger.e('Error during deleteRecord operation for ID $recordId', error: e, stackTrace: s);
       // Handle error - maybe show an error message
     } finally {
       _setLoading(false); // Ensure loading is turned off
@@ -748,6 +756,9 @@ class LocalDatabaseProvider with ChangeNotifier {
     logger.d('Fetching all records ordered by time (descending: $descending)...');
     try {
       _allRecordsOrdered = await _dbHelper.getAllRecordsWithTrackInfoOrderedByTime(descending: descending);
+      // Ensure the list is mutable
+      final recordsFromDb = await _dbHelper.getAllRecordsWithTrackInfoOrderedByTime(descending: descending);
+      _allRecordsOrdered = List<Map<String, dynamic>>.from(recordsFromDb);
     } catch (e) {
       logger.d('Error fetching all ordered records: $e');
       _allRecordsOrdered = []; // Clear on error

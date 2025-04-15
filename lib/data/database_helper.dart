@@ -310,6 +310,23 @@ class DatabaseHelper {
     return result;
   }
 
+  /// Deletes a record from the database by its primary key ID.
+  /// Returns the number of rows affected (should be 1 if successful).
+  Future<int> deleteRecord(int recordId) async {
+    final db = await instance.database;
+    final rowsAffected = await db.delete(
+      'records',
+      where: 'id = ?',
+      whereArgs: [recordId],
+    );
+    if (rowsAffected == 1) {
+       logger.d('[DBHelper] Deleted record with id: $recordId');
+    } else {
+       logger.w('[DBHelper] Attempted to delete record id: $recordId, but $rowsAffected rows were affected.');
+    }
+    return rowsAffected;
+  }
+
   // --- Methods for Data Export/Import ---
 
   /// Fetches all tracks from the database.

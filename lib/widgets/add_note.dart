@@ -6,6 +6,7 @@ import '../services/lyrics_service.dart';
 import '../models/track.dart';
 import 'package:flutter/services.dart';
 import './materialui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AddNoteSheet extends StatefulWidget {
   const AddNoteSheet({super.key});
@@ -18,6 +19,39 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
   final _controller = TextEditingController();
   int? _selectedRatingValue;
   bool _isSubmitting = false;
+  static const String _lastUsedRatingKey = 'last_used_rating';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastUsedRating();
+  }
+
+  // 加载上次使用的评分
+  Future<void> _loadLastUsedRating() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastRating = prefs.getInt(_lastUsedRatingKey);
+      if (lastRating != null) {
+        setState(() {
+          _selectedRatingValue = lastRating;
+        });
+      }
+    } catch (e) {
+      // 获取失败时保持默认评分
+      print('Error loading last rating: $e');
+    }
+  }
+
+  // 保存当前使用的评分
+  Future<void> _saveLastUsedRating(int rating) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_lastUsedRatingKey, rating);
+    } catch (e) {
+      print('Error saving rating: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -168,6 +202,8 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
                   } else { // selectedIndex == 2
                     _selectedRatingValue = 5; // Fire
                   }
+                  // 保存最后使用的评分
+                  _saveLastUsedRating(_selectedRatingValue!);
                 });
               },
             ),
