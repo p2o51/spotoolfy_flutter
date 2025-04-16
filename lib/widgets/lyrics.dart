@@ -13,6 +13,7 @@ import '../services/settings_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -193,13 +194,18 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       setState(() {
         _lyrics = [];
       });
+      if (mounted) {
+        // Show error message using named placeholder
+        notificationService.showSnackBar(AppLocalizations.of(context)!.lyricsFetchError('Failed to fetch lyrics'));
+      }
     }
   }
 
   Future<void> _translateAndShowLyrics() async {
     if (_lyrics.isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
       Provider.of<NotificationService>(context, listen: false)
-          .showSnackBar('No lyrics to translate.');
+          .showSnackBar(l10n.noLyricsToTranslate);
       return;
     }
 
@@ -215,8 +221,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
     final notificationService = Provider.of<NotificationService>(context, listen: false);
 
     if (currentTrackId == null) {
+       final l10n = AppLocalizations.of(context)!;
        if (mounted) {
-         notificationService.showErrorSnackBar('Could not get current track ID.');
+         notificationService.showErrorSnackBar(l10n.couldNotGetCurrentTrackId);
          setState(() { _isTranslating = false; });
        }
        return;
@@ -226,7 +233,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
     try {
       // Combine lyric lines into a single string
-      final originalLyricsText = _lyrics.map((line) => line.text).join('\n');
+      final originalLyrics = _lyrics.map((line) => line.text).toList();
       
       // Get current settings
       final currentStyle = await _settingsService.getTranslationStyle();
@@ -240,21 +247,22 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       Map<String, String?>? translationData;
       String? fetchedTranslatedText;
 
-      if (cachedTranslation != null) {
-        debugPrint('Translation found in DB!');
+      if (cachedTranslation != null && mounted) {
+        debugPrint('Translation found in DB.');
         fetchedTranslatedText = cachedTranslation.translatedLyrics;
         // Use the language and style stored in the DB record
         translationData = {
           'text': fetchedTranslatedText,
-          'languageCode': cachedTranslation.languageCode,
-          'style': cachedTranslation.style,
+          'languageCode': cachedTranslation.languageCode, // Use languageCode
+          'style': cachedTranslation.style, // Make sure style is included
         };
+        debugPrint('Loaded translation from DB: Lang=${cachedTranslation.languageCode}, Style=${cachedTranslation.style}'); // Use languageCode
       } else {
-        debugPrint('Translation not found in DB, fetching from API...');
+        debugPrint('Translation not found in DB. Calling API...');
         // *** FETCH FROM API IF NOT IN DB ***
         // Store the result map
         translationData = await _translationService.translateLyrics(
-          originalLyricsText, 
+          originalLyrics.join('\n'), 
           currentTrackId, 
           targetLanguage: currentLanguage, // Pass current target language
         );
@@ -262,6 +270,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
         // *** SAVE TO DB IF FETCHED FROM API ***
         if (mounted && fetchedTranslatedText != null && translationData != null) {
+          // Use languageCode from the translation result
           final languageCodeUsed = translationData['languageCode'];
           final styleUsed = translationData['style']; // String name of the style
 
@@ -291,7 +300,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
               // Now save the translation using fetched details
               final translationToSave = Translation(
                 trackId: currentTrackId,
-                languageCode: languageCodeUsed, // Use language code from result
+                languageCode: languageCodeUsed, // Use languageCode
                 style: styleUsed,             // Use style string from result
                 translatedLyrics: fetchedTranslatedText,
                 generatedAt: DateTime.now().millisecondsSinceEpoch,
@@ -312,7 +321,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
       // *** SHOW BOTTOM SHEET IF TRANSLATION IS AVAILABLE ***
       if (mounted && fetchedTranslatedText != null) {
         final wasAutoScrolling = _autoScroll;
-        final displayLanguageCode = translationData?['languageCode'] ?? currentLanguage;
+        final displayLanguageCode = translationData?['languageCode'] ?? currentLanguage; // Use languageCode
         final displayStyleString = translationData?['style'] ?? styleString;
         final displayStyleEnum = TranslationStyle.values.firstWhere(
           (e) => translationStyleToString(e) == displayStyleString,
@@ -324,7 +333,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (context) => TranslationResultSheet(
-            originalLyrics: originalLyricsText,
+            originalLyrics: originalLyrics.join('\n'),
             translatedLyrics: fetchedTranslatedText!,
             translationStyle: displayStyleEnum,
             trackId: currentTrackId,
@@ -334,7 +343,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
               try {
                   // Call service, get the map
                   final retranslateResult = await _translationService.translateLyrics(
-                    originalLyricsText,
+                    originalLyrics.join('\n'),
                     currentTrackId,
                     forceRefresh: true,
                     targetLanguage: displayLanguageCode, // Use the language code from this context
@@ -344,14 +353,14 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
                   // Save if successful and component is mounted
                   if (mounted && newTranslationText != null && retranslateResult != null) {
-                     final langCode = retranslateResult['languageCode'];
+                     final langCode = retranslateResult['languageCode']; // Use languageCode
                      final styleStr = retranslateResult['style'];
 
                      if (langCode != null && styleStr != null) {
                         try {
                            final retranslatedToSave = Translation(
                              trackId: currentTrackId,
-                             languageCode: langCode,
+                             languageCode: langCode, // Use languageCode for the retranslated entry
                              style: styleStr,
                              translatedLyrics: newTranslationText,
                              generatedAt: DateTime.now().millisecondsSinceEpoch,
@@ -394,14 +403,20 @@ class _LyricsWidgetState extends State<LyricsWidget> {
         });
       } else if (mounted) {
           // Handle case where translation failed
-          errorMsg = errorMsg ?? 'Failed to get translation.';
-          notificationService.showErrorSnackBar(errorMsg);
+          if (errorMsg != null) {
+            notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsTranslationError(errorMsg));
+            debugPrint('Translation failed: $errorMsg');
+          } else {
+            notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsTranslationError('Failed to translate lyrics'));
+            debugPrint('Translation failed (generic).');
+          }
       }
 
     } catch (e) {
        debugPrint('Error in translation process: $e');
        if (mounted) {
-          notificationService.showErrorSnackBar('Translation failed: ${e.toString()}');
+          final l10n = AppLocalizations.of(context)!;
+          notificationService.showErrorSnackBar(l10n.lyricsTranslationError(e.toString()));
        }
     } finally {
       if (mounted) {
@@ -490,6 +505,21 @@ class _LyricsWidgetState extends State<LyricsWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<SpotifyProvider>(context);
+ 
+    final l10n = AppLocalizations.of(context)!;
+
+    // Calculate the current line index based on the latest position from provider
+    // Do this in the build method to ensure it reflects the latest state
+    final Duration latestPosition;
+    if (provider.currentTrack?['progress_ms'] != null) {
+      latestPosition = Duration(milliseconds: provider.currentTrack?['progress_ms']);
+    } else {
+      latestPosition = Duration.zero;
+    }
+
+    final currentLineIndex = _getCurrentLineIndex(latestPosition);
+
     return Consumer<SpotifyProvider>(
       builder: (context, provider, child) {
         final currentProgress = provider.currentTrack?['progress_ms'] ?? 0;
@@ -528,8 +558,6 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             Future.microtask(() => _startProgressTimer());
           }
         }
-
-        final currentLineIndex = _getCurrentLineIndex(localCurrentPosition);
 
         if (_autoScroll && 
             mounted && 
@@ -692,7 +720,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                               });
                             }
                           },
-                          tooltip: 'Center Current Line',
+                          tooltip: l10n.centerCurrentLine,
                         ),
                         const SizedBox(width: 8),
                         IconButton.filledTonal(
@@ -707,7 +735,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                             HapticFeedback.lightImpact();
                             _translateAndShowLyrics();
                           },
-                          tooltip: 'Translate Lyrics',
+                          tooltip: l10n.translateLyrics,
                         ),
                         const SizedBox(width: 8),
                         IconButton.filledTonal(
@@ -721,8 +749,8 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                             _toggleCopyLyricsMode();
                           }, 
                           tooltip: _isCopyLyricsMode 
-                              ? 'Exit Copy Mode & Resume Scroll' 
-                              : 'Enter Copy Lyrics Mode (Single Repeat)',
+                              ? l10n.exitCopyModeResumeScroll 
+                              : l10n.enterCopyLyricsMode,
                           style: ButtonStyle(
                             backgroundColor: _isCopyLyricsMode 
                               ? WidgetStateProperty.all( // Updated property
@@ -839,8 +867,9 @@ class _LyricsWidgetState extends State<LyricsWidget> {
         
         // Use the NotificationService to show the hint
         if (mounted) {
+          final l10n = AppLocalizations.of(context)!;
           Provider.of<NotificationService>(context, listen: false).showSnackBar(
-            'Copy Lyrics Mode: Single repeat active, auto-scroll disabled.',
+            l10n.lyricsCopyModeSnackbar,
             duration: const Duration(seconds: 3),
           );
         }

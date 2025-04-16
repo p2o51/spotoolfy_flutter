@@ -91,6 +91,129 @@
   "musicPersonality": "Music Personality",
   "insightsContent": "Insights Content",
   "recommendedSong": "Recommended Song",
+  "addNote": "Add Note",
+  "noteHint": "Enter your note here",
+  "saveNote": "Save Note",
+  "noteSaved": "Note saved successfully",
+  "errorSavingNote": "Error saving note: {error}",
+  "@errorSavingNote": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notesTitle": "Notes",
+  "addNote": "Add Note",
+  "confirmDelete": "Confirm Delete",
+  "areYouSureDeleteNote": "Are you sure you want to delete this note?",
+  "delete": "Delete",
+  "cancel": "Cancel",
+  "noteDeleted": "Note deleted",
+  "errorDeletingNote": "Error deleting note: {error}",
+  "@errorDeletingNote": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editNote": "Edit Note",
+  "noteUpdated": "Note updated successfully",
+  "errorUpdatingNote": "Error updating note: {error}",
+  "@errorUpdatingNote": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "noNotes": "No notes added yet.",
+  "lyricsFetching": "Fetching lyrics...",
+  "lyricsFound": "Lyrics found.",
+  "lyricsNotFoundForTrack": "No lyrics found for this track.",
+  "lyricsFetchError": "Error fetching lyrics: {error}",
+  "@lyricsFetchError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "lyricsTranslating": "Translating lyrics...",
+  "lyricsTranslationSuccessful": "Translation successful.",
+  "lyricsTranslationError": "Error translating lyrics: {error}",
+  "@lyricsTranslationError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "lyricsTitle": "Lyrics",
+  "lyricsCopyModeTooltip": "Copy Lyrics Mode",
+  "lyricsTranslateTooltip": "Translate Lyrics",
+  "lyricsToggleAutoScrollTooltip": "Toggle Auto-Scroll",
+  "lyricsNotAvailable": "No lyrics available.",
+  "lyricsLoading": "Loading lyrics...",
+  "lyricsFailedToLoad": "Failed to load lyrics.",
+  "lyricsCopyModeSnackbar": "Copy Lyrics Mode: Single repeat active, auto-scroll disabled.",
+  "couldNotGetCurrentTrackId": "Could not get current track ID.",
+  "translationFailed": "Translation failed.",
+  "centerCurrentLine": "Center Current Line",
+  "translateLyrics": "Translate Lyrics",
+  "exitCopyModeResumeScroll": "Exit Copy Mode & Resume Scroll",
+  "enterCopyLyricsMode": "Enter Copy Lyrics Mode (Single Repeat)",
+  
+  "translationTitle": "Translation",
+  "originalTitle": "Original",
+  "translatedByAttribution": "Translated by Gemini 2.0 Flash",
+  "spiritLabel": "Spirit: {style}",
+  "@spiritLabel": {
+    "placeholders": {
+      "style": {
+        "type": "String"
+      }
+    }
+  },
+  "copyToClipboard": "Copy to Clipboard",
+  "copiedToClipboard": "Copied to clipboard",
+  "retranslateButton": "Retranslate",
+  "retranslating": "Retranslating...",
+  "translationStyleFaithful": "Faithful",
+  "translationStyleMelodramaticPoet": "Melodramatic Poet",
+  "translationStyleMachineClassic": "Machine Classic",
+  "translationStyleTooltipFaithful": "Current: Faithful Translation - Tap to change",
+  "translationStyleTooltipMelodramatic": "Current: Melodramatic Poet Translation - Tap to change",
+  "translationStyleTooltipMachine": "Current: Machine Translation - Tap to change",
+  "toggleTranslationStyle": "Toggle Translation Style",
+  "showTranslation": "Show Translation",
+  "showOriginal": "Show Original",
+  "closeTranslation": "Close",
+  "trackSaved": "Track saved to playlist",
+  "errorSavingTrack": "Error saving track: {error}",
+  "@errorSavingTrack": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "unknownAlbum": "Unknown Album",
+  "playlist": "Playlist",
+  "unknownContext": "Unknown Context",
+  "noTrackOrEmptyNote": "Cannot get track info or note is empty",
+  "noteSaved": "Note saved",
+  "errorSavingNote": "Error saving note: {error}",
+  "@errorSavingNote": {
+    "description": "Error message when saving note fails",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Connection error"
+      }
+    }
+  },
   "logoutSuccess": "Logged out from Spotify",
   "operationFailed": "Operation failed",
   "invalidCredentialsError": "Invalid Spotify API credentials. Please check your Client ID and Secret.",
@@ -180,5 +303,15 @@
         "example": "Invalid style"
       }
     }
-  }
+  },
+  "noteContent": "Note Content",
+  "saveChanges": "Save",
+  "noLyricsToTranslate": "No lyrics to translate.",
+  "failedToSaveTranslation": "Failed to save fetched translation: {error}",
+  "failedToGetTranslation": "Failed to get translation.",
+  "translationFailed": "Translation failed: {error}",
+  "translateLyrics": "Translate Lyrics",
+  "copyLyricsModeHint": "Copy Lyrics Mode: Single repeat active, auto-scroll disabled.",
+  "exitCopyMode": "Exit Copy Mode & Resume Scroll",
+  "enterCopyMode": "Enter Copy Lyrics Mode (Single Repeat)"
 }

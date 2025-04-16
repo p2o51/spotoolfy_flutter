@@ -1,35 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For Clipboard
+import 'package:flutter/services.dart'; // For Clipboard and HapticFeedback
 import '../services/settings_service.dart'; // Import TranslationStyle and SettingsService
-import 'package:provider/provider.dart'; // 添加provider import
-import '../providers/local_database_provider.dart'; // 添加数据库Provider
-import '../models/translation.dart'; // 添加Translation模型
+import 'package:provider/provider.dart';
+import '../providers/local_database_provider.dart';
+import '../models/translation.dart';
+// 导入 AppLocalizations 类，用于访问本地化字符串
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
-// Helper to get display name for style (copied from settings_service or shared location)
-String _getTranslationStyleDisplayName(TranslationStyle style) {
+// --- 本地化辅助函数 ---
+
+// 使用 AppLocalizations 获取翻译风格的显示名称
+String _getTranslationStyleDisplayName(TranslationStyle style, AppLocalizations l10n) {
   switch (style) {
     case TranslationStyle.faithful:
-      return 'Faithful';
+      // 使用 l10n 获取本地化字符串
+      return l10n.translationStyleFaithful;
     case TranslationStyle.melodramaticPoet:
-      return 'Melodramatic Poet';
+      // 使用 l10n 获取本地化字符串
+      return l10n.translationStyleMelodramaticPoet;
     case TranslationStyle.machineClassic:
-      return 'Machine Classic';
+      // 使用 l10n 获取本地化字符串
+      return l10n.translationStyleMachineClassic;
   }
 }
 
-// 根据翻译风格获取对应的图标
+// 获取翻译风格对应的图标 (这个函数不涉及文本，无需本地化)
 IconData _getTranslationStyleIcon(TranslationStyle style) {
   switch (style) {
     case TranslationStyle.faithful:
-      return Icons.straight; // 忠实翻译
+      return Icons.straight;
     case TranslationStyle.melodramaticPoet:
-      return Icons.auto_stories; // 诗意翻译
+      return Icons.auto_stories;
     case TranslationStyle.machineClassic:
-      return Icons.smart_toy; // 机器翻译
+      return Icons.smart_toy;
   }
 }
 
-// 获取下一个翻译风格
+// 获取下一个翻译风格 (这个函数不涉及文本，无需本地化)
 TranslationStyle _getNextTranslationStyle(TranslationStyle currentStyle) {
   switch (currentStyle) {
     case TranslationStyle.faithful:
@@ -41,32 +48,37 @@ TranslationStyle _getNextTranslationStyle(TranslationStyle currentStyle) {
   }
 }
 
-// 获取翻译风格的提示文本
-String _getTranslationStyleTooltip(TranslationStyle style) {
+// 使用 AppLocalizations 获取翻译风格按钮的 Tooltip 文本
+String _getTranslationStyleTooltip(TranslationStyle style, AppLocalizations l10n) {
   switch (style) {
     case TranslationStyle.faithful:
-      return '当前: 忠实翻译 - 点击切换';
+      // 使用 l10n 获取本地化字符串
+      return l10n.translationStyleTooltipFaithful;
     case TranslationStyle.melodramaticPoet:
-      return '当前: 诗意翻译 - 点击切换';
+      // 使用 l10n 获取本地化字符串
+      return l10n.translationStyleTooltipMelodramatic;
     case TranslationStyle.machineClassic:
-      return '当前: 机器翻译 - 点击切换';
+      // 使用 l10n 获取本地化字符串
+      return l10n.translationStyleTooltipMachine;
   }
 }
+
+// --- Widget 主体 ---
 
 class TranslationResultSheet extends StatefulWidget {
   final String originalLyrics;
   final String translatedLyrics;
   final Future<String?> Function() onReTranslate;
-  final TranslationStyle translationStyle; // Add style parameter
-  final String trackId; // 添加trackId参数，用于查询数据库中的翻译
+  final TranslationStyle translationStyle;
+  final String trackId;
 
   const TranslationResultSheet({
     Key? key,
     required this.originalLyrics,
     required this.translatedLyrics,
     required this.onReTranslate,
-    required this.translationStyle, // Make style required
-    required this.trackId, // 要求传入trackId
+    required this.translationStyle,
+    required this.trackId,
   }) : super(key: key);
 
   @override
@@ -78,8 +90,8 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
   String? _translationError;
   late String _currentTranslatedLyrics;
   late TranslationStyle _currentStyle;
+  bool _showTranslated = true; // 默认显示翻译后的歌词 (窄屏模式下)
 
-  // Instantiate SettingsService here or within the function where needed
   final SettingsService _settingsService = SettingsService();
 
   @override
@@ -89,41 +101,37 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
     _currentStyle = widget.translationStyle;
   }
 
-  // 循环切换到下一个翻译风格并尝试从数据库获取对应翻译，没有则重新翻译
+  // 切换翻译风格
   Future<void> _toggleTranslationStyle() async {
     if (_isTranslating) return;
-    
+
+    // 获取 AppLocalizations 实例以用于错误消息
+    final l10n = AppLocalizations.of(context)!;
     final nextStyle = _getNextTranslationStyle(_currentStyle);
     final nextStyleString = translationStyleToString(nextStyle);
-    
+
     setState(() {
       _isTranslating = true;
       _translationError = null;
     });
-    
+
     try {
       HapticFeedback.lightImpact();
-      // 保存新风格到设置
       await _settingsService.saveTranslationStyle(nextStyle);
-      
-      // 更新当前风格状态
+
       setState(() {
         _currentStyle = nextStyle;
       });
-      
-      // 获取当前语言设置
+
       final currentLanguage = await _settingsService.getTargetLanguage();
-      
-      // 先尝试从数据库获取对应风格的翻译
       final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
       final cachedTranslation = await localDbProvider.fetchTranslation(
-        widget.trackId, 
-        currentLanguage, 
+        widget.trackId,
+        currentLanguage,
         nextStyleString
       );
-      
+
       if (cachedTranslation != null) {
-        // 数据库中已有该风格的翻译，直接使用
         if (mounted) {
           setState(() {
             _currentTranslatedLyrics = cachedTranslation.translatedLyrics;
@@ -131,7 +139,6 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
           });
         }
       } else {
-        // 数据库中没有该风格的翻译，调用API重新翻译
         final newTranslation = await widget.onReTranslate();
         if (mounted) {
           setState(() {
@@ -139,7 +146,8 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
               _currentTranslatedLyrics = newTranslation;
               _translationError = null;
             } else {
-              _translationError = '重新翻译失败，请再试一次';
+              // 使用本地化的错误消息
+              _translationError = l10n.translationFailed(l10n.operationFailed); // 或者一个更具体的错误 key
             }
             _isTranslating = false;
           });
@@ -148,18 +156,23 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _translationError = '错误: ${e.toString()}';
+          // 使用本地化的错误消息 (假设有一个通用的错误 key 或使用 translationFailed)
+          _translationError = l10n.translationFailed(e.toString());
           _isTranslating = false;
         });
       }
     }
   }
 
+  // 重新翻译
   Future<void> _handleReTranslate() async {
      if (_isTranslating) return;
 
+    // 获取 AppLocalizations 实例
+    final l10n = AppLocalizations.of(context)!;
+
     setState(() {
-      _isTranslating = true;
+      _isTranslating = true; // 可以考虑显示本地化的 "Retranslating..." 状态
       _translationError = null;
     });
 
@@ -172,7 +185,8 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
             _currentTranslatedLyrics = newTranslation;
             _translationError = null;
           } else {
-            _translationError = 'Failed to re-translate. Please try again.';
+            // 使用本地化的错误消息
+             _translationError = l10n.translationFailed(l10n.operationFailed); // 同上
           }
           _isTranslating = false;
         });
@@ -180,68 +194,68 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _translationError = 'Error: ${e.toString()}';
+          // 使用本地化的错误消息
+          _translationError = l10n.translationFailed(e.toString());
           _isTranslating = false;
         });
       }
     }
   }
 
-  // Helper function to copy lyrics - Reads setting now
+  // 复制到剪贴板
   Future<void> _copyToClipboard(bool isWideScreen) async {
     HapticFeedback.lightImpact();
-    // print('[DEBUG] _copyToClipboard called.'); // DEBUG REMOVED
+    // 获取 AppLocalizations 实例
+    final l10n = AppLocalizations.of(context)!;
 
-    // Fetch the setting
     bool copyAsSingleLine = false;
     try {
       copyAsSingleLine = await _settingsService.getCopyLyricsAsSingleLine();
     } catch (e) {
       print("Error reading copy setting: $e");
-      // Use default (false) if error
     }
 
-    // Adapt logic based on screen width
     final lyricsToCopy = isWideScreen
-        ? _currentTranslatedLyrics // On wide screens, always copy translation
-        : (_translationError == null ? _currentTranslatedLyrics : widget.originalLyrics); // Use old logic only if narrow
-    // We need a way to know if translation is "shown" on narrow screens.
-    // Let's rethink the state. Keep _showTranslated for narrow screens.
-    // Re-add _showTranslated state variable.
-    // final lyricsToCopy = isWideScreen
-    //     ? _currentTranslatedLyrics
-    //     : (_showTranslated ? _currentTranslatedLyrics : widget.originalLyrics);
+        ? _currentTranslatedLyrics
+        : (_showTranslated ? _currentTranslatedLyrics : widget.originalLyrics);
 
     String textToCopy;
+    String snackBarMessage; // 本地化的提示消息
 
-    if (!copyAsSingleLine) { // Default: copy with line breaks
+    if (!copyAsSingleLine) {
       textToCopy = lyricsToCopy;
-    } else { // If setting is true: copy as single line
-      // Replace multiple newlines/spaces with a single space and trim
+      // 假设 arb 文件中有 lyricsCopied 键
+      snackBarMessage = l10n.copiedToClipboard(l10n.lyricsTitle); // 使用通用 key
+      // 或者使用特定的 key: snackBarMessage = l10n.lyricsCopied;
+    } else {
       textToCopy = lyricsToCopy.replaceAll(RegExp(r'\s+'), ' ').trim();
+      // 假设 arb 文件中有 lyricsCopiedAsSingleLine 键
+      snackBarMessage = "${l10n.copiedToClipboard(l10n.lyricsTitle)} (${l10n.copyLyricsAsSingleLineTitle})"; // 组合消息
+      // 或者使用特定的 key: snackBarMessage = l10n.lyricsCopiedAsSingleLine;
     }
 
     Clipboard.setData(ClipboardData(text: textToCopy));
-    // Check if the widget is still mounted before showing SnackBar
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lyrics copied${copyAsSingleLine ? ' as single line' : ''}')),
+        // 显示本地化的提示
+        SnackBar(content: Text(snackBarMessage)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine screen width and layout mode
+    // 在 build 方法开头获取 AppLocalizations 实例，方便后续使用
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context); // 获取 Theme
+
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
 
-    // Decide which lyrics and title to show for narrow layout (only)
-    // This state is still needed for narrow screens
-    final lyricsToShow = _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
-    final titleLabel = _showTranslated ? 'Translation' : 'Original';
+    // 使用本地化字符串决定窄屏时的标题
+    final titleLabel = _showTranslated ? l10n.translationTitle : l10n.originalTitle;
 
-    // Common variables
     final screenHeight = MediaQuery.of(context).size.height;
     final initialHeight = screenHeight * 0.6;
     final maxHeight = screenHeight * 0.9;
@@ -253,12 +267,13 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
+          // ... (样式代码保持不变) ...
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: theme.colorScheme.surface, // 使用 theme
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+                color: theme.colorScheme.shadow.withOpacity(0.2), // 使用 theme
                 blurRadius: 10,
                 spreadRadius: 1,
               ),
@@ -272,7 +287,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                 height: 5,
                 margin: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: theme.colorScheme.onSurfaceVariant, // 使用 theme
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
@@ -282,88 +297,90 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Title - Adapt based on screen width
+                    // 标题 - 使用本地化字符串
                     Text(
-                      isWideScreen ? 'Lyrics' : titleLabel, // General title for wide screens
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
+                      isWideScreen ? l10n.lyricsTitle : titleLabel,
+                      style: theme.textTheme.titleLarge?.copyWith( // 使用 theme
+                        color: theme.colorScheme.primary, // 使用 theme
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     // Action Buttons Row
                     Row(
                       children: [
-                        // 翻译风格按钮 - 修改为直接切换风格
+                        // 翻译风格按钮 - Tooltip 使用本地化字符串
                         IconButton.filledTonal(
                           icon: Icon(_getTranslationStyleIcon(_currentStyle), size: 20),
-                          tooltip: _getTranslationStyleTooltip(_currentStyle),
+                          // 调用辅助函数获取本地化的 Tooltip
+                          tooltip: _getTranslationStyleTooltip(_currentStyle, l10n),
                           onPressed: _isTranslating ? null : _toggleTranslationStyle,
                           style: IconButton.styleFrom(
                             padding: const EdgeInsets.all(8),
                           ),
                         ),
                         const SizedBox(width: 4),
-                        // Retranslate Button
+                        // 重新翻译按钮 - Tooltip 使用本地化字符串
                         _isTranslating
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 36,
                               height: 36,
                               child: Padding(
-                                padding: EdgeInsets.all(8.0),
+                                padding: const EdgeInsets.all(8.0),
+                                // 可以考虑显示本地化的 "Retranslating..." 文本，但这通常用加载指示器代替
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               ),
                             )
                           : IconButton.filledTonal(
                               icon: const Icon(Icons.refresh, size: 20),
-                              tooltip: 'Re-translate',
+                              // 使用 l10n 获取 Tooltip
+                              tooltip: l10n.retranslateButton,
                               onPressed: _handleReTranslate,
                               style: IconButton.styleFrom(
                                 padding: const EdgeInsets.all(8),
                               ),
                             ),
                         const SizedBox(width: 4),
-                        // Copy Button - Pass isWideScreen
+                        // 复制按钮 - Tooltip 使用本地化字符串
                         IconButton.filledTonal(
                           icon: const Icon(Icons.copy, size: 20),
-                          tooltip: 'Copy Lyrics', // Updated tooltip
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            _copyToClipboard(isWideScreen);
-                          }, // Pass screen type
+                          // 使用 l10n 获取 Tooltip
+                          tooltip: l10n.copyToClipboard, // copyToClipboard key 似乎更通用
+                          onPressed: () => _copyToClipboard(isWideScreen),
                           style: IconButton.styleFrom(
                             padding: const EdgeInsets.all(8),
                           ),
                         ),
-                        // Conditionally show Toggle Button only on narrow screens
+                        // 窄屏模式下的切换按钮 - Tooltip 使用本地化字符串
                         if (!isWideScreen) ...[
-                           const SizedBox(width: 4), // Reverted spacing
-                           // Toggle Translate/Original Button - Revert visual density
+                           const SizedBox(width: 4),
                            _showTranslated
                             ? IconButton.filledTonal(
                                 key: const ValueKey('toggle_button_selected'),
                                 icon: const Icon(Icons.translate, size: 20),
-                                tooltip: 'Show Original',
+                                // 使用 l10n 获取 Tooltip
+                                tooltip: l10n.showOriginal,
                                 onPressed: () {
                                   HapticFeedback.lightImpact();
                                   setState(() => _showTranslated = !_showTranslated);
                                 },
                                 style: IconButton.styleFrom(
                                   padding: const EdgeInsets.all(8),
-                                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                                  foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                                  backgroundColor: theme.colorScheme.secondaryContainer, // 使用 theme
+                                  foregroundColor: theme.colorScheme.onSecondaryContainer, // 使用 theme
                                 ),
                               )
                             : IconButton(
                                 key: const ValueKey('toggle_button_unselected'),
                                 icon: const Icon(Icons.translate, size: 20),
-                                tooltip: 'Show Translation',
+                                // 使用 l10n 获取 Tooltip
+                                tooltip: l10n.showTranslation,
                                 onPressed: () {
                                   HapticFeedback.lightImpact();
                                   setState(() => _showTranslated = !_showTranslated);
                                 },
                                 style: IconButton.styleFrom(
                                   padding: const EdgeInsets.all(8),
-                                  foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  foregroundColor: theme.colorScheme.onSurfaceVariant, // 使用 theme
                                 ),
                               ),
                         ],
@@ -373,11 +390,12 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                 ),
               ),
               const Divider(),
-              // Conditional Layout for Lyrics Content
+              // 内容区域
               Expanded(
                 child: isWideScreen
-                    ? _buildWideLayout(context, scrollController) // Pass context
-                    : _buildNarrowLayout(context, scrollController), // Pass context
+                    // 传递 l10n 和 theme 到布局构建函数
+                    ? _buildWideLayout(context, scrollController, l10n, theme)
+                    : _buildNarrowLayout(context, scrollController, l10n, theme),
               ),
             ],
           ),
@@ -386,22 +404,23 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
     );
   }
 
-  // --- Layout Builders ---
+  // --- 布局构建函数 ---
 
-  // Narrow Layout (Existing Logic)
-  Widget _buildNarrowLayout(BuildContext context, ScrollController scrollController) {
+  // 窄屏布局
+  Widget _buildNarrowLayout(BuildContext context, ScrollController scrollController, AppLocalizations l10n, ThemeData theme) {
     final lyricsToShow = _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
-    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle);
-    final attributionText = "Translated by Gemini 2.0 Flash\nSpirit: $styleDisplayName";
-    final theme = Theme.of(context);
+    // 使用本地化的辅助函数获取风格名称
+    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle, l10n);
+    // 使用本地化的归因文本和风格标签
+    final attributionText = "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
 
     return ListView(
       controller: scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       children: [
-        // AnimatedSwitcher for Lyrics
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
+          // ... (动画代码保持不变) ...
           transitionBuilder: (Widget child, Animation<double> animation) {
             final curvedAnimation = CurvedAnimation(
               parent: animation,
@@ -420,67 +439,71 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
             );
           },
           child: Container(
-            key: ValueKey<bool>(_showTranslated), // Key remains important here
+            key: ValueKey<bool>(_showTranslated),
             alignment: Alignment.topLeft,
             child: SelectableText(
+              // 如果有错误，显示错误信息 (已经本地化)；否则显示歌词
               _translationError ?? lyricsToShow,
               style: theme.textTheme.bodyLarge?.copyWith(
                 height: 1.4,
+                // 如果是错误信息，使用错误颜色
                 color: _translationError != null ? theme.colorScheme.error : null,
               ),
             ),
           ),
         ),
         const SizedBox(height: 16),
-        // Attribution Row (Conditional on showing translation)
+        // 归因信息 (显示翻译且无错误时)
         if (_showTranslated && _translationError == null)
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Icon(
-                Icons.auto_awesome,
+                Icons.auto_awesome, // 或者考虑一个更合适的图标
                 size: 24,
                 color: theme.colorScheme.primary,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
+                  // 显示本地化的归因文本
                   attributionText,
                   style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
-                  overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis, // 保持省略号
                 ),
               ),
             ],
           ),
-        const SizedBox(height: 40), // Bottom padding
+        const SizedBox(height: 40), // 底部填充
       ],
     );
   }
 
-  // Wide Layout (New Side-by-Side Logic)
-  Widget _buildWideLayout(BuildContext context, ScrollController scrollController) {
-    final theme = Theme.of(context);
-    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle);
-    final attributionText = "Translated by Gemini 2.0 Flash\nSpirit: $styleDisplayName";
+  // 宽屏布局
+  Widget _buildWideLayout(BuildContext context, ScrollController scrollController, AppLocalizations l10n, ThemeData theme) {
+    // 使用本地化的辅助函数获取风格名称
+    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle, l10n);
+    // 使用本地化的归因文本和风格标签
+    final attributionText = "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
 
-    // Define consistent padding
     const edgeInsets = EdgeInsets.symmetric(horizontal: 24, vertical: 16);
     const bottomPadding = SizedBox(height: 40);
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start, // Align content to the top
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column: Translation
+        // 左侧: 翻译
         Expanded(
-          child: ListView( // Use the main scroll controller for the primary (translated) content
+          child: ListView(
             controller: scrollController,
             padding: edgeInsets,
             children: [
               Text(
-                'Translation',
+                // 使用本地化的标题
+                l10n.translationTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                   color: theme.colorScheme.primary
@@ -488,14 +511,16 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
               ),
               const SizedBox(height: 8),
               SelectableText(
+                // 如果有错误，显示错误信息 (已经本地化)；否则显示翻译歌词
                 _translationError ?? _currentTranslatedLyrics,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   height: 1.4,
+                  // 如果是错误信息，使用错误颜色
                   color: _translationError != null ? theme.colorScheme.error : null,
                 ),
               ),
               const SizedBox(height: 16),
-              // Show attribution only if no error
+              // 归因信息 (无错误时)
               if (_translationError == null)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.start,
@@ -503,38 +528,38 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                   children: [
                     Icon(
                       Icons.auto_awesome,
-                      size: 24, // Keep size consistent
+                      size: 24,
                       color: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
+                        // 显示本地化的归因文本
                         attributionText,
                         style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
-                        // Removed overflow ellipsis to show full text if possible
                       ),
                     ),
                   ],
                 ),
-              bottomPadding, // Padding at the bottom
+              bottomPadding,
             ],
           ),
         ),
-        // Right Column: Original
+        // 右侧: 原文
         Expanded(
-          // Use SingleChildScrollView + Column for independent scrolling if content overflows
           child: SingleChildScrollView(
-             padding: edgeInsets.copyWith(left: 12), // Add some left padding to simulate separation
+             padding: edgeInsets.copyWith(left: 12),
              child: Column(
                crossAxisAlignment: CrossAxisAlignment.start,
                children: [
                  Text(
-                   'Original',
+                   // 使用本地化的标题
+                   l10n.originalTitle,
                    style: theme.textTheme.titleMedium?.copyWith(
                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.secondary // Use secondary color for distinction
+                      color: theme.colorScheme.secondary // 使用次要颜色区分
                    ),
                  ),
                  const SizedBox(height: 8),
@@ -542,7 +567,7 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
                    widget.originalLyrics,
                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.4),
                  ),
-                 bottomPadding, // Padding at the bottom
+                 bottomPadding,
                ],
              ),
           ),
@@ -550,7 +575,4 @@ class _TranslationResultSheetState extends State<TranslationResultSheet> {
       ],
     );
   }
-
-  // Re-add _showTranslated state variable and initState update
-  bool _showTranslated = true; // Default to showing translated initially
 }

@@ -7,6 +7,7 @@ import '../models/track.dart';
 import 'package:flutter/services.dart';
 import './materialui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class AddNoteSheet extends StatefulWidget {
   const AddNoteSheet({super.key});
@@ -84,7 +85,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
 
     if (trackItem == null || _controller.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法获取歌曲信息或笔记为空')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.noTrackOrEmptyNote)),
       );
       return;
     }
@@ -99,7 +100,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
         trackId: trackId,
         trackName: trackItem['name'] as String,
         artistName: (trackItem['artists'] as List).map((a) => a['name']).join(', '),
-        albumName: trackItem['album']?['name'] as String? ?? 'Unknown Album',
+        albumName: trackItem['album']?['name'] as String? ?? AppLocalizations.of(context)!.unknownAlbum,
         albumCoverUrl: (trackItem['album']?['images'] as List?)?.isNotEmpty == true
                        ? trackItem['album']['images'][0]['url']
                        : null,
@@ -111,7 +112,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       final contextUri = spotifyContext?['uri'] as String?;
       // Use album name from initial track item or context name as fallback
       final contextName = trackItem['album']?['name'] as String?
-                          ?? (spotifyContext?['type'] == 'playlist' ? 'Playlist' : 'Unknown Context');
+                          ?? (spotifyContext?['type'] == 'playlist' ? AppLocalizations.of(context)!.playlist : AppLocalizations.of(context)!.unknownContext);
 
       await localDbProvider.addRecord(
         track: track,
@@ -125,12 +126,12 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('笔记已保存')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.noteSaved)),
         );
       }
     } catch (e) {
       print('Error saving note: $e');
-      errorMsg += '保存笔记时出错: $e';
+      errorMsg += AppLocalizations.of(context)!.errorSavingNote(e.toString());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMsg.trim())),
@@ -166,7 +167,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
               ),
               Expanded(
                 child: Text(
-                  _initialTrackName ?? 'Add Note',
+                  _initialTrackName ?? AppLocalizations.of(context)!.addNote,
                   style: Theme.of(context).textTheme.titleMedium,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
@@ -192,8 +193,8 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
             maxLines: 5,
             minLines: 3,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              hintText: 'Show me your feelings...',
+            decoration: InputDecoration(
+              hintText: AppLocalizations.of(context)!.noteHint,
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),

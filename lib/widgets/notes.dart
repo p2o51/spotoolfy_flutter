@@ -8,6 +8,7 @@ import '../models/record.dart' as model; // Use prefix to avoid name collision
 import 'materialui.dart';
 import '../utils/date_formatter.dart'; // Assuming getLeadingText uses this
 import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 final logger = Logger(); // Added logger instance
 
@@ -24,7 +25,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
   // --- Helper Methods for Edit/Delete ---
   
   void _showActionSheetForRecord(BuildContext context, model.Record record) {
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    // Remove unused variable
     final recordId = record.id;
     final trackId = record.trackId;
 
@@ -41,18 +42,18 @@ class _NotesDisplayState extends State<NotesDisplay> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
         return CupertinoActionSheet(
-          title: const Text('Options'),
+          title: Text('Options'),
           actions: <CupertinoActionSheetAction>[
             CupertinoActionSheetAction(
-              child: const Text('Edit Note'),
+              child: Text(AppLocalizations.of(context)!.editNote),
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
                 _showEditDialogForRecord(context, record);
               },
             ),
             CupertinoActionSheetAction(
-              child: const Text('Delete Note'),
               isDestructiveAction: true,
+              child: Text(AppLocalizations.of(context)!.deleteNote),
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
                 _confirmDeleteRecordForRecord(context, recordId, trackId);
@@ -60,7 +61,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
             onPressed: () => Navigator.pop(bottomSheetContext),
           ),
         );
@@ -69,7 +70,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
   }
 
   void _showActionSheetForRelatedRecord(BuildContext context, Map<String, dynamic> record) {
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    // Remove unused variable
     // 对于相关记录，确保从 map 中获取 id
     final recordId = record['id'] as int?;
     final trackId = record['trackId'] as String?;
@@ -90,15 +91,15 @@ class _NotesDisplayState extends State<NotesDisplay> {
           title: Text(record['trackName'] ?? 'Options'),
           actions: <CupertinoActionSheetAction>[
             CupertinoActionSheetAction(
-              child: const Text('Edit Note'),
+              child: Text(AppLocalizations.of(context)!.editNote),
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
                 _showEditDialogForRelatedRecord(context, record);
               },
             ),
             CupertinoActionSheetAction(
-              child: const Text('Delete Note'),
               isDestructiveAction: true,
+              child: Text(AppLocalizations.of(context)!.deleteNote),
               onPressed: () {
                 Navigator.pop(bottomSheetContext);
                 _confirmDeleteRecordForRelatedRecord(context, recordId, trackId);
@@ -106,7 +107,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
             onPressed: () => Navigator.pop(bottomSheetContext),
           ),
         );
@@ -130,7 +131,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Edit Note'),
+              title: Text(AppLocalizations.of(context)!.editNote),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -138,8 +139,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
                     TextField(
                       controller: textController,
                       maxLines: null,
-                      decoration: const InputDecoration(
-                        labelText: 'Note Content',
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context)!.noteContent,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -166,11 +167,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
               ),
               actions: [
                 TextButton(
-                  child: const Text('Cancel'),
+                  child: Text(AppLocalizations.of(context)!.cancel),
                   onPressed: () => Navigator.pop(dialogContext),
                 ),
                 TextButton(
-                  child: const Text('Save'),
+                  child: Text(AppLocalizations.of(context)!.saveChanges),
                   onPressed: () {
                     localDbProvider.updateRecord(
                       recordId: recordId,
@@ -213,7 +214,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Edit Note'),
+              title: Text(AppLocalizations.of(context)!.editNote),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -221,8 +222,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
                     TextField(
                       controller: textController,
                       maxLines: null,
-                      decoration: const InputDecoration(
-                        labelText: 'Note Content',
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context)!.noteContent,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -249,11 +250,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
               ),
               actions: [
                 TextButton(
-                  child: const Text('Cancel'),
+                  child: Text(AppLocalizations.of(context)!.cancel),
                   onPressed: () => Navigator.pop(dialogContext),
                 ),
                 TextButton(
-                  child: const Text('Save'),
+                  child: Text(MaterialLocalizations.of(context).okButtonLabel),
                   onPressed: () {
                     localDbProvider.updateRecord(
                       recordId: recordId,
@@ -281,7 +282,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
           content: const Text('Are you sure you want to delete this note? This action cannot be undone.'),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: Text(AppLocalizations.of(context)!.cancel),
               onPressed: () => Navigator.pop(dialogContext),
             ),
             TextButton(
@@ -455,9 +456,9 @@ class _NotesDisplayState extends State<NotesDisplay> {
           // Show related thoughts only if not loading and list is not empty
           else if (localDbProvider.relatedRecords.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const IconHeader(
+            IconHeader(
               icon: Icons.library_music_outlined,
-              text: 'RELATED THOUGHTS',
+              text: 'Related Thoughts',
             ),
             Card(
               elevation: 0,
@@ -508,7 +509,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       ),
                       subtitle: Text(
                         // Access track/artist name from map
-                        '${relatedRecord['artistName'] ?? 'Unknown Artist'} - ${relatedRecord['trackName'] ?? 'Unknown Track'}',
+                        '[0m${relatedRecord['artistName'] ?? AppLocalizations.of(context)!.unknownArtist} - ${relatedRecord['trackName'] ?? AppLocalizations.of(context)!.unknownTrack}',
                         style: const TextStyle(fontSize: 12),
                       ),
                       // Add the rating icon as the trailing widget for related records
