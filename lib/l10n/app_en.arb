@@ -19,6 +19,78 @@
   "libraryTab": "Library",
   "roamTab": "Roam",
   "loginSuccess": "Logged in with Spotify",
+  "recordsTab": "RECORDS",
+  "queueTab": "QUEUE",
+  "lyricsTab": "LYRICS",
+  "devicesPageTitle": "Devices",
+  "noDevicesFound": "No devices found",
+  "sonosDeviceRestriction": "Please control this device using Spotify or Sonos app",
+  "deviceRestricted": "This device is not available",
+  "privateSession": "Private Session",
+  "currentDevice": "Current",
+  "editNote": "Edit Note",
+  "deleteNote": "Delete Note",
+  "cancel": "Cancel",
+  "confirmDelete": "Confirm Delete",
+  "deleteConfirmMessage": "Are you sure you want to delete this note? This action cannot be undone.",
+  "noNotes": "No notes yet...",
+  "recordsAt": "Records at {time}",
+  "@recordsAt": {
+    "description": "Text showing when a record was created",
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "12:30"
+      }
+    }
+  },
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "playbackFailed": "Playback failed: {error}",
+  "@playbackFailed": {
+    "description": "Error message when playback fails",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Connection error"
+      }
+    }
+  },
+  "searchHint": "Search songs, albums, artists...",
+  "clearSearch": "Clear search",
+  "playToGenerateInsights": "Play some music to generate insights!",
+  "generateInsights": "Generate Insights",
+  "generating": "Generating...",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "noInsightsGenerated": "Could not generate insights from the provided history.",
+  "insightsTitle": "Insights",
+  "inspirationsTitle": "Inspirations",
+  "unknownArtist": "Unknown Artist",
+  "unknownTrack": "Unknown Track",
+  "failedToGenerateInsights": "Failed to generate insights: {error}",
+  "@failedToGenerateInsights": {
+    "description": "Error message when insights generation fails",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Connection error"
+      }
+    }
+  },
+  "copiedToClipboard": "{type} copied to clipboard",
+  "@copiedToClipboard": {
+    "description": "Message shown when something is copied to clipboard",
+    "placeholders": {
+      "type": {
+        "type": "String",
+        "example": "Text"
+      }
+    }
+  },
+  "musicPersonality": "Music Personality",
+  "insightsContent": "Insights Content",
+  "recommendedSong": "Recommended Song",
   "logoutSuccess": "Logged out from Spotify",
   "operationFailed": "Operation failed",
   "invalidCredentialsError": "Invalid Spotify API credentials. Please check your Client ID and Secret.",

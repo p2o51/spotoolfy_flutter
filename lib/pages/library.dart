@@ -10,6 +10,7 @@ import '../providers/search_provider.dart';
 import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import '../services/insights_service.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class Library extends StatefulWidget {
   const Library({super.key});
@@ -102,7 +103,7 @@ class _LibraryState extends State<Library> {
                       child: SearchBar(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
-                        hintText: 'Search songs, albums, artists...',
+                        hintText: AppLocalizations.of(context)!.searchHint,
                         leading: const Icon(Icons.search),
                         trailing: _searchController.text.isNotEmpty
                           ? [
@@ -115,7 +116,7 @@ class _LibraryState extends State<Library> {
                                   searchProvider.clearSearch();
                                   _searchFocusNode.unfocus();
                                 },
-                                tooltip: 'Clear search',
+                                tooltip: AppLocalizations.of(context)!.clearSearch,
                               ),
                             ]
                           : null,
@@ -242,7 +243,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       // 显示Snackbar提示
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$messageType 已复制到剪贴板'),
+          content: Text(AppLocalizations.of(context)!.copiedToClipboard(messageType)),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -298,7 +299,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _insightsError = 'Failed to generate insights: ${e.toString()}';
+          _insightsError = AppLocalizations.of(context)!.failedToGenerateInsights(e.toString());
           _isLoadingInsights = false;
           _isInsightsExpanded = true; // Also expand to show the error
         });
@@ -326,6 +327,12 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     // if (recentContexts.isEmpty) {
     //   return const SizedBox.shrink(); // Or show a message
     // }
+
+    // 获取音乐人格
+    String? musicPersonality;
+    if (_insightsResult != null && _insightsResult!.containsKey('music_personality')) {
+      musicPersonality = _insightsResult!['music_personality'] as String?;
+    }
 
     // Build the carousel using recentContexts
     return LayoutBuilder(
@@ -385,7 +392,11 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                                   ),
                                   errorWidget: (context, url, error) => Container(
                                     color: fallbackColor,
-                                    child: const Icon(Icons.error),
+                                    child: Icon(
+                                      Icons.playlist_play,
+                                      size: 48,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
                                   ),
                                 )
                               : Container( // Fallback if no image URL
@@ -411,31 +422,63 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
-                    'Play some music to generate insights!',
+                    AppLocalizations.of(context)!.playToGenerateInsights,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
 
-              // Generate Insights Button和展开/收起按钮在同一行
+              // 音乐人格、Generate Insights 按钮和展开/收起按钮在同一行
               Padding(
                 padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
                 child: Row(
                   children: [
+                    // 音乐人格标签靠左
+                    if (musicPersonality != null)
+                      Expanded(
+                        child: GestureDetector(
+                          onLongPress: () => _copyToClipboard(musicPersonality!, AppLocalizations.of(context)!.musicPersonality),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.spatial_audio,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  musicPersonality,
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      const Spacer(),
+
+                    // Generate Insights按钮和展开/收起按钮靠右
                     FilledButton.icon(
                       onPressed: recentContexts.isNotEmpty && !_isLoadingInsights ? _generateInsights : null,
                       icon: const Icon(Icons.auto_awesome),
-                      label: Text(_isLoadingInsights ? 'Generating...' : 'Generate Insights'),
+                      label: Text(_isLoadingInsights ? AppLocalizations.of(context)!.generating : AppLocalizations.of(context)!.generateInsights),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, 40),
                       ),
                     ),
+                    
                     // 只有在有结果或错误时才显示展开/收起按钮
                     if (_insightsResult != null || _insightsError != null)
                       IconButton(
                         icon: Icon(
                           _isInsightsExpanded ? Icons.expand_less : Icons.expand_more,
                         ),
-                        tooltip: _isInsightsExpanded ? '收起' : '展开',
+                        tooltip: _isInsightsExpanded ? AppLocalizations.of(context)!.collapse : AppLocalizations.of(context)!.expand,
                         onPressed: () {
                           HapticFeedback.lightImpact();
                           setState(() {
@@ -480,7 +523,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
 
       // 返回空如果没有有效数据
       if (mood == null && (recommendations == null || recommendations.isEmpty)) {
-        return Text('Could not generate insights from the provided history.', 
+        return Text(AppLocalizations.of(context)!.noInsightsGenerated, 
                    style: Theme.of(context).textTheme.bodyMedium);
       }
 
@@ -489,7 +532,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
         children: [
           if (mood != null) ...[
             Text(
-              'Insights',
+              AppLocalizations.of(context)!.insightsTitle,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.primary,
               ),
@@ -497,7 +540,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
             const SizedBox(height: 4),
             // 将普通Text替换为支持长按复制的GestureDetector
             GestureDetector(
-              onLongPress: () => _copyToClipboard(mood, 'Insights内容'),
+              onLongPress: () => _copyToClipboard(mood, AppLocalizations.of(context)!.insightsContent),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
                 child: Text(
@@ -510,7 +553,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
           ],
           if (recommendations != null && recommendations.isNotEmpty) ...[
             Text(
-              'Inspirations',
+              AppLocalizations.of(context)!.inspirationsTitle,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.primary,
               ),
@@ -522,8 +565,8 @@ class _MyCarouselViewState extends State<MyCarouselView> {
               itemCount: recommendations.length,
               itemBuilder: (context, index) {
                 final rec = recommendations[index];
-                final artist = rec['artist'] as String? ?? 'Unknown Artist';
-                final track = rec['track'] as String? ?? 'Unknown Track';
+                final artist = rec['artist'] as String? ?? AppLocalizations.of(context)!.unknownArtist;
+                final track = rec['track'] as String? ?? AppLocalizations.of(context)!.unknownTrack;
                 final recommendationText = '$artist - $track';
                 
                 return ListTile(
@@ -531,8 +574,16 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                     Icons.music_note_outlined,
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                  title: Text(track),
-                  subtitle: Text(artist),
+                  title: Text(
+                    track,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  subtitle: Text(
+                    artist,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   dense: true,
                   onTap: () {
                     HapticFeedback.lightImpact();
@@ -551,7 +602,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                       _isInsightsExpanded = false;
                     });
                   },
-                  onLongPress: () => _copyToClipboard(recommendationText, '推荐歌曲'),
+                  onLongPress: () => _copyToClipboard(recommendationText, AppLocalizations.of(context)!.recommendedSong),
                 );
               },
             ),

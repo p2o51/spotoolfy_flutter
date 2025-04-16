@@ -1,0 +1,17 @@
+// 在 _showActionSheet 方法中
+child: const Text('Cancel'), -> child: Text(AppLocalizations.of(context)!.cancel),
+
+// 在 _confirmDeleteRecord 方法中
+title: const Text('Confirm Delete'), -> title: Text(AppLocalizations.of(context)!.confirmDelete),
+content: const Text('Are you sure you want to delete this note? This action cannot be undone.'), -> content: Text(AppLocalizations.of(context)!.deleteConfirmMessage),
+child: const Text('Cancel'), -> child: Text(AppLocalizations.of(context)!.cancel),
+child: const Text('Delete'), -> child: Text(AppLocalizations.of(context)!.deleteNote),
+
+// 在 build 方法中
+'还没有任何笔记...', -> AppLocalizations.of(context)!.noNotes,
+'Records at $formattedTime', -> AppLocalizations.of(context)!.recordsAt.replaceAll('{time}', formattedTime),
+'Today $timeStr' -> '${AppLocalizations.of(context)!.today} $timeStr'
+'Yesterday $timeStr' -> '${AppLocalizations.of(context)!.yesterday} $timeStr'
+'今天 $timeStr' -> '${AppLocalizations.of(context)!.today} $timeStr'
+'昨天 $timeStr' -> '${AppLocalizations.of(context)!.yesterday} $timeStr'
+Text('播放失败: $e'), -> Text(AppLocalizations.of(context)!.playbackFailed.replaceAll('{error}', e.toString())),

@@ -7,6 +7,7 @@ import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
 import 'package:spotoolfy_flutter/widgets/mdtab.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class NowPlaying extends StatefulWidget {
   const NowPlaying({super.key});
@@ -73,9 +74,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     }
   }
 
-  final List<PageData> _pages = [
+  List<PageData> _buildPages(BuildContext context) => [
     PageData(
-      title: 'RECORDS',
+      title: AppLocalizations.of(context)!.recordsTab,
       icon: Icons.comment_rounded,
       page: SingleChildScrollView(
         child: ConstrainedBox(
@@ -92,7 +93,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       ),
     ),
     PageData(
-      title: 'QUEUE',
+      title: AppLocalizations.of(context)!.queueTab,
       icon: Icons.queue_music_rounded,
       page: SingleChildScrollView(
         child: ConstrainedBox(
@@ -108,7 +109,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       ),
     ),
     PageData(
-      title: 'LYRICS',
+      title: AppLocalizations.of(context)!.lyricsTab,
       icon: Icons.lyrics_rounded,
       page: const LyricsWidget(),
     ),
@@ -127,7 +128,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         children: [
           // Centered indicator
           SimplePageIndicator(
-            pages: _pages,
+            pages: _buildPages(context),
             pageController: _pageController,
           ),
           // Button only on small screens, positioned at the end
@@ -173,7 +174,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                         _currentPageIndex = index;
                       });
                     },
-                    children: _pages.map((page) => page.page).toList(),
+                    children: _buildPages(context).map((page) => page.page).toList(),
                   ),
                 ),
               ],
@@ -263,7 +264,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                     _currentPageIndex = index;
                   });
                 },
-                children: _pages.map((page) => page.page).toList(),
+                children: _buildPages(context).map((page) => page.page).toList(),
               ),
             ),
           ],

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../widgets/library_grid.dart';
 import '../widgets/materialui.dart' as custom_ui;
+import '../widgets/materialui.dart'; // Import WavyDivider
 import '../pages/library.dart'; // Add import for MyCarouselView
 import 'package:flutter/services.dart'; // 新增导入
 
@@ -113,6 +114,19 @@ class _LibrarySectionState extends State<LibrarySection> {
                 ),
               ),
               
+              // Insert WavyDivider here
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0), // Added horizontal padding
+                  child: WavyDivider(
+                    height: 10,
+                    waveHeight: 3,
+                    waveFrequency: 0.03,
+                    // Color will default to theme primary color
+                  ),
+                ),
+              ),
+
               // "YOUR LIBRARY" header
               SliverToBoxAdapter(
                 child: Padding(
@@ -125,7 +139,6 @@ class _LibrarySectionState extends State<LibrarySection> {
                   ),
                 ),
               ),
-              
               // Filter chips
               SliverToBoxAdapter(
                 child: Padding(
@@ -154,10 +167,11 @@ class _LibrarySectionState extends State<LibrarySection> {
                 ),
               ),
               
+              // Add SizedBox for spacing below filter chips
               const SliverToBoxAdapter(
-                child: SizedBox(height: 24),
+                child: SizedBox(height: 10.0), // Adjust height as needed
               ),
-              
+
               // Add SliverPadding around the grid and loading states
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

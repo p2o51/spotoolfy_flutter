@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math; // Add math import
 
 class MyButton extends StatelessWidget {
   final double width;
@@ -84,7 +85,7 @@ class Ratings extends StatelessWidget {
   final Function(int) onRatingChanged;
 
   const Ratings({
-    super.key, 
+    super.key,
     required this.initialRating,
     required this.onRatingChanged,
   });
@@ -104,17 +105,131 @@ class Ratings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedIndex = _getRatingIndex(initialRating);
+    // Map the internal rating (0, 3, 5) to the segmented button values (0, 1, 2)
+    int selectedValue;
+    switch (initialRating) {
+      case 0:
+        selectedValue = 0;
+        break;
+      case 5:
+        selectedValue = 2;
+        break;
+      case 3:
+      default:
+        selectedValue = 1; // Default to neutral
+    }
+
     return SegmentedButton<int>(
       segments: const [
         ButtonSegment(value: 0, icon: Icon(Icons.thumb_down_outlined)),
         ButtonSegment(value: 1, icon: Icon(Icons.sentiment_neutral_rounded)),
         ButtonSegment(value: 2, icon: Icon(Icons.whatshot_outlined)),
       ],
-      selected: {selectedIndex},
+      selected: {selectedValue}, // Use the mapped value
       onSelectionChanged: (Set<int> newSelection) {
-        onRatingChanged(newSelection.first);
+        // Map the selected segment value (0, 1, 2) back to the rating (0, 3, 5)
+        int newRating;
+        switch (newSelection.first) {
+          case 0:
+            newRating = 0;
+            break;
+          case 2:
+            newRating = 5;
+            break;
+          case 1:
+          default:
+            newRating = 3;
+        }
+        onRatingChanged(newRating);
       },
+      // Optional: Add styling if needed
+      // style: SegmentedButton.styleFrom(
+      //   selectedBackgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      // ),
+      showSelectedIcon: false, // Don't show checkmark on selected
     );
+  }
+}
+
+// --- Wavy Line Divider ---
+
+class WavyDivider extends StatelessWidget {
+  final double width;
+  final double height;
+  final Color? color; // Optional color override
+  final double strokeWidth;
+  final double waveHeight;
+  final double waveFrequency;
+
+  const WavyDivider({
+    super.key,
+    this.width = double.infinity, // Default to full width
+    this.height = 20.0,          // Default height for the paint area
+    this.color,                  // Default uses primary color
+    this.strokeWidth = 2.0,
+    this.waveHeight = 5.0,
+    this.waveFrequency = 0.03,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Use the provided color or default to theme's primary color
+    final waveColor = color ?? Theme.of(context).colorScheme.primary;
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(
+        painter: WavyLinePainter(
+          color: waveColor,
+          strokeWidth: strokeWidth,
+          waveHeight: waveHeight,
+          waveFrequency: waveFrequency,
+        ),
+      ),
+    );
+  }
+}
+
+// Custom Painter for the Wavy Line
+class WavyLinePainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double waveHeight;
+  final double waveFrequency; // Controls the density of waves
+
+  WavyLinePainter({
+    required this.color, // Color is now required
+    this.strokeWidth = 2.0,
+    this.waveHeight = 10.0,
+    this.waveFrequency = 0.03,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    path.moveTo(0, size.height / 2); // Start in the middle on the left
+
+    for (double x = 0; x <= size.width; x++) {
+      // Calculate y using sine wave
+      final y = waveHeight * math.sin(waveFrequency * 2 * math.pi * x) + size.height / 2;
+      path.lineTo(x, y);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant WavyLinePainter oldDelegate) {
+    // Repaint if any properties change
+    return oldDelegate.color != color ||
+           oldDelegate.strokeWidth != strokeWidth ||
+           oldDelegate.waveHeight != waveHeight ||
+           oldDelegate.waveFrequency != waveFrequency;
   }
 }

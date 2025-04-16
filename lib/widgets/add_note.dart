@@ -21,9 +21,25 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
   bool _isSubmitting = false;
   static const String _lastUsedRatingKey = 'last_used_rating';
 
+  // State variables to store track info when the sheet opens
+  Map<String, dynamic>? _initialTrackItem;
+  int? _initialTimestampMs;
+  Map<String, dynamic>? _initialContext;
+  String? _initialTrackName; // Store track name separately for the title
+
   @override
   void initState() {
     super.initState();
+    // Capture the track info when the sheet is initialized
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrackData = spotifyProvider.currentTrack;
+    if (currentTrackData != null) {
+      _initialTrackItem = currentTrackData['item'] as Map<String, dynamic>?;
+      _initialTimestampMs = currentTrackData['progress_ms'] as int?;
+      _initialContext = currentTrackData['context'] as Map<String, dynamic>?;
+      _initialTrackName = _initialTrackItem?['name'] as String?; // Store name
+    }
+
     _loadLastUsedRating();
   }
 
@@ -62,11 +78,9 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
   Future<void> _handleSubmit(BuildContext context) async {
     HapticFeedback.lightImpact();
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    final lyricsService = Provider.of<LyricsService>(context, listen: false);
 
-    final currentTrackData = spotifyProvider.currentTrack;
-    final trackItem = currentTrackData?['item'];
+    // Use the initial track data stored in the state
+    final trackItem = _initialTrackItem;
 
     if (trackItem == null || _controller.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,10 +105,13 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
                        : null,
       );
 
-      final songTimestampMs = currentTrackData?['progress_ms'] as int?;
-      final spotifyContext = currentTrackData?['context'];
+      // Use initial timestamp and context
+      final songTimestampMs = _initialTimestampMs;
+      final spotifyContext = _initialContext;
       final contextUri = spotifyContext?['uri'] as String?;
-      final contextName = trackItem['album']?['name'] as String? ?? 'Unknown Context';
+      // Use album name from initial track item or context name as fallback
+      final contextName = trackItem['album']?['name'] as String?
+                          ?? (spotifyContext?['type'] == 'playlist' ? 'Playlist' : 'Unknown Context');
 
       await localDbProvider.addRecord(
         track: track,
@@ -128,9 +145,6 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final spotifyProvider = Provider.of<SpotifyProvider>(context);
-    final currentTrack = spotifyProvider.currentTrack?['item'];
-
     final isTextEmpty = _controller.text.isEmpty;
 
     return Padding(
@@ -152,7 +166,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
               ),
               Expanded(
                 child: Text(
-                  currentTrack?['name'] ?? 'Add Note',
+                  _initialTrackName ?? 'Add Note',
                   style: Theme.of(context).textTheme.titleMedium,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,

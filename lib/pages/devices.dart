@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../models/spotify_device.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({super.key});
@@ -20,7 +21,7 @@ class DevicesPage extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 24),
                 child: Text(
-                  'Devices',
+                  AppLocalizations.of(context)!.devicesPageTitle,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
@@ -38,9 +39,9 @@ class DevicesPage extends StatelessWidget {
               final devices = spotify.availableDevices;
               
               if (devices.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('没有找到可用设备'),
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(AppLocalizations.of(context)!.noDevicesFound),
                 );
               }
 
@@ -96,10 +97,10 @@ class DeviceListItem extends StatelessWidget {
 
   String? _getDeviceRestriction(BuildContext context) {
     if (_isSonosDevice(device.name)) {
-      return '请使用 Spotify 或 Sonos 应用控制此设备';
+      return AppLocalizations.of(context)!.sonosDeviceRestriction;
     }
     if (device.isRestricted) {
-      return '此设备不可用';
+      return AppLocalizations.of(context)!.deviceRestricted;
     }
     return null;
   }
@@ -166,7 +167,7 @@ class DeviceListItem extends StatelessWidget {
                           )
                         else if (device.isPrivateSession)
                           Text(
-                            'Private Session',
+                            AppLocalizations.of(context)!.privateSession,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                       ],
@@ -183,7 +184,7 @@ class DeviceListItem extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        'Current',
+                        AppLocalizations.of(context)!.currentDevice,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onPrimaryContainer,
                           fontSize: 12,

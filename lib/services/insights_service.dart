@@ -79,7 +79,8 @@ class InsightsService {
               // Basic validation
               if (insightsJson is Map<String, dynamic> &&
                   insightsJson.containsKey('mood_analysis') &&
-                  insightsJson.containsKey('recommendations')) {
+                  insightsJson.containsKey('recommendations') &&
+                  insightsJson.containsKey('music_personality')) {
                  print('Successfully parsed insights: $insightsJson'); // Debugging
                 
                 // 将结果保存到本地缓存
@@ -164,15 +165,18 @@ Based on the following list of recently played music contexts by a user:
 
 $contextListString
 
-1. Analyze the overall mood conveyed by this listening history. Say something to them in 2~5 concise sentences about their mood and daily life.
-2. Your language should be:
-- Mysterious and suggestive, like the whispers of a fortune teller, sparking the imagination.
+1. Create a music personality label for this listener. This should be a short creative descriptor that captures the essence of their musical taste. Examples: "Distortion Kaleidoscope", "Gazer of Post-Punk Fragments", "Synth Glacier Wanderer", "反高潮叙事信徒", "冷门圣地的守护灵".（should be written in $languageName.）
+
+2. Analyze the overall mood conveyed by this listening history. Say something to them in 2~5 concise sentences about their mood and daily life.
+
+3. Your language should be:
+- "Pitchfork"-style expression that maintains a slight distance and focuses more on the characteristics of the music itself or subcultural attributes.
 - Carrying a subtle, almost imperceptible sense of solace. Touched upon lightly, avoiding directness. The wording is soft and delicate, yet of unsolved mysteries.
-- Containing hints of foreshadowing or subtle clues, pointing towards the flow of feelings or inner exploration, and using metaphors or symbolism.
 
 
 Please provide the response strictly in JSON format with the following structure:
 {
+  "music_personality": "Your music personality label here",
   "mood_analysis": "Your analysis text here.",
   "recommendations": [
     {"artist": "Artist Name 1", "track": "Track Name 1"},
@@ -181,7 +185,7 @@ Please provide the response strictly in JSON format with the following structure
   ]
 }
 
-IMPORTANT: The mood_analysis should be written in $languageName, while the artist and track names should remain in their original language.
+IMPORTANT: The music_personality and mood_analysis should be written in $languageName, while the artist and track names should remain in their original language.
 Only output the raw JSON object without any surrounding text or markdown formatting.
 ''';
   }
