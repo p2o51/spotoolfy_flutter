@@ -3,11 +3,15 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/settings_service.dart';
 import '../providers/local_database_provider.dart'; // Needed for context data type if used directly
+// 导入intl包用于日期格式化 (如果尚未导入)
+// import 'package:intl/intl.dart'; 
 
 class InsightsService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiApiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash';
+  static const String _geminiBaseUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models/';
+  static const String _geminiModel = 'gemini-2.5-flash-preview-04-17';
+  static const int _thinkingBudget = 1024;
   static const String _insightsCacheKey = 'cached_music_insights'; // 缓存键
 
   Future<Map<String, dynamic>?> generateMusicInsights(
@@ -32,7 +36,9 @@ class InsightsService {
     final String languageName = _getLanguageName(languageCode);
 
     final prompt = _buildPrompt(contextNames, languageName);
-    final url = Uri.parse('$_geminiApiBaseUrl:generateContent?key=$apiKey');
+    // 构建完整的模型URL
+    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+    final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
       'contents': [
@@ -40,10 +46,14 @@ class InsightsService {
           'parts': [{'text': prompt}]
         }
       ],
-      // Enforce JSON output from the model
+      // 更新 generationConfig 以包含 thinkingConfig
       'generationConfig': {
-        'response_mime_type': 'application/json',
-        'temperature': 0.9,
+        'response_mime_type': 'application/json', // 保持强制JSON输出
+        'temperature': 0.9, // 保留温度设置
+        'thinkingConfig': {
+          // 将思考预算硬编码为 0
+          'thinkingBudget': 0,
+        }
       },
       // Optional: Add safety settings if needed
       // 'safetySettings': [ ... ]
@@ -159,15 +169,21 @@ class InsightsService {
 
   String _buildPrompt(List<String> contextNames, String languageName) {
     final contextListString = contextNames.map((name) => '- "$name"').join('\n');
+    // 获取当前时间并格式化
+    final currentTime = DateTime.now().toIso8601String(); // 使用ISO 8601格式
+    // 或者使用更友好的格式 (需要intl包): final currentTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
+    // 将当前时间添加到 prompt 中
     return '''
+The current time is $currentTime.
+
 Based on the following list of recently played music contexts by a user:
 
 $contextListString
 
 1. Create a music personality label for this listener. This should be a short creative descriptor that captures the essence of their musical taste. Examples: "Distortion Kaleidoscope", "Gazer of Post-Punk Fragments", "Synth Glacier Wanderer", "反高潮叙事信徒", "冷门圣地的守护灵".（should be written in $languageName.）
 
-2. Analyze the overall mood conveyed by this listening history. Say something to them in 2~5 concise sentences about their mood and daily life.
+2. Analyze the overall mood conveyed by this listening history, considering the current time ($currentTime) might provide context. Say something to them in 2~5 concise sentences about their mood and daily life.
 
 3. Your language should be:
 - "Pitchfork"-style expression that maintains a slight distance and focuses more on the characteristics of the music itself or subcultural attributes.

@@ -7,8 +7,9 @@ class TranslationService {
   final SettingsService _settingsService = SettingsService();
   static const String _geminiBaseUrl = 
       'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiDefaultModel = 'gemini-2.0-flash';
-  static const String _geminiThinkingModel = 'gemini-2.0-flash-thinking-exp';
+  static const String _geminiDefaultModel = 'gemini-2.5-flash-preview-04-17';
+  static const String _geminiThinkingModel = 'gemini-2.5-flash-preview-04-17';
+  static const int _thinkingBudget = 1024;
   static const String _cacheKeyPrefix = 'translation_cache_'; // Cache key prefix
 
   Future<Map<String, String?>?> translateLyrics(String lyricsText, String trackId, {String? targetLanguage, bool forceRefresh = false}) async {
@@ -28,7 +29,8 @@ class TranslationService {
     final modelUrl = '$_geminiBaseUrl$model';
 
     // Generate cache key including language and style
-    final cacheKey = '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed';
+    final thinkingSuffix = enableThinking ? '_thinking$_thinkingBudget' : '_noThinking';
+    final cacheKey = '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_${styleNameUsed}$thinkingSuffix';
     final prefs = await SharedPreferences.getInstance();
 
     // Try fetching from cache first
@@ -59,19 +61,11 @@ class TranslationService {
       'contents': [{
         'parts': [{'text': prompt}]
       }],
-      // Optional: Add generation config for safety settings etc. if needed
-      // 'generationConfig': {
-      //   'temperature': 0.7, 
-      //   'topK': 1,
-      //   'topP': 1,
-      //   'maxOutputTokens': 2048, 
-      // },
-      // 'safetySettings': [
-      //   { 'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE' },
-      //   { 'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE' },
-      //   { 'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE' },
-      //   { 'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE' },
-      // ],
+      'generationConfig': {
+        'thinkingConfig': {
+          'thinkingBudget': enableThinking ? _thinkingBudget : 0
+        }
+      },
     });
 
     try {

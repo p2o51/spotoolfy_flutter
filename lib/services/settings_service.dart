@@ -46,6 +46,7 @@ class SettingsService {
   static const _translationStyleKey = 'translation_style'; // Key for style
   static const _copyLyricsAsSingleLineKey = 'copy_lyrics_single_line'; // Key for new setting
   static const _enableThinkingForTranslationKey = 'enable_thinking_for_translation'; // Key for thinking mode
+  static const _enableThinkingForInsightsKey = 'enable_thinking_for_insights';
 
   static const _defaultLanguage = 'en'; // Default to English
   static const _defaultStyle = TranslationStyle.faithful; // Default style
@@ -101,8 +102,20 @@ class SettingsService {
     return valueString?.toLowerCase() == 'true';
   }
 
+  // Method to save the thinking mode for insights setting
+  Future<void> saveEnableThinkingForInsights(bool value) async {
+    await _secureStorage.write(key: _enableThinkingForInsightsKey, value: value.toString());
+  }
+
+  // Method to get the thinking mode for insights setting
+  Future<bool> getEnableThinkingForInsights() async {
+    final valueString = await _secureStorage.read(key: _enableThinkingForInsightsKey);
+    // Parse the string to bool. Handles null and defaults to false.
+    return valueString?.toLowerCase() == 'true';
+  }
+
   // Method to save both settings at once, potentially useful in the UI
-  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForTranslation}) async {
+  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForTranslation, bool? enableThinkingForInsights}) async {
     if (apiKey != null) {
       await saveGeminiApiKey(apiKey);
     }
@@ -118,6 +131,9 @@ class SettingsService {
     if (enableThinkingForTranslation != null) {
       await saveEnableThinkingForTranslation(enableThinkingForTranslation);
     }
+    if (enableThinkingForInsights != null) {
+      await saveEnableThinkingForInsights(enableThinkingForInsights);
+    }
   }
 
   // Method to get all settings, useful for initialization
@@ -128,6 +144,7 @@ class SettingsService {
       'style': await getTranslationStyle(),
       'copyLyricsAsSingleLine': await getCopyLyricsAsSingleLine(),
       'enableThinkingForTranslation': await getEnableThinkingForTranslation(),
+      'enableThinkingForInsights': await getEnableThinkingForInsights(),
     };
   }
 
@@ -138,5 +155,6 @@ class SettingsService {
     await _secureStorage.delete(key: _translationStyleKey);
     await _secureStorage.delete(key: _copyLyricsAsSingleLineKey);
     await _secureStorage.delete(key: _enableThinkingForTranslationKey);
+    await _secureStorage.delete(key: _enableThinkingForInsightsKey);
   }
 } 
