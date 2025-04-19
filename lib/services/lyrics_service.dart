@@ -1,170 +1,195 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:async';
-import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// html_unescape is used in the provider classes
+import 'lyrics/lyric_provider.dart';
+import 'lyrics/qq_provider.dart';
+import 'lyrics/netease_provider.dart';
 
 class LyricsService {
-  static const String _baseSearchUrl = 'https://c.y.qq.com/soso/fcgi-bin/client_search_cp';
-  static const String _baseLyricUrl = 'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg';
-  
-  final Logger _logger = Logger(); // Initialize logger
-
-  final Map<String, String> _headers = {
-    'referer': 'https://y.qq.com/',
-    'user-agent': 'Mozilla/5.0'
-  };
+  final Logger _logger = Logger();
+  final List<LyricProvider> _providers = [];
+  final QQProvider _qqProvider = QQProvider();
+  final NetEaseProvider _neProvider = NetEaseProvider();
 
   // 缓存键的前缀
   static const String _cacheKeyPrefix = 'lyrics_cache_';
+  // 缓存有效期（30天）
+  static const int _cacheTtlDays = 30;
+
+  LyricsService() {
+    // 按优先级顺序添加提供者
+    _providers.add(_qqProvider);
+    _providers.add(_neProvider);
+  }
 
   Future<String?> getLyrics(String songName, String artistName, String trackId) async {
     try {
       // 使用 trackId 作为缓存键
       final cacheKey = _cacheKeyPrefix + trackId;
-      
+
       // 尝试从缓存获取
       final prefs = await SharedPreferences.getInstance();
-      final cachedLyrics = prefs.getString(cacheKey);
-      
-      if (cachedLyrics != null) {
-        _logger.i('从缓存获取歌词: $trackId'); // Use logger.i for info
-        return cachedLyrics;
+      final cachedLyricsJson = prefs.getString(cacheKey);
+
+      if (cachedLyricsJson != null) {
+        try {
+          final cacheData = LyricCacheData.fromJson(json.decode(cachedLyricsJson));
+
+          // 检查缓存是否过期（30天）
+          final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+          if (now - cacheData.timestamp < _cacheTtlDays * 24 * 60 * 60) {
+            _logger.i('从缓存获取歌词: $trackId (来源: ${cacheData.provider})');
+            return cacheData.lyric;
+          } else {
+            _logger.i('缓存已过期: $trackId');
+          }
+        } catch (e) {
+          _logger.w('解析缓存数据失败: $e');
+          // 如果解析失败，继续获取新数据
+        }
       }
 
-      // 如果缓存中没有，从网络获取
-      _logger.i('从网络获取歌词: $songName - $artistName'); // Use logger.i for info
-      
-      final songmid = await _searchSong('$songName $artistName');
-      if (songmid == null) return null;
+      // 如果缓存中没有或已过期，从网络获取
+      _logger.i('从网络获取歌词: $songName - $artistName');
 
-      final lyrics = await _fetchLyrics(songmid);
-      
+      // 并行从多个提供者获取歌词
+      final lyrics = await _getFromProviders(songName, artistName);
+
       // 使用 trackId 存储缓存
       if (lyrics != null) {
-        await prefs.setString(cacheKey, lyrics);
-        _logger.i('歌词已缓存: $trackId'); // Use logger.i for info
+        final provider = lyrics['provider'] as String;
+        final lyricText = lyrics['lyric'] as String;
+
+        final cacheData = LyricCacheData(
+          provider: provider,
+          lyric: lyricText,
+          timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        );
+
+        await prefs.setString(cacheKey, json.encode(cacheData.toJson()));
+        _logger.i('歌词已缓存: $trackId (来源: $provider)');
+
+        return lyricText;
       }
 
-      return lyrics;
+      return null;
     } catch (e) {
-      _logger.e('获取歌词失败: $e'); // Use logger.e for errors
+      _logger.e('获取歌词失败: $e');
       return null;
     }
   }
 
-  Future<String?> _searchSong(String keyword) async {
+  /// 从多个提供者并行获取歌词
+  Future<Map<String, String>?> _getFromProviders(String title, String artist) async {
     try {
-      final url = Uri.parse(_baseSearchUrl).replace(queryParameters: {
-        'w': keyword,
-        'p': '1',
-        'n': '3',
-        'format': 'json'
-      });
-      
-      final response = await http.get(url, headers: _headers).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('搜索请求超时');
-        },
-      );
+      // 创建所有提供者的Future
+      final futures = _providers.map((provider) =>
+        provider.getLyric(title, artist).then((lyric) =>
+          lyric != null ? {'provider': provider.name, 'lyric': lyric} : null
+        )
+      ).toList();
 
-      if (response.statusCode != 200) {
-        _logger.w('搜索请求失败，状态码: ${response.statusCode}'); // Use logger.w for warnings
-        return null;
+      // 并行执行所有Future，返回第一个非空结果
+      final results = await Future.wait(futures);
+      final validResults = results.where((result) => result != null).toList();
+
+      if (validResults.isNotEmpty) {
+        // 返回第一个有效结果
+        return validResults.first as Map<String, String>;
       }
 
-      final data = json.decode(response.body);
-      if (data['data']?['song']?['list']?.isNotEmpty) {
-        return data['data']['song']['list'][0]['songmid'];
+      // 如果并行获取都失败，尝试顺序获取（增加超时时间）
+      for (final provider in _providers) {
+        _logger.i('尝试从 ${provider.name} 获取歌词（延长超时）');
+        final lyric = await provider.getLyric(title, artist);
+        if (lyric != null) {
+          return {'provider': provider.name, 'lyric': lyric};
+        }
       }
+
       return null;
     } catch (e) {
-      _logger.e('搜索歌曲失败: $e'); // Use logger.e for errors
-      if (e is SocketException) {
-        _logger.e('网络连接错误: ${e.message}'); // Use logger.e for errors
-      } else if (e is TimeoutException) {
-        _logger.w('请求超时: ${e.message}'); // Use logger.w for warnings
-      }
+      _logger.e('从提供者获取歌词失败: $e');
       return null;
     }
   }
 
-  Future<String?> _fetchLyrics(String songmid) async {
-    try {
-      final url = Uri.parse(_baseLyricUrl).replace(queryParameters: {
-        'songmid': songmid,
-        'format': 'json',
-        'nobase64': '1'
-      });
-      
-      final response = await http.get(url, headers: _headers).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('获取歌词请求超时');
-        },
-      );
+  /// 评估歌词质量（用于比较多个源的结果）
+  int _evaluateLyricQuality(String lyric) {
+    // 计算行数
+    final lines = lyric.split('\n');
+    final timetaggedLines = lines.where((line) =>
+      line.startsWith('[') && line.contains(']') && line.substring(1, line.indexOf(']')).contains(':')
+    ).length;
 
-      if (response.statusCode != 200) {
-        _logger.w('获取歌词请求失败，状态码: ${response.statusCode}'); // Use logger.w for warnings
-        return null;
-      }
-
-      final data = json.decode(response.body);
-      if (data['lyric'] != null) {
-        return data['lyric'];
-      }
-      return null;
-    } catch (e) {
-      _logger.e('获取歌词详情失败: $e'); // Use logger.e for errors
-      if (e is SocketException) {
-        _logger.e('网络连接错误: ${e.message}'); // Use logger.e for errors
-      } else if (e is TimeoutException) {
-        _logger.w('请求超时: ${e.message}'); // Use logger.w for warnings
-      }
-      return null;
-    }
+    // 简单质量评分：时间标签行数
+    return timetaggedLines;
   }
 
-  // 清除缓存
+  /// 清除缓存
   Future<void> clearCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
-      
+
       // 只清除歌词缓存的键
       for (var key in keys) {
         if (key.startsWith(_cacheKeyPrefix)) {
           await prefs.remove(key);
         }
       }
-      _logger.i('歌词缓存已清除'); // Use logger.i for info
+      _logger.i('歌词缓存已清除');
     } catch (e) {
-      _logger.e('清除缓存失败: $e'); // Use logger.e for errors
+      _logger.e('清除缓存失败: $e');
     }
   }
 
-  // 获取缓存大小
+  /// 获取缓存大小
   Future<int> getCacheSize() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
       int totalSize = 0;
-      
+      int qqCount = 0;
+      int neCount = 0;
+      int otherCount = 0;
+
       for (var key in keys) {
         if (key.startsWith(_cacheKeyPrefix)) {
           final value = prefs.getString(key);
           if (value != null) {
             totalSize += value.length;
+
+            // 统计各提供者的缓存数量
+            try {
+              final cacheData = LyricCacheData.fromJson(json.decode(value));
+              if (cacheData.provider == 'qq') {
+                qqCount++;
+              } else if (cacheData.provider == 'netease') {
+                neCount++;
+              } else {
+                otherCount++;
+              }
+            } catch (e) {
+              // 忽略解析错误，可能是旧格式缓存
+              otherCount++;
+            }
           }
         }
       }
-      
+
+      _logger.i('缓存统计 - 总数: ${qqCount + neCount + otherCount}, QQ音乐: $qqCount, 网易云: $neCount, 其他: $otherCount');
       return totalSize;
     } catch (e) {
-      _logger.e('获取缓存大小失败: $e'); // Use logger.e for errors
+      _logger.e('获取缓存大小失败: $e');
       return 0;
     }
+  }
+
+  /// 获取当前使用的提供者列表
+  List<String> getProviderNames() {
+    return _providers.map((provider) => provider.name).toList();
   }
 }
