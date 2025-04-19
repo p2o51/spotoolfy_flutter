@@ -167,7 +167,7 @@
   
   "translationTitle": "Translation",
   "originalTitle": "Original",
-  "translatedByAttribution": "Translated by Gemini 2.0 Flash",
+  "translatedByAttribution": "Translated by Gemini 2.5 Flash",
   "spiritLabel": "Spirit: {style}",
   "@spiritLabel": {
     "placeholders": {

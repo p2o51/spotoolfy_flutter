@@ -81,7 +81,7 @@
   "enterCopyLyricsMode": "进入歌词复制模式（单曲重复）",
   "translationTitle": "翻译",
   "originalTitle": "原文",
-  "translatedByAttribution": "由 Gemini 2.0 Flash 翻译",
+  "translatedByAttribution": "由 Gemini 2.5 Flash 翻译",
   "spiritLabel": "灵魂: {style}",
   "copyToClipboard": "复制到剪贴板",
   "copiedToClipboard": "已复制到剪贴板",

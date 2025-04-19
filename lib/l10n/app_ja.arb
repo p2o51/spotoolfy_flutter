@@ -81,7 +81,7 @@
   "enterCopyLyricsMode": "歌詞コピー モードに入る（単曲リピート）",
   "translationTitle": "翻訳",
   "originalTitle": "原文",
-  "translatedByAttribution": "Gemini 2.0 Flashによって翻訳された",
+  "translatedByAttribution": "Gemini 2.5 Flashによって翻訳された",
   "spiritLabel": "スピリット: {style}",
   "copyToClipboard": "クリップボードにコピー",
   "copiedToClipboard": "クリップボードにコピーされた", 
