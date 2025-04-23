@@ -653,15 +653,16 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                             duration: const Duration(milliseconds: 400),
                             curve: Curves.easeOutCubic,
                             style: TextStyle(
+                              fontFamily: 'Montserrat',
                               fontSize: MediaQuery.of(context).size.width > 600 ? 24 : 22,
                               fontWeight: index == currentLineIndex 
                                 ? FontWeight.w700 
                                 : FontWeight.w600,
                               color: index < currentLineIndex
-                                ? Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()) // Updated opacity
+                                ? Theme.of(context).colorScheme.secondaryContainer
                                 : index == currentLineIndex
                                   ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.secondaryContainer,
+                                  : Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()),
                               height: 1.1,
                             ),
                             child: AnimatedOpacity(

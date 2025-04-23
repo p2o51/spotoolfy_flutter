@@ -37,7 +37,6 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  flutter_appauth: ^8.0.1
   flutter_secure_storage: ^9.2.4
   http: ^1.3.0
   provider: ^6.1.2
@@ -97,13 +96,15 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   fonts:
-    - family: Derivia
+    - family: Montserrat
       fonts:
-        - asset: assets/fonts/Derivia-Regular.otf
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
-  #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+        # 常规 (Regular) - 对应 FontWeight.w400 或 FontWeight.normal
+        - asset: assets/fonts/Montserrat-Medium.ttf
+          weight: 400
+        # 粗体 (Bold) - 对应 FontWeight.w700 或 FontWeight.bold
+        - asset: assets/fonts/Montserrat-SemiBold.ttf
+          weight: 700
+        # 斜体 (Italic)
+        - asset: assets/fonts/Montserrat-Italic.ttf
+          style: italic
+          # 如果斜体也有不同字重，也需要指定 weight，否则默认为 400

@@ -372,7 +372,7 @@ class SettingsMenuSection extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: isDestructive 
-                  ? Theme.of(context).colorScheme.error.withOpacity(0.1)
+                  ? Theme.of(context).colorScheme.error.withAlpha((255 * 0.1).round())
                   : Theme.of(context).colorScheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -655,7 +655,6 @@ class SettingsMenuSection extends StatelessWidget {
     final credentials = await spotifyProvider.getClientCredentials();
     if (!currentContext.mounted) return; 
     final clientIdController = TextEditingController(text: credentials['clientId'] ?? '');
-    final clientSecretController = TextEditingController(text: credentials['clientSecret'] ?? '');
 
     showDialog(
       context: currentContext, 
@@ -679,16 +678,6 @@ class SettingsMenuSection extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: kSmallSpacing),
-                    TextField(
-                      controller: clientSecretController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        labelText: l10n.clientSecretLabel, 
-                      ),
-                      obscureText: true,
-                    ),
                   ],
                 ),
               ),
@@ -700,8 +689,7 @@ class SettingsMenuSection extends StatelessWidget {
                 TextButton(
                   onPressed: () async {
                     final clientId = clientIdController.text;
-                    final clientSecret = clientSecretController.text;
-                    if (clientId.isEmpty || clientSecret.isEmpty) {
+                    if (clientId.isEmpty) {
                       notificationService.showErrorSnackBar(l10n.emptyCredentialsError);
                       return;
                     }
@@ -710,14 +698,9 @@ class SettingsMenuSection extends StatelessWidget {
                       notificationService.showErrorSnackBar(l10n.invalidClientIdError);
                       return;
                     }
-                    if (!hexRegex.hasMatch(clientSecret)) {
-                      notificationService.showErrorSnackBar(l10n.invalidClientSecretError);
-                      return;
-                    }
                     try {
                       await spotifyProvider.setClientCredentials(
                         clientId,
-                        clientSecret
                       );
                       navigator.pop();
                       notificationService.showSuccessSnackBar(l10n.credentialsSaved);

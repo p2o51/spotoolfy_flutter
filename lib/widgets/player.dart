@@ -618,6 +618,54 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       }
     }
   }
+
+  Future<void> _showArtistSelectionDialog(BuildContext context, List<Map<String, dynamic>> artists) async {
+    if (!context.mounted) return;
+
+    final playerState = context.findAncestorStateOfType<_PlayerState>();
+    if (playerState == null) return;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Select Artist'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: artists.length,
+              itemBuilder: (context, index) {
+                final artist = artists[index];
+                final artistName = artist['name'] as String? ?? 'Unknown Artist';
+                final artistUrl = artist['url'] as String?;
+                final bool canLaunch = artistUrl != null;
+
+                return ListTile(
+                  title: Text(artistName),
+                  enabled: canLaunch,
+                  onTap: canLaunch
+                      ? () {
+                          Navigator.pop(dialogContext); // Close the dialog
+                          playerState._launchSpotifyURL(context, artistUrl);
+                        }
+                      : null,
+                );
+              },
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close the dialog
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class DragIndicator extends StatelessWidget {
@@ -1036,25 +1084,22 @@ class HeaderAndFooter extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         if (artists != null && artists.isNotEmpty)
-          Row(
-            children: [
-              for (int i = 0; i < artists.length; i++) ...[
-                if (i > 0) Text(', ', style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.secondary,
-                )),
-                GestureDetector(
-                  onTap: artists[i]['url'] != null  && playerState != null
-                    ? () => playerState._launchSpotifyURL(context, artists[i]['url']) 
-                    : null,
-                  child: Text(
-                    artists[i]['name'] as String,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+          GestureDetector(
+            onTap: playerState != null
+                ? () {
+                    if (artists.length > 1) {
+                      playerState._showArtistSelectionDialog(context, artists);
+                    } else if (artists.length == 1 && artists[0]['url'] != null) {
+                      playerState._launchSpotifyURL(context, artists[0]['url']);
+                    }
+                  }
+                : null,
+            child: ScrollingText(
+              text: artists.map((artist) => artist['name'] as String).join(', '),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
           )
         else
           ScrollingText(

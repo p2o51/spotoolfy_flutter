@@ -94,6 +94,7 @@ class MyThemedApp extends StatelessWidget {
         Locale('ja'),       // Japanese
       ],
       theme: ThemeData(
+        fontFamily: 'Montserrat',
         colorScheme: themeProvider.colorScheme,
         useMaterial3: true,
         appBarTheme: AppBarTheme(
