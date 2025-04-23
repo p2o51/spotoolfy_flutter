@@ -184,18 +184,9 @@ Your **absolute primary goal** is **accuracy in conveying the most likely intend
 **Preserve the line breaks and general sentence structure** of the original lyrics as closely as grammatically possible in $languageName.
 
 **Handling Potential Issues:**
-
-*   **Ambiguity:** If a word or phrase has multiple possible meanings, choose the **most common or literal interpretation** *unless* the immediately surrounding lyrics strongly suggest a specific alternative meaning. Do not guess based on assumed context.
 *   **Idioms & Figurative Language:** Translate common, well-understood idioms and metaphors by conveying their **conceptual meaning** in $languageName, finding the closest natural equivalent if one exists. If an expression is obscure, highly ambiguous without context, or seems like unique wordplay, lean towards a **more literal translation** that preserves the original image or phrasing, even if it feels slightly unusual in $languageName.
 *   **Adjustments for Flow:** Only make **minimal grammatical adjustments** (e.g., adding necessary particles, slightly altering word order to fit $languageName syntax) if a direct, literal rendering is **grammatically incorrect or completely unintelligible** in $languageName. **Prioritize fidelity to the original phrasing and structure** over achieving perfect colloquial fluency. Avoid adding conjunctions or smoothing transitions unless grammatically essential.
 
-**Strictly avoid:**
-*   Adding embellishments, explanations, or information not present in the source text.
-*   Significantly deviating from the source text's meaning or structure to enhance poetic effect or appeal.
-*   Guessing at deeper meanings or contexts not explicitly stated.
-*   Translating based on assumed real-world context or common sense if it contradicts a literal reading of the text.
-
-**Prioritize fidelity to the text itself above all else.**
 
 Only output the translated text, wrapped between '###' symbols, like ###Translated Lyrics Here###. Do not include the '###' symbols themselves in the final output if they are part of the original lyrics.
 
