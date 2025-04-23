@@ -8,6 +8,7 @@ import '../services/translation_service.dart';
 import '../models/translation.dart';
 import '../models/track.dart';
 import './translation_result_sheet.dart';
+import './lyrics_search_page.dart';
 import 'dart:async';
 import '../services/settings_service.dart';
 import 'package:flutter/foundation.dart';
@@ -701,7 +702,7 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                     ),
                   ),
                 ),
-                if (!_autoScroll)
+                if (!_autoScroll || _lyrics.isEmpty)
                   Positioned(
                     left: MediaQuery.of(context).size.width > 600 ? 24 : 16,
                     bottom: 24 + MediaQuery.of(context).padding.bottom,
@@ -759,6 +760,13 @@ class _LyricsWidgetState extends State<LyricsWidget> {
                                 ) 
                               : null,
                           ),
+                        ),
+                        // 将搜索按钮始终显示在抄歌词模式按钮的右边
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.search),
+                          onPressed: _showSearchLyricsPage, 
+                          tooltip: '搜索歌词', // 直接使用固定文本，不依赖未定义的本地化键
                         ),
                       ],
                     ),
@@ -874,6 +882,77 @@ class _LyricsWidgetState extends State<LyricsWidget> {
             duration: const Duration(seconds: 3),
           );
         }
+      }
+    });
+  }
+
+  // Method stub for showing the search page
+  void _showSearchLyricsPage() {
+    // Add handler for search page navigation
+    if (!mounted) return;
+    
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrack = spotifyProvider.currentTrack?['item'];
+    
+    if (currentTrack == null) {
+      Provider.of<NotificationService>(context, listen: false)
+        .showSnackBar('没有正在播放的歌曲');
+      return;
+    }
+    
+    final trackId = currentTrack['id'];
+    final trackName = currentTrack['name'] ?? '';
+    final artistName = currentTrack['artists']?[0]?['name'] ?? '';
+    
+    if (trackId == null || trackName.isEmpty) {
+      Provider.of<NotificationService>(context, listen: false)
+        .showSnackBar('无法获取当前歌曲信息');
+      return;
+    }
+    
+    // 暂停当前自动滚动
+    final wasAutoScrollEnabled = _autoScroll;
+    if (_autoScroll) {
+      setState(() {
+        _autoScroll = false;
+      });
+    }
+    
+    // 导航到搜索页面
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LyricsSearchPage(
+          initialTrackTitle: trackName,
+          initialArtistName: artistName,
+          trackId: trackId,
+        ),
+      ),
+    ).then((result) {
+      // 处理返回值 (歌词文本)
+      if (result != null && result is String && result.isNotEmpty) {
+        setState(() {
+          _lyrics = _parseLyrics(result);
+          
+          // 如果之前是自动滚动模式，恢复它
+          if (wasAutoScrollEnabled) {
+            _autoScroll = true;
+            
+            // 滚动到当前位置
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _autoScroll) {
+                final currentIndex = _getCurrentLineIndex(_currentPosition);
+                if (currentIndex >= 0) {
+                  _scrollToCurrentLine(currentIndex);
+                  _previousLineIndex = currentIndex;
+                }
+              }
+            });
+          }
+        });
+        
+        // 显示成功消息
+        Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar('已成功搜索并应用歌词');
       }
     });
   }
