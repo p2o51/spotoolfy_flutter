@@ -26,6 +26,10 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/AppTheme">
 
+        <meta-data
+            android:name="android.app.locale_config"
+            android:resource="@xml/locale_config"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

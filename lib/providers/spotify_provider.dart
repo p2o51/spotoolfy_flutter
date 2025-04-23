@@ -16,6 +16,8 @@ import 'package:http/http.dart' as http;
 import 'package:spotify_sdk/spotify_sdk.dart';
 import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
+import 'package:flutter/material.dart';
+import '../pages/devices.dart';
 
 final logger = Logger();
 
@@ -696,6 +698,42 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _showDevicesPage() async {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      // 确保设备列表是新的
+      await refreshAvailableDevices();
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true, // Allow modal to take up more space
+        builder: (context) => const DevicesPage(),
+        shape: const RoundedRectangleBorder( // Optional: Add rounded corners
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      );
+    } else {
+      // debugPrint('Error: Navigator context is null, cannot show devices page.');
+    }
+  }
+
+  // Helper function to check for active device and show picker if needed
+  Future<bool> _ensureActiveDeviceOrShowPicker() async {
+    try {
+      final playbackState = await _spotifyService.getPlaybackState();
+      final hasActiveDevice = playbackState['device'] != null;
+      if (!hasActiveDevice) {
+        await _showDevicesPage();
+        return false; // No active device, picker shown
+      }
+      return true; // Active device exists
+    } catch (e) {
+      // debugPrint('获取播放状态失败: $e');
+      // Assume no active device if state fetch fails, show picker
+      await _showDevicesPage();
+      return false;
+    }
+  }
+
   Future<void> togglePlayPause() async {
     // Use getPlaybackState to check for active device
     Map<String, dynamic>? playbackState;
@@ -718,52 +756,9 @@ class SpotifyProvider extends ChangeNotifier {
       if (!isCurrentlyPlaying) {
         // Logic to Start Playback
         if (!hasActiveDevice) {
-          // debugPrint('没有活跃设备，尝试连接并启动 Spotify...');
-          bool connected = false;
-          try {
-            // This might prompt the user to open Spotify
-            connected = await SpotifySdk.connectToSpotifyRemote(
-              clientId: _spotifyService.clientId,
-              redirectUrl: _spotifyService.redirectUrl,
-            );
-            // debugPrint('连接尝试结果: $connected');
-
-            if (connected) {
-              // Connection succeeded, refresh devices and try to transfer playback
-              // debugPrint('连接成功，刷新设备列表并尝试转移播放...');
-              await refreshAvailableDevices();
-              // Short delay for provider state update
-              await Future.delayed(const Duration(milliseconds: 500)); 
-              
-              // Try to find the newly active/local device
-              final localDevice = availableDevices.firstWhereOrNull(
-                (d) => d.isActive || d.type == SpotifyDeviceType.computer,
-              );
-
-              if (localDevice != null && localDevice.id != null) {
-                // debugPrint('找到本地设备: ${localDevice.name} (ID: ${localDevice.id}), 尝试转移播放...');
-                await transferPlaybackToDevice(localDevice.id!, play: true);
-              } else {
-                // debugPrint('无法确定本地设备，尝试通用播放命令...');
-                await _spotifyService.apiPut('/me/player/play');
-              }
-            } else {
-              // Even if connect returns false, Spotify might be open/opening.
-              // Wait a bit longer before trying the generic play command.
-              // debugPrint('连接返回 false，等待后尝试通用播放命令...');
-              await Future.delayed(const Duration(milliseconds: 3000));
-              await _spotifyService.apiPut('/me/player/play');
-            }
-          } catch (e) {
-            // debugPrint('连接或播放启动失败: $e. 尝试通用播放命令...');
-            // Wait a bit before fallback API call
-            await Future.delayed(const Duration(milliseconds: 1000)); 
-             try {
-               await _spotifyService.apiPut('/me/player/play');
-             } catch (fallbackError) {
-               // debugPrint('通用播放命令也失败: $fallbackError');
-             }
-          }
+          // No active device, show the device picker
+          await _showDevicesPage();
+          return; // Stop execution here, let user pick device
         } else {
            // Device already active, just send play command
            // debugPrint('已有活跃设备，调用 API 播放...');
@@ -777,13 +772,13 @@ class SpotifyProvider extends ChangeNotifier {
         }
         
         // Wait slightly then refresh state to confirm
-        await Future.delayed(const Duration(milliseconds: 800)); // Slightly longer wait after potential transfer
+        await Future.delayed(const Duration(milliseconds: 800)); 
         await refreshCurrentTrack();
         await refreshAvailableDevices(); // Refresh devices again after play attempt
         await updateWidget();
 
       } else {
-        // Logic to Pause Playback
+        // Logic to Pause Playback (no device check needed for pause)
         // debugPrint('调用 API 暂停...');
         await _spotifyService.apiPut('/me/player/pause');
         
@@ -1226,204 +1221,157 @@ class SpotifyProvider extends ChangeNotifier {
     required String type,
     required String id,
     int? offsetIndex,
-    String? deviceId,
+    String? deviceId, // deviceId is now less relevant for initial play
   }) async {
+    // Check for active device BEFORE attempting to play
+    if (!await _ensureActiveDeviceOrShowPicker()) {
+      return; // Stop if no active device and picker is shown
+    }
+
     try {
       final contextUri = 'spotify:$type:$id';
+      
+      // Get the current active device ID if not explicitly provided
+      final targetDeviceId = deviceId ?? activeDeviceId;
+      
       await _spotifyService.playContext(
         contextUri: contextUri,
         offsetIndex: offsetIndex,
-        deviceId: deviceId,
+        deviceId: targetDeviceId, // Use the determined device ID
       );
 
-      // 等待适当的时间确保 Spotify 已经切换
-      // 使用轮询方式检查，最多等待2秒
-      int attempts = 0;
-      const maxAttempts = 20;  // 增加尝试次数，因为加载播放列表可能需要更长时间
-      const delayMs = 100;
+      // Wait slightly to allow Spotify state to update
+      await Future.delayed(const Duration(milliseconds: 500));
       
-      while (attempts < maxAttempts) {
-        final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
-        if (newTrack != null && 
-            newTrack['context']?['uri'] == contextUri) {
-          currentTrack = newTrack;
-          await updateWidget();
-          await refreshPlaybackQueue();
-          notifyListeners();
-          break;
-        }
-        
-        attempts++;
-        if (attempts < maxAttempts) {
-          await Future.delayed(const Duration(milliseconds: delayMs));
-        }
-      }
-
-      // 即使没有检测到变化，也刷新一次以确保状态同步
-      if (attempts >= maxAttempts) {
-        await refreshCurrentTrack();
-        await refreshPlaybackQueue();
-      }
+      // Refresh state after initiating play
+      await refreshCurrentTrack();
+      await refreshPlaybackQueue();
+      
     } catch (e) {
       // debugPrint('播放 $type 失败: $e');
-      rethrow;
+      // Check if the error is due to a restricted device
+      if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
+        // Show a snackbar or dialog informing the user
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
+        }
+      }
+      // Consider rethrowing other errors or handling them differently
+      rethrow; 
     }
   }
 
   /// 播放指定歌曲
   Future<void> playTrack({
     required String trackUri,
-    String? deviceId,
-    String? contextUri,  // 添加上下文URI参数
+    String? deviceId, // deviceId is now less relevant for initial play
+    String? contextUri,
   }) async {
+     // Check for active device BEFORE attempting to play
+    if (!await _ensureActiveDeviceOrShowPicker()) {
+      return; // Stop if no active device and picker is shown
+    }
+
     try {
+      // Get the current active device ID if not explicitly provided
+      final targetDeviceId = deviceId ?? activeDeviceId;
+
       if (contextUri != null) {
-        // 如果有上下文，在上下文中播放
+        // If context is provided, play within that context
         await _spotifyService.playTrackInContext(
           contextUri: contextUri,
           trackUri: trackUri,
-          deviceId: deviceId,
+          deviceId: targetDeviceId,
         );
       } else {
-        // 否则单独播放
+        // Otherwise, play the track individually
         await _spotifyService.playTrack(
           trackUri: trackUri,
-          deviceId: deviceId,
+          deviceId: targetDeviceId,
         );
       }
       
-      // 等待适当的时间确保 Spotify 已经切换
-      // 使用轮询方式检查，最多等待2秒
-      int attempts = 0;
-      const maxAttempts = 20;  // 增加尝试次数，因为加载可能需要更长时间
-      const delayMs = 100;
+      // Wait slightly to allow Spotify state to update
+      await Future.delayed(const Duration(milliseconds: 500));
       
-      while (attempts < maxAttempts) {
-        final newTrack = await _spotifyService.getCurrentlyPlayingTrack();
-        if (newTrack != null && 
-            newTrack['item']?['uri'] == trackUri) {
-          currentTrack = newTrack;
-          await updateWidget();
-          await refreshPlaybackQueue();
-          notifyListeners();
-          break;
-        }
-        
-        attempts++;
-        if (attempts < maxAttempts) {
-          await Future.delayed(const Duration(milliseconds: delayMs));
-        }
-      }
+      // Refresh state after initiating play
+      await refreshCurrentTrack();
+      await refreshPlaybackQueue();
 
-      // 即使没有检测到变化，也刷新一次以确保状态同步
-      if (attempts >= maxAttempts) {
-        await refreshCurrentTrack();
-        await refreshPlaybackQueue();
-      }
     } catch (e) {
       // debugPrint('播放歌曲失败: $e');
+      // Check if the error is due to a restricted device
+       if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
+        // Show a snackbar or dialog informing the user
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
+        }
+      }
+      // Consider rethrowing other errors
       rethrow;
     }
   }
 
+  // Note: _spotifyService.playTrackInContext already handles restricted devices
+  // But we still add the initial active device check
   Future<void> playTrackInContext({
     required String contextUri,
     required String trackUri,
-    String? deviceId,
+    String? deviceId, // deviceId is now less relevant for initial play
   }) async {
+     // Check for active device BEFORE attempting to play
+    if (!await _ensureActiveDeviceOrShowPicker()) {
+      return; // Stop if no active device and picker is shown
+    }
+
     try {
-      final headers = await getAuthenticatedHeaders();
-      
-      // 首先检查设备状态
-      if (deviceId != null) {
-        final devicesResponse = await http.get(
-          Uri.parse('https://api.spotify.com/v1/me/player/devices'),
-          headers: headers,
-        );
-        
-        if (devicesResponse.statusCode == 200) {
-          final devices = json.decode(devicesResponse.body)['devices'] as List;
-          final targetDevice = devices.firstWhere(
-            (d) => d['id'] == deviceId,
-            orElse: () => null,
-          );
-          
-          if (targetDevice != null && targetDevice['is_restricted'] == true) {
-            throw SpotifyAuthException(
-              '此设备（${targetDevice['name']}）不支持通过 API 控制播放。\n'
-              '请使用 Spotify 或设备自带的应用进行控制。',
-              code: 'RESTRICTED_DEVICE',
-            );
-          }
-        }
-      }
-      
-      // 对于非受限设备，使用标准播放方式
-      final trackResponse = await http.get(
-        Uri.parse('https://api.spotify.com/v1/tracks/${trackUri.split(':').last}'),
-        headers: headers,
+      // Get the current active device ID if not explicitly provided
+      final targetDeviceId = deviceId ?? activeDeviceId;
+
+      // Call the service method which includes its own device checks
+      await _spotifyService.playTrackInContext(
+        contextUri: contextUri,
+        trackUri: trackUri,
+        deviceId: targetDeviceId,
       );
-
-      if (trackResponse.statusCode != 200) {
-        throw SpotifyAuthException(
-          '获取歌曲信息失败: ${trackResponse.body}',
-          code: trackResponse.statusCode.toString(),
-        );
-      }
-
-      final trackInfo = json.decode(trackResponse.body);
       
-      // 构建播放请求
-      Map<String, dynamic> body = {
-        'context_uri': contextUri,
-      };
+      // Wait slightly to allow Spotify state to update
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Refresh state after initiating play
+      await refreshCurrentTrack();
+      await refreshPlaybackQueue();
 
-      // 尝试使用 URI 作为 offset
-      body['offset'] = {'uri': trackUri};
-
-      final queryParams = deviceId != null ? '?device_id=$deviceId' : '';
-      final response = await http.put(
-        Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
-        headers: headers,
-        body: json.encode(body),
-      );
-
-      if (response.statusCode != 202 && response.statusCode != 204) {
-        // 如果使用 URI 失败，尝试使用 track_number
-        final trackNumber = trackInfo['track_number'];
-        if (response.statusCode == 404 && trackNumber is int && trackNumber > 0) {
-          body['offset'] = {'position': trackNumber - 1};
-          
-          final retryResponse = await http.put(
-            Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
-            headers: headers,
-            body: json.encode(body),
-          );
-          
-          if (retryResponse.statusCode != 202 && retryResponse.statusCode != 204) {
-            throw SpotifyAuthException(
-              '开始播放失败: ${retryResponse.body}',
-              code: retryResponse.statusCode.toString(),
-            );
-          }
-        } else {
-          throw SpotifyAuthException(
-            '开始播放失败: ${response.body}',
-            code: response.statusCode.toString(),
-          );
-        }
-      }
     } catch (e) {
       // debugPrint('在上下文中播放歌曲时出错: $e');
+      // Check if the error is due to a restricted device (already handled by service, but catch here too for UI feedback)
+       if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
+        // Show a snackbar or dialog informing the user
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
+        }
+      }
       rethrow;
     }
   }
 
   /// Get authenticated headers from the Spotify service
   Future<Map<String, String>> getAuthenticatedHeaders() async {
+    // Ensure service is initialized
+    if (!_isInitialized) await _initSpotifyService();
+    if (!_isInitialized) throw Exception('Spotify Service not initialized.');
     return await _spotifyService.getAuthenticatedHeaders();
   }
-
+  
   /// 获取用户的播放列表
   Future<List<Map<String, dynamic>>> getUserPlaylists({int limit = 50, int offset = 0}) async {
     try {
