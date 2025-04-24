@@ -100,41 +100,45 @@ class _LibraryState extends State<Library> {
                     // Common search bar
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: SearchBar(
+                      // 使用 TextField 替换 SearchBar
+                      child: TextField(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
-                        hintText: AppLocalizations.of(context)!.searchHint,
-                        leading: const Icon(Icons.search),
-                        trailing: _searchController.text.isNotEmpty
-                          ? [
-                              IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  HapticFeedback.lightImpact();
-                                  // Clear controller and provider
-                                  _searchController.clear();
-                                  searchProvider.clearSearch();
-                                  _searchFocusNode.unfocus();
-                                },
-                                tooltip: AppLocalizations.of(context)!.clearSearch,
-                              ),
-                            ]
-                          : null,
-                        elevation: const WidgetStatePropertyAll(0),
-                        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-                        side: WidgetStatePropertyAll(
-                          BorderSide(
-                            color: Theme.of(context).colorScheme.outline.withAlpha((0.5 * 255).round()),
+                        decoration: InputDecoration(
+                          hintText: AppLocalizations.of(context)!.searchHint,
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  tooltip: AppLocalizations.of(context)!.clearSearch,
+                                  onPressed: () {
+                                    HapticFeedback.lightImpact();
+                                    // Clear controller and provider
+                                    _searchController.clear();
+                                    searchProvider.clearSearch();
+                                    _searchFocusNode.unfocus();
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                            borderSide: BorderSide.none,
                           ),
+                          filled: true,
+                          // 使用与 lyrics 页面一致的颜色
+                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
                         ),
-                        padding: const WidgetStatePropertyAll<EdgeInsets>(
-                          EdgeInsets.symmetric(horizontal: 16.0),
-                        ),
-                        onSubmitted: (query) {
-                          searchProvider.submitSearch(query);
+                        onChanged: (value) {
+                           // Update UI immediately when text changes
+                           setState(() {}); 
+                           // Listener already handles provider update
+                        },
+                        onSubmitted: (value) {
+                          searchProvider.submitSearch(value);
                           _searchFocusNode.unfocus();
                         },
-                        // onChanged handled by controller listener
+                        textInputAction: TextInputAction.search,
                       ),
                     ),
                     

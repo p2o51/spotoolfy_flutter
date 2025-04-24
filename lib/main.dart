@@ -269,7 +269,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     // 检查屏幕宽度
-    bool isLargeScreen = MediaQuery.of(context).size.width > 800;
+    bool isLargeScreen = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
       appBar: AppBar(

@@ -176,6 +176,23 @@ class SpotifyAuthService {
         (status) async {
           if (!status.connected) {
             // 可以选择性地打印日志或设置内部状态，但不自动处理
+            // --- 添加重连逻辑 ---
+            // print('Spotify disconnected, attempting reconnect...'); // Add logging
+            final token = await getAccessToken(); // Uses the updated getAccessToken with silent refresh
+            if (token != null) {
+              try {
+                await SpotifySdk.connectToSpotifyRemote(
+                  clientId: clientId,
+                  redirectUrl: redirectUrl,
+                  accessToken: token,
+                );
+                // print('Spotify reconnect attempt successful.'); // Add logging
+              } catch (_) {
+                 // print('Spotify reconnect attempt failed or already connecting.'); // Add logging
+                 /* 忽略：可能正在连接 */
+              }
+            }
+            // --- 重连逻辑结束 ---
           } else {
             // 连接成功时可以考虑触发一个回调或事件，如果需要的话
           }
@@ -307,19 +324,40 @@ class SpotifyAuthService {
     }
   }
 
-  /// 获取当前的访问令牌，如果即将过期会自动刷新
+  /// 如果本地 token 过期 → 尝试静默拿一枚新 token；
+  /// 若失败则返回 null（让上层决定是否 logout）
   Future<String?> getAccessToken() async {
+    final token = await _secureStorage.read(key: _accessTokenKey);
+    final expStr = await _secureStorage.read(key: _expirationKey);
+
+    if (token == null || expStr == null) return null;
+
+    final exp = DateTime.parse(expStr);
+    if (exp.isAfter(DateTime.now())) return token;        // 仍有效
+
+    // ---------- 已过期，静默续期 ----------
+    // Add logging here if needed
+    // print('Spotify token expired, attempting silent refresh...'); 
     try {
-      if (!await isAuthenticated()) {
-        return null;
+      final newToken = await SpotifySdk.getAccessToken(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+        scope: defaultScopes.join(','),
+      );
+
+      if (newToken.isNotEmpty) {
+        // print('Silent refresh successful.'); // Add logging
+        await _saveAuthResponse(
+          newToken,
+          DateTime.now().add(const Duration(hours: 1)),
+        );
+        return newToken;
       }
-      
-      final token = await _secureStorage.read(key: _accessTokenKey);
-      return token;
-    } catch (e) {
-      // print('Error getting access token: $e');
-      return null;
+    } catch (_) {
+      // print('Silent refresh failed.'); // Add logging
+      /* 静默失败，交由上层处理 */
     }
+    return null;
   }
 
   /// 登出并清除所有存储的令牌

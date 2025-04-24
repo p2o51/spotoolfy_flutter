@@ -213,6 +213,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('刷新可用设备列表失败: $e');
+      await _handleApiError(e, contextMessage: '刷新可用设备列表');
     }
   }
 
@@ -244,7 +245,8 @@ class SpotifyProvider extends ChangeNotifier {
       ]);
     } catch (e) {
       // debugPrint('转移播放失败: $e');
-      rethrow;
+      await _handleApiError(e, contextMessage: '转移播放');
+      rethrow; // Rethrow original or modified error from _handleApiError
     }
   }
 
@@ -272,7 +274,8 @@ class SpotifyProvider extends ChangeNotifier {
       await refreshAvailableDevices();
     } catch (e) {
       // debugPrint('设置音量失败: $e');
-      rethrow;
+      await _handleApiError(e, contextMessage: '设置音量');
+      rethrow; // Rethrow original or modified error from _handleApiError
     }
   }
 
@@ -306,8 +309,20 @@ class SpotifyProvider extends ChangeNotifier {
           } catch (e) {
             // logger.e('定时刷新失败 (_refreshTimer)', error: e); // Log: Timer error
             // 如果刷新失败，可能是令牌问题，尝试重新登录
-            if (e is SpotifyAuthException) {
+            if (e is SpotifyAuthException && e.code == '401') {
+              // print('_refreshTimer encountered 401, attempting silent refresh...'); // Add logging
+              // 尝试静默续约
+              final token = await _spotifyService.getAccessToken();
+              if (token != null) {
+                // print('_refreshTimer: Silent refresh successful.'); // Add logging
+                return; // 续约成功，下个 tick 继续
+              }
+              // print('_refreshTimer: Silent refresh failed, logging out.'); // Add logging
+              // 仍为空则彻底登出
               await logout();
+            } else {
+              // Log other errors if necessary
+              // logger.e('定时刷新失败 (_refreshTimer)', error: e);
             }
           }
         } else {
@@ -485,6 +500,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
     } catch (e) {
       // debugPrint('刷新当前播放失败: $e');
+      await _handleApiError(e, contextMessage: '刷新当前播放');
       // Consider adding more specific error handling if needed
     }
   }
@@ -545,6 +561,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('检查歌曲保存状态失败: $e');
+      await _handleApiError(e, contextMessage: '检查歌曲保存状态');
     }
   }
 
@@ -602,7 +619,7 @@ class SpotifyProvider extends ChangeNotifier {
     } catch (e) {
       // debugPrint('自动登录检查过程中发生异常: $e');
       // 发生未知错误，也清理状态
-      await logout();
+      await _handleApiError(e, contextMessage: '自动登录');
       return false;
     } finally {
       isLoading = false;
@@ -669,11 +686,11 @@ class SpotifyProvider extends ChangeNotifier {
     } catch (e) {
       // debugPrint('Spotify 登录流程出错: $e');
       // 清理可能存在的无效状态
-      await logout(); // 统一调用 logout 清理状态
+      // await logout(); // logout is handled by _handleApiError now if needed
 
       // 处理特定错误并重新抛出，或直接重新抛出
       if (e is SpotifyAuthException) {
-          if (e.code == 'INVALID_CREDENTIALS') { // (这个 code 是我们在 Provider login 中添加的假设性代码)
+          if (e.code == 'INVALID_CREDENTIALS' || e.code == 'AUTH_SETUP_ERROR') { 
               // 这个错误现在应该由 SpotifyAuthService.login 抛出 AUTH_FAILED 或类似错误
                throw SpotifyAuthException(
                  'Spotify 认证失败：请检查您的 Client ID 和 Redirect URI 设置。'
@@ -683,13 +700,21 @@ class SpotifyProvider extends ChangeNotifier {
           } else if (e.code == 'AUTH_CANCELLED') {
              // 用户取消，不需要显示错误，静默处理即可
              // 可以选择不 rethrow
+             isLoading = false; // Ensure loading is false before returning
+             notifyListeners();
              return; // 直接返回，不抛异常
+          } else if (e.code == '401') {
+             // Handle 401 specifically - try refresh, then logout if needed
+             await _handleApiError(e, contextMessage: '登录');
+             // If _handleApiError didn't rethrow (e.g., logout happened), throw a generic login error
+             throw SpotifyAuthException('登录时发生授权错误，请重试');
           }
-          // 其他来自 AuthService 的错误
+          // 其他来自 AuthService 的错误或经过 _handleApiError 处理后重新抛出的错误
           rethrow;
       } else {
-        // 包装未知错误
-        throw SpotifyAuthException('发生未知登录错误: $e');
+        // 包装未知错误 (或 let _handleApiError handle it)
+        await _handleApiError(e, contextMessage: '登录');
+        throw SpotifyAuthException('发生未知登录错误'); // Throw a generic error if _handleApiError didn't
       }
 
     } finally {
@@ -728,6 +753,7 @@ class SpotifyProvider extends ChangeNotifier {
       return true; // Active device exists
     } catch (e) {
       // debugPrint('获取播放状态失败: $e');
+      // Don't call _handleApiError here directly, as we want to show the picker anyway
       // Assume no active device if state fetch fails, show picker
       await _showDevicesPage();
       return false;
@@ -803,6 +829,7 @@ class SpotifyProvider extends ChangeNotifier {
         notifyListeners();
       }
       // Optionally show error to user
+      await _handleApiError(e, contextMessage: '播放/暂停切换');
     }
   }
 
@@ -843,6 +870,7 @@ class SpotifyProvider extends ChangeNotifier {
       
     } catch (e) {
       // debugPrint('下一首失败: $e');
+      await _handleApiError(e, contextMessage: '下一首');
       // 如果失败，恢复到原来的状态
       if (previousTrack != null) {
         currentTrack = {'item': previousTrack, 'is_playing': true};
@@ -891,6 +919,7 @@ class SpotifyProvider extends ChangeNotifier {
       
     } catch (e) {
       // debugPrint('上一首失败: $e');
+      await _handleApiError(e, contextMessage: '上一首');
       // 如果失败，恢复到原来的状态
       if (nextTrack != null) {
         currentTrack = {'item': nextTrack, 'is_playing': true};
@@ -947,6 +976,7 @@ class SpotifyProvider extends ChangeNotifier {
       // } catch (recheckError) {
       //   print('重新检查收藏状态失败: $recheckError');
       // }
+      await _handleApiError(e, contextMessage: '切换收藏状态');
     }
   }
 
@@ -971,6 +1001,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('刷新播放队列失败: $e');
+      await _handleApiError(e, contextMessage: '刷新播放队列');
       upcomingTracks = [];
       nextTrack = null;
       notifyListeners();
@@ -1014,6 +1045,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('同步播放模式失败: $e');
+      await _handleApiError(e, contextMessage: '同步播放模式');
     }
   }
 
@@ -1039,6 +1071,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('设置播放模式失败: $e');
+      await _handleApiError(e, contextMessage: '设置播放模式');
     }
   }
 
@@ -1134,6 +1167,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('刷新最近播放记录失败: $e');
+      await _handleApiError(e, contextMessage: '刷新最近播放记录');
     }
   }
 
@@ -1212,6 +1246,7 @@ class SpotifyProvider extends ChangeNotifier {
       await refreshPlaybackQueue();
     } catch (e) {
       // debugPrint('跳转播放位置失败: $e');
+      await _handleApiError(e, contextMessage: '跳转播放位置');
       rethrow;
     }
   }
@@ -1249,7 +1284,8 @@ class SpotifyProvider extends ChangeNotifier {
       
     } catch (e) {
       // debugPrint('播放 $type 失败: $e');
-      // Check if the error is due to a restricted device
+      await _handleApiError(e, contextMessage: '播放 $type');
+      // Check if the error is due to a restricted device (already handled by _handleApiError or original throw)
       if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
         // Show a snackbar or dialog informing the user
         final context = navigatorKey.currentContext;
@@ -1258,9 +1294,10 @@ class SpotifyProvider extends ChangeNotifier {
             SnackBar(content: Text(e.message)),
           );
         }
+      } else if (e is! SpotifyAuthException || e.code != 'SESSION_EXPIRED') {
+          // Rethrow if it wasn't a 401 leading to logout, or a restricted device
+          rethrow;
       }
-      // Consider rethrowing other errors or handling them differently
-      rethrow; 
     }
   }
 
@@ -1303,6 +1340,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     } catch (e) {
       // debugPrint('播放歌曲失败: $e');
+      await _handleApiError(e, contextMessage: '播放歌曲');
       // Check if the error is due to a restricted device
        if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
         // Show a snackbar or dialog informing the user
@@ -1350,6 +1388,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     } catch (e) {
       // debugPrint('在上下文中播放歌曲时出错: $e');
+      await _handleApiError(e, contextMessage: '在上下文中播放歌曲');
       // Check if the error is due to a restricted device (already handled by service, but catch here too for UI feedback)
        if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
         // Show a snackbar or dialog informing the user
@@ -1359,8 +1398,9 @@ class SpotifyProvider extends ChangeNotifier {
             SnackBar(content: Text(e.message)),
           );
         }
+      } else if (e is! SpotifyAuthException || e.code != 'SESSION_EXPIRED') {
+          rethrow;
       }
-      rethrow;
     }
   }
 
@@ -1422,6 +1462,7 @@ class SpotifyProvider extends ChangeNotifier {
       return playlists;
     } catch (e) {
       // debugPrint('获取用户播放列表失败: $e');
+      await _handleApiError(e, contextMessage: '获取用户播放列表');
       return [];
     }
   }
@@ -1645,4 +1686,34 @@ class SpotifyProvider extends ChangeNotifier {
       return {}; // Return empty map on error for now
     }
   }
+
+  // --- 添加新的错误处理辅助方法 ---
+  Future<void> _handleApiError(dynamic e, {String? contextMessage}) async {
+    final message = contextMessage ?? 'API 调用';
+    if (e is SpotifyAuthException && e.code == '401') {
+      // print('$message 遇到 401，尝试静默续约...');
+      final token = await _spotifyService.getAccessToken();
+      if (token != null) {
+        // print('$message: 静默续约成功。');
+        // 续约成功，通常不需要进一步操作，调用者可以重试或忽略
+        // 如果需要，可以抛出一个特定异常让调用者知道需要重试
+        // throw SpotifyAuthException('Token refreshed, please retry', code: 'RETRY_AFTER_REFRESH');
+        return; 
+      }
+      // print('$message: 静默续约失败，执行登出。');
+      await logout();
+      // 抛出原始错误或新错误，以便UI知道操作失败
+      throw SpotifyAuthException('会话已过期，请重新登录', code: 'SESSION_EXPIRED');
+    } else {
+      // print('$message 出错: $e');
+      // 对于其他错误，直接重新抛出
+      // 如果需要，可以在这里添加更具体的错误处理或日志记录
+      if (e is Exception) {
+        throw e; // Correct way to re-throw the caught exception
+      } else {
+        throw Exception('$message 发生未知错误: $e');
+      }
+    }
+  }
+  // --- 辅助方法结束 ---
 }
