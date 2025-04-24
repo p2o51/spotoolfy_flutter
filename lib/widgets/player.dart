@@ -39,6 +39,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   late AnimationController _playStateController;
   late Animation<double> _playStateScaleAnimation;
   late Animation<double> _playStateOpacityAnimation;
+  bool _isSeekOverlayVisible = false;
   
   @override
   void initState() {
@@ -328,12 +329,34 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         onHorizontalDragStart: _handleHorizontalDragStart,
         onHorizontalDragUpdate: _handleHorizontalDragUpdate,
         onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(details, spotify),
+        onTap: () {
+          setState(() {
+            _isSeekOverlayVisible = !_isSeekOverlayVisible;
+          });
+        },
         onLongPress: () async {
-          final trackUrl = track?['external_urls']?['spotify'];
-          if (trackUrl != null) {
-            _launchSpotifyURL(context, trackUrl);
+          final currentTrackData = context.read<SpotifyProvider>().currentTrack;
+          String? urlToLaunch;
+
+          // 1. Try to get context URL (album, playlist, etc.)
+          final contextData = currentTrackData?['context'];
+          if (contextData != null && contextData['external_urls'] is Map) {
+            urlToLaunch = contextData['external_urls']['spotify'];
+          }
+
+          // 2. If no context URL, try track URL
+          if (urlToLaunch == null) {
+            final trackData = currentTrackData?['item'];
+            if (trackData != null && trackData['external_urls'] is Map) {
+              urlToLaunch = trackData['external_urls']['spotify'];
+            }
+          }
+
+          // 3. Try launching the found URL or fallback to opening Spotify app
+          if (urlToLaunch != null) {
+            _launchSpotifyURL(context, urlToLaunch);
           } else {
-            // If no track URL, try opening the Spotify app directly
+            // Fallback: Try opening the Spotify app directly
             final spotifyUri = Uri.parse('spotify:');
             try {
               if (await canLaunchUrl(spotifyUri)) {
@@ -389,7 +412,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       }
     }
 
-    return ClipRRect(
+    // 原本的 ClipRRect 现在是 Stack 的第一个子元素
+    final albumArtWidget = ClipRRect(
       borderRadius: BorderRadius.circular(16.0),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
@@ -435,6 +459,84 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                 fit: BoxFit.cover,
               ),
       ),
+    );
+
+    // 返回包含专辑封面和遮罩的 Stack
+    return Stack(
+      alignment: Alignment.center, // 居中对齐 Stack 子元素
+      children: [
+        // 1. 专辑封面，根据状态调整透明度使其变暗
+        AnimatedOpacity(
+          opacity: _isSeekOverlayVisible ? 0.6 : 1.0, // 遮罩可见时降低透明度
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: albumArtWidget, // 将原始封面放在这里
+        ),
+
+        // 2. 条件渲染的按钮层 (保持在顶层)
+        AnimatedOpacity(
+          opacity: _isSeekOverlayVisible ? 1.0 : 0.0, // 遮罩可见时按钮完全不透明
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: IgnorePointer(
+            ignoring: !_isSeekOverlayVisible,
+            // 不需要 GestureDetector 了，因为外部 onTap 会处理
+            child: Center( // 确保按钮在 Stack 中心
+              child: Container(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSeekButton(
+                      icon: Icons.replay_10_rounded,
+                      label: '-10s',
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+                        final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
+                        if (currentProgressMs != null) {
+                          final targetPosition = max(0, currentProgressMs - 10000); // 减去 10 秒，但不小于 0
+                          spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition));
+                        }
+                      },
+                    ),
+                    _buildSeekButton(
+                      icon: Icons.forward_10_rounded,
+                      label: '+10s',
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+                        final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
+                        final trackDurationMs = spotifyProvider.currentTrack?['item']?['duration_ms'] as int?;
+                        if (currentProgressMs != null && trackDurationMs != null) {
+                          final targetPosition = min(trackDurationMs, currentProgressMs + 10000); // 加上 10 秒，但不超过总时长
+                          spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition));
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 辅助方法构建 Seek 按钮 (可以放在 _PlayerState 类中)
+  Widget _buildSeekButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: Icon(icon, color: Theme.of(context).colorScheme.secondary, size: 48),
+          onPressed: onPressed,
+        ),
+      ],
     );
   }
 
