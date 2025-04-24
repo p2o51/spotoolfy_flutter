@@ -37,15 +37,27 @@ class _RoamState extends State<Roam> {
 
   void _showActionSheet(BuildContext context, Map<String, dynamic> record) {
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-    // Ensure your map fetched from the DB includes 'id' and 'trackId'
+    // 获取 SpotifyProvider
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    // Ensure your map fetched from the DB includes 'id', 'trackId', and 'songTimestampMs'
     final recordId = record['id'] as int?;
     final trackId = record['trackId'] as String?;
+    final songTimestampMs = record['songTimestampMs'] as int?; // 获取时间戳
 
     if (recordId == null || trackId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot proceed: Incomplete record information')),
       );
       return;
+    }
+
+    // 格式化时间戳 (如果存在)
+    String formattedTimestamp = '';
+    if (songTimestampMs != null && songTimestampMs > 0) {
+      final duration = Duration(milliseconds: songTimestampMs);
+      final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+      formattedTimestamp = '$minutes:$seconds';
     }
 
     showModalBottomSheet(
@@ -59,6 +71,31 @@ class _RoamState extends State<Roam> {
           title: Text(record['trackName'] ?? 'Options'),
           // message: Text(record['noteContent'] ?? ''), // Optional: show content snippet
           actions: <CupertinoActionSheetAction>[
+            // 新增：从指定时间播放
+            if (songTimestampMs != null && songTimestampMs > 0)
+              CupertinoActionSheetAction(
+                child: Text('Play from $formattedTimestamp'),
+                onPressed: () async {
+                  Navigator.pop(bottomSheetContext); // Close the sheet
+                  final trackUri = 'spotify:track:$trackId';
+                   print('Attempting to play URI: $trackUri from $songTimestampMs ms');
+                  try {
+                    // 先播放曲目
+                    await spotifyProvider.playTrack(trackUri: trackUri);
+                    // 然后跳转到指定位置
+                    final duration = Duration(milliseconds: songTimestampMs); // Convert ms to Duration
+                    await spotifyProvider.seekToPosition(duration); // Use seekToPosition with Duration
+                  } catch (e) {
+                    print('Error calling playTrack or seekToPosition: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Playback failed: ${e.toString()}"),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
             CupertinoActionSheetAction(
               child: Text(AppLocalizations.of(context)!.editNote),
               onPressed: () {

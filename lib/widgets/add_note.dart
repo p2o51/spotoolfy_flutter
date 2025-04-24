@@ -207,16 +207,10 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
           Center(
             child: Ratings(
               initialRating: _selectedRatingValue, // Pass the current int rating
-              onRatingChanged: (selectedIndex) {
-                 // Map index 0, 1, 2 to rating 0, 3, 5
+              onRatingChanged: (newRating) { // Rename parameter for clarity
+                 // Directly use the passed rating value (0, 3, or 5)
                 setState(() {
-                  if (selectedIndex == 0) {
-                    _selectedRatingValue = 0; // Bad
-                  } else if (selectedIndex == 1) {
-                    _selectedRatingValue = 3; // Neutral/Good (matches default)
-                  } else { // selectedIndex == 2
-                    _selectedRatingValue = 5; // Fire
-                  }
+                  _selectedRatingValue = newRating;
                   // 保存最后使用的评分
                   _saveLastUsedRating(_selectedRatingValue!);
                 });
