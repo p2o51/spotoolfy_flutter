@@ -185,8 +185,17 @@ class Login extends StatelessWidget {
   }
 }
 
-class SettingsMenuSection extends StatelessWidget {
+class SettingsMenuSection extends StatefulWidget {
   const SettingsMenuSection({super.key});
+
+  @override
+  _SettingsMenuSectionState createState() => _SettingsMenuSectionState();
+}
+
+class _SettingsMenuSectionState extends State<SettingsMenuSection> {
+  // Key to force FutureBuilder rebuild
+  Key _languageKey = UniqueKey();
+  Key _styleKey = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
@@ -249,9 +258,10 @@ class SettingsMenuSection extends StatelessWidget {
             const SizedBox(height: kElementSpacing),
             FutureBuilder<String>(
               future: context.read<SettingsService>().getTargetLanguage(),
+              key: _languageKey,
               builder: (context, snapshot) {
                 String languageDisplay = "";
-                if (snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
                   // 显示语言名称
                   switch (snapshot.data) {
                     case 'en': languageDisplay = "English"; break;
@@ -266,16 +276,19 @@ class SettingsMenuSection extends StatelessWidget {
                   icon: Icons.language,
                   title: l10n.translationLanguageTitle,
                   subtitle: languageDisplay.isNotEmpty ? languageDisplay : l10n.translationLanguageSubtitle,
-                  onTap: () => _showLanguageDialog(context, l10n),
+                  onTap: () => _showLanguageDialog(context, l10n, () {
+                    setState(() { _languageKey = UniqueKey(); });
+                  }),
                 );
               },
             ),
             const SizedBox(height: kElementSpacing),
             FutureBuilder<TranslationStyle>(
               future: context.read<SettingsService>().getTranslationStyle(),
+              key: _styleKey,
               builder: (context, snapshot) {
                 String styleDisplay = "";
-                if (snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
                   // 显示翻译样式名称
                   switch (snapshot.data) {
                     case TranslationStyle.faithful: styleDisplay = "Faithful"; break;
@@ -289,7 +302,9 @@ class SettingsMenuSection extends StatelessWidget {
                   icon: Icons.style,
                   title: l10n.translationStyleTitle,
                   subtitle: styleDisplay.isNotEmpty ? styleDisplay : l10n.translationStyleSubtitle,
-                  onTap: () => _showTranslationStyleDialog(context, l10n),
+                  onTap: () => _showTranslationStyleDialog(context, l10n, () {
+                    setState(() { _styleKey = UniqueKey(); });
+                  }),
                 );
               },
             ),
@@ -720,7 +735,7 @@ class SettingsMenuSection extends StatelessWidget {
     );
   }
 
-  Future<void> _showLanguageDialog(BuildContext context, AppLocalizations l10n) async {
+  Future<void> _showLanguageDialog(BuildContext context, AppLocalizations l10n, VoidCallback onSuccess) async {
     final settingsService = context.read<SettingsService>();
     final notificationService = context.read<NotificationService>();
     final navigator = Navigator.of(context);
@@ -751,6 +766,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTargetLanguage(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.languageSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
@@ -769,6 +785,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTargetLanguage(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.languageSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
@@ -787,6 +804,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTargetLanguage(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.languageSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
@@ -805,6 +823,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTargetLanguage(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.languageSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
@@ -829,7 +848,7 @@ class SettingsMenuSection extends StatelessWidget {
     );
   }
 
-  Future<void> _showTranslationStyleDialog(BuildContext context, AppLocalizations l10n) async {
+  Future<void> _showTranslationStyleDialog(BuildContext context, AppLocalizations l10n, VoidCallback onSuccess) async {
     final settingsService = context.read<SettingsService>();
     final notificationService = context.read<NotificationService>();
     final navigator = Navigator.of(context);
@@ -860,6 +879,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTranslationStyle(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
@@ -878,6 +898,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTranslationStyle(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
@@ -896,6 +917,7 @@ class SettingsMenuSection extends StatelessWidget {
                             await settingsService.saveTranslationStyle(value);
                             navigator.pop();
                             notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                            onSuccess();
                           } catch (e) {
                             if (currentContext.mounted) { 
                               notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));

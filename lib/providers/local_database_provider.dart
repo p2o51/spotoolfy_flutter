@@ -24,6 +24,11 @@ class LocalDatabaseProvider with ChangeNotifier {
   List<Record> _currentTrackRecords = [];
   List<Record> get currentTrackRecords => _currentTrackRecords;
 
+  // --- Add state for latest played time of the current track ---
+  int? _currentTrackLatestPlayedAt;
+  int? get currentTrackLatestPlayedAt => _currentTrackLatestPlayedAt;
+  // --- End added state ---
+
   // Example internal state for random records
   List<Map<String, dynamic>> _randomRecords = [];
   List<Map<String, dynamic>> get randomRecords => _randomRecords;
@@ -138,16 +143,22 @@ class LocalDatabaseProvider with ChangeNotifier {
   Future<void> fetchRecordsForTrack(String trackId) async {
     _setLoading(true);
     try {
-      // Ensure the list is mutable
+      // Fetch records
       final recordsFromDb = await _dbHelper.getRecordsForTrack(trackId);
       _currentTrackRecords = List<Record>.from(recordsFromDb);
-      // Consider error handling if needed
+
+      // --- Fetch latestPlayedAt for the track --- 
+      final trackInfo = await _dbHelper.getTrack(trackId);
+      _currentTrackLatestPlayedAt = trackInfo?.latestPlayedAt;
+      logger.d('Fetched latestPlayedAt for track $trackId: $_currentTrackLatestPlayedAt');
+      // --- End fetching latestPlayedAt ---
+
     } catch (e) {
-      logger.d('Error fetching records for track $trackId: $e');
-      _currentTrackRecords = []; // Clear on error
+      logger.d('Error fetching records or track info for $trackId: $e');
+      _currentTrackRecords = []; // Clear records on error
+      _currentTrackLatestPlayedAt = null; // Clear timestamp on error
     } finally {
        _setLoading(false);
-       // notifyListeners() is called within _setLoading
     }
   }
 
@@ -206,9 +217,20 @@ class LocalDatabaseProvider with ChangeNotifier {
 
   /// Clears the locally stored related records list.
   void clearRelatedRecords() {
+    bool changed = false;
     if (_relatedRecords.isNotEmpty) {
        _relatedRecords = [];
-       notifyListeners(); // Notify UI to update
+       changed = true;
+    }
+    // --- Also clear the current track's latest played timestamp --- 
+    if (_currentTrackLatestPlayedAt != null) {
+       _currentTrackLatestPlayedAt = null;
+       changed = true;
+       logger.d('Cleared current track latest played timestamp.');
+    }
+    // --- End clearing timestamp ---
+    if (changed) {
+      notifyListeners(); // Notify UI to update
     }
   }
 

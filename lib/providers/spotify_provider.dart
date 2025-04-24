@@ -514,7 +514,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
     } catch (e) {
       // debugPrint('刷新当前播放失败: $e');
-      await _handleApiError(e, contextMessage: '刷新当前播放');
+      await _handleApiError(e, contextMessage: 'Refresh current playback');
       // Consider adding more specific error handling if needed
     }
   }
@@ -526,7 +526,7 @@ class SpotifyProvider extends ChangeNotifier {
     
     Map<String, dynamic> enrichedContext = {
       ...context,
-      'name': '未知${type == 'playlist' ? '播放列表' : '专辑'}',
+      'name': 'UNKNOWN CONTEXT',
       'images': [{'url': 'https://via.placeholder.com/300'}],
     };
     

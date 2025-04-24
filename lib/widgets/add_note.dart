@@ -83,7 +83,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
     // Use the initial track data stored in the state
     final trackItem = _initialTrackItem;
 
-    if (trackItem == null || _controller.text.isEmpty) {
+    if (trackItem == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context)!.noTrackOrEmptyNote)),
       );
@@ -174,7 +174,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
                 ),
               ),
               IconButton(
-                onPressed: _isSubmitting || isTextEmpty
+                onPressed: _isSubmitting
                     ? null
                     : () => _handleSubmit(context),
                 icon: _isSubmitting

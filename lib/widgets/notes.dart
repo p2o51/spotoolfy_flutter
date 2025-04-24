@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart'; // Added logger
+import 'package:intl/intl.dart'; // Import intl for date formatting
+import 'dart:math'; // Import for min function
 // import '../providers/firestore_provider.dart'; // Keep for homoThoughts for now
 import '../providers/local_database_provider.dart'; // Import new provider
 import '../providers/spotify_provider.dart';
 import '../models/record.dart' as model; // Use prefix to avoid name collision
 import 'materialui.dart';
+import 'stats_card.dart'; // Import the new StatsCard widget
 import '../utils/date_formatter.dart'; // Assuming getLeadingText uses this
 import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -376,10 +379,66 @@ class _NotesDisplayState extends State<NotesDisplay> {
     _confirmDeleteRecordForRecord(context, recordId, trackId);
   }
 
+  // --- Helper Functions for StatsCard Data ---
+
+  Map<String, String> _formatTimeAgo(int timestampMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+    final now = DateTime.now();
+    final difference = now.difference(dt);
+
+    if (difference.inDays > 0) {
+      return {'value': difference.inDays.toString(), 'unit': 'Days Ago'}; // TODO: Localization
+    } else if (difference.inHours > 0) {
+      return {'value': difference.inHours.toString(), 'unit': 'Hours Ago'}; // TODO: Localization
+    } else if (difference.inMinutes > 0) {
+      return {'value': difference.inMinutes.toString(), 'unit': 'Mins Ago'}; // TODO: Localization
+    } else {
+      return {'value': difference.inSeconds.toString(), 'unit': 'Secs Ago'}; // TODO: Localization
+    }
+  }
+
+  Map<String, String> _formatLastPlayed(int timestampMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    final dateToFormat = DateTime(dt.year, dt.month, dt.day);
+
+    String line1;
+    if (dateToFormat == today) {
+      line1 = 'Today,'; // TODO: Localization
+    } else if (dateToFormat == yesterday) {
+      line1 = 'Yesterday,'; // TODO: Localization
+    } else {
+      line1 = DateFormat.yMd().format(dt); // Format as date if older
+    }
+
+    final line2 = DateFormat.Hm().format(dt); // HH:mm format
+
+    return {'line1': line1, 'line2': line2};
+  }
+
+  IconData _getTrendIcon(List<model.Record> records) {
+    if (records.length < 2) {
+      return Icons.horizontal_rule;
+    }
+    // Records are typically sorted newest first
+    final latestRating = records[0].rating ?? 3; // Default to neutral if null
+    final previousRating = records[1].rating ?? 3; // Default to neutral if null
+
+    if (latestRating > previousRating) {
+      return Icons.arrow_outward;
+    } else if (latestRating < previousRating) {
+      return Icons.arrow_downward;
+    } else {
+      return Icons.horizontal_rule;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Remove FirestoreProvider if no longer needed after this change
-    // final firestoreProvider = Provider.of<FirestoreProvider>(context); 
+    // final firestoreProvider = Provider.of<FirestoreProvider>(context);
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context);
     final spotifyProvider = Provider.of<SpotifyProvider>(context);
     final currentTrack = spotifyProvider.currentTrack?['item'];
@@ -391,6 +450,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           logger.d('NotesDisplay: Track changed, fetching records for $currentTrackId');
+          // Assuming fetchRecordsForTrack also fetches latestPlayedAt
           localDbProvider.fetchRecordsForTrack(currentTrackId);
           // Also fetch related records
           if (currentTrackName != null) {
@@ -407,7 +467,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
          if (mounted) {
             logger.d('NotesDisplay: Track is null, clearing last fetched ID and related records');
             // Clear related records when track becomes null
-            localDbProvider.clearRelatedRecords(); // Need to add this method
+            // Assuming clearRelatedRecords also clears latestPlayedAt
+            localDbProvider.clearRelatedRecords(); 
             setState(() {
                _lastFetchedTrackId = null;
             });
@@ -415,12 +476,64 @@ class _NotesDisplayState extends State<NotesDisplay> {
        });
     }
 
+    // --- Prepare data for StatsCard ---
+    String firstRecordedValue = '-';
+    String firstRecordedUnit = '';
+    String lastPlayedLine1 = '-';
+    String lastPlayedLine2 = '';
+    IconData trendIcon = Icons.horizontal_rule; // Default icon
+    IconData latestRatingIcon = Icons.horizontal_rule; // 修改：默认最新评级图标为 horizontal_rule
+
+    final records = localDbProvider.currentTrackRecords;
+    // Placeholder for latestPlayedAt - NEEDS TO BE IMPLEMENTED IN PROVIDER
+    final latestPlayedTimestamp = localDbProvider.currentTrackLatestPlayedAt; 
+    // final latestPlayedTimestamp = records.isNotEmpty ? records.first.recordedAt : null; // Temporary fallback
+
+    if (records.isNotEmpty) {
+      // First Recorded
+      final earliestRecordTimestamp = records.map((r) => r.recordedAt).reduce(min);
+      final firstRecordedMap = _formatTimeAgo(earliestRecordTimestamp);
+      firstRecordedValue = firstRecordedMap['value']!;
+      firstRecordedUnit = firstRecordedMap['unit']!;
+
+      // Trend Icon
+      trendIcon = _getTrendIcon(records);
+
+      // --- 新增：获取最新评级图标 ---
+      final latestRating = records.first.rating; // Records sorted newest first
+      switch (latestRating) {
+        case 0:
+          latestRatingIcon = Icons.thumb_down_outlined;
+          break;
+        case 5:
+          latestRatingIcon = Icons.whatshot_outlined;
+          break;
+        case 3:
+        default:
+          latestRatingIcon = Icons.sentiment_neutral_rounded;
+          break;
+      }
+      // --- 结束获取最新评级图标 ---
+    }
+
+    if (latestPlayedTimestamp != null) {
+      // Last Played At
+      final lastPlayedMap = _formatLastPlayed(latestPlayedTimestamp);
+      lastPlayedLine1 = lastPlayedMap['line1']!;
+      lastPlayedLine2 = lastPlayedMap['line2']!;
+    } else if (records.isNotEmpty) {
+      // Fallback: Use latest record time if latestPlayedAt is unavailable
+      final lastPlayedMap = _formatLastPlayed(records.first.recordedAt); // Use latest record time
+      lastPlayedLine1 = lastPlayedMap['line1']!;
+      lastPlayedLine2 = lastPlayedMap['line2']!;
+    }
+
     // Helper for current track thoughts (using model.Record)
     String getCurrentThoughtLeading(List<model.Record> records, int index) {
       if (index == records.length - 1) return '初';
       final dt = DateTime.fromMillisecondsSinceEpoch(records[index].recordedAt);
       // Format DateTime to ISO 8601 String for getLeadingText
-      return getLeadingText(dt.toIso8601String()); 
+      return getLeadingText(dt.toIso8601String());
     }
 
     // Helper for related thoughts (using Map from Local DB)
@@ -435,12 +548,24 @@ class _NotesDisplayState extends State<NotesDisplay> {
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(32, 16, 32, 16),
+      padding: const EdgeInsets.fromLTRB(32, 8, 32, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Conditionally display StatsCard only when a track is playing
+          if (currentTrackId != null)
+            StatsCard(
+              firstRecordedValue: firstRecordedValue,
+              firstRecordedUnit: firstRecordedUnit,
+              trendIcon: trendIcon,
+              latestRatingIcon: latestRatingIcon,
+              lastPlayedLine1: lastPlayedLine1,
+              lastPlayedLine2: lastPlayedLine2,
+            ),
+          // Add spacing only if StatsCard is shown
+          if (currentTrackId != null) const SizedBox(height: 16),
           IconHeader(
-            icon: Icons.comment_bank_outlined, 
+            icon: Icons.comment_bank_outlined,
             text: currentTrack != null 
               ? 'THOUGHTS'
               : 'NO TRACK'
@@ -505,8 +630,13 @@ class _NotesDisplayState extends State<NotesDisplay> {
                         ),
                       ),
                       title: Text(
-                        record.noteContent ?? '',
-                        style: const TextStyle(fontSize: 16, height: 1.05),
+                        // Check if note content is empty
+                        (record.noteContent?.isEmpty ?? true)
+                          ? 'Rated'
+                          : record.noteContent!,
+                        style: (record.noteContent?.isEmpty ?? true)
+                          ? TextStyle(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.onSurfaceVariant)
+                          : const TextStyle(fontSize: 16, height: 1.05),
                       ),
                       // Add the rating icon as the trailing widget
                       trailing: Icon(ratingIcon, color: Theme.of(context).colorScheme.secondary),
@@ -572,9 +702,13 @@ class _NotesDisplayState extends State<NotesDisplay> {
                         ),
                       ),
                       title: Text(
-                        // Access note content from map
-                        relatedRecord['noteContent'] ?? '',
-                        style: const TextStyle(fontSize: 16, height: 1.05),
+                        // Check if related note content is empty
+                        (relatedRecord['noteContent'] as String?)?.isEmpty ?? true
+                          ? 'Rated'
+                          : relatedRecord['noteContent'] as String,
+                        style: (relatedRecord['noteContent'] as String?)?.isEmpty ?? true
+                          ? TextStyle(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.onSurfaceVariant)
+                          : const TextStyle(fontSize: 16, height: 1.05),
                       ),
                       subtitle: Text(
                         // Access track/artist name from map

@@ -369,6 +369,9 @@ class _RoamState extends State<Roam> {
                               }
                               final ratingIconWidget = Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
 
+                              // Get note content
+                              final String noteContent = record['noteContent'] as String? ?? '';
+
                               // Wrap InkWell/Card in a Column to add Divider
                               return Column(
                                 children: [
@@ -406,15 +409,27 @@ class _RoamState extends State<Roam> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             // 1. Note Content (if available)
-                                            if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
+                                            if (noteContent.isNotEmpty)
                                               Padding(
                                                 padding: const EdgeInsets.only(bottom: 12.0), // Add space below note
                                                 child: Text(
-                                                  record['noteContent'] ?? '',
+                                                  noteContent,
                                                   style: Theme.of(context).textTheme.bodyMedium, // Use bodyLarge for note
                                                   overflow: TextOverflow.visible,
                                                 ),
                                               ),
+                                            // Show 'Rated' if noteContent is empty
+                                            if (noteContent.isEmpty)
+                                               Padding(
+                                                 padding: const EdgeInsets.only(bottom: 12.0),
+                                                 child: Text(
+                                                   'Rated',
+                                                   style: TextStyle(
+                                                     fontStyle: FontStyle.italic,
+                                                     color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                   ),
+                                                 ),
+                                               ),
                                             
                                             // 2. Bottom Row (Image/Info + Rating)
                                             Row(
@@ -466,7 +481,7 @@ class _RoamState extends State<Roam> {
                                                             // Track Name
                                                             Text(
                                                               '${record['trackName'] ?? 'Unknown Track'}',
-                                                              style: Theme.of(context).textTheme.titleMedium?.copyWith( // Use titleMedium for track
+                                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith( // Use titleMedium for track
                                                                 color: Theme.of(context).colorScheme.primary,
                                                                 fontWeight: FontWeight.w500, // Slightly bolder track name
                                                               ),
@@ -587,6 +602,9 @@ class _RoamState extends State<Roam> {
                           }
                           final ratingIconWidget = Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
 
+                          // Get note content
+                          final String noteContent = record['noteContent'] as String? ?? '';
+
                           // Wrap the existing Padding/InkWell/Card in a Column to add Divider
                           return Column(
                             children: [
@@ -641,13 +659,25 @@ class _RoamState extends State<Roam> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           // 1. Note Content (if available)
-                                          if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
+                                          if (noteContent.isNotEmpty)
                                             Padding(
                                               padding: const EdgeInsets.only(bottom: 12.0), // Add space below note
                                               child: Text(
-                                                record['noteContent'] ?? '',
+                                                noteContent,
                                                 style: Theme.of(context).textTheme.bodyLarge, // Use bodyLarge for note
                                                 overflow: TextOverflow.visible,
+                                              ),
+                                            ),
+                                          // Show 'Rated' if noteContent is empty
+                                          if (noteContent.isEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(bottom: 12.0),
+                                              child: Text(
+                                                'Rated',
+                                                style: TextStyle(
+                                                  fontStyle: FontStyle.italic,
+                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                ),
                                               ),
                                             ),
 
@@ -662,7 +692,7 @@ class _RoamState extends State<Roam> {
                                                   children: [
                                                     // Album Cover
                                                     ClipRRect(
-                                                      borderRadius: BorderRadius.circular(8.0), // Slightly rounded corners for cover
+                                                      borderRadius: BorderRadius.circular(25.0), // Slightly rounded corners for cover
                                                       child: CachedNetworkImage(
                                                         imageUrl: albumCoverUrl ?? '',
                                                         width: 50, // Adjust size as needed
@@ -701,7 +731,7 @@ class _RoamState extends State<Roam> {
                                                           // Track Name
                                                           Text(
                                                             '${record['trackName'] ?? 'Unknown Track'}',
-                                                            style: Theme.of(context).textTheme.titleLarge?.copyWith( // Use titleMedium for track
+                                                            style: Theme.of(context).textTheme.bodyLarge?.copyWith( // Use titleMedium for track
                                                               color: Theme.of(context).colorScheme.primary,
                                                               fontWeight: FontWeight.w500, // Slightly bolder track name
                                                             ),
@@ -867,6 +897,7 @@ class NotesCarouselView extends StatelessWidget {
               children: randomRecords.map((record) {
                 final imageUrl = record['albumCoverUrl'] as String?;
                 final fallbackColor = Theme.of(context).colorScheme.secondaryContainer.withAlpha(204);
+                final String noteContent = record['noteContent'] as String? ?? '';
                 // final trackId = record['trackId'] as String?; // No longer needed here
 
                 // Remove the InkWell wrapper
@@ -907,27 +938,37 @@ class NotesCarouselView extends StatelessWidget {
                             children: [
                               // Note Content
                               Expanded(
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.format_quote_rounded,
-                                      size: 20,
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        record['noteContent'] ?? '',
-                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                          color: Colors.white,
+                                child: noteContent.isNotEmpty
+                                  ? Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.format_quote_rounded,
+                                          size: 20,
+                                          color: Colors.white.withOpacity(0.9),
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 5,
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            noteContent,
+                                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                              color: Colors.white,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 5,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Center( // Center 'Rated' text if no content
+                                      child: Text(
+                                        'Rated',
+                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                          color: Colors.white70,
+                                          fontStyle: FontStyle.italic,
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                ),
                               ),
                               const SizedBox(height: 8),
                               Divider(color: Colors.white.withOpacity(0.3)),

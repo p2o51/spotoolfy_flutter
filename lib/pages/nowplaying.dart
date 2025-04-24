@@ -119,7 +119,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   bool get wantKeepAlive => true;
 
   Widget _buildTabHeader() {
-    bool isLargeScreen = MediaQuery.of(context).size.width > 800;
+    bool isLargeScreen = MediaQuery.of(context).size.width > 600;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
