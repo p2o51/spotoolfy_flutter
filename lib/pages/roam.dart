@@ -356,6 +356,19 @@ class _RoamState extends State<Roam> {
                                 }
                               }
 
+                              // Rating Icon Logic
+                              final dynamic ratingRaw = record['rating'];
+                              int? ratingValue;
+                              if (ratingRaw is int) { ratingValue = ratingRaw; }
+                              else if (ratingRaw is String) { ratingValue = 3; } // Default for old string data
+                              IconData ratingIcon;
+                              switch (ratingValue) {
+                                case 0: ratingIcon = Icons.thumb_down_outlined; break;
+                                case 5: ratingIcon = Icons.whatshot_outlined; break;
+                                case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
+                              }
+                              final ratingIconWidget = Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
+
                               // Wrap InkWell/Card in a Column to add Divider
                               return Column(
                                 children: [
@@ -392,119 +405,95 @@ class _RoamState extends State<Roam> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            // Timestamp Row
-                                            Row(
-                                              children: [
-                                                const Spacer(),
-                                                Text(
-                                                  AppLocalizations.of(context)!.recordsAt(formattedTime),
-                                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                                    color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
-                                                    fontWeight: FontWeight.normal,
-                                                  ),
+                                            // 1. Note Content (if available)
+                                            if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(bottom: 12.0), // Add space below note
+                                                child: Text(
+                                                  record['noteContent'] ?? '',
+                                                  style: Theme.of(context).textTheme.bodyMedium, // Use bodyLarge for note
+                                                  overflow: TextOverflow.visible,
                                                 ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
+                                              ),
                                             
-                                            // Main Content Row (Cover + Text Column) - 改为与小屏幕一致的水平布局
+                                            // 2. Bottom Row (Image/Info + Rating)
                                             Row(
-                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              crossAxisAlignment: CrossAxisAlignment.center, // Vertically center items in this row
                                               children: [
-                                                // 左侧专辑封面
-                                                ClipRRect(
-                                                  borderRadius: BorderRadius.circular(50.0),
-                                                  child: CachedNetworkImage(
-                                                    imageUrl: albumCoverUrl ?? '',
-                                                    width: 80,
-                                                    height: 80,
-                                                    fit: BoxFit.cover,
-                                                    placeholder: (context, url) => Container(
-                                                      width: 80,
-                                                      height: 80,
-                                                      color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                      child: Icon(Icons.music_note_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
-                                                    ),
-                                                    errorWidget: (context, url, error) => Container(
-                                                      width: 80,
-                                                      height: 80,
-                                                      color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                      child: Icon(Icons.broken_image_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                
-                                                // 右侧文本内容
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    mainAxisAlignment: MainAxisAlignment.end,
-                                                    mainAxisSize: MainAxisSize.min,
+                                                // 2a. Left Group (Image + Text Info)
+                                                Expanded( // Allow this group to take available space
+                                                  child: Row(
+                                                    crossAxisAlignment: CrossAxisAlignment.center, // Center image and text column vertically
                                                     children: [
-                                                      // Note Content
-                                                      if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
-                                                        Padding(
-                                                          padding: const EdgeInsets.only(bottom: 8.0),
-                                                          child: Text(
-                                                            record['noteContent'] ?? '',
-                                                            style: Theme.of(context).textTheme.bodyMedium,
-                                                            overflow: TextOverflow.visible,
+                                                      // Album Cover
+                                                      ClipRRect(
+                                                        borderRadius: BorderRadius.circular(25.0), // Slightly rounded corners for cover
+                                                        child: CachedNetworkImage(
+                                                          imageUrl: albumCoverUrl ?? '',
+                                                          width: 50, // Adjust size as needed
+                                                          height: 50,
+                                                          fit: BoxFit.cover,
+                                                          placeholder: (context, url) => Container(
+                                                            width: 50, height: 50,
+                                                            color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                            child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                          ),
+                                                          errorWidget: (context, url, error) => Container(
+                                                            width: 50, height: 50,
+                                                            color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                            child: Icon(Icons.broken_image_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
                                                           ),
                                                         ),
+                                                      ),
+                                                      const SizedBox(width: 12), // Space between image and text
                                                       
-                                                      // Track Info and Rating in a row
-                                                      Row(
-                                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                                        children: [
-                                                          // Track and Artist info
-                                                          Expanded(
-                                                            child: Column(
-                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                // Track Name
-                                                                Text(
-                                                                  '${record['trackName'] ?? 'Unknown Track'}',
-                                                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                                                    color: Theme.of(context).colorScheme.primary,
-                                                                  ),
-                                                                  maxLines: 1,
-                                                                  overflow: TextOverflow.ellipsis,
-                                                                  softWrap: false,
-                                                                ),
-                                                                // Artist Name
-                                                                Text(
-                                                                  '${record['artistName'] ?? 'Unknown Artist'}',
-                                                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                                    color: Theme.of(context).colorScheme.secondary,
-                                                                  ),
-                                                                  maxLines: 1,
-                                                                  overflow: TextOverflow.ellipsis,
-                                                                  softWrap: false,
-                                                                ),
-                                                              ],
+                                                      // Text Info Column
+                                                      Expanded( // Allow text to take remaining space in the inner row
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          mainAxisAlignment: MainAxisAlignment.center, // Center text lines vertically
+                                                          children: [
+                                                            // Timestamp
+                                                            Text(
+                                                              'Records at $formattedTime',
+                                                              style: Theme.of(context).textTheme.labelMedium?.copyWith( // Use labelMedium for timestamp
+                                                                color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                                                fontWeight: FontWeight.normal,
+                                                              ),
+                                                               maxLines: 1,
+                                                               overflow: TextOverflow.ellipsis,
                                                             ),
-                                                          ),
-                                                          // Rating Icon
-                                                          (() {
-                                                            final dynamic ratingRaw = record['rating'];
-                                                            int? ratingValue;
-                                                            if (ratingRaw is int) { ratingValue = ratingRaw; }
-                                                            else if (ratingRaw is String) { ratingValue = 3; }
-                                                            IconData ratingIcon;
-                                                            switch (ratingValue) {
-                                                              case 0: ratingIcon = Icons.thumb_down_outlined; break;
-                                                              case 5: ratingIcon = Icons.whatshot_outlined; break;
-                                                              case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
-                                                            }
-                                                            return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
-                                                          }()),
-                                                        ],
+                                                            // Track Name
+                                                            Text(
+                                                              '${record['trackName'] ?? 'Unknown Track'}',
+                                                              style: Theme.of(context).textTheme.titleSmall?.copyWith( // Use titleMedium for track
+                                                                color: Theme.of(context).colorScheme.primary,
+                                                                fontWeight: FontWeight.w500, // Slightly bolder track name
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                              softWrap: false,
+                                                            ),
+                                                            // Artist Name
+                                                            Text(
+                                                              '${record['artistName'] ?? 'Unknown Artist'}',
+                                                              style: Theme.of(context).textTheme.bodySmall?.copyWith( // Use bodyMedium for artist
+                                                                color: Theme.of(context).colorScheme.secondary,
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                              softWrap: false,
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
+                                                const SizedBox(width: 12), // Space before rating icon
+
+                                                // 2b. Rating Icon
+                                                ratingIconWidget,
                                               ],
                                             ),
                                           ],
@@ -585,6 +574,19 @@ class _RoamState extends State<Roam> {
                             }
                           }
 
+                          // Rating Icon Logic
+                          final dynamic ratingRaw = record['rating'];
+                          int? ratingValue;
+                          if (ratingRaw is int) { ratingValue = ratingRaw; }
+                          else if (ratingRaw is String) { ratingValue = 3; } // Default for old string data
+                          IconData ratingIcon;
+                          switch (ratingValue) {
+                            case 0: ratingIcon = Icons.thumb_down_outlined; break;
+                            case 5: ratingIcon = Icons.whatshot_outlined; break;
+                            case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
+                          }
+                          final ratingIconWidget = Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
+
                           // Wrap the existing Padding/InkWell/Card in a Column to add Divider
                           return Column(
                             children: [
@@ -635,121 +637,98 @@ class _RoamState extends State<Roam> {
                                     ),
                                     child: Padding(
                                       padding: const EdgeInsets.all(16.0),
-                                      child: Column( // Outer column for timestamp + main content row
+                                      child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          // Timestamp Row (stays at top right)
-                                          Row(
-                                            children: [
-                                              const Spacer(),
-                                              Text(
-                                                'Records at $formattedTime',
-                                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                                  color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
-                                                        fontWeight: FontWeight.normal,
-                                                ),
+                                          // 1. Note Content (if available)
+                                          if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(bottom: 12.0), // Add space below note
+                                              child: Text(
+                                                record['noteContent'] ?? '',
+                                                style: Theme.of(context).textTheme.bodyLarge, // Use bodyLarge for note
+                                                overflow: TextOverflow.visible,
                                               ),
-                                            ],
-                                          ),
+                                            ),
 
-                                          // Main Content Row (Cover + Text Column)
+                                          // 2. Bottom Row (Image/Info + Rating)
                                           Row(
-                                            crossAxisAlignment: CrossAxisAlignment.end, // 保持底部对齐
+                                            crossAxisAlignment: CrossAxisAlignment.center, // Vertically center items in this row
                                             children: [
-                                              // Column 1: Album Cover (No Align needed here)
-                                              ClipRRect(
-                                                borderRadius: BorderRadius.circular(50.0),
-                                                child: CachedNetworkImage(
-                                                  imageUrl: albumCoverUrl ?? '',
-                                                  width: 80, // 改为80
-                                                  height: 80, // 改为80
-                                                  fit: BoxFit.cover,
-                                                  placeholder: (context, url) => Container(
-                                                    width: 80, // 改为80
-                                                    height: 80, // 改为80
-                                                    color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                    child: Icon(Icons.music_note_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
-                                                  ),
-                                                  errorWidget: (context, url, error) => Container(
-                                                    width: 80, // 改为80
-                                                    height: 80, // 改为80
-                                                    color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                    child: Icon(Icons.broken_image_outlined, size: 30, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 16), // Space between columns
-
-                                              // Column 2: Text Info & Rating
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  mainAxisAlignment: MainAxisAlignment.end, // 使列底部对齐
-                                                  mainAxisSize: MainAxisSize.min, // 保持内容紧凑
+                                              // 2a. Left Group (Image + Text Info)
+                                              Expanded( // Allow this group to take available space
+                                                child: Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.center, // Center image and text column vertically
                                                   children: [
-                                                    // Note Content (remains at top)
-                                                    if (record['noteContent'] != null && (record['noteContent'] as String).isNotEmpty)
-                                                      Padding(
-                                                        padding: const EdgeInsets.only(bottom: 8.0),
-                                                        child: Text(
-                                                          record['noteContent'] ?? '',
-                                                          style: Theme.of(context).textTheme.bodyMedium,
-                                                          overflow: TextOverflow.visible,
+                                                    // Album Cover
+                                                    ClipRRect(
+                                                      borderRadius: BorderRadius.circular(8.0), // Slightly rounded corners for cover
+                                                      child: CachedNetworkImage(
+                                                        imageUrl: albumCoverUrl ?? '',
+                                                        width: 50, // Adjust size as needed
+                                                        height: 50,
+                                                        fit: BoxFit.cover,
+                                                        placeholder: (context, url) => Container(
+                                                          width: 50, height: 50,
+                                                          color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                          child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                        ),
+                                                        errorWidget: (context, url, error) => Container(
+                                                          width: 50, height: 50,
+                                                          color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
+                                                          child: Icon(Icons.broken_image_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
                                                         ),
                                                       ),
-                                                    
-                                                    // 将评分图标和歌曲信息放在同一行，实现底部对齐
-                                                    Row(
-                                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                                      children: [
-                                                        // 歌曲和艺术家信息
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              // Track Name
-                                                              Text(
-                                                                '${record['trackName'] ?? 'Unknown Track'}',
-                                                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                                                  color: Theme.of(context).colorScheme.primary,
-                                                                ),
-                                                                maxLines: 1,
-                                                                overflow: TextOverflow.ellipsis,
-                                                                softWrap: false,
-                                                              ),
-                                                              // Artist Name
-                                                              Text(
-                                                                '${record['artistName'] ?? 'Unknown Artist'}',
-                                                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                                  color: Theme.of(context).colorScheme.secondary,
-                                                                ),
-                                                                maxLines: 1,
-                                                                overflow: TextOverflow.ellipsis,
-                                                                softWrap: false,
-                                                              ),
-                                                            ],
+                                                    ),
+                                                    const SizedBox(width: 12), // Space between image and text
+
+                                                    // Text Info Column
+                                                    Expanded( // Allow text to take remaining space in the inner row
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        mainAxisAlignment: MainAxisAlignment.center, // Center text lines vertically
+                                                        children: [
+                                                          // Timestamp
+                                                          Text(
+                                                            'Records at $formattedTime',
+                                                            style: Theme.of(context).textTheme.labelMedium?.copyWith( // Use labelMedium for timestamp
+                                                              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+                                                              fontWeight: FontWeight.normal,
+                                                            ),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
                                                           ),
-                                                        ),
-                                                        // 评分图标
-                                                        (() { // IIFE for rating logic
-                                                          final dynamic ratingRaw = record['rating'];
-                                                          int? ratingValue;
-                                                          if (ratingRaw is int) { ratingValue = ratingRaw; }
-                                                          else if (ratingRaw is String) { ratingValue = 3; }
-                                                          IconData ratingIcon;
-                                                          switch (ratingValue) {
-                                                            case 0: ratingIcon = Icons.thumb_down_outlined; break;
-                                                            case 5: ratingIcon = Icons.whatshot_outlined; break;
-                                                            case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
-                                                          }
-                                                          return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 24);
-                                                        }()),
-                                                      ],
+                                                          // Track Name
+                                                          Text(
+                                                            '${record['trackName'] ?? 'Unknown Track'}',
+                                                            style: Theme.of(context).textTheme.titleMedium?.copyWith( // Use titleMedium for track
+                                                              color: Theme.of(context).colorScheme.primary,
+                                                              fontWeight: FontWeight.w500, // Slightly bolder track name
+                                                            ),
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            softWrap: false,
+                                                          ),
+                                                          // Artist Name
+                                                          Text(
+                                                            '${record['artistName'] ?? 'Unknown Artist'}',
+                                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith( // Use bodyMedium for artist
+                                                              color: Theme.of(context).colorScheme.secondary,
+                                                            ),
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            softWrap: false,
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
                                               ),
+                                              const SizedBox(width: 12), // Space before rating icon
+
+                                              // 2b. Rating Icon
+                                              ratingIconWidget,
                                             ],
                                           ),
                                         ],
@@ -840,8 +819,8 @@ class NotesCarouselView extends StatelessWidget {
         final flexWeights = screenWidth > 900
             ? const [1, 2, 5, 2, 1]
             : screenWidth > 600
-            ? const [1, 4, 5, 1]
-            : const [2, 5, 1];
+            ? const [3, 4, 5, 1]
+            : const [3, 5, 1];
 
         return Center(
           child: ConstrainedBox(
