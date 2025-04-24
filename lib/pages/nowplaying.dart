@@ -199,7 +199,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    bool isLargeScreen = MediaQuery.of(context).size.width > 800;
+    bool isLargeScreen = MediaQuery.of(context).size.width > 600;
 
     if (isLargeScreen) {
       // On large screens, always use the side-by-side layout

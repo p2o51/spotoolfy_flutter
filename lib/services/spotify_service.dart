@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:spotify_sdk/spotify_sdk.dart';
+import 'package:flutter/widgets.dart';
 
 /// Spotify 认证响应模型
 class SpotifyAuthResponse {
@@ -47,11 +48,33 @@ class SpotifyAuthService {
   StreamSubscription? _connectionSubscription;
   bool _connectionMonitoringEnabled = true;
 
+  // Add WidgetsBinding instance
+  late final WidgetsBinding _binding = WidgetsBinding.instance;
+
   SpotifyAuthService({
     required this.clientId,
     required this.redirectUrl,
     FlutterSecureStorage? secureStorage,
-  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage() {
+    // Call registerLifecycle in the constructor
+    _registerLifecycle();
+  }
+
+  // Add registerLifecycle method
+  void _registerLifecycle() {
+    _binding.addObserver(_AppLifecycleObserver(onResume: () async {
+      final token = await getAccessToken();        // 仍有效就重连
+      if (token != null) {
+        try {
+          await SpotifySdk.connectToSpotifyRemote(
+            clientId: clientId,
+            redirectUrl: redirectUrl,
+            accessToken: token,
+          );
+        } catch (_) {/* 忽略失败 */}
+      }
+    }));
+  }
 
   /// 获取默认的 scope 列表
   List<String> get defaultScopes => [
@@ -1118,5 +1141,17 @@ class SpotifyAuthService {
     }
     
     return await apiGet(endpoint);
+  }
+}
+
+// Add helper class at the end of the file
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  final Future<void> Function() onResume;
+  _AppLifecycleObserver({required this.onResume});
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResume();           // 回到前台主动重连
+    }
   }
 }

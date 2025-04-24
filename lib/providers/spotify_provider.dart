@@ -1711,16 +1711,22 @@ class SpotifyProvider extends ChangeNotifier {
   Future<void> _handleApiError(dynamic e, {String? contextMessage}) async {
     final message = contextMessage ?? 'API 调用';
     if (e is SpotifyAuthException && e.code == '401') {
-      // print('$message 遇到 401，尝试静默续约...');
-      // [!] 注意: _spotifyService.getAccessToken() 内部会尝试刷新
+      // print('$message 遇到 401，尝试静默续约/重连...'); // Log updated message
       final token = await _spotifyService.getAccessToken();
       if (token != null) {
-        // print('$message: 静默续约成功。');
-        // 续约成功，调用者可能需要重试其原始操作。
-        // 返回，让调用者决定如何处理。
-        return;
+        // print('$message: Token 仍有效，尝试重连 Spotify Remote...'); // Log reconnection attempt
+        // 尝试只重连，不清除票据
+        try {
+          await _spotifyService.login(); // Use login() which handles connection
+          // print('$message: 重连成功。'); // Log success
+        } catch (reconnectError) {
+          // print('$message: 重连尝试失败: $reconnectError'); // Log reconnection failure
+          // 如果重连也失败，可能需要登出，或者让下一次API调用再次触发401
+          // 暂不处理，让下一次 API 调用再次触发
+        }
+        return; // 下个 tick 继续
       }
-      // print('$message: 静默续约失败，执行登出。');
+      // print('$message: getAccessToken() 返回 null，Token 确认无效，执行登出。'); // Log logout decision
       // [!] 续约失败，意味着会话彻底无效，必须登出。
       await logout(); // 清理 Provider 状态，设置 username = null
       // 抛出特定错误，通知 UI 会话已过期。
