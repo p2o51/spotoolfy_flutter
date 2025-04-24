@@ -282,7 +282,49 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               color: Theme.of(context).colorScheme.onSurface, // 使图标颜色与主题匹配
             ),
             const SizedBox(width: 8),
-            const Text('Spotoolfy')
+            Expanded( // 使用 Expanded 防止文本溢出
+              child: Consumer<SpotifyProvider>(
+                builder: (context, provider, child) {
+                  final currentTrack = provider.currentTrack;
+                  final isPlaying = currentTrack?['is_playing'] ?? false;
+                  // 尝试获取上下文描述 (使用新的路径)
+                  final contextDescription = currentTrack?['context']?['enriched_name'] as String?;
+                  final contextType = currentTrack?['context']?['type'] as String?;
+
+                  // 检查是否正在播放且有上下文描述和类型
+                  if (isPlaying && contextDescription != null && contextDescription.isNotEmpty && contextType != null) {
+                    String playFromText = 'PLAYING FROM'; // Default
+                    if (contextType == 'album') {
+                      playFromText = 'PLAY FROM ALBUM';
+                    } else if (contextType == 'playlist') {
+                      playFromText = 'PLAY FROM PLAYLIST';
+                    } // Add more types if needed (e.g., artist)
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          contextDescription, // 显示上下文名称
+                          style: Theme.of(context).textTheme.titleMedium, // 或合适的样式
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        Text(
+                          playFromText, // 显示大写的来源类型
+                          style: Theme.of(context).textTheme.labelSmall, // 小号加粗
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ],
+                    );
+                  } else {
+                    // 否则只显示应用名称
+                    return const Text('Spotoolfy');
+                  }
+                },
+              ),
+            ),
           ],
         ),
         actions: [

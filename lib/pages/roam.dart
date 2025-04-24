@@ -456,8 +456,8 @@ class _RoamState extends State<Roam> {
                                                             // Timestamp
                                                             Text(
                                                               'Records at $formattedTime',
-                                                              style: Theme.of(context).textTheme.labelMedium?.copyWith( // Use labelMedium for timestamp
-                                                                color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                                              style: Theme.of(context).textTheme.labelSmall?.copyWith( // Use labelMedium for timestamp
+                                                                color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
                                                                 fontWeight: FontWeight.normal,
                                                               ),
                                                                maxLines: 1,
@@ -466,7 +466,7 @@ class _RoamState extends State<Roam> {
                                                             // Track Name
                                                             Text(
                                                               '${record['trackName'] ?? 'Unknown Track'}',
-                                                              style: Theme.of(context).textTheme.titleSmall?.copyWith( // Use titleMedium for track
+                                                              style: Theme.of(context).textTheme.titleMedium?.copyWith( // Use titleMedium for track
                                                                 color: Theme.of(context).colorScheme.primary,
                                                                 fontWeight: FontWeight.w500, // Slightly bolder track name
                                                               ),
@@ -691,7 +691,7 @@ class _RoamState extends State<Roam> {
                                                           // Timestamp
                                                           Text(
                                                             'Records at $formattedTime',
-                                                            style: Theme.of(context).textTheme.labelMedium?.copyWith( // Use labelMedium for timestamp
+                                                            style: Theme.of(context).textTheme.labelSmall?.copyWith( // Use labelMedium for timestamp
                                                               color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
                                                               fontWeight: FontWeight.normal,
                                                             ),
@@ -701,7 +701,7 @@ class _RoamState extends State<Roam> {
                                                           // Track Name
                                                           Text(
                                                             '${record['trackName'] ?? 'Unknown Track'}',
-                                                            style: Theme.of(context).textTheme.titleMedium?.copyWith( // Use titleMedium for track
+                                                            style: Theme.of(context).textTheme.titleLarge?.copyWith( // Use titleMedium for track
                                                               color: Theme.of(context).colorScheme.primary,
                                                               fontWeight: FontWeight.w500, // Slightly bolder track name
                                                             ),
@@ -712,7 +712,7 @@ class _RoamState extends State<Roam> {
                                                           // Artist Name
                                                           Text(
                                                             '${record['artistName'] ?? 'Unknown Artist'}',
-                                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith( // Use bodyMedium for artist
+                                                            style: Theme.of(context).textTheme.bodySmall?.copyWith( // Use bodyMedium for artist
                                                               color: Theme.of(context).colorScheme.secondary,
                                                             ),
                                                             maxLines: 1,

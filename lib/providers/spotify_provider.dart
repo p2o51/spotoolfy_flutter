@@ -395,6 +395,8 @@ class SpotifyProvider extends ChangeNotifier {
         bool needsNotify = false;
 
         // *** Moved Context Saving Logic OUTSIDE shouldUpdateCoreState check ***
+        String? enrichedContextName;
+        List? enrichedContextImages;
         if (track['context'] != null && track['item'] != null) {
           // Log 3: Log before saving context
           // logger.d('Context found, starting save process...'); 
@@ -409,8 +411,12 @@ class SpotifyProvider extends ChangeNotifier {
             // --- Log 5: After enriching context --- 
             // logger.d('Enriched context result: ${json.encode(enrichedContext)}');
 
-            final contextName = enrichedContext['name'] as String? ?? 'Unknown';
-            final imageUrlList = enrichedContext['images'] as List?;
+            // !! Store enriched info for later use in currentTrack !!
+            enrichedContextName = enrichedContext['name'] as String?;
+            enrichedContextImages = enrichedContext['images'] as List?;
+
+            final contextName = enrichedContextName ?? 'Unknown'; // Use stored name
+            final imageUrlList = enrichedContextImages; // Use stored images
             final imageUrl = imageUrlList?.isNotEmpty == true ? imageUrlList![0]['url'] : null;
 
             // --- Log 6: Before getting LocalDatabaseProvider --- 
@@ -447,10 +453,18 @@ class SpotifyProvider extends ChangeNotifier {
           // Refresh playback queue on core state change
           await refreshPlaybackQueue();
           
-          // No longer save context here
+          // !! Merge enriched context info into track before assigning !!
+          if (track['context'] != null && enrichedContextName != null) {
+            // Ensure 'context' is a mutable map
+            if (track['context'] is Map && !(track['context'] is Map<String, dynamic>)) {
+              track['context'] = Map<String, dynamic>.from(track['context']);
+            }
+            track['context']['enriched_name'] = enrichedContextName;
+            track['context']['enriched_images'] = enrichedContextImages;
+          }
 
           previousTrack = currentTrack;
-          currentTrack = track;
+          currentTrack = track; // Assign the modified track object
           needsNotify = true;
         } else if (progress != currentTrack!['progress_ms']) {
           // 即使只是进度变化，也更新进度值
@@ -567,11 +581,11 @@ class SpotifyProvider extends ChangeNotifier {
 
   // 修改 autoLogin，移除 refreshToken 调用
   Future<bool> autoLogin() async {
+    // debugPrint('开始自动登录检查...');
     isLoading = true;
     notifyListeners();
 
     try {
-      // debugPrint('开始自动登录检查...');
       final credentials = await getClientCredentials();
       String? clientId = credentials['clientId'];
       // debugPrint('自动登录使用的客户端ID: ${clientId?.substring(0, 4)}...${clientId?.substring(clientId.length - 4)}');
@@ -582,49 +596,58 @@ class SpotifyProvider extends ChangeNotifier {
       }
       if (!_isInitialized) {
         // debugPrint('SpotifyService 初始化失败，无法自动登录');
+        // [!] 确保 isLoading 在返回前设置为 false
+        isLoading = false;
+        notifyListeners();
         return false;
       }
 
       // 检查是否有有效的 token (使用简化后的 isAuthenticated)
       if (await _spotifyService.isAuthenticated()) {
+        // debugPrint('发现有效的认证信息，尝试获取用户信息');
         try {
-          // debugPrint('发现有效的认证信息，尝试获取用户信息');
           final userProfile = await _spotifyService.getUserProfile();
           username = userProfile['display_name'];
           // debugPrint('成功获取用户信息：$username');
 
+          // [!] 只有在成功获取用户信息后才启动刷新和更新UI
           startTrackRefresh();
           await updateWidget();
+          // [!] 在 return true 之前确保 isLoading 为 false 并通知
+          isLoading = false;
+          notifyListeners(); // 确保UI在成功后更新
           return true;
         } catch (e) {
-          // debugPrint('获取用户信息失败: $e');
-          // 如果获取用户信息失败（例如 401），说明 token 无效或已过期
-          // 根据新逻辑，isAuthenticated 已经检查过显式过期
-          // 此处失败很可能是 token 被吊销或其他 API 问题
-          // 直接登出并返回 false
-          if (e is SpotifyAuthException && e.code == '401') {
-            // debugPrint('Token 有效但 API 调用失败 (401)，可能是被吊销，执行登出');
-            await logout(); // 调用 Provider 的 logout 清理状态
-            return false;
-          }
-          // 对于其他错误，也登出处理
-          // debugPrint('获取用户信息时发生其他错误，执行登出: $e');
-          await logout();
-          return false;
+          // debugPrint('自动登录时获取用户信息失败: $e');
+          // [!] 如果获取用户信息失败，即使 token 可能有效，也视为登录失败，执行登出清理状态
+          await logout(); // 调用 Provider 的 logout 清理 username 等状态
+          // isLoading 已经在 logout 的 finally 中处理
+          // notifyListeners 也在 logout 的 finally 中处理
+          return false; // 返回 false 表示自动登录未完成
         }
       } else {
         // debugPrint('未找到有效的认证信息或已过期，需要重新登录');
+        // [!] 确保 isLoading 在返回前设置为 false
+        isLoading = false;
+        notifyListeners();
         return false;
       }
     } catch (e) {
       // debugPrint('自动登录检查过程中发生异常: $e');
-      // 发生未知错误，也清理状态
-      await _handleApiError(e, contextMessage: '自动登录');
+      // [!] 发生未知错误，也尝试清理状态并确保 loading 结束
+      try {
+          await logout(); // 尝试登出清理
+      } catch (logoutError) {
+          // debugPrint('自动登录异常处理中登出失败: $logoutError');
+          // 即使登出失败，也要确保 loading 状态正确
+          username = null; // 手动确保 username 为 null
+      } finally {
+          isLoading = false;
+          notifyListeners();
+      }
       return false;
-    } finally {
-      isLoading = false;
-      notifyListeners();
     }
+    // [!] 移除旧的 finally 块，因为每个分支都处理了 isLoading 和 notifyListeners
   }
 
   // 修改 login，移除 refreshToken 调用
@@ -659,67 +682,58 @@ class SpotifyProvider extends ChangeNotifier {
         // service 内部应该已经抛出了具体的 SpotifyAuthException
         // 这里可以根据需要处理，或者依赖 service 抛出的异常
         // 为保险起见，抛出一个通用错误
-        throw SpotifyAuthException('登录失败或用户取消');
+        throw SpotifyAuthException('登录失败或用户取消 (token is null)');
       }
 
-      // 登录成功后获取用户信息
+      // [!] 关键：获取 token 成功后，必须成功获取用户信息才算登录完成
       // debugPrint('登录成功，正在获取用户信息...');
       try {
          final userProfile = await _spotifyService.getUserProfile();
          username = userProfile['display_name'];
          // debugPrint('获取用户信息成功：$username');
 
+         // [!] 只有用户信息获取成功后才启动刷新和更新 UI
          startTrackRefresh();
          await updateWidget();
+         // isLoading = false; // 移到 finally
+         // notifyListeners(); // 移到 finally
       } catch(e) {
          // debugPrint('登录后获取用户信息失败: $e');
-         // 即使获取用户信息失败，登录本身（获取token）可能已成功
-         // 但没有用户信息，应用可能无法正常工作，所以还是抛出异常
-         await logout(); // 清理状态
-         if (e is SpotifyAuthException) {
-            rethrow; // 抛出原始的认证异常
-         } else {
-            throw SpotifyAuthException('登录后获取用户信息失败: $e');
-         }
+         // [!] 获取用户信息失败，执行登出清理状态
+         await logout(); // 清理 provider 状态 (username 会变 null)
+         // 抛出特定错误给 UI 层提示
+         throw SpotifyAuthException('登录成功但无法验证用户信息，请稍后重试。原始错误: ${e.toString()}'); 
       }
 
     } catch (e) {
       // debugPrint('Spotify 登录流程出错: $e');
-      // 清理可能存在的无效状态
-      // await logout(); // logout is handled by _handleApiError now if needed
 
-      // 处理特定错误并重新抛出，或直接重新抛出
+      // [!] 不再在这里直接调用 logout，因为 login 失败 或 getUserProfile 失败时已调用
+      // [!] _handleApiError 也不在此处调用，让异常自然抛出或由上层处理
+      // [!] 确保 isLoading 在 finally 中被设置
+
+      // 处理特定错误并可能重新包装抛出
       if (e is SpotifyAuthException) {
-          if (e.code == 'INVALID_CREDENTIALS' || e.code == 'AUTH_SETUP_ERROR') { 
-              // 这个错误现在应该由 SpotifyAuthService.login 抛出 AUTH_FAILED 或类似错误
-               throw SpotifyAuthException(
-                 'Spotify 认证失败：请检查您的 Client ID 和 Redirect URI 设置。'
-                 ' (${e.message})', // 包含原始消息
+          if (e.code == 'AUTH_SETUP_ERROR' || e.code == 'INVALID_CREDENTIALS' /*或其他认证配置错误码*/) {
+              // 抛出用户友好的设置错误
+              throw SpotifyAuthException(
+                 'Spotify 认证失败：请检查您的 Client ID 和 Redirect URI 设置。 (${e.message})',
                  code: 'AUTH_SETUP_ERROR'
                );
           } else if (e.code == 'AUTH_CANCELLED') {
-             // 用户取消，不需要显示错误，静默处理即可
-             // 可以选择不 rethrow
-             isLoading = false; // Ensure loading is false before returning
-             notifyListeners();
-             return; // 直接返回，不抛异常
-          } else if (e.code == '401') {
-             // Handle 401 specifically - try refresh, then logout if needed
-             await _handleApiError(e, contextMessage: '登录');
-             // If _handleApiError didn't rethrow (e.g., logout happened), throw a generic login error
-             throw SpotifyAuthException('登录时发生授权错误，请重试');
+             // 用户取消，静默处理，不需要抛异常给上层显示错误
+             // isLoading 和 notifyListeners 会在 finally 中处理
+             return; // 直接返回
           }
-          // 其他来自 AuthService 的错误或经过 _handleApiError 处理后重新抛出的错误
+          // 其他 SpotifyAuthException 直接重新抛出
           rethrow;
       } else {
-        // 包装未知错误 (或 let _handleApiError handle it)
-        await _handleApiError(e, contextMessage: '登录');
-        throw SpotifyAuthException('发生未知登录错误'); // Throw a generic error if _handleApiError didn't
+        // 包装其他未知错误
+        throw Exception('发生未知登录错误: $e');
       }
-
     } finally {
       isLoading = false;
-      notifyListeners();
+      notifyListeners(); // 确保无论成功、失败还是取消，UI 都更新 loading 状态
     }
   }
 
@@ -1174,8 +1188,12 @@ class SpotifyProvider extends ChangeNotifier {
   // 在 SpotifyProvider 类中添加 logout 方法
   Future<void> logout() async {
     // logger.d('Provider logout called');
-    isLoading = true;
-    notifyListeners();
+    // [!] 优化：如果已经在 loading，避免重复设置和通知
+    bool wasLoading = isLoading;
+    if (!wasLoading) {
+      isLoading = true;
+      notifyListeners();
+    }
 
     try {
       // 停止刷新计时器
@@ -1184,8 +1202,8 @@ class SpotifyProvider extends ChangeNotifier {
       _progressTimer?.cancel(); // 也停止进度计时器
       _progressTimer = null;
 
-      // 清除 Provider 的状态
-      username = null;
+      // [!] 清除 Provider 的核心状态，特别是 username
+      username = null; // <-- 核心目的
       currentTrack = null;
       previousTrack = null;
       nextTrack = null;
@@ -1202,7 +1220,7 @@ class SpotifyProvider extends ChangeNotifier {
       if (!_isInitialized) await _initSpotifyService();
       if (_isInitialized) {
          // logger.d('Calling _spotifyService.logout()');
-         await _spotifyService.logout();
+         await _spotifyService.logout(); // 让 service 清理 token
       } else {
          // logger.w('SpotifyService not initialized, cannot call logout on service.');
       }
@@ -1212,12 +1230,14 @@ class SpotifyProvider extends ChangeNotifier {
 
     } catch (e) {
       // logger.e('Error during provider logout: $e');
-      // 即使 service logout 失败，也要确保 provider 状态被清理
-      // 重新抛出异常，以便 UI 层知道发生了错误
-      rethrow;
+      // 即使 service logout 失败，也要确保 provider 状态已清理 (username=null)
+      rethrow; // 重新抛出，让调用者知道 logout 过程有错
     } finally {
-      isLoading = false;
-      notifyListeners();
+      // [!] 确保 loading 状态恢复，并通知监听器最终状态
+      if (!wasLoading) { // 只有当此函数启动 loading 时才停止它
+          isLoading = false;
+      }
+      notifyListeners(); // 通知最终状态（username 为 null 等）
       // logger.d('Provider logout finished');
     }
   }
@@ -1692,24 +1712,24 @@ class SpotifyProvider extends ChangeNotifier {
     final message = contextMessage ?? 'API 调用';
     if (e is SpotifyAuthException && e.code == '401') {
       // print('$message 遇到 401，尝试静默续约...');
+      // [!] 注意: _spotifyService.getAccessToken() 内部会尝试刷新
       final token = await _spotifyService.getAccessToken();
       if (token != null) {
         // print('$message: 静默续约成功。');
-        // 续约成功，通常不需要进一步操作，调用者可以重试或忽略
-        // 如果需要，可以抛出一个特定异常让调用者知道需要重试
-        // throw SpotifyAuthException('Token refreshed, please retry', code: 'RETRY_AFTER_REFRESH');
-        return; 
+        // 续约成功，调用者可能需要重试其原始操作。
+        // 返回，让调用者决定如何处理。
+        return;
       }
       // print('$message: 静默续约失败，执行登出。');
-      await logout();
-      // 抛出原始错误或新错误，以便UI知道操作失败
+      // [!] 续约失败，意味着会话彻底无效，必须登出。
+      await logout(); // 清理 Provider 状态，设置 username = null
+      // 抛出特定错误，通知 UI 会话已过期。
       throw SpotifyAuthException('会话已过期，请重新登录', code: 'SESSION_EXPIRED');
     } else {
       // print('$message 出错: $e');
-      // 对于其他错误，直接重新抛出
-      // 如果需要，可以在这里添加更具体的错误处理或日志记录
+      // 对于其他非 401 错误，直接重新抛出。
       if (e is Exception) {
-        throw e; // Correct way to re-throw the caught exception
+        throw e; // Re-throw the original exception object
       } else {
         throw Exception('$message 发生未知错误: $e');
       }
