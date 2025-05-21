@@ -260,8 +260,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     // 使用 Scaffold 替换
     return Scaffold(
       appBar: AppBar(
-
-        title: Text(isWideScreen ? l10n.lyricsTitle : (_showTranslated ? l10n.translationTitle : l10n.originalTitle)),
+        // 标题 - 使用本地化字符串
+        title: Text(isWideScreen ? l10n.lyricsTitle : titleLabel),
         leading: IconButton( // 添加返回按钮
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),

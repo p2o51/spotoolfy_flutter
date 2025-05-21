@@ -62,7 +62,8 @@ dependencies:
   encrypt: ^5.0.3
   pointycastle: ^3.9.0
   html_unescape: ^2.0.0
-
+  dynamic_color: ^1.1.0
+  material_color_utilities: ^0.11.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

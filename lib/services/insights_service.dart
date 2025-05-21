@@ -2,16 +2,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/settings_service.dart';
-import '../providers/local_database_provider.dart'; // Needed for context data type if used directly
+// import '../providers/local_database_provider.dart'; // Removed unused import
 // 导入intl包用于日期格式化 (如果尚未导入)
 // import 'package:intl/intl.dart'; 
+import 'package:logger/logger.dart'; // Import logger
+
+// Instantiate logger
+final logger = Logger();
 
 class InsightsService {
   final SettingsService _settingsService = SettingsService();
   static const String _geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/';
   static const String _geminiModel = 'gemini-2.5-flash-preview-04-17';
-  static const int _thinkingBudget = 1024;
   static const String _insightsCacheKey = 'cached_music_insights'; // 缓存键
 
   Future<Map<String, dynamic>?> generateMusicInsights(
@@ -22,7 +25,7 @@ class InsightsService {
     }
 
     if (recentContexts.isEmpty) {
-      print('No recent contexts provided for insights.');
+      logger.d('No recent contexts provided for insights.');
       return null; // Or return a default message
     }
 
@@ -81,7 +84,7 @@ class InsightsService {
             // Clean potential markdown fences if present
             rawJsonText = rawJsonText.replaceAll('```json', '').replaceAll('```', '').trim();
 
-            print('Raw JSON from Gemini: $rawJsonText'); // Debugging
+            logger.d('Raw JSON from Gemini: $rawJsonText');
 
             try {
               // Parse the cleaned JSON string
@@ -91,7 +94,7 @@ class InsightsService {
                   insightsJson.containsKey('mood_analysis') &&
                   insightsJson.containsKey('recommendations') &&
                   insightsJson.containsKey('music_personality')) {
-                 print('Successfully parsed insights: $insightsJson'); // Debugging
+                 logger.d('Successfully parsed insights: $insightsJson');
                 
                 // 将结果保存到本地缓存
                 await _saveInsightsToCache(insightsJson);
@@ -101,8 +104,8 @@ class InsightsService {
                 throw Exception('Parsed JSON lacks expected structure.');
               }
             } catch (e) {
-              print('Error parsing JSON response from Gemini: $e');
-              print('Raw text was: $rawJsonText');
+              logger.e('Error parsing JSON response from Gemini: $e');
+              logger.d('Raw text was: $rawJsonText');
               throw Exception('Failed to parse insights JSON response.');
             }
           }
@@ -123,7 +126,7 @@ class InsightsService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('Error during insights API call or processing: $e');
+      logger.e('Error during insights API call or processing: $e');
       // Rethrow or handle as needed, maybe return null or a specific error structure
       rethrow; // Rethrow to be caught by the UI layer
     }
@@ -140,7 +143,7 @@ class InsightsService {
       }
       return null;
     } catch (e) {
-      print('Error retrieving cached insights: $e');
+      logger.e('Error retrieving cached insights: $e');
       return null;
     }
   }
@@ -150,9 +153,9 @@ class InsightsService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_insightsCacheKey, jsonEncode(insights));
-      print('Insights saved to cache');
+      logger.d('Insights saved to cache');
     } catch (e) {
-      print('Error saving insights to cache: $e');
+      logger.e('Error saving insights to cache: $e');
     }
   }
   
@@ -161,9 +164,9 @@ class InsightsService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_insightsCacheKey);
-      print('Cached insights cleared');
+      logger.d('Cached insights cleared');
     } catch (e) {
-      print('Error clearing cached insights: $e');
+      logger.e('Error clearing cached insights: $e');
     }
   }
 

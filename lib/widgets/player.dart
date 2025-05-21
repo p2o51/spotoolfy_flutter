@@ -277,7 +277,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                           ),
                         ),
                         IconButton.filledTonal(
-                          onPressed: spotifyProvider.username != null && track != null
+                          onPressed: spotifyProvider.currentTrack != null && track != null
                             ? () {
                                 HapticFeedback.lightImpact();
                                 spotifyProvider.toggleTrackSave();
@@ -362,18 +362,16 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               if (await canLaunchUrl(spotifyUri)) {
                 await launchUrl(spotifyUri, mode: LaunchMode.externalApplication);
               } else {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('无法打开 Spotify 应用')),
-                  );
-                }
-              }
-            } catch (e) {
-              if (context.mounted) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('打开 Spotify 应用失败')),
+                  const SnackBar(content: Text('无法打开 Spotify 应用')),
                 );
               }
+            } catch (e) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('打开 Spotify 应用失败')),
+              );
             }
           }
         },
@@ -482,39 +480,37 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             ignoring: !_isSeekOverlayVisible,
             // 不需要 GestureDetector 了，因为外部 onTap 会处理
             child: Center( // 确保按钮在 Stack 中心
-              child: Container(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildSeekButton(
-                      icon: Icons.replay_10_rounded,
-                      label: '-10s',
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                        final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
-                        if (currentProgressMs != null) {
-                          final targetPosition = max(0, currentProgressMs - 10000); // 减去 10 秒，但不小于 0
-                          spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition));
-                        }
-                      },
-                    ),
-                    _buildSeekButton(
-                      icon: Icons.forward_10_rounded,
-                      label: '+10s',
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                        final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
-                        final trackDurationMs = spotifyProvider.currentTrack?['item']?['duration_ms'] as int?;
-                        if (currentProgressMs != null && trackDurationMs != null) {
-                          final targetPosition = min(trackDurationMs, currentProgressMs + 10000); // 加上 10 秒，但不超过总时长
-                          spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition));
-                        }
-                      },
-                    ),
-                  ],
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildSeekButton(
+                    icon: Icons.replay_10_rounded,
+                    label: '-10s',
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+                      final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
+                      if (currentProgressMs != null) {
+                        final targetPosition = max(0, currentProgressMs - 10000); // 减去 10 秒，但不小于 0
+                        spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition).inMilliseconds);
+                      }
+                    },
+                  ),
+                  _buildSeekButton(
+                    icon: Icons.forward_10_rounded,
+                    label: '+10s',
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+                      final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
+                      final trackDurationMs = spotifyProvider.currentTrack?['item']?['duration_ms'] as int?;
+                      if (currentProgressMs != null && trackDurationMs != null) {
+                        final targetPosition = min(trackDurationMs, currentProgressMs + 10000); // 加上 10 秒，但不超过总时长
+                        spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition).inMilliseconds);
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
           ),
@@ -563,8 +559,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         return Icons.repeat_rounded;
       case PlayMode.singleRepeat:
         return Icons.repeat_one_rounded;
-      default:
-        return Icons.repeat_rounded;
     }
   }
 
@@ -706,18 +700,16 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('无法打开 Spotify: $url')),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('打开 Spotify 链接失败')),
+          SnackBar(content: Text('无法打开 Spotify: $url')),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('打开 Spotify 链接失败')),
+      );
     }
   }
 
@@ -807,11 +799,11 @@ class DragIndicator extends StatelessWidget {
                     width: width,
                     height: width,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.9),
+                      color: Theme.of(context).colorScheme.primaryContainer.withAlpha((0.9 * 255).round()),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          color: Theme.of(context).colorScheme.primary.withAlpha((0.2 * 255).round()),
                           blurRadius: 16,
                           spreadRadius: 4,
                         ),
@@ -871,14 +863,14 @@ class DragIndicator extends StatelessWidget {
                 width: width,
                 height: height, // height is now guaranteed >= 0
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.9),
+                  color: Theme.of(context).colorScheme.primaryContainer.withAlpha((0.9 * 255).round()),
                   borderRadius: BorderRadius.horizontal(
                     left: isNext ? const Radius.circular(16) : Radius.zero,
                     right: isNext ? Radius.zero : const Radius.circular(16),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                      color: Theme.of(context).colorScheme.primary.withAlpha((0.2 * 255).round()),
                       blurRadius: 16,
                       spreadRadius: 4,
                     ),
@@ -1126,10 +1118,10 @@ class _ScrollingTextState extends State<ScrollingText> with SingleTickerProvider
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    Theme.of(context).colorScheme.surface.withOpacity(0.0),
+                    Theme.of(context).colorScheme.surface.withAlpha((0.0 * 255).round()),
                     Theme.of(context).colorScheme.surface,
                     Theme.of(context).colorScheme.surface,
-                    Theme.of(context).colorScheme.surface.withOpacity(0.0),
+                    Theme.of(context).colorScheme.surface.withAlpha((0.0 * 255).round()),
                   ],
                   stops: const [0.0, 0.05, 0.85, 1.0],
                 ).createShader(bounds);
@@ -1159,8 +1151,6 @@ class HeaderAndFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
     final playerState = context.findAncestorStateOfType<_PlayerState>();
 
     final albumUrl = track?['album']?['external_urls']?['spotify'];

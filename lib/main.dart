@@ -248,7 +248,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // 当应用从后台恢复时，刷新播放状态和主题
       final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-      spotifyProvider.refreshCurrentTrack();
+      // 仅在用户已登录时才执行刷新和启动定时器
+      if (spotifyProvider.username != null) {
+        // 调用 startTrackRefresh 会取消任何现有定时器并启动新的，同时会立即执行一次刷新
+        spotifyProvider.startTrackRefresh();
+      } 
+      // 刷新主题的操作可以保留，因为它与登录状态无关
       context.read<ThemeProvider>().updateThemeFromSystem(context);
     }
   }

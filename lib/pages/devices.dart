@@ -126,9 +126,21 @@ class DeviceListItem extends StatelessWidget {
       ),
       color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.6),
       child: InkWell(
-        onTap: isDisabled ? null : () {
+        onTap: isDisabled ? null : () async {
           HapticFeedback.lightImpact();
-          spotify.transferPlaybackToDevice(device.id!, play: true);
+          try {
+            await spotify.transferPlaybackToDevice(device.id!, play: true);
+            spotify.startTrackRefresh();
+            if (context.mounted) {
+               Navigator.pop(context);
+            }
+          } catch (e) {
+             if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text('切换设备失败: ${e.toString()}')),
+                );
+             }
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(16),

@@ -5,17 +5,21 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:spotify_sdk/spotify_sdk.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
+import 'package:logger/logger.dart';
+import 'package:collection/collection.dart'; // Added import for firstWhereOrNull
+
+final logger = Logger();
 
 /// Spotify 认证响应模型
 class SpotifyAuthResponse {
   final String accessToken;
-  final String? refreshToken;
   final DateTime expirationDateTime;
   final String tokenType;
 
   SpotifyAuthResponse({
     required this.accessToken,
-    this.refreshToken,
     required this.expirationDateTime,
     required this.tokenType,
   });
@@ -51,6 +55,12 @@ class SpotifyAuthService {
   // Add WidgetsBinding instance
   late final WidgetsBinding _binding = WidgetsBinding.instance;
 
+  // 添加自动重连开关
+  bool _autoReconnectRemote = false;
+
+  /// Token 刷新回调
+  void Function()? onTokenRefreshed;
+
   SpotifyAuthService({
     required this.clientId,
     required this.redirectUrl,
@@ -62,18 +72,13 @@ class SpotifyAuthService {
 
   // Add registerLifecycle method
   void _registerLifecycle() {
-    _binding.addObserver(_AppLifecycleObserver(onResume: () async {
-      final token = await getAccessToken();        // 仍有效就重连
-      if (token != null) {
-        try {
-          await SpotifySdk.connectToSpotifyRemote(
-            clientId: clientId,
-            redirectUrl: redirectUrl,
-            accessToken: token,
-          );
-        } catch (_) {/* 忽略失败 */}
+    _appLifecycleObserver = _AppLifecycleObserver(onResume: () async {
+      await ensureFreshToken(); // 只续 token
+      if (_autoReconnectRemote) {
+        _setupConnectionListener();
       }
-    }));
+    });
+    _binding.addObserver(_appLifecycleObserver!); // Add observer
   }
 
   /// 获取默认的 scope 列表
@@ -89,21 +94,38 @@ class SpotifyAuthService {
     'user-read-recently-played',
   ];
 
+  /// 简化版 _buildUri，放在类顶部工具区
+  Uri _buildUri(String path, [Map<String, String>? query]) =>
+      Uri.https('api.spotify.com', '/v1$path', query?.isEmpty ?? true ? null : query);
+
+  // 新增：创建认证请求头，可选是否包含 Content-Type
+  Future<Map<String, String>> _authHeaders({bool hasBody = true}) async {
+    final token = await ensureFreshToken();
+    if (token == null) {
+      throw SpotifyAuthException('未认证或授权已过期', code: '401');
+    }
+    return {
+      'Authorization': 'Bearer $token',
+      if (hasBody) 'Content-Type': 'application/json',
+    };
+  }
+
   /// 通用的 API GET 请求方法
   Future<Map<String, dynamic>> apiGet(String endpoint) async {
     try {
-      final token = await getAccessToken();
+      final token = await getAccessToken(); // getAccessToken internally calls ensureFreshToken
       if (token == null) {
         throw SpotifyAuthException('未认证或授权已过期', code: '401');
       }
 
       final uri = Uri.parse('https://api.spotify.com/v1$endpoint');
+      // For GET requests, Content-Type is generally not needed.
+      // Using _authHeaders with hasBody = false, or a simpler header map directly.
+      final headers = await _authHeaders(hasBody: false); // Or simply {'Authorization': 'Bearer $token'}
+
       final response = await http.get(
         uri,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -131,10 +153,8 @@ class SpotifyAuthService {
       }
 
       final uri = Uri.parse('https://api.spotify.com/v1$endpoint');
-      final headers = {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      };
+      // Use _authHeaders, hasBody will be true if body is not null, false otherwise
+      final headers = await _authHeaders(hasBody: body != null);
 
       final response = await http.put(
         uri,
@@ -188,6 +208,10 @@ class SpotifyAuthService {
 
   /// 监听连接状态
   void _setupConnectionListener() {
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+      // Spotify SDK connect/subscribe might not be supported or behave differently on other platforms.
+      return;
+    }
     try {
       _connectionSubscription?.cancel();
       
@@ -198,10 +222,7 @@ class SpotifyAuthService {
       _connectionSubscription = SpotifySdk.subscribeConnectionStatus().listen(
         (status) async {
           if (!status.connected) {
-            // 可以选择性地打印日志或设置内部状态，但不自动处理
-            // --- 添加重连逻辑 ---
-            // print('Spotify disconnected, attempting reconnect...'); // Add logging
-            final token = await getAccessToken(); // Uses the updated getAccessToken with silent refresh
+            final token = await ensureFreshToken();
             if (token != null) {
               try {
                 await SpotifySdk.connectToSpotifyRemote(
@@ -209,23 +230,18 @@ class SpotifyAuthService {
                   redirectUrl: redirectUrl,
                   accessToken: token,
                 );
-                // print('Spotify reconnect attempt successful.'); // Add logging
               } catch (_) {
-                 // print('Spotify reconnect attempt failed or already connecting.'); // Add logging
-                 /* 忽略：可能正在连接 */
+                /* 忽略失败 */
               }
             }
-            // --- 重连逻辑结束 ---
-          } else {
-            // 连接成功时可以考虑触发一个回调或事件，如果需要的话
           }
         },
         onError: (e) {
-          // 出错时也不再调用 _handleDisconnection()
+          // 出错时不再调用 _handleDisconnection()
         },
       );
     } catch (e) {
-      // print('Error setting up Spotify SDK connection listener: $e');
+      // 忽略设置监听器时的错误
     }
   }
   
@@ -242,35 +258,77 @@ class SpotifyAuthService {
     _setupConnectionListener();
   }
 
+  /// 确保 token 有效，必要时刷新
+  Future<String?> ensureFreshToken() async {
+    final tok = await _secureStorage.read(key: _accessTokenKey);
+    final expS = await _secureStorage.read(key: _expirationKey);
+    if (tok != null && expS != null) {
+      final exp = DateTime.parse(expS);
+      if (exp.difference(DateTime.now()).inMinutes > 5) return tok;
+    }
+    // —— token 不够用了，重新拿 ——
+    try {
+      final newTok = await SpotifySdk.getAccessToken(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+        scope: defaultScopes.join(','),
+      );
+      if (newTok.isNotEmpty) {
+        // We don't get expiresIn directly from getAccessToken(),
+        // so we'll use a slightly reduced fixed duration.
+        await _saveAuthResponse(newTok, expiresInSeconds: 55 * 60); // 55 minutes in seconds
+        onTokenRefreshed?.call();
+        return newTok;
+      }
+    } catch (sdkError) {
+       if (sdkError.toString().contains('USER_CANCELLED') ||
+           sdkError.toString().contains('cancelled') ||
+           sdkError.toString().contains('Auth flow cancelled by user')) {
+         return null; // 用户取消，返回 null
+       }
+      /* 静默失败, 其他错误不向上抛，确保静默 */
+    }
+    return null;
+  }
+
+  /// 2. 需要 Remote 时再调
+  Future<bool> connectRemoteIfNeeded() async {
+    // 直接返回 true，暂时跳过 Remote 连接，专注于 Web API
+    logger.d('connectRemoteIfNeeded: Skipped, returning true directly for Web API testing.');
+    return true;
+    /*
+    try {
+      final status = await SpotifySdk.subscribeConnectionStatus().first;
+      if (status.connected == true) return true;
+
+      final tok = await ensureFreshToken();
+      if (tok == null) return false; // 让上层弹登录
+
+      final ok = await SpotifySdk.connectToSpotifyRemote(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+        accessToken: tok,
+      );
+      if (ok) _setupConnectionListener();
+      return ok;
+    } catch (e) {
+      if (e is SpotifyAuthException) rethrow;
+      throw SpotifyAuthException('连接 Remote 失败: $e');
+    }
+    */
+  }
+
+  // 修改 login 方法，移除自动连接 Remote 的逻辑
   Future<String?> login({List<String>? scopes}) async {
     try {
-      // 1. 检查是否已认证 (使用简化后的 isAuthenticated)
-      if (await isAuthenticated()) {
-        final token = await _secureStorage.read(key: _accessTokenKey);
-
-        // 尝试连接 Spotify Remote。SDK 应处理重复连接。
-        try {
-          // 不再需要检查 isConnected 或 getConnectionStatus
-          final connected = await SpotifySdk.connectToSpotifyRemote(
-            clientId: clientId,
-            redirectUrl: redirectUrl,
-            accessToken: token, // SDK 需要 token 来连接 Remote
-          );
-          // 无论 connect 返回 true/false，都确保 listener 在运行
-          if (_connectionSubscription == null || _connectionSubscription!.isPaused) {
-              _setupConnectionListener();
-          }
-        } catch (e) {
-          // Ignored: 连接错误可能是因为它已连接。确保监听器运行。
-           if (_connectionSubscription == null || _connectionSubscription!.isPaused){
-              _setupConnectionListener();
-           }
-          // print('Error connecting to Spotify Remote on existing auth: $e');
-        }
-        return token;
+      // 1. 检查是否已认证，如果已经认证且 token 有效，则直接返回
+      final existingToken = await ensureFreshToken();
+      if (existingToken != null) {
+        onTokenRefreshed?.call();
+        return existingToken;
       }
 
-      // 2. 如果未认证，执行 SpotifySdk 登录流程
+      // 2. 如果未认证或 token 无效，执行 SpotifySdk 登录流程
       final scopeStr = (scopes ?? defaultScopes).join(',');
       try {
         final accessToken = await SpotifySdk.getAccessToken(
@@ -280,65 +338,40 @@ class SpotifyAuthService {
         );
 
         if (accessToken.isNotEmpty) {
-          // Spotify SDK 默认 token 有效期为 1 小时
-          final expirationDateTime = DateTime.now().add(const Duration(hours: 1));
-          // 使用修改后的 _saveAuthResponse
-          await _saveAuthResponse(accessToken, expirationDateTime);
-
-          // 登录成功后尝试连接 Spotify Remote
-          try {
-            final connected = await SpotifySdk.connectToSpotifyRemote(
-              clientId: clientId,
-              redirectUrl: redirectUrl,
-              accessToken: accessToken,
-            );
-             // 无论 connect 返回 true/false，都确保 listener 在运行
-             if (_connectionSubscription == null || _connectionSubscription!.isPaused) {
-                 _setupConnectionListener();
-             }
-          } catch (e) {
-             // Ignored: 连接错误可能是因为它已连接。确保监听器运行。
-             if (_connectionSubscription == null || _connectionSubscription!.isPaused){
-                _setupConnectionListener();
-             }
-            // print('Error connecting to Spotify Remote after login: $e');
-            // 即使连接失败，登录本身也算成功，返回 token
-          }
-
+          // Use the same saving mechanism as ensureFreshToken
+          await _saveAuthResponse(accessToken, expiresInSeconds: 55 * 60); // 55 minutes
+          onTokenRefreshed?.call(); // 登录成功后也通知
           return accessToken;
         } else {
           throw SpotifyAuthException('登录失败：获取的访问令牌为空');
         }
       } catch (sdkError) {
-        // 细化错误处理
-        if (sdkError.toString().contains('USER_CANCELLED') || // Android
-            sdkError.toString().contains('cancelled') || // iOS
-            sdkError.toString().contains('Auth flow cancelled by user')) { // General
+        if (sdkError.toString().contains('USER_CANCELLED') ||
+            sdkError.toString().contains('cancelled') ||
+            sdkError.toString().contains('Auth flow cancelled by user')) {
           throw SpotifyAuthException('登录被用户取消', code: 'AUTH_CANCELLED');
         } else if (sdkError.toString().contains('CONFIG_ERROR') ||
                    sdkError.toString().contains('Could not find config')) {
-           throw SpotifyAuthException('登录失败：Spotify SDK 配置错误，请检查 AndroidManifest/Info.plist', code: 'CONFIG_ERROR'); // 修正引号
+          throw SpotifyAuthException('登录失败：Spotify SDK 配置错误，请检查 AndroidManifest/Info.plist', code: 'CONFIG_ERROR');
         } else if (sdkError.toString().contains('Could not authenticate client')) {
-           throw SpotifyAuthException('登录失败：无效的 Client ID 或 Redirect URI', code: 'AUTH_FAILED'); // 修正引号
+          throw SpotifyAuthException('登录失败：无效的 Client ID 或 Redirect URI', code: 'AUTH_FAILED');
         }
-        // 其他 PlatformException 或未知错误
-        throw SpotifyAuthException('登录时发生未知错误: $sdkError', code: 'UNKNOWN_SDK_ERROR'); // 修正引号
+        throw SpotifyAuthException('登录时发生未知错误: $sdkError', code: 'UNKNOWN_SDK_ERROR');
       }
     } catch (e) {
-      // 重新抛出已知的 SpotifyAuthException 或包装其他异常
       if (e is SpotifyAuthException) rethrow;
-      throw SpotifyAuthException('登录失败: $e', code: 'LOGIN_FAILED'); // 修正引号
+      throw SpotifyAuthException('登录失败: $e', code: 'LOGIN_FAILED');
     }
   }
 
   /// 保存认证响应到安全存储
-  Future<void> _saveAuthResponse(String accessToken, DateTime expirationDateTime) async {
+  Future<void> _saveAuthResponse(String accessToken, {int expiresInSeconds = 3600}) async { // Default to 1 hour if not specified
     try {
       await Future.wait([
         _secureStorage.write(key: _accessTokenKey, value: accessToken),
         _secureStorage.write(
           key: _expirationKey,
-          value: expirationDateTime.toIso8601String(),
+          value: DateTime.now().add(Duration(seconds: expiresInSeconds)).toIso8601String(),
         ),
       ]);
     } catch (e) {
@@ -349,39 +382,7 @@ class SpotifyAuthService {
 
   /// 如果本地 token 过期 → 尝试静默拿一枚新 token；
   /// 若失败则返回 null（让上层决定是否 logout）
-  Future<String?> getAccessToken() async {
-    final token = await _secureStorage.read(key: _accessTokenKey);
-    final expStr = await _secureStorage.read(key: _expirationKey);
-
-    if (token == null || expStr == null) return null;
-
-    final exp = DateTime.parse(expStr);
-    if (exp.isAfter(DateTime.now())) return token;        // 仍有效
-
-    // ---------- 已过期，静默续期 ----------
-    // Add logging here if needed
-    // print('Spotify token expired, attempting silent refresh...'); 
-    try {
-      final newToken = await SpotifySdk.getAccessToken(
-        clientId: clientId,
-        redirectUrl: redirectUrl,
-        scope: defaultScopes.join(','),
-      );
-
-      if (newToken.isNotEmpty) {
-        // print('Silent refresh successful.'); // Add logging
-        await _saveAuthResponse(
-          newToken,
-          DateTime.now().add(const Duration(hours: 1)),
-        );
-        return newToken;
-      }
-    } catch (_) {
-      // print('Silent refresh failed.'); // Add logging
-      /* 静默失败，交由上层处理 */
-    }
-    return null;
-  }
+  Future<String?> getAccessToken() => ensureFreshToken();
 
   /// 登出并清除所有存储的令牌
   Future<void> logout() async {
@@ -400,14 +401,14 @@ class SpotifyAuthService {
 
   /// 创建带有认证头的 HTTP 请求头
   Future<Map<String, String>> getAuthenticatedHeaders() async {
-    final token = await getAccessToken();
+    final token = await ensureFreshToken();
     if (token == null) {
       throw SpotifyAuthException('未认证或授权已过期', code: '401');
     }
 
     return {
       'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json', // Keep for general use, specific calls might override
     };
   }
   /// 获取用户信息
@@ -436,7 +437,7 @@ class SpotifyAuthService {
   /// 获取当前正在播放的曲目
   Future<Map<String, dynamic>?> getCurrentlyPlayingTrack() async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/me/player/currently-playing'),
         headers: headers,
@@ -464,7 +465,7 @@ class SpotifyAuthService {
   /// 获取播放状态
   Future<Map<String, dynamic>> getPlaybackState() async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/me/player'),
         headers: headers,
@@ -488,43 +489,165 @@ class SpotifyAuthService {
     }
   }
 
-  /// 播放/暂停切换
-  Future<void> togglePlayPause() async {
+  /// 创建辅助方法处理API请求，先不带device_id，失败时再补充
+  Future<void> _withDevice(String path,
+      {String method = 'PUT', Map<String, String> query = const {}, Map<String, dynamic>? body}) async {
+    print("===== SPOTIFY API DEBUG (_withDevice) =====");
+    String attemptType = "Initial";
+    
     try {
-      final playbackState = await getPlaybackState();
-      final isPlaying = playbackState['is_playing'] ?? false;
-      final currentDeviceId = playbackState['device']?['id'];
-      
-      final headers = await getAuthenticatedHeaders();
-      
-      final response = await http.put(
-        Uri.parse('https://api.spotify.com/v1/me/player/${isPlaying ? 'pause' : 'play'}'),
-        headers: headers,
-      );
+      Future<http.Response> makeRequest(String deviceIdQuerySuffix) async {
+        final fullPath = deviceIdQuerySuffix.isEmpty ? path : '$path$deviceIdQuerySuffix';
+        final currentUri = _buildUri(fullPath, query);
+        // Note: _buildUri already incorporates query parameters passed to it.
+        // If device_id is part of the `query` map, it will be included.
+        // If deviceIdQuerySuffix is used for retry, `query` might need to be adjusted or suffix used carefully.
+        // For simplicity, let's ensure device_id is primarily handled via the `query` map for retries.
+        
+        final headers = await _authHeaders(hasBody: body != null);
+        print("[$attemptType Attempt] $method ${currentUri.toString()}");
+        if (body != null) print("[$attemptType Attempt] Body: ${jsonEncode(body)}");
+        print("[$attemptType Attempt] Headers: $headers");
 
-      if (response.statusCode != 200 && 
-          response.statusCode != 202 && 
-          response.statusCode != 204) {
-        throw SpotifyAuthException(
-          '${isPlaying ? '暂停' : '播放'}失败: ${response.body}',
-          code: response.statusCode.toString(),
-        );
-      }
-      
-      // 确保设备没有变化，如果变化了，切回原设备
-      if (currentDeviceId != null) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        try {
-          final newPlaybackState = await getPlaybackState();
-          final newDeviceId = newPlaybackState['device']?['id'];
-          if (newDeviceId != currentDeviceId) {
-            await transferPlayback(currentDeviceId, play: !isPlaying);  // 保持原来的播放状态
-          }
-        } catch (e) {
-          // Ignored: Failure to re-transfer playback is acceptable.
+        if (method == 'POST') {
+          return await http.post(currentUri, headers: headers, body: body != null ? jsonEncode(body) : null);
+        } else { // Default to PUT
+          return await http.put(currentUri, headers: headers, body: body != null ? jsonEncode(body) : null);
         }
       }
+
+      // Initial attempt (potentially without device_id in query if not passed by caller)
+      http.Response r = await makeRequest(""); 
+      print("[$attemptType Attempt] Response Status: ${r.statusCode}");
+      if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
+      else print("[$attemptType Attempt] Response Body: Empty");
+
+      // For control endpoints like play, pause, next, previous, seek,
+      // a 200 OK might also indicate success if the API behaves unexpectedly (though 204/202 is typical).
+      // Since functionality is reported as working with 200, let's include it as a success code here.
+      bool isSuccessStatusCode = r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200;
+
+      if (isSuccessStatusCode) {
+        print("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
+        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        return;
+      }
+
+      if (r.statusCode == 401) {
+        print("[$attemptType Attempt] Authorization expired (401).");
+        print("[$attemptType Attempt] Response Status: ${r.statusCode}");
+        if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
+        else print("[$attemptType Attempt] Response Body: Empty");
+
+        // Update success condition for retry as well
+        isSuccessStatusCode = r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200;
+
+        if (isSuccessStatusCode) {
+          print("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
+          print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+          return;
+        }
+        print("[$attemptType Attempt] Failed (${r.statusCode}). Error response: ${r.body}"); // Changed from "Original error was"
+        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        throw SpotifyAuthException('控制失败 (重试后): ${r.body}', code: r.statusCode.toString());
+      }
+      
+      // If initial attempt failed with other 4xx/5xx, try with device_id
+      print("[$attemptType Attempt] Failed (${r.statusCode}). Trying to find active device for retry...");
+      attemptType = "Retry";
+
+      final devices = await getAvailableDevices();
+      print("[$attemptType] Found ${devices.length} devices.");
+      devices.forEach((d) => print("[$attemptType] Device: ${d['name']} (${d['id']}), Active: ${d['is_active']}"));
+
+      final activeDevice = devices.firstWhereOrNull((d) => d['is_active'] == true);
+      String? targetDeviceIdForRetry;
+
+      if (activeDevice != null) {
+        targetDeviceIdForRetry = activeDevice['id'] as String?;
+        print("[$attemptType] Using active device: ${activeDevice['name']} ($targetDeviceIdForRetry)");
+      } else if (devices.isNotEmpty) {
+        targetDeviceIdForRetry = devices.first['id'] as String?;
+        print("[$attemptType] No active device, using first available: ${devices.first['name']} ($targetDeviceIdForRetry)");
+      } else {
+        print("[$attemptType] No devices available for retry.");
+        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        throw SpotifyAuthException('找不到可用播放设备 (重试也无设备)', code: 'NO_DEVICE_ON_RETRY');
+      }
+
+      if (targetDeviceIdForRetry != null) {
+        // Create a new query map for retry, adding/overriding device_id
+        final retryQuery = Map<String, String>.from(query);
+        retryQuery['device_id'] = targetDeviceIdForRetry;
+        
+        // Make sure to use the original path, _buildUri will append query
+        final retryUri = _buildUri(path, retryQuery); 
+        final headersForRetry = await _authHeaders(hasBody: body != null); 
+
+        print("[$attemptType Attempt] $method ${retryUri.toString()}");
+        if (body != null) print("[$attemptType Attempt] Body: ${jsonEncode(body)}");
+        print("[$attemptType Attempt] Headers: $headersForRetry");
+
+        if (method == 'POST') {
+          r = await http.post(retryUri, headers: headersForRetry, body: body != null ? jsonEncode(body) : null);
+        } else { // Default to PUT
+          r = await http.put(retryUri, headers: headersForRetry, body: body != null ? jsonEncode(body) : null);
+        }
+        
+        print("[$attemptType Attempt] Response Status: ${r.statusCode}");
+        if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
+        else print("[$attemptType Attempt] Response Body: Empty");
+
+        if (r.statusCode == 204 || r.statusCode == 202) {
+          print("[$attemptType Attempt] Successfully processed ($method $path).");
+          print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+          return;
+        }
+        print("[$attemptType Attempt] Failed (${r.statusCode}). Original error was: ${r.body}");
+        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        throw SpotifyAuthException('控制失败 (重试后): ${r.body}', code: r.statusCode.toString());
+      }
+      // Should not be reached if targetDeviceIdForRetry was null due to earlier throw, but as a safeguard:
+      print("[$attemptType] Retry attempt not made as no target device ID was found.");
+      print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+      throw SpotifyAuthException('重试尝试未进行，无目标设备ID', code: 'RETRY_NOT_ATTEMPTED');
+
     } catch (e) {
+      print("Error in _withDevice: $e");
+      if (e is SpotifyAuthException) {
+        print("===== SPOTIFY API DEBUG (_withDevice) END (Exception) =====");
+        rethrow;
+      }
+      print("===== SPOTIFY API DEBUG (_withDevice) END (Unknown Exception) =====");
+      throw SpotifyAuthException('_withDevice 内部错误: $e');
+    }
+  }
+
+  /// 播放/暂停切换
+  Future<void> togglePlayPause() async {
+    print('===== TOGGLE PLAY/PAUSE SERVICE =====');
+    try {
+      print('获取当前播放状态...');
+      final playbackState = await getPlaybackState();
+      final isPlaying = playbackState['is_playing'] ?? false;
+      final currentDeviceId = playbackState['device']?['id'] as String?;
+      
+      print('当前播放状态: ${isPlaying ? "播放中" : "已暂停"}, 设备ID: $currentDeviceId');
+      
+      final action = isPlaying ? 'pause' : 'play';
+      print('即将执行操作: $action');
+      
+      // 始终尝试传递 device_id (如果已知)
+      await _withDevice(
+        '/me/player/$action',
+        query: currentDeviceId != null ? {'device_id': currentDeviceId} : {},
+      );
+      
+      print('操作执行成功');
+      print('===== TOGGLE PLAY/PAUSE SERVICE END =====');
+    } catch (e) {
+      print('togglePlayPause 出错: $e');
+      print('===== TOGGLE PLAY/PAUSE SERVICE END =====');
       rethrow;
     }
   }
@@ -532,43 +655,13 @@ class SpotifyAuthService {
   /// 下一首
   Future<void> skipToNext() async {
     try {
-      // 获取当前设备信息
-      String? currentDeviceId;
-      try {
-        final playbackState = await getPlaybackState();
-        currentDeviceId = playbackState['device']?['id'];
-      } catch (e) {
-        // Ignored: Failure to get current device is not critical for seek
-      }
-      
-      final headers = await getAuthenticatedHeaders();
-      final response = await http.post(
-        Uri.parse('https://api.spotify.com/v1/me/player/next'),
-        headers: headers,
+      final playbackState = await getPlaybackState();
+      final currentDeviceId = playbackState['device']?['id'] as String?;
+      await _withDevice(
+        '/me/player/next', 
+        method: 'POST',
+        query: currentDeviceId != null ? {'device_id': currentDeviceId} : {},
       );
-
-      if (response.statusCode != 200 && 
-          response.statusCode != 202 && 
-          response.statusCode != 204) {
-        throw SpotifyAuthException(
-          '跳转下一首失败: ${response.body}',
-          code: response.statusCode.toString(),
-        );
-      }
-      
-      // 确保设备没有变化，如果变化了，切回原设备
-      if (currentDeviceId != null) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        try {
-          final newPlaybackState = await getPlaybackState();
-          final newDeviceId = newPlaybackState['device']?['id'];
-          if (newDeviceId != currentDeviceId) {
-            await transferPlayback(currentDeviceId, play: true);
-          }
-        } catch (e) {
-          // Ignored: Failure to re-transfer playback is acceptable.
-        }
-      }
     } catch (e) {
       rethrow;
     }
@@ -577,43 +670,30 @@ class SpotifyAuthService {
   /// 上一首
   Future<void> skipToPrevious() async {
     try {
-      // 获取当前设备信息
-      String? currentDeviceId;
-      try {
-        final playbackState = await getPlaybackState();
-        currentDeviceId = playbackState['device']?['id'];
-      } catch (e) {
-        // Ignored: Failure to get current device is not critical for seek
-      }
-      
-      final headers = await getAuthenticatedHeaders();
-      final response = await http.post(
-        Uri.parse('https://api.spotify.com/v1/me/player/previous'),
-        headers: headers,
+      final playbackState = await getPlaybackState();
+      final currentDeviceId = playbackState['device']?['id'] as String?;
+      await _withDevice(
+        '/me/player/previous', 
+        method: 'POST',
+        query: currentDeviceId != null ? {'device_id': currentDeviceId} : {},
       );
+    } catch (e) {
+      rethrow;
+    }
+  }
 
-      if (response.statusCode != 200 && 
-          response.statusCode != 202 && 
-          response.statusCode != 204) {
-        throw SpotifyAuthException(
-          '跳转上一首失败: ${response.body}',
-          code: response.statusCode.toString(),
-        );
-      }
-      
-      // 确保设备没有变化，如果变化了，切回原设备
-      if (currentDeviceId != null) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        try {
-          final newPlaybackState = await getPlaybackState();
-          final newDeviceId = newPlaybackState['device']?['id'];
-          if (newDeviceId != currentDeviceId) {
-            await transferPlayback(currentDeviceId, play: true);
-          }
-        } catch (e) {
-          // Ignored: Failure to re-transfer playback is acceptable.
-        }
-      }
+  /// 跳转到指定播放位置
+  Future<void> seekToPosition(Duration position) async {
+    try {
+      final playbackState = await getPlaybackState();
+      final currentDeviceId = playbackState['device']?['id'] as String?;
+      await _withDevice(
+        '/me/player/seek',
+        query: {
+          'position_ms': position.inMilliseconds.toString(),
+          if (currentDeviceId != null) 'device_id': currentDeviceId,
+        },
+      );
     } catch (e) {
       rethrow;
     }
@@ -622,7 +702,7 @@ class SpotifyAuthService {
   /// 检查歌曲是否已保存到用户的音乐库
   Future<bool> isTrackSaved(String trackId) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/me/tracks/contains?ids=$trackId'),
         headers: headers,
@@ -645,7 +725,7 @@ class SpotifyAuthService {
   /// 将歌曲保存到用户的音乐库
   Future<void> saveTrack(String trackId) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: true); // PUT request with body
       final response = await http.put(
         Uri.parse('https://api.spotify.com/v1/me/tracks'),
         headers: headers,
@@ -667,7 +747,7 @@ class SpotifyAuthService {
   /// 从用户的音乐库中移除歌曲
   Future<void> removeTrack(String trackId) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: true); // DELETE request with body
       final response = await http.delete(
         Uri.parse('https://api.spotify.com/v1/me/tracks'),
         headers: headers,
@@ -704,7 +784,7 @@ class SpotifyAuthService {
   /// 获取播放队列
   Future<Map<String, dynamic>> getPlaybackQueue() async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/me/player/queue'),
         headers: headers,
@@ -727,7 +807,7 @@ class SpotifyAuthService {
   /// mode: "track" - 单曲循环, "context" - 列表循环, "off" - 关闭循环
   Future<void> setRepeatMode(String mode) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // PUT request, no body (query param)
       final response = await http.put(
         Uri.parse('https://api.spotify.com/v1/me/player/repeat?state=$mode'),
         headers: headers,
@@ -749,7 +829,7 @@ class SpotifyAuthService {
   /// 设置随机播放状态
   Future<void> setShuffle(bool state) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // PUT request, no body (query param)
       final response = await http.put(
         Uri.parse('https://api.spotify.com/v1/me/player/shuffle?state=$state'),
         headers: headers,
@@ -771,7 +851,7 @@ class SpotifyAuthService {
   /// 获取最近播放记录
   Future<Map<String, dynamic>> getRecentlyPlayed({int limit = 50}) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/me/player/recently-played?limit=$limit'),
         headers: headers,
@@ -800,7 +880,7 @@ class SpotifyAuthService {
   /// 获取播放列表详情
   Future<Map<String, dynamic>> getPlaylist(String playlistId) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/playlists/$playlistId'),
         headers: headers,
@@ -822,7 +902,7 @@ class SpotifyAuthService {
   /// 获取专辑详情
   Future<Map<String, dynamic>> getAlbum(String albumId) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/albums/$albumId'),
         headers: headers,
@@ -841,54 +921,10 @@ class SpotifyAuthService {
     }
   }
 
-  Future<void> seekToPosition(Duration position) async {
-    try {
-      // 获取当前设备信息
-      String? currentDeviceId;
-      try {
-        final playbackState = await getPlaybackState();
-        currentDeviceId = playbackState['device']?['id'];
-      } catch (e) {
-        // Ignored: Failure to get current device is not critical for seek
-      }
-      
-      final headers = await getAuthenticatedHeaders();
-      final response = await http.put(
-        Uri.parse('https://api.spotify.com/v1/me/player/seek?position_ms=${position.inMilliseconds}'),
-        headers: headers,
-      );
-
-      if (response.statusCode != 200 && 
-          response.statusCode != 202 && 
-          response.statusCode != 204) {
-        throw SpotifyAuthException(
-          '跳转播放位置失败: ${response.body}',
-          code: response.statusCode.toString(),
-        );
-      }
-      
-      // 确保设备没有变化，如果变化了，切回原设备
-      if (currentDeviceId != null) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        try {
-          final newPlaybackState = await getPlaybackState();
-          final newDeviceId = newPlaybackState['device']?['id'];
-          if (newDeviceId != currentDeviceId) {
-            await transferPlayback(currentDeviceId, play: true);
-          }
-        } catch (e) {
-          // Ignored: Failure to re-transfer playback is acceptable.
-        }
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   /// 获取可用设备列表
   Future<List<Map<String, dynamic>>> getAvailableDevices() async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // GET request, no body
       final response = await http.get(
         Uri.parse('https://api.spotify.com/v1/me/player/devices'),
         headers: headers,
@@ -911,7 +947,7 @@ class SpotifyAuthService {
   /// 转移播放到指定设备
   Future<void> transferPlayback(String deviceId, {bool play = false}) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: true); // PUT request with body
       final response = await http.put(
         Uri.parse('https://api.spotify.com/v1/me/player'),
         headers: headers,
@@ -939,7 +975,7 @@ class SpotifyAuthService {
     String? deviceId,
   }) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: true); // PUT request with body
       final body = {
         'context_uri': contextUri,
         if (offsetIndex != null) 'offset': {'position': offsetIndex},
@@ -969,7 +1005,7 @@ class SpotifyAuthService {
     String? deviceId,
   }) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: true); // PUT request with body
       final body = {
         'uris': [trackUri],
       };
@@ -999,13 +1035,14 @@ class SpotifyAuthService {
     String? deviceId,
   }) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      // Headers for initial device check and track info GET requests (no body)
+      final getHeaders = await _authHeaders(hasBody: false);
       
       // 首先检查设备状态
       if (deviceId != null) {
         final devicesResponse = await http.get(
           Uri.parse('https://api.spotify.com/v1/me/player/devices'),
-          headers: headers,
+          headers: getHeaders, // Use getHeaders
         );
         
         if (devicesResponse.statusCode == 200) {
@@ -1028,7 +1065,7 @@ class SpotifyAuthService {
       // 对于非受限设备，使用标准播放方式
       final trackResponse = await http.get(
         Uri.parse('https://api.spotify.com/v1/tracks/${trackUri.split(':').last}'),
-        headers: headers,
+        headers: getHeaders, // Use getHeaders
       );
 
       if (trackResponse.statusCode != 200) {
@@ -1040,6 +1077,9 @@ class SpotifyAuthService {
 
       final trackInfo = json.decode(trackResponse.body);
       
+      // Headers for the PUT play request (has body)
+      final playHeaders = await _authHeaders(hasBody: true);
+
       // 构建播放请求
       Map<String, dynamic> body = {
         'context_uri': contextUri,
@@ -1051,7 +1091,7 @@ class SpotifyAuthService {
       final queryParams = deviceId != null ? '?device_id=$deviceId' : '';
       final response = await http.put(
         Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
-        headers: headers,
+        headers: playHeaders, // Use playHeaders
         body: json.encode(body),
       );
 
@@ -1063,7 +1103,7 @@ class SpotifyAuthService {
           
           final retryResponse = await http.put(
             Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
-            headers: headers,
+            headers: playHeaders, // Use playHeaders
             body: json.encode(body),
           );
           
@@ -1088,7 +1128,7 @@ class SpotifyAuthService {
   /// 设置播放音量
   Future<void> setVolume(int volumePercent, {String? deviceId}) async {
     try {
-      final headers = await getAuthenticatedHeaders();
+      final headers = await _authHeaders(hasBody: false); // PUT request, no body (query params)
       
       // 构建查询参数
       final queryParams = {
@@ -1119,6 +1159,10 @@ class SpotifyAuthService {
   Future<void> dispose() async {
     _connectionSubscription?.cancel();
     _connectionSubscription = null;
+    if (_appLifecycleObserver != null) {
+      _binding.removeObserver(_appLifecycleObserver!); // Remove observer
+      _appLifecycleObserver = null;
+    }
     
     try {
       await SpotifySdk.disconnect();
@@ -1133,7 +1177,7 @@ class SpotifyAuthService {
       throw SpotifyAuthException('Search query cannot be empty.');
     }
     
-    final typesParam = types.join(',');
+    final typesParam = types.map((t) => t.toLowerCase().trim()).join(','); // Ensure lowercase and trim spaces
     final encodedQuery = Uri.encodeComponent(query);
     String endpoint = '/search?q=$encodedQuery&type=$typesParam&limit=$limit&offset=$offset';
     if (market != null) {
@@ -1142,9 +1186,15 @@ class SpotifyAuthService {
     
     return await apiGet(endpoint);
   }
+
+  void enableAutoReconnect() => _autoReconnectRemote = true;
+  void disableAutoReconnect() => _autoReconnectRemote = false;
 }
 
 // Add helper class at the end of the file
+// Need to store the observer instance to remove it later
+_AppLifecycleObserver? _appLifecycleObserver;
+
 class _AppLifecycleObserver extends WidgetsBindingObserver {
   final Future<void> Function() onResume;
   _AppLifecycleObserver({required this.onResume});

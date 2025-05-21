@@ -96,7 +96,7 @@ class Login extends StatelessWidget {
                 Expanded(child: _buildSpotifyButton(context, spotifyProvider)),
               ],
             ),
-            if (spotifyProvider.username != null)
+            if (spotifyProvider.currentTrack != null && spotifyProvider.username != null)
               Padding(
                 padding: const EdgeInsets.only(top: kElementSpacing),
                 child: Row(
@@ -127,7 +127,7 @@ class Login extends StatelessWidget {
     return FilledButton(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 48),
-        backgroundColor: spotifyProvider.username != null
+        backgroundColor: spotifyProvider.currentTrack != null
             ? Theme.of(context).colorScheme.error
             : null,
       ),
@@ -135,7 +135,7 @@ class Login extends StatelessWidget {
           ? null
           : () async {
               try {
-                if (spotifyProvider.username != null) {
+                if (spotifyProvider.currentTrack != null) {
                   await spotifyProvider.logout();
                   HapticFeedback.lightImpact();
                   notificationService.showSuccessSnackBar(l10n.logoutSuccess); // Use localization
@@ -178,7 +178,7 @@ class Login extends StatelessWidget {
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Text(spotifyProvider.username != null
+          : Text(spotifyProvider.currentTrack != null
               ? l10n.logoutSpotifyButton // Use localization
               : l10n.authorizeSpotifyButton), // Use localization
     );
@@ -189,7 +189,7 @@ class SettingsMenuSection extends StatefulWidget {
   const SettingsMenuSection({super.key});
 
   @override
-  _SettingsMenuSectionState createState() => _SettingsMenuSectionState();
+  State<SettingsMenuSection> createState() => _SettingsMenuSectionState();
 }
 
 class _SettingsMenuSectionState extends State<SettingsMenuSection> {
@@ -683,16 +683,41 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Text(
+                        'If you failed to log in with the default Client ID, you need to create your own app in the Spotify Developers Platform and configure the redirect URI as "spotoolfy://callback"',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                     TextField(
                       controller: clientIdController,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        labelText: l10n.clientIdLabel, 
+                        labelText: l10n.clientIdLabel,
+                        hintText: '64103961829a42328a6634fb80574191', 
                       ),
                     ),
-                    const SizedBox(height: kSmallSpacing),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: () {
+                        launchUrl(Uri.parse('https://developer.spotify.com/dashboard'));
+                      },
+                      child: Text('Access the Spotify for Developers platform'),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        'Note: Please make sure to set the redirect URI in the Spotify Developer Platform to: "spotoolfy://callback"',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

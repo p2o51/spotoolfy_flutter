@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/local_database_provider.dart';
-import '../services/lyrics_service.dart';
 import '../models/track.dart';
 import 'package:flutter/services.dart';
 import './materialui.dart';
@@ -56,7 +55,6 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       }
     } catch (e) {
       // 获取失败时保持默认评分
-      print('Error loading last rating: $e');
     }
   }
 
@@ -66,7 +64,6 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_lastUsedRatingKey, rating);
     } catch (e) {
-      print('Error saving rating: $e');
     }
   }
 
@@ -78,15 +75,19 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
 
   Future<void> _handleSubmit(BuildContext context) async {
     HapticFeedback.lightImpact();
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    // Capture the context before the async gap
+    final currentContext = context;
+    final localDbProvider = Provider.of<LocalDatabaseProvider>(currentContext, listen: false);
 
     // Use the initial track data stored in the state
     final trackItem = _initialTrackItem;
 
     if (trackItem == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.noTrackOrEmptyNote)),
-      );
+      if (currentContext.mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(currentContext)!.noTrackOrEmptyNote)),
+        );
+      }
       return;
     }
 
@@ -123,22 +124,22 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
         contextName: contextName,
       );
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.noteSaved)),
+      if (currentContext.mounted) {
+        Navigator.pop(currentContext);
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(currentContext)!.noteSaved)),
         );
       }
     } catch (e) {
-      print('Error saving note: $e');
-      errorMsg += AppLocalizations.of(context)!.errorSavingNote(e.toString());
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg.trim())),
+      if (currentContext.mounted) {
+        // Fetch localization string inside the mounted check
+        errorMsg = AppLocalizations.of(currentContext)!.errorSavingNote(e.toString());
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(content: Text(errorMsg)), // errorMsg already includes the e.toString()
         );
       }
     } finally {
-      if (mounted) {
+      if (currentContext.mounted) {
         setState(() => _isSubmitting = false);
       }
     }
@@ -146,8 +147,6 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isTextEmpty = _controller.text.isEmpty;
-
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/lyrics_service.dart';
-import '../services/lyrics/lyric_provider.dart'; // 需要直接使用 SongMatch 和 LyricProvider 类
-import '../services/lyrics/qq_provider.dart'; // 添加QQ音乐提供者导入
-import '../services/lyrics/netease_provider.dart'; // 添加网易云音乐提供者导入
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../services/lyrics/lyric_provider.dart'; 
+import '../services/lyrics/qq_provider.dart'; 
+import '../services/lyrics/netease_provider.dart'; 
+// import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../services/notification_service.dart';
-import '../providers/local_database_provider.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -44,16 +43,12 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
   String _currentQuery = '';
 
   // 注入服务
-  late LyricsService _lyricsService;
   late NotificationService _notificationService;
-  late LocalDatabaseProvider _localDbProvider; // 需要用于保存手动选择的歌词
 
   @override
   void initState() {
     super.initState();
-    _lyricsService = Provider.of<LyricsService>(context, listen: false);
     _notificationService = Provider.of<NotificationService>(context, listen: false);
-    _localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
 
     // 设置初始查询并执行第一次搜索
     _currentQuery = '${widget.initialTrackTitle} ${widget.initialArtistName}'.trim();
@@ -148,6 +143,9 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
   Future<void> _selectResult(LyricsSearchResult result) async {
      if (!mounted || _isFetchingLyric) return;
 
+     // 在异步调用前捕获 Navigator
+     final navigator = Navigator.of(context);
+
      setState(() {
        _isFetchingLyric = true;
      });
@@ -167,9 +165,11 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
          debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
 
          // 返回获取的歌词
-         Navigator.of(context).pop(normalizedLyric);
+         navigator.pop(normalizedLyric); // 使用捕获的 navigator
        } else {
-         _notificationService.showErrorSnackBar('无法获取所选歌曲的歌词。');
+         if (mounted) {
+            _notificationService.showErrorSnackBar('无法获取所选歌曲的歌词。');
+         }
        }
      } catch (e) {
         if (mounted) {
@@ -188,7 +188,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
   Future<void> _cacheLyric(String trackId, String lyric, String providerName) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cacheKey = 'manual_lyrics_cache_' + trackId;
+      final cacheKey = 'manual_lyrics_cache_$trackId'; // 使用插值
       
       // 使用 LyricCacheData 保存
       final cacheData = LyricCacheData(
@@ -202,7 +202,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       
       // 同时保存到 LyricsService 使用的常规缓存位置
       // 不直接使用私有变量
-      final regularCacheKey = 'lyrics_cache_' + trackId;
+      final regularCacheKey = 'lyrics_cache_$trackId'; // 使用插值
       await prefs.setString(regularCacheKey, json.encode(cacheData.toJson()));
     } catch (e) {
       debugPrint('缓存歌词失败: $e');
@@ -211,7 +211,6 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
         title: const Text('搜索歌词'),
@@ -290,15 +289,15 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
               itemBuilder: (context, index) {
                 final result = _searchResults[index];
                 final providerDisplayName = result.provider.name == 'qq'
-                    ? 'QQ音乐'
+                    ? 'Provider 1'
                     : result.provider.name == 'netease'
-                      ? '网易云音乐'
+                      ? 'Provider 2'
                       : result.provider.name;
 
                 return ListTile(
                    leading: Chip(
                      label: Text(providerDisplayName),
-                     backgroundColor: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.7),
+                     backgroundColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha((0.7 * 255).round()),
                      labelStyle: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSecondaryContainer),
                      padding: EdgeInsets.zero,
                      visualDensity: VisualDensity.compact,
@@ -329,7 +328,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
           if (_isLoading || _isFetchingLyric)
             Positioned.fill(
               child: Container(
-                color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.5),
+                color: Theme.of(context).scaffoldBackgroundColor.withAlpha((0.5 * 255).round()),
                 child: const Center(
                   child: CircularProgressIndicator(),
                 ),

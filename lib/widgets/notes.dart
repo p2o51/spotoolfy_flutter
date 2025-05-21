@@ -70,7 +70,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                   try {
                     await spotifyProvider.playTrack(trackUri: trackUri);
                     final duration = Duration(milliseconds: songTimestampMs);
-                    await spotifyProvider.seekToPosition(duration);
+                    await spotifyProvider.seekToPosition(duration.inMilliseconds);
                   } catch (e) {
                     print('Error calling playTrack or seekToPosition: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +150,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                   try {
                     await spotifyProvider.playTrack(trackUri: trackUri);
                     final duration = Duration(milliseconds: songTimestampMs);
-                    await spotifyProvider.seekToPosition(duration);
+                    await spotifyProvider.seekToPosition(duration.inMilliseconds);
                   } catch (e) {
                     print('Error calling playTrack or seekToPosition: $e');
                     ScaffoldMessenger.of(context).showSnackBar(

@@ -84,7 +84,7 @@ class _RoamState extends State<Roam> {
                     await spotifyProvider.playTrack(trackUri: trackUri);
                     // 然后跳转到指定位置
                     final duration = Duration(milliseconds: songTimestampMs); // Convert ms to Duration
-                    await spotifyProvider.seekToPosition(duration); // Use seekToPosition with Duration
+                    await spotifyProvider.seekToPosition(duration.inMilliseconds); // Use seekToPosition with Duration
                   } catch (e) {
                     print('Error calling playTrack or seekToPosition: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
