@@ -47,6 +47,7 @@ class SpotifyAuthService {
   // 连接监听器变量
   StreamSubscription? _connectionSubscription;
   bool _connectionMonitoringEnabled = true;
+  bool _isAttemptingReconnect = false; // Flag to prevent concurrent reconnect attempts
 
   // Add WidgetsBinding instance
   late final WidgetsBinding _binding = WidgetsBinding.instance;
@@ -200,32 +201,68 @@ class SpotifyAuthService {
           if (!status.connected) {
             // 可以选择性地打印日志或设置内部状态，但不自动处理
             // --- 添加重连逻辑 ---
-            // print('Spotify disconnected, attempting reconnect...'); // Add logging
+            // print('Spotify disconnected, attempting reconnect...');
             final token = await getAccessToken(); // Uses the updated getAccessToken with silent refresh
             if (token != null) {
-              try {
-                await SpotifySdk.connectToSpotifyRemote(
-                  clientId: clientId,
-                  redirectUrl: redirectUrl,
-                  accessToken: token,
-                );
-                // print('Spotify reconnect attempt successful.'); // Add logging
-              } catch (_) {
-                 // print('Spotify reconnect attempt failed or already connecting.'); // Add logging
-                 /* 忽略：可能正在连接 */
+              if (_isAttemptingReconnect) {
+                // print('Reconnect attempt already in progress, skipping new attempt.');
+                return;
               }
+              _isAttemptingReconnect = true;
+              // print('Spotify disconnected, attempting reconnect...');
+
+              int maxConnectRetries = 2; // Max 2 retries (total 3 attempts for connectToSpotifyRemote)
+              int currentConnectAttempt = 0;
+              List<int> connectRetryDelays = [1000, 3000]; // Delays in ms: 1s, 3s
+
+              while (currentConnectAttempt <= maxConnectRetries) {
+                // print('Attempting to connect to Spotify Remote (Attempt ${currentConnectAttempt + 1})');
+                try {
+                  await SpotifySdk.connectToSpotifyRemote(
+                    clientId: clientId,
+                    redirectUrl: redirectUrl,
+                    accessToken: token,
+                  );
+                  // print('Spotify reconnect attempt ${currentConnectAttempt + 1} successful.');
+                  _isAttemptingReconnect = false;
+                  break; // Exit loop on success
+                } catch (e) {
+                  // print('Spotify reconnect attempt ${currentConnectAttempt + 1} failed: $e');
+                  if (currentConnectAttempt == maxConnectRetries) {
+                    // print('All Spotify reconnect attempts failed. Last error: $e');
+                    _isAttemptingReconnect = false;
+                    // Optionally, notify the app or user about persistent connection failure
+                  } else {
+                    // Wait for the specified delay before the next attempt
+                    int delayMs = connectRetryDelays[currentConnectAttempt];
+                    // print('Waiting ${delayMs}ms before next reconnect attempt...');
+                    await Future.delayed(Duration(milliseconds: delayMs));
+                  }
+                }
+                currentConnectAttempt++;
+              }
+            } else {
+              // print('Could not get access token for reconnect attempt.');
+              // No token, so cannot attempt reconnect. _isAttemptingReconnect remains false.
             }
             // --- 重连逻辑结束 ---
           } else {
             // 连接成功时可以考虑触发一个回调或事件，如果需要的话
+            if (_isAttemptingReconnect) {
+               // print('Spotify reconnected successfully (possibly by another process/listener instance), resetting flag.');
+              _isAttemptingReconnect = false; // Reset if connection established while attempts were ongoing
+            }
           }
         },
         onError: (e) {
+          // print('Spotify connection listener error: $e');
+          _isAttemptingReconnect = false; // Reset flag on listener error too
           // 出错时也不再调用 _handleDisconnection()
         },
       );
     } catch (e) {
       // print('Error setting up Spotify SDK connection listener: $e');
+      _isAttemptingReconnect = false; // Ensure flag is reset if setup itself fails
     }
   }
   
@@ -359,28 +396,54 @@ class SpotifyAuthService {
     if (exp.isAfter(DateTime.now())) return token;        // 仍有效
 
     // ---------- 已过期，静默续期 ----------
-    // Add logging here if needed
-    // print('Spotify token expired, attempting silent refresh...'); 
-    try {
-      final newToken = await SpotifySdk.getAccessToken(
-        clientId: clientId,
-        redirectUrl: redirectUrl,
-        scope: defaultScopes.join(','),
-      );
+    // print('Spotify token expired, attempting silent refresh...');
+    int maxRetries = 2; // Max 2 retries (total 3 attempts)
+    int currentAttempt = 0;
+    List<int> retryDelays = [500, 1000]; // Delays in ms
 
-      if (newToken.isNotEmpty) {
-        // print('Silent refresh successful.'); // Add logging
-        await _saveAuthResponse(
-          newToken,
-          DateTime.now().add(const Duration(hours: 1)),
+    while (currentAttempt <= maxRetries) {
+      try {
+        // print('Attempting silent token refresh (Attempt ${currentAttempt + 1})');
+        final newToken = await SpotifySdk.getAccessToken(
+          clientId: clientId,
+          redirectUrl: redirectUrl,
+          scope: defaultScopes.join(','),
         );
-        return newToken;
+
+        if (newToken.isNotEmpty) {
+          // print('Silent refresh successful (Attempt ${currentAttempt + 1}).');
+          await _saveAuthResponse(
+            newToken,
+            DateTime.now().add(const Duration(hours: 1)),
+          );
+          return newToken;
+        } else {
+          // This case might not happen if SDK throws an error for empty token,
+          // but handle it defensively.
+          // print('Silent refresh attempt ${currentAttempt + 1} returned empty token.');
+          if (currentAttempt == maxRetries) {
+            // print('All silent refresh attempts failed (empty token on last attempt).');
+            return null;
+          }
+        }
+      } catch (e) {
+        // print('Silent refresh attempt ${currentAttempt + 1} failed: $e');
+        if (currentAttempt == maxRetries) {
+          // print('All silent refresh attempts failed. Last error: $e');
+          return null;
+        }
       }
-    } catch (_) {
-      // print('Silent refresh failed.'); // Add logging
-      /* 静默失败，交由上层处理 */
+
+      // If not the last attempt and refresh failed (either by exception or empty token), wait for delay.
+      if (currentAttempt < maxRetries) {
+        int delayMs = retryDelays[currentAttempt];
+        // print('Waiting ${delayMs}ms before next silent refresh attempt...');
+        await Future.delayed(Duration(milliseconds: delayMs));
+      }
+      currentAttempt++;
     }
-    return null;
+    // print('Exhausted all silent refresh attempts.'); // Should be covered by returns inside loop
+    return null; // Fallback, though logic should return from within the loop
   }
 
   /// 登出并清除所有存储的令牌

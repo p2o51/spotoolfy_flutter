@@ -74,10 +74,20 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<void> setClientCredentials(String clientId) async {
     try {
-      // 保存新凭据
-      await _secureStorage.write(key: _clientIdKey, value: clientId);
-      
-      // 清除现有状态
+      // 1. Dispose existing service if initialized
+      // Note: Accessing _spotifyService directly here is safe because _isInitialized check comes first.
+      // If _isInitialized is false, _spotifyService might not be assigned, but the condition short-circuits.
+      if (_isInitialized && _spotifyService != null) { 
+        await _spotifyService.dispose();
+      }
+
+      // 2. Cancel timers
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+      _progressTimer?.cancel();
+      _progressTimer = null;
+
+      // 3. Reset all provider state variables
       username = null;
       currentTrack = null;
       previousTrack = null;
@@ -85,37 +95,22 @@ class SpotifyProvider extends ChangeNotifier {
       isCurrentTrackSaved = null;
       _availableDevices.clear();
       _activeDeviceId = null;
-      _isInitialized = false;
+      upcomingTracks.clear();
+      _imageCache.clear();
+      _recentAlbums.clear();
+      _recentPlaylists.clear();
+      // _currentMode = PlayMode.sequential; // Resetting to default if applicable
       
-      // 停止所有计时器
-      _refreshTimer?.cancel();
-      _progressTimer?.cancel();
-      
-      // 如果之前已登录，先注销
-      if (!_isInitialized) await _initSpotifyService(); // 确保服务初始化
-      bool previouslyLoggedIn = false;
-      if (_isInitialized) {
-          try {
-            previouslyLoggedIn = await _spotifyService.isAuthenticated();
-          } catch(e) {
-            // debugPrint('检查旧认证状态时出错: $e');
-          }
-      }
+      // 4. Mark as uninitialized BEFORE saving new creds and re-init
+      _isInitialized = false; 
 
-      if (previouslyLoggedIn) {
-          try {
-            // 确保服务已初始化才能调用 logout
-            if(_isInitialized) await _spotifyService.logout();
-          } catch (e) {
-            // debugPrint('注销旧凭据时出错: $e');
-          }
-      }
-
-      // 用新凭据重新初始化服务 (这一步会覆盖旧的 _spotifyService 实例)
-      await _initSpotifyService();
+      // 5. Save new credentials
+      await _secureStorage.write(key: _clientIdKey, value: clientId);
       
-      // 不立即验证凭据，让用户在登录时再验证
-      notifyListeners();
+      // 6. Re-initialize service with new credentials
+      await _initSpotifyService(); // This will set up the new _spotifyService instance
+
+      notifyListeners(); // Notify after all changes are complete
     } catch (e) {
       // debugPrint('设置客户端凭据失败: $e');
       // 不自动恢复默认凭据，让用户自己决定是否重置
@@ -1202,8 +1197,16 @@ class SpotifyProvider extends ChangeNotifier {
       _progressTimer?.cancel(); // 也停止进度计时器
       _progressTimer = null;
 
-      // [!] 清除 Provider 的核心状态，特别是 username
-      username = null; // <-- 核心目的
+      // Dispose and logout from the service, then mark as uninitialized
+      if (_isInitialized && _spotifyService != null) {
+        // logger.d('Calling _spotifyService.dispose() and _spotifyService.logout()');
+        await _spotifyService.dispose();
+        await _spotifyService.logout();
+      }
+      _isInitialized = false; 
+
+      // Reset all provider state variables
+      username = null;
       currentTrack = null;
       previousTrack = null;
       nextTrack = null;
@@ -1214,18 +1217,10 @@ class SpotifyProvider extends ChangeNotifier {
       _imageCache.clear();
       _recentAlbums.clear();
       _recentPlaylists.clear();
+      // _currentMode is a state variable, reset it to default if necessary, though not explicitly listed in prompt, good practice.
+      // _currentMode = PlayMode.sequential; // Assuming sequential is the default.
 
-      // 调用 service 的 logout 清除 token 和断开连接
-      // 确保 service 已初始化
-      if (!_isInitialized) await _initSpotifyService();
-      if (_isInitialized) {
-         // logger.d('Calling _spotifyService.logout()');
-         await _spotifyService.logout(); // 让 service 清理 token
-      } else {
-         // logger.w('SpotifyService not initialized, cannot call logout on service.');
-      }
-
-      // 更新小部件为默认状态 (保持不变)
+      // 更新小部件为默认状态
       await updateWidget(); // 更新为无播放状态
 
     } catch (e) {

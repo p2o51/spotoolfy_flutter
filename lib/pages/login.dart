@@ -147,19 +147,37 @@ class Login extends StatelessWidget {
                 }
               } catch (e) {
                 if (context.mounted) {
-                  String errorMessage = l10n.operationFailed; // Use localization
+                  String errorMessage;
                   
+                  // Log the error and its type regardless of how it's handled for the user
                   logger.e('登录/注销操作失败: $e');
                   logger.e('错误类型: ${e.runtimeType}');
-                  
-                  if (e.toString().contains('INVALID_CREDENTIALS') || e.toString().contains('客户端 ID 或密钥无效')) {
-                    errorMessage = l10n.invalidCredentialsError; // Use localization
-                  } else if (e.toString().contains('401')) {
-                    errorMessage = l10n.authenticationError; // Use localization
-                  } else if (e.toString().contains('429')) {
-                    errorMessage = l10n.tooManyRequestsError; // Use localization
+
+                  if (e is SpotifyAuthException) {
+                    if (e.code == 'SESSION_EXPIRED') {
+                      // errorMessage = l10n.sessionExpiredError; // Assuming l10n.sessionExpiredError exists
+                      errorMessage = "Your session has expired. Please log in again."; // Hardcoded fallback
+                    } else if (e.code == 'AUTH_CANCELLED') {
+                      errorMessage = l10n.loginCancelled; // Use existing localization
+                    } else if (e.code == 'CONFIG_ERROR') {
+                       errorMessage = l10n.spotifyConfigError; // Use existing localization
+                    } else if (e.code == 'AUTH_FAILED') {
+                       errorMessage = l10n.spotifyAuthFailedError; // Use existing localization
+                    } else if (e.toString().contains('INVALID_CREDENTIALS') || e.toString().contains('客户端 ID 或密钥无效')) {
+                      errorMessage = l10n.invalidCredentialsError; // Use localization
+                    } else if (e.code == '401' || e.toString().contains('401')) { // Check code first, then message
+                      errorMessage = l10n.authenticationError; // Use localization
+                    } else if (e.code == '429' || e.toString().contains('429')) {
+                      errorMessage = l10n.tooManyRequestsError; // Use localization
+                    } else {
+                      // Fallback for other SpotifyAuthException codes or messages
+                      // errorMessage = l10n.unexpectedErrorPleaseTryAgain; // Assuming l10n.unexpectedErrorPleaseTryAgain exists
+                      errorMessage = "An unexpected error occurred. Please check your internet connection and try again. If the problem persists, please contact support or check the help page."; // Hardcoded fallback
+                    }
                   } else {
-                    errorMessage = l10n.loginLogoutFailed(e.toString()); // Use localization with error detail
+                    // Generic error for non-SpotifyAuthException types
+                    // errorMessage = l10n.unexpectedErrorPleaseTryAgain; // Assuming l10n.unexpectedErrorPleaseTryAgain exists
+                    errorMessage = "An unexpected error occurred. Please check your internet connection and try again. If the problem persists, please contact support or check the help page."; // Hardcoded fallback
                   }
                   
                   notificationService.showErrorSnackBar(
