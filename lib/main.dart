@@ -293,7 +293,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   final currentTrack = provider.currentTrack;
                   final isPlaying = currentTrack?['is_playing'] ?? false;
                   // 尝试获取上下文描述 (使用新的路径)
-                  final contextDescription = currentTrack?['context']?['enriched_name'] as String?;
+                  final contextDescription = currentTrack?['context']?['name'] as String?;
                   final contextType = currentTrack?['context']?['type'] as String?;
 
                   // 检查是否正在播放且有上下文描述和类型
