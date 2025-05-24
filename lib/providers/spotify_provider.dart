@@ -300,6 +300,7 @@ class SpotifyProvider extends ChangeNotifier {
           logger.d('startTrackRefresh (microtask): Fetching initial track and device data...');
           await refreshCurrentTrack(); // 使用恢复后的 refreshCurrentTrack
           await refreshAvailableDevices();
+          await refreshPlaybackQueue(); // 初始化时也刷新播放队列
           logger.i('startTrackRefresh (microtask): Initial data fetched. Current progress: ${currentTrack?['progress_ms']}, isPlaying: ${currentTrack?['is_playing']}');
         } catch (e) {
           logger.e('startTrackRefresh (microtask): Failed to fetch initial data, timers will still start.', error: e);
@@ -312,9 +313,10 @@ class SpotifyProvider extends ChangeNotifier {
           _refreshTimer?.cancel();
           _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
             if (!_isSkipping) {
-              logger.v('_refreshTimer tick. Calling refreshCurrentTrack & refreshAvailableDevices.');
+              logger.v('_refreshTimer tick. Calling refreshCurrentTrack, refreshAvailableDevices & refreshPlaybackQueue.');
               refreshCurrentTrack(); // 使用恢复后的 refreshCurrentTrack
               refreshAvailableDevices(); // !! 加上这个 !!
+              refreshPlaybackQueue(); // 定期刷新播放队列
             } else {
               logger.v('_refreshTimer tick: Skipped due to _isSkipping=true.');
             }
@@ -415,6 +417,27 @@ class SpotifyProvider extends ChangeNotifier {
                     final enrichedContext = await _enrichPlayContext(Map<String, dynamic>.from(track['context']));
                     currentTrack!['context'] = enrichedContext;
                     logger.d('refreshCurrentTrack: Enriched context for new track $newId.');
+                    
+                    // 保存播放上下文到本地数据库
+                    try {
+                      final context = navigatorKey.currentContext;
+                      if (context != null && context.mounted) {
+                        final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+                        await localDbProvider.insertOrUpdatePlayContext(
+                          contextUri: enrichedContext['uri'] as String,
+                          contextType: enrichedContext['type'] as String,
+                          contextName: enrichedContext['name'] as String,
+                          imageUrl: (enrichedContext['images'] as List?)?.isNotEmpty == true 
+                              ? enrichedContext['images'][0]['url'] as String?
+                              : null,
+                          lastPlayedAt: DateTime.now().millisecondsSinceEpoch,
+                        );
+                        logger.d('refreshCurrentTrack: Saved play context to local database: ${enrichedContext['uri']}');
+                      }
+                    } catch (dbError) {
+                      logger.e('refreshCurrentTrack: Failed to save play context to database', error: dbError);
+                      // 不重新抛出错误，以免影响其他功能
+                    }
                 }
               } catch (e) {
                   logger.e('refreshCurrentTrack: Failed to fetch save state or enrich context for new track $newId', error: e);
@@ -1081,26 +1104,38 @@ class SpotifyProvider extends ChangeNotifier {
       final List<Map<String, dynamic>> uniquePlaylists = [];
       final List<Map<String, dynamic>> uniqueAlbums = [];
       
-      // 获取 FirestoreProvider 实例
-      // final firestoreProvider = Provider.of<FirestoreProvider>(
-      //   navigatorKey.currentContext!, 
-      //   listen: false
-      // );
+      // 获取 LocalDatabaseProvider 实例用于保存播放上下文
+      LocalDatabaseProvider? localDbProvider;
+      try {
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+        }
+      } catch (e) {
+        logger.w('refreshRecentlyPlayed: Failed to get LocalDatabaseProvider: $e');
+      }
       
       for (var item in items) {
         final context = item['context'];
         if (context != null) {
           final uri = context['uri'] as String;
           final type = context['type'] as String;
-          // final trackId = item['track']?['id']; // Unused
-          // final playedAt = DateTime.parse(item['played_at']); // Unused
+          final playedAt = DateTime.parse(item['played_at']);
           
-          // 保存播放上下文到 Firestore
-          // await firestoreProvider.savePlayContext(
-          //   trackId: trackId,
-          //   context: context,
-          //   timestamp: playedAt,
-          // );
+          // 保存播放上下文到本地数据库
+          if (localDbProvider != null) {
+            try {
+              await localDbProvider.insertOrUpdatePlayContext(
+                contextUri: uri,
+                contextType: type,
+                contextName: context['name'] ?? '未知${type == 'playlist' ? '播放列表' : '专辑'}',
+                imageUrl: null, // 在这里我们暂时不获取图片，因为会增加 API 调用
+                lastPlayedAt: playedAt.millisecondsSinceEpoch,
+              );
+            } catch (dbError) {
+              logger.e('refreshRecentlyPlayed: Failed to save context to database: $dbError');
+            }
+          }
           
           // 处理播放列表
           if (type == 'playlist' && !playlistUris.contains(uri)) {
