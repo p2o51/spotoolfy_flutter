@@ -266,6 +266,13 @@ class SpotifyAuthService {
       final exp = DateTime.parse(expS);
       if (exp.difference(DateTime.now()).inMinutes > 5) return tok;
     }
+    
+    // 在iOS上，如果我们已经在授权流程中，避免重复调用SDK
+    if (Platform.isIOS) {
+      logger.w('iOS上token过期，但避免重复调用SDK以防止循环');
+      return null; // 让上层处理重新登录
+    }
+    
     // —— token 不够用了，重新拿 ——
     try {
       final newTok = await SpotifySdk.getAccessToken(
@@ -276,16 +283,24 @@ class SpotifyAuthService {
       if (newTok.isNotEmpty) {
         // We don't get expiresIn directly from getAccessToken(),
         // so we'll use a slightly reduced fixed duration.
-        await _saveAuthResponse(newTok, expiresInSeconds: 55 * 60); // 55 minutes in seconds
+        await saveAuthResponse(newTok, expiresInSeconds: 55 * 60); // 55 minutes in seconds
         onTokenRefreshed?.call();
         return newTok;
       }
     } catch (sdkError) {
-       if (sdkError.toString().contains('USER_CANCELLED') ||
-           sdkError.toString().contains('cancelled') ||
-           sdkError.toString().contains('Auth flow cancelled by user')) {
+       final errorString = sdkError.toString();
+       if (errorString.contains('USER_CANCELLED') ||
+           errorString.contains('cancelled') ||
+           errorString.contains('Auth flow cancelled by user')) {
          return null; // 用户取消，返回 null
        }
+       
+       // iOS特有的连接失败错误处理
+       if (Platform.isIOS && errorString.contains('Connection attempt failed')) {
+         logger.w('iOS Spotify SDK连接失败，可能是授权循环问题: $errorString');
+         return null; // 避免重试，让上层处理
+       }
+       
       /* 静默失败, 其他错误不向上抛，确保静默 */
     }
     return null;
@@ -339,22 +354,27 @@ class SpotifyAuthService {
 
         if (accessToken.isNotEmpty) {
           // Use the same saving mechanism as ensureFreshToken
-          await _saveAuthResponse(accessToken, expiresInSeconds: 55 * 60); // 55 minutes
+          await saveAuthResponse(accessToken, expiresInSeconds: 55 * 60); // 55 minutes
           onTokenRefreshed?.call(); // 登录成功后也通知
           return accessToken;
         } else {
           throw SpotifyAuthException('登录失败：获取的访问令牌为空');
         }
       } catch (sdkError) {
-        if (sdkError.toString().contains('USER_CANCELLED') ||
-            sdkError.toString().contains('cancelled') ||
-            sdkError.toString().contains('Auth flow cancelled by user')) {
+        final errorString = sdkError.toString();
+        if (errorString.contains('USER_CANCELLED') ||
+            errorString.contains('cancelled') ||
+            errorString.contains('Auth flow cancelled by user')) {
           throw SpotifyAuthException('登录被用户取消', code: 'AUTH_CANCELLED');
-        } else if (sdkError.toString().contains('CONFIG_ERROR') ||
-                   sdkError.toString().contains('Could not find config')) {
+        } else if (errorString.contains('CONFIG_ERROR') ||
+                   errorString.contains('Could not find config')) {
           throw SpotifyAuthException('登录失败：Spotify SDK 配置错误，请检查 AndroidManifest/Info.plist', code: 'CONFIG_ERROR');
-        } else if (sdkError.toString().contains('Could not authenticate client')) {
+        } else if (errorString.contains('Could not authenticate client')) {
           throw SpotifyAuthException('登录失败：无效的 Client ID 或 Redirect URI', code: 'AUTH_FAILED');
+        } else if (Platform.isIOS && errorString.contains('Connection attempt failed')) {
+          // iOS特有的连接失败处理
+          logger.w('iOS登录时遇到连接失败，尝试重新配置: $errorString');
+          throw SpotifyAuthException('iOS登录失败：请确保已安装Spotify应用并重试', code: 'IOS_CONNECTION_FAILED');
         }
         throw SpotifyAuthException('登录时发生未知错误: $sdkError', code: 'UNKNOWN_SDK_ERROR');
       }
@@ -365,7 +385,7 @@ class SpotifyAuthService {
   }
 
   /// 保存认证响应到安全存储
-  Future<void> _saveAuthResponse(String accessToken, {int expiresInSeconds = 3600}) async { // Default to 1 hour if not specified
+  Future<void> saveAuthResponse(String accessToken, {int expiresInSeconds = 3600}) async { // Default to 1 hour if not specified
     try {
       await Future.wait([
         _secureStorage.write(key: _accessTokenKey, value: accessToken),
@@ -535,21 +555,8 @@ class SpotifyAuthService {
 
       if (r.statusCode == 401) {
         print("[$attemptType Attempt] Authorization expired (401).");
-        print("[$attemptType Attempt] Response Status: ${r.statusCode}");
-        if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
-        else print("[$attemptType Attempt] Response Body: Empty");
-
-        // Update success condition for retry as well
-        isSuccessStatusCode = r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200;
-
-        if (isSuccessStatusCode) {
-          print("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
-          print("===== SPOTIFY API DEBUG (_withDevice) END =====");
-          return;
-        }
-        print("[$attemptType Attempt] Failed (${r.statusCode}). Error response: ${r.body}"); // Changed from "Original error was"
         print("===== SPOTIFY API DEBUG (_withDevice) END =====");
-        throw SpotifyAuthException('控制失败 (重试后): ${r.body}', code: r.statusCode.toString());
+        throw SpotifyAuthException('授权已过期或无效', code: '401');
       }
       
       // If initial attempt failed with other 4xx/5xx, try with device_id
@@ -598,12 +605,13 @@ class SpotifyAuthService {
         if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
         else print("[$attemptType Attempt] Response Body: Empty");
 
-        if (r.statusCode == 204 || r.statusCode == 202) {
-          print("[$attemptType Attempt] Successfully processed ($method $path).");
+        // 重试时也要包含200作为成功状态码
+        if (r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200) {
+          print("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
           print("===== SPOTIFY API DEBUG (_withDevice) END =====");
           return;
         }
-        print("[$attemptType Attempt] Failed (${r.statusCode}). Original error was: ${r.body}");
+        print("[$attemptType Attempt] Failed (${r.statusCode}). Error response: ${r.body}");
         print("===== SPOTIFY API DEBUG (_withDevice) END =====");
         throw SpotifyAuthException('控制失败 (重试后): ${r.body}', code: r.statusCode.toString());
       }

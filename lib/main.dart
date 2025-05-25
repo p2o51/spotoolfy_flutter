@@ -26,6 +26,40 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<Scaffol
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // 设置iOS URL scheme处理
+  if (Platform.isIOS) {
+    const MethodChannel('spotify_auth').setMethodCallHandler((call) async {
+      if (call.method == 'handleCallback') {
+        final url = call.arguments as String;
+        print('收到iOS Spotify回调: $url');
+        
+        // 解析URL中的access token
+        final uri = Uri.parse(url);
+        final fragment = uri.fragment;
+        if (fragment.isNotEmpty) {
+          final params = Uri.splitQueryString(fragment);
+          final accessToken = params['access_token'];
+          final expiresIn = params['expires_in'];
+          
+          if (accessToken != null) {
+            print('从回调URL提取到access token: ${accessToken.substring(0, 10)}...');
+            
+            // 获取SpotifyProvider实例并保存token
+            final context = navigatorKey.currentContext;
+            if (context != null) {
+              final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+              await spotifyProvider.handleCallbackToken(accessToken, expiresIn);
+              
+              // 重要：触发用户资料刷新和状态更新
+              await spotifyProvider.autoLogin();
+              print('iOS回调处理完成，已触发状态更新');
+            }
+          }
+        }
+      }
+    });
+  }
+  
   final spotifyProvider = SpotifyProvider();
   await spotifyProvider.autoLogin();
   

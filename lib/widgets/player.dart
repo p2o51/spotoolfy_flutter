@@ -9,6 +9,8 @@ import 'package:flutter/physics.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
+import '../widgets/song_info_result_page.dart';
+import '../services/notification_service.dart';
 
 class Player extends StatefulWidget {
   final bool isLargeScreen;
@@ -497,6 +499,14 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     },
                   ),
                   _buildSeekButton(
+                    icon: Icons.info_outline_rounded,
+                    label: '信息',
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _showSongInfo();
+                    },
+                  ),
+                  _buildSeekButton(
                     icon: Icons.forward_10_rounded,
                     label: '+10s',
                     onPressed: () {
@@ -533,6 +543,34 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           onPressed: onPressed,
         ),
       ],
+    );
+  }
+
+  // 显示歌曲信息
+  Future<void> _showSongInfo() async {
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final currentTrack = spotifyProvider.currentTrack;
+    
+    if (currentTrack == null || currentTrack['item'] == null) {
+      notificationService.showSnackBar('没有正在播放的歌曲');
+      return;
+    }
+
+    final trackData = currentTrack['item'] as Map<String, dynamic>;
+    
+    // 隐藏seek overlay
+    setState(() {
+      _isSeekOverlayVisible = false;
+    });
+
+    // 直接导航到结果页面，页面内部会处理加载状态
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SongInfoResultPage(
+          trackData: trackData,
+        ),
+      ),
     );
   }
 

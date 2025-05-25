@@ -7,8 +7,8 @@ class TranslationService {
   final SettingsService _settingsService = SettingsService();
   static const String _geminiBaseUrl = 
       'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiDefaultModel = 'gemini-2.5-flash-preview-04-17';
-  static const String _geminiThinkingModel = 'gemini-2.5-flash-preview-04-17';
+  static const String _geminiDefaultModel = 'gemini-2.5-flash-preview-05-20';
+  static const String _geminiThinkingModel = 'gemini-2.5-flash-preview-05-20';
   static const int _thinkingBudget = 1024;
   static const String _cacheKeyPrefix = 'translation_cache_'; // Cache key prefix
 

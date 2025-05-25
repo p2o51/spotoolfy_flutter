@@ -532,6 +532,37 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  /// 处理从URL回调中获取的token
+  Future<void> handleCallbackToken(String accessToken, String? expiresIn) async {
+    try {
+      final expiresInSeconds = int.tryParse(expiresIn ?? '3600') ?? 3600;
+      
+      // 直接保存token到SpotifyAuthService
+      await _spotifyService.saveAuthResponse(accessToken, expiresInSeconds: expiresInSeconds);
+      
+      // 立即获取用户资料并更新状态
+      try {
+        final userProfile = await _spotifyService.getUserProfile();
+        username = userProfile['display_name'];
+        logger.d('iOS回调：成功获取用户资料: $username');
+        
+        // 启动定时器
+        startTrackRefresh();
+        
+        // 触发UI更新
+        notifyListeners();
+        
+        print('成功保存从回调获取的access token并更新用户状态');
+      } catch (profileError) {
+        logger.e('iOS回调：获取用户资料失败: $profileError');
+        // 即使获取用户资料失败，也要触发token刷新回调
+        _spotifyService.onTokenRefreshed?.call();
+      }
+    } catch (e) {
+      logger.e('保存回调token失败: $e');
+    }
+  }
+
   /// 自动登录
   Future<void> autoLogin() async {
     if (isLoading) return; // Avoid concurrent autoLogin calls
