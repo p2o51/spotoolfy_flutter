@@ -374,13 +374,21 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             _buildHeaderCard(trackName, artistNames),
             
             // 在歌曲标题下方添加波浪线
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: WavyDivider(
-                height: 10.0,
-                waveHeight: 5.0,
-                waveFrequency: 0.02,
-              ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _isLoading || _isRegenerating 
+                ? const AnimatedWavyDivider(
+                    height: 10.0,
+                    waveHeight: 5.0,
+                    waveFrequency: 0.02,
+                    animate: true,
+                    animationDuration: Duration(seconds: 2), // 从4秒改为2秒，动画更快
+                  )
+                : const WavyDivider(
+                    height: 10.0,
+                    waveHeight: 5.0,
+                    waveFrequency: 0.02,
+                  ),
             ),
 
             // 错误提示

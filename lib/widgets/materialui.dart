@@ -191,6 +191,101 @@ class WavyDivider extends StatelessWidget {
   }
 }
 
+// --- Animated Wavy Divider ---
+
+class AnimatedWavyDivider extends StatefulWidget {
+  final double width;
+  final double height;
+  final Color? color;
+  final double strokeWidth;
+  final double waveHeight;
+  final double waveFrequency;
+  final bool animate;
+  final Duration animationDuration;
+
+  const AnimatedWavyDivider({
+    super.key,
+    this.width = double.infinity,
+    this.height = 20.0,
+    this.color,
+    this.strokeWidth = 2.0,
+    this.waveHeight = 5.0,
+    this.waveFrequency = 0.03,
+    this.animate = true,
+    this.animationDuration = const Duration(seconds: 3),
+  });
+
+  @override
+  State<AnimatedWavyDivider> createState() => _AnimatedWavyDividerState();
+}
+
+class _AnimatedWavyDividerState extends State<AnimatedWavyDivider>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: widget.animationDuration,
+      vsync: this,
+    );
+    
+    _animation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.linear,
+    ));
+
+    if (widget.animate) {
+      _animationController.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnimatedWavyDivider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.animate && !oldWidget.animate) {
+      _animationController.repeat();
+    } else if (!widget.animate && oldWidget.animate) {
+      _animationController.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final waveColor = widget.color ?? Theme.of(context).colorScheme.primary;
+
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: AnimatedBuilder(
+        animation: _animation,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: AnimatedWavyLinePainter(
+              color: waveColor,
+              strokeWidth: widget.strokeWidth,
+              waveHeight: widget.waveHeight,
+              waveFrequency: widget.waveFrequency,
+              animationValue: _animation.value,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 // Custom Painter for the Wavy Line
 class WavyLinePainter extends CustomPainter {
   final Color color;
@@ -231,5 +326,53 @@ class WavyLinePainter extends CustomPainter {
            oldDelegate.strokeWidth != strokeWidth ||
            oldDelegate.waveHeight != waveHeight ||
            oldDelegate.waveFrequency != waveFrequency;
+  }
+}
+
+// Custom Painter for the Animated Wavy Line
+class AnimatedWavyLinePainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double waveHeight;
+  final double waveFrequency;
+  final double animationValue;
+
+  AnimatedWavyLinePainter({
+    required this.color,
+    this.strokeWidth = 2.0,
+    this.waveHeight = 10.0,
+    this.waveFrequency = 0.03,
+    required this.animationValue,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    path.moveTo(0, size.height / 2);
+
+    // 计算波浪的相位偏移，创建左右移动效果
+    final phaseOffset = animationValue * 2 * math.pi;
+
+    for (double x = 0; x <= size.width; x++) {
+      // 添加相位偏移让波浪左右移动
+      final y = waveHeight * math.sin(waveFrequency * 2 * math.pi * x + phaseOffset) + size.height / 2;
+      path.lineTo(x, y);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant AnimatedWavyLinePainter oldDelegate) {
+    return oldDelegate.color != color ||
+           oldDelegate.strokeWidth != strokeWidth ||
+           oldDelegate.waveHeight != waveHeight ||
+           oldDelegate.waveFrequency != waveFrequency ||
+           oldDelegate.animationValue != animationValue;
   }
 }
