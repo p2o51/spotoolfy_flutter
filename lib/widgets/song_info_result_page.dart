@@ -34,7 +34,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   late Animation<double> _pulseAnimation;
   late Animation<double> _rotationAnimation;
   
-  String _loadingText = '正在分析歌曲信息...';
+  String _loadingText = 'Analyzing song information...';
   int _dotCount = 0;
   
   // 幽默的英文加载文本列表
@@ -45,16 +45,69 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     'Asking Spotify for gossip...',
     'Summoning the rhythm spirits...',
     'Translating beats into wisdom...',
+    'Downloading musical memories...',
+    'Celebrating the breakup...',
+    'Analyzing sonic fingerprints...',
+    'Channeling the artist\'s soul...',
+    'Extracting melody secrets...',
+    'Interviewing the instruments...',
+    'Reading between the notes...',
+    'Diving into the sound waves...',
+    'Unlocking harmonic mysteries...',
+    'Searching the musical universe...',
+    '365 partying...',
+    'Deciphering lyrical codes...',
+    'Awakening dormant frequencies...',
+    'Exploring temporal soundscapes...',
+    'Gathering acoustic intelligence...',
+    'Scanning musical dimensions...',
+    'Harvesting sonic data...',
+    'Communicating with vinyl spirits...',
+    'Investigating melodic patterns...',
+    'Calibrating emotional resonance...',
+  ];
+
+  // 包含歌曲信息的动态文本模板
+  final List<String> _dynamicTextTemplates = [
+    'Having a chat with {artist}...',
+    'Asking {artist} about "{song}"...',
+    'Getting the inside scoop on "{song}"...',
+    'Interviewing {artist} backstage...',
+    'Decoding {artist}\'s creative process...',
+    'Exploring the story behind "{song}"...',
+    'Channeling {artist}\'s inspiration...',
+    'Diving into {artist}\'s musical mind...',
+    'Uncovering "{song}" secrets...',
+    'Learning from {artist}\'s experience...',
+    'Analyzing {artist}\'s artistic vision...',
+    'Discovering "{song}" hidden meanings...',
   ];
   
   late String _currentFunnyText;
+
+  String _getRandomFunnyText() {
+    final trackName = widget.trackData['name'] as String? ?? 'Unknown Track';
+    final artistNames = (widget.trackData['artists'] as List?)
+        ?.map((artist) => artist['name'] as String)
+        .join(', ') ?? 'Unknown Artist';
+
+    // 60% 概率使用动态文本，40% 概率使用静态文本
+    if (Random().nextDouble() < 0.6 && trackName != 'Unknown Track' && artistNames != 'Unknown Artist') {
+      final template = _dynamicTextTemplates[Random().nextInt(_dynamicTextTemplates.length)];
+      return template
+          .replaceAll('{artist}', artistNames)
+          .replaceAll('{song}', trackName);
+    } else {
+      return _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     
     // 随机选择一个幽默文本
-    _currentFunnyText = _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+    _currentFunnyText = _getRandomFunnyText();
     
     // 初始化动画控制器
     _pulseController = AnimationController(
@@ -96,7 +149,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       if (mounted && _isLoading) {
         setState(() {
           _dotCount = (_dotCount + 1) % 4;
-          _loadingText = '正在分析歌曲信息${'.' * _dotCount}';
+          _loadingText = 'Analyzing song information${'.' * _dotCount}';
         });
         _startLoadingTextAnimation();
       }
@@ -108,7 +161,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       if (mounted && (_isLoading || _isRegenerating)) {
         setState(() {
           // 每2秒随机选择新的幽默文本
-          _currentFunnyText = _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+          _currentFunnyText = _getRandomFunnyText();
         });
         _startFunnyTextRotation();
       }
@@ -142,7 +195,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       _isLoading = true;
       _regenerationError = null;
       // 每次加载时随机选择新的幽默文本
-      _currentFunnyText = _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+      _currentFunnyText = _getRandomFunnyText();
     });
 
     // 启动动画
@@ -167,11 +220,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         _pulseController.stop();
         _rotationController.stop();
       } else {
-        _showError('无法获取歌曲信息');
+        _showError('Unable to get song information');
       }
     } catch (e) {
       if (mounted) {
-        _showError('获取歌曲信息失败: ${e.toString()}');
+        _showError('Failed to get song information: ${e.toString()}');
       }
     }
   }
@@ -184,7 +237,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       _isRegenerating = true;
       _regenerationError = null;
       // 重新生成时也随机选择新的幽默文本
-      _currentFunnyText = _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+      _currentFunnyText = _getRandomFunnyText();
     });
 
     // 启动动画和文本轮换
@@ -209,10 +262,10 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         
         if (mounted) {
           Provider.of<NotificationService>(context, listen: false)
-              .showSnackBar('歌曲信息已重新生成');
+              .showSnackBar('Song information regenerated');
         }
       } else {
-        throw Exception('重新生成失败');
+        throw Exception('Regeneration failed');
       }
     } catch (e) {
       if (mounted) {
@@ -245,7 +298,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   void _copyToClipboard(String content, String type) {
     Clipboard.setData(ClipboardData(text: content));
     Provider.of<NotificationService>(context, listen: false)
-        .showSnackBar('$type已复制到剪贴板');
+        .showSnackBar('$type copied to clipboard');
   }
 
   @override
@@ -264,7 +317,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('歌曲信息'),
+        title: const Text('Song Information'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -272,7 +325,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               onPressed: _regenerateSongInfo,
-              tooltip: '重新生成',
+              tooltip: 'Regenerate',
             ),
         ],
       ),
@@ -444,17 +497,6 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
               textAlign: TextAlign.center,
             ),
             
-            const SizedBox(height: 8),
-            
-            // 固定的 Gemini grounding 文本
-            Text(
-              "Gemini's grounding...",
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            
             const SizedBox(height: 24),
             
             // 进度指示器
@@ -466,6 +508,17 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                   Theme.of(context).colorScheme.primary,
                 ),
               ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // 固定的 Gemini grounding 文本
+            Text(
+              "Gemini's grounding...",
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -488,7 +541,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '重新生成失败: $_regenerationError',
+                'Regeneration failed: $_regenerationError',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onErrorContainer,
                 ),
@@ -513,7 +566,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             ),
             const SizedBox(height: 16),
             Text(
-              '暂无歌曲信息',
+              'No song information available',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -529,7 +582,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       child: Column(
         children: [
           Text(
-            '由 Gemini 2.5 Flash 生成',
+            'Generated by Gemini 2.5 Flash',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -580,7 +633,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                 IconButton(
                   icon: const Icon(Icons.copy_rounded, size: 18),
                   onPressed: () => _copyToClipboard(content, title),
-                  tooltip: '复制$title',
+                  tooltip: 'Copy $title',
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -605,7 +658,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['creation_time'] != null && _currentSongInfo!['creation_time'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: '创作时间',
+        title: 'Creation Time',
         content: _currentSongInfo!['creation_time'] as String,
         icon: Icons.schedule_rounded,
       ));
@@ -615,7 +668,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['creation_location'] != null && _currentSongInfo!['creation_location'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: '创作地点',
+        title: 'Creation Location',
         content: _currentSongInfo!['creation_location'] as String,
         icon: Icons.location_on_rounded,
       ));
@@ -625,7 +678,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['lyricist'] != null && _currentSongInfo!['lyricist'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: '作词',
+        title: 'Lyricist',
         content: _currentSongInfo!['lyricist'] as String,
         icon: Icons.edit_rounded,
       ));
@@ -635,7 +688,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['composer'] != null && _currentSongInfo!['composer'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: '作曲',
+        title: 'Composer',
         content: _currentSongInfo!['composer'] as String,
         icon: Icons.music_note_rounded,
       ));
@@ -645,7 +698,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['producer'] != null && _currentSongInfo!['producer'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: '制作人',
+        title: 'Producer',
         content: _currentSongInfo!['producer'] as String,
         icon: Icons.settings_rounded,
       ));
@@ -655,7 +708,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['review'] != null && _currentSongInfo!['review'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: '歌曲解析',
+        title: 'Song Analysis',
         content: _currentSongInfo!['review'] as String,
         icon: Icons.article_rounded,
       ));
