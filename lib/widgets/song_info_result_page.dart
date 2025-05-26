@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import '../services/song_info_service.dart';
 import '../services/notification_service.dart';
+import '../widgets/materialui.dart';
 
 class SongInfoResultPage extends StatefulWidget {
   final Map<String, dynamic> trackData;
@@ -33,6 +34,10 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   late AnimationController _rotationController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _rotationAnimation;
+  
+  // 信息出现动画控制器
+  late AnimationController _infoAnimationController;
+  late List<Animation<double>> _infoAnimations;
   
   String _loadingText = 'Analyzing song information...';
   int _dotCount = 0;
@@ -111,21 +116,27 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     
     // 初始化动画控制器
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 2000), // 延长脉冲时间让弹性效果更明显
       vsync: this,
     );
     
     _rotationController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1800), // 加快旋转速度，1.8秒一圈
+      vsync: this,
+    );
+    
+    // 信息出现动画控制器
+    _infoAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1200), // 总动画时长1.2秒
       vsync: this,
     );
     
     _pulseAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
+      begin: 0.6,
+      end: 1.4,
     ).animate(CurvedAnimation(
       parent: _pulseController,
-      curve: Curves.easeInOut,
+      curve: Curves.elasticInOut, // 脉冲也使用弹性效果
     ));
     
     _rotationAnimation = Tween<double>(
@@ -133,12 +144,29 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _rotationController,
-      curve: Curves.linear,
+      curve: Curves.elasticInOut, // 使用弹性曲线，更夸张的弹跳效果
     ));
+    
+    // 初始化信息动画列表（最多6个信息板块）
+    _infoAnimations = List.generate(6, (index) {
+      final startTime = (index * 0.15).clamp(0.0, 0.8); // 每个板块延迟150ms，确保不超过0.8
+      final endTime = (startTime + 0.4).clamp(startTime, 1.0); // 每个动画持续400ms，确保不超过1.0
+      return Tween<double>(
+        begin: 0.0,
+        end: 1.0,
+      ).animate(CurvedAnimation(
+        parent: _infoAnimationController,
+        curve: Interval(startTime, endTime, curve: Curves.easeOutBack),
+      ));
+    });
 
     // 如果有初始数据，直接使用；否则开始加载
     if (widget.initialSongInfo != null) {
       _currentSongInfo = widget.initialSongInfo;
+      // 延迟启动动画，让页面先渲染
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _infoAnimationController.forward();
+      });
     } else {
       _loadSongInfo();
     }
@@ -169,8 +197,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }
 
   void _startVibrationCycle() {
-    // 图标旋转一圈是2秒，三个振动一循环，所以每个振动间隔约667毫秒
-    const vibrationInterval = Duration(milliseconds: 667);
+    // 图标旋转一圈是1.8秒，三个振动一循环，所以每个振动间隔约600毫秒
+    const vibrationInterval = Duration(milliseconds: 600);
     int vibrationCount = 0;
     
     void performVibration() {
@@ -216,9 +244,12 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
           _isLoading = false;
         });
         
-        // 停止动画
+        // 停止加载动画
         _pulseController.stop();
         _rotationController.stop();
+        
+        // 启动信息出现动画
+        _infoAnimationController.forward();
       } else {
         _showError('Unable to get song information');
       }
@@ -256,9 +287,13 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
           _isRegenerating = false;
         });
         
-        // 停止动画
+        // 停止加载动画
         _pulseController.stop();
         _rotationController.stop();
+        
+        // 重置并启动信息出现动画
+        _infoAnimationController.reset();
+        _infoAnimationController.forward();
         
         if (mounted) {
           Provider.of<NotificationService>(context, listen: false)
@@ -305,6 +340,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   void dispose() {
     _pulseController.dispose();
     _rotationController.dispose();
+    _infoAnimationController.dispose();
     super.dispose();
   }
 
@@ -337,7 +373,15 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             // 歌曲标题卡片 - 统一的封面位置
             _buildHeaderCard(trackName, artistNames),
             
-            const SizedBox(height: 16),
+            // 在歌曲标题下方添加波浪线
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: WavyDivider(
+                height: 10.0,
+                waveHeight: 5.0,
+                waveFrequency: 0.02,
+              ),
+            ),
 
             // 错误提示
             if (_regenerationError != null && !_isLoading)
@@ -604,56 +648,70 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     required String title,
     required String content,
     required IconData icon,
+    required int animationIndex,
   }) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
+    // 确保animationIndex在有效范围内
+    final safeIndex = animationIndex.clamp(0, _infoAnimations.length - 1);
+    
+    return AnimatedBuilder(
+      animation: _infoAnimations[safeIndex],
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - _infoAnimations[safeIndex].value)),
+          child: Opacity(
+            opacity: _infoAnimations[safeIndex].value.clamp(0.0, 1.0),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        icon,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.copy_rounded, size: 18),
+                        onPressed: () => _copyToClipboard(content, title),
+                        tooltip: 'Copy $title',
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 28.0),
+                    child: Text(
+                      content,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        height: 1.6,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.copy_rounded, size: 18),
-                  onPressed: () => _copyToClipboard(content, title),
-                  tooltip: 'Copy $title',
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              content,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                height: 1.6,
-                color: Theme.of(context).colorScheme.onSurface,
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   List<Widget> _buildInfoCards() {
     List<Widget> cards = [];
+    int animationIndex = 0;
 
     if (_currentSongInfo!['creation_time'] != null && _currentSongInfo!['creation_time'] != '') {
       cards.add(_buildInfoSection(
@@ -661,8 +719,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         title: 'Creation Time',
         content: _currentSongInfo!['creation_time'] as String,
         icon: Icons.schedule_rounded,
+        animationIndex: animationIndex++,
       ));
-      cards.add(const SizedBox(height: 16));
+      cards.add(const SizedBox(height: 8));
     }
 
     if (_currentSongInfo!['creation_location'] != null && _currentSongInfo!['creation_location'] != '') {
@@ -671,8 +730,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         title: 'Creation Location',
         content: _currentSongInfo!['creation_location'] as String,
         icon: Icons.location_on_rounded,
+        animationIndex: animationIndex++,
       ));
-      cards.add(const SizedBox(height: 16));
+      cards.add(const SizedBox(height: 8));
     }
 
     if (_currentSongInfo!['lyricist'] != null && _currentSongInfo!['lyricist'] != '') {
@@ -681,8 +741,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         title: 'Lyricist',
         content: _currentSongInfo!['lyricist'] as String,
         icon: Icons.edit_rounded,
+        animationIndex: animationIndex++,
       ));
-      cards.add(const SizedBox(height: 16));
+      cards.add(const SizedBox(height: 8));
     }
 
     if (_currentSongInfo!['composer'] != null && _currentSongInfo!['composer'] != '') {
@@ -691,8 +752,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         title: 'Composer',
         content: _currentSongInfo!['composer'] as String,
         icon: Icons.music_note_rounded,
+        animationIndex: animationIndex++,
       ));
-      cards.add(const SizedBox(height: 16));
+      cards.add(const SizedBox(height: 8));
     }
 
     if (_currentSongInfo!['producer'] != null && _currentSongInfo!['producer'] != '') {
@@ -701,18 +763,31 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         title: 'Producer',
         content: _currentSongInfo!['producer'] as String,
         icon: Icons.settings_rounded,
+        animationIndex: animationIndex++,
       ));
-      cards.add(const SizedBox(height: 16));
+      cards.add(const SizedBox(height: 8));
     }
 
+    // 在Song Analysis之前添加波浪线
     if (_currentSongInfo!['review'] != null && _currentSongInfo!['review'] != '') {
+      // 添加波浪线分隔符
+      cards.add(const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: WavyDivider(
+          height: 10.0,
+          waveHeight: 5.0,
+          waveFrequency: 0.02,
+        ),
+      ));
+      
       cards.add(_buildInfoSection(
         context,
         title: 'Song Analysis',
         content: _currentSongInfo!['review'] as String,
         icon: Icons.article_rounded,
+        animationIndex: animationIndex++,
       ));
-      cards.add(const SizedBox(height: 16));
+      cards.add(const SizedBox(height: 8));
     }
 
     // 移除最后一个间距
