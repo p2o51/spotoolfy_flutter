@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/notification_service.dart';
-import '../services/lyrics_analysis_service.dart';
 import '../services/lyrics_poster_service.dart';
+import '../services/settings_service.dart';
+import '../providers/local_database_provider.dart';
+import '../providers/spotify_provider.dart';
+import '../models/track.dart';
 import 'lyrics_poster_preview_page.dart';
+import 'lyrics_analysis_page.dart';
+import 'add_note.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class LyricLine {
@@ -36,7 +41,6 @@ class LyricsSelectionPage extends StatefulWidget {
 class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   late List<LyricLine> _lyricLines;
   bool _isLoading = false;
-  bool _selectAll = false;
   int _selectedCount = 0;
   
   final _scrollController = ScrollController();
@@ -64,7 +68,6 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
 
   void _deselectAllLines() {
     setState(() {
-      _selectAll = false;
       _selectedCount = 0;
       for (int i = 0; i < _lyricLines.length; i++) {
         _lyricLines[i].isSelected = false;
@@ -80,7 +83,6 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       _lyricLines[index].isSelected = !wasSelected;
       
       _selectedCount += wasSelected ? -1 : 1;
-      _selectAll = false;
     });
   }
 
@@ -102,89 +104,15 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return;
     }
 
-    setState(() { _isLoading = true; });
-
-    try {
-      final analysisService = LyricsAnalysisService();
-      final analysis = await analysisService.analyzeLyrics(
-        selectedLyrics.join('\n'),
-        widget.trackTitle,
-        widget.artistName,
-      );
-
-      if (mounted && analysis != null) {
-        _showAnalysisDialog(analysis);
-      }
-    } catch (e) {
-      if (mounted) {
-        Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar(l10n.analysisFailed(e.toString()));
-      }
-    } finally {
-      if (mounted) {
-        setState(() { _isLoading = false; });
-      }
-    }
-  }
-
-  void _showAnalysisDialog(Map<String, dynamic> analysis) {
-    final l10n = AppLocalizations.of(context)!;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.geminiAnalysisResult),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (analysis['theme'] != null) ...[
-                Text(l10n.lyricsTheme, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(analysis['theme']),
-                const SizedBox(height: 16),
-              ],
-              if (analysis['emotion'] != null) ...[
-                Text(l10n.lyricsEmotion, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(analysis['emotion']),
-                const SizedBox(height: 16),
-              ],
-              if (analysis['metaphor'] != null) ...[
-                Text(l10n.lyricsMetaphor, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(analysis['metaphor']),
-                const SizedBox(height: 16),
-              ],
-              if (analysis['interpretation'] != null) ...[
-                Text(l10n.lyricsInterpretation, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(analysis['interpretation']),
-              ],
-            ],
-          ),
+    // 导航到分析页面
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LyricsAnalysisPage(
+          lyrics: selectedLyrics.join('\n'),
+          trackTitle: widget.trackTitle,
+          artistName: widget.artistName,
+          albumCoverUrl: widget.albumCoverUrl,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final fullText = [
-                if (analysis['theme'] != null) '${l10n.lyricsTheme}: ${analysis['theme']}',
-                if (analysis['emotion'] != null) '${l10n.lyricsEmotion}: ${analysis['emotion']}',
-                if (analysis['metaphor'] != null) '${l10n.lyricsMetaphor}: ${analysis['metaphor']}',
-                if (analysis['interpretation'] != null) '${l10n.lyricsInterpretation}: ${analysis['interpretation']}',
-              ].join('\n\n');
-              
-              Clipboard.setData(ClipboardData(text: fullText));
-              Provider.of<NotificationService>(context, listen: false)
-                  .showSnackBar(l10n.analysisResultCopied);
-            },
-            child: Text(l10n.copyAnalysis),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.cancelButton),
-          ),
-        ],
       ),
     );
   }
@@ -198,7 +126,21 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return;
     }
 
-    final text = selectedLyrics.join('\n');
+    // 获取设置服务
+    final settingsService = Provider.of<SettingsService>(context, listen: false);
+    final settings = await settingsService.getSettings();
+    final copyAsSingleLine = settings['copyLyricsAsSingleLine'] as bool? ?? false;
+
+    // 根据设置格式化文本
+    final String text;
+    if (copyAsSingleLine) {
+      // 复制为单行，用空格替换换行符
+      text = selectedLyrics.join(' ');
+    } else {
+      // 复制为多行，保持原有格式
+      text = selectedLyrics.join('\n');
+    }
+
     await Clipboard.setData(ClipboardData(text: text));
     
     if (mounted) {
@@ -237,6 +179,28 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     );
   }
 
+  Future<void> _createNoteWithLyrics() async {
+    final l10n = AppLocalizations.of(context)!;
+    final selectedLyrics = _getSelectedLyrics();
+    if (selectedLyrics.isEmpty) {
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar(l10n.noLyricsSelected);
+      return;
+    }
+
+    // 使用三重引号包装歌词
+    final lyricsContent = '"""\n${selectedLyrics.join('\n')}\n"""';
+
+    // 弹出添加笔记对话框，预填充歌词
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => AddNoteSheet(
+        prefilledContent: lyricsContent,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -246,6 +210,11 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       appBar: AppBar(
         title: Text(l10n.selectLyrics),
         actions: [
+          if (_hasSelectedLyrics())
+            TextButton(
+              onPressed: _isLoading ? null : _copySelectedLyrics,
+              child: const Text('Copy'),
+            ),
           if (_hasSelectedLyrics())
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -279,16 +248,16 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
             child: ListView.builder(
               controller: _scrollController,
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _lyricLines.length + 1, // +1 for the song info header
               itemBuilder: (context, index) {
                 if (index == 0) {
                   // 第一项：歌曲信息卡片
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(context).colorScheme.secondaryContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -336,7 +305,9 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                             children: [
                               Text(
                                 widget.trackTitle,
-                                style: Theme.of(context).textTheme.titleMedium,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -358,10 +329,25 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                 } else {
                   // 其余项：歌词行
                   final lyricIndex = index - 1;
+                  
+                  // 计算当前行是否为连续选中组的首尾
+                  bool isFirstInGroup = false;
+                  bool isLastInGroup = false;
+                  
+                  if (_lyricLines[lyricIndex].isSelected) {
+                    // 检查是否为组的第一行
+                    isFirstInGroup = lyricIndex == 0 || !_lyricLines[lyricIndex - 1].isSelected;
+                    
+                    // 检查是否为组的最后一行
+                    isLastInGroup = lyricIndex == _lyricLines.length - 1 || !_lyricLines[lyricIndex + 1].isSelected;
+                  }
+                  
                   return _LyricTile(
                     index: lyricIndex,
                     line: _lyricLines[lyricIndex],
                     onTap: () => _toggleLineSelection(lyricIndex),
+                    isFirstInGroup: isFirstInGroup,
+                    isLastInGroup: isLastInGroup,
                   );
                 }
               },
@@ -371,27 +357,29 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       ),
       
       // 底部操作栏
-      bottomNavigationBar: _hasSelectedLyrics()
-          ? Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: 16 + MediaQuery.of(context).padding.bottom,
-              ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                  ),
-                ),
-              ),
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  : Row(
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: 16 + MediaQuery.of(context).padding.bottom,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+        ),
+        child: SizedBox(
+          height: 56.0,
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(),
+                )
+              : _hasSelectedLyrics()
+                  ? Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         // 取消全选按钮 (仅在有选中时显示)
@@ -440,17 +428,27 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                         ),
                         const SizedBox(width: 12),
                         FilledButton.tonalIcon(
-                          onPressed: _isLoading ? null : _copySelectedLyrics,
-                          icon: const Icon(Icons.copy),
-                          label: const Text('Copy'),
+                          onPressed: _createNoteWithLyrics,
+                          icon: const Icon(Icons.note_add),
+                          label: const Text('Note'),
                           style: FilledButton.styleFrom(
                             fixedSize: const Size(double.infinity, 56),
                           ),
                         ),
                       ],
+                    )
+                  : Center(
+                      child: Text(
+                        "轻点歌词行以选中",
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
                     ),
-            )
-          : null,
+        ),
+      ),
     );
   }
 }
@@ -460,74 +458,63 @@ class _LyricTile extends StatelessWidget {
   final int index;
   final LyricLine line;
   final VoidCallback onTap;
+  final bool isFirstInGroup;
+  final bool isLastInGroup;
 
   const _LyricTile({
     super.key,
     required this.index,
     required this.line,
     required this.onTap,
+    this.isFirstInGroup = false,
+    this.isLastInGroup = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
+    // 计算圆角
+    BorderRadius borderRadius;
+    if (line.isSelected) {
+      borderRadius = BorderRadius.only(
+        topLeft: Radius.circular(isFirstInGroup ? 12 : 4),
+        topRight: Radius.circular(isFirstInGroup ? 12 : 4),
+        bottomLeft: Radius.circular(isLastInGroup ? 12 : 4),
+        bottomRight: Radius.circular(isLastInGroup ? 12 : 4),
+      );
+    } else {
+      borderRadius = BorderRadius.circular(12);
+    }
+    
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          // 左侧选择区域
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: Container(
-              width: 60,
-              height: 60,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.transparent,
-              ),
-              child: Icon(
-                line.isSelected 
-                    ? Icons.check_circle 
-                    : Icons.circle_outlined,
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 16),
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: borderRadius,
+        ),
+        color: line.isSelected 
+            ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.6)
+            : theme.colorScheme.surface,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: borderRadius,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: Text(
+              line.text,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 18,
                 color: line.isSelected 
                     ? theme.colorScheme.primary 
-                    : theme.colorScheme.onSurfaceVariant,
-                size: 20,
+                    : theme.colorScheme.secondaryContainer,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          // 右侧文本区域
-          Expanded(
-            child: GestureDetector(
-              onTap: onTap,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: line.isSelected 
-                      ? theme.colorScheme.secondaryContainer
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: line.isSelected 
-                      ? Border.all(color: theme.colorScheme.secondary.withValues(alpha: 0.3))
-                      : null,
-                ),
-                child: Text(
-                  line.text,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 18,
-                    color: line.isSelected 
-                        ? theme.colorScheme.primary 
-                        : theme.colorScheme.secondary,
-                    fontWeight: FontWeight.normal,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -9,7 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class AddNoteSheet extends StatefulWidget {
-  const AddNoteSheet({super.key});
+  final String? prefilledContent;
+  
+  const AddNoteSheet({super.key, this.prefilledContent});
 
   @override
   State<AddNoteSheet> createState() => _AddNoteSheetState();
@@ -38,6 +40,11 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       _initialTimestampMs = currentTrackData['progress_ms'] as int?;
       _initialContext = currentTrackData['context'] as Map<String, dynamic>?;
       _initialTrackName = _initialTrackItem?['name'] as String?; // Store name
+    }
+
+    // 设置预填充内容
+    if (widget.prefilledContent != null) {
+      _controller.text = widget.prefilledContent!;
     }
 
     _loadLastUsedRating();

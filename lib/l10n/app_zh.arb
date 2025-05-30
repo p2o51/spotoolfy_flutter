@@ -194,5 +194,6 @@
   "analysisFailed": "分析失败: {error}",
   "noLyricsToSelect": "没有可选择的歌词",
   "posterLyricsLimitExceeded": "最多只能选择10行歌词生成海报",
-  "multiSelectMode": "多选模式"
+  "multiSelectMode": "多选模式",
+  "tapToSelectLyrics": "轻点歌词行以选中"
 }
