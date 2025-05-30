@@ -9,13 +9,12 @@ import '../models/translation.dart';
 import '../models/track.dart';
 import './translation_result_page.dart';
 import './lyrics_search_page.dart';
+import './lyrics_selection_page.dart';
 import 'dart:async';
 import '../services/settings_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-import 'package:flutter/foundation.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -785,6 +784,14 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                             onPressed: _showSearchLyricsPage,
                             tooltip: '搜索歌词', // l10n.searchLyrics, // "Search Lyrics" // TODO: Add l10n key
                           ),
+                          const SizedBox(width: 8),
+
+                          // Select Lyrics Button
+                          IconButton.filledTonal(
+                            icon: const Icon(Icons.checklist),
+                            onPressed: _lyrics.isEmpty ? null : _showLyricsSelectionPage,
+                            tooltip: l10n.selectLyricsTooltip,
+                          ),
                         ],
                       ),
                     ),
@@ -1024,6 +1031,73 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                }
             });
          }
+      }
+    });
+  }
+
+  // Method to navigate to the lyrics selection page
+  void _showLyricsSelectionPage() {
+    if (!mounted) return;
+    
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrack = spotifyProvider.currentTrack?['item'];
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+
+    if (currentTrack == null) {
+      notificationService.showSnackBar('没有正在播放的歌曲');
+      return;
+    }
+
+    if (_lyrics.isEmpty) {
+      notificationService.showSnackBar('没有可选择的歌词');
+      return;
+    }
+    
+    final trackName = currentTrack['name'] ?? '';
+    final artistName = (currentTrack['artists'] as List?)
+                          ?.map((artist) => artist['name'] as String)
+                          .join(', ') ?? '';
+    final albumCoverUrl = (currentTrack['album']?['images'] as List?)?.isNotEmpty == true
+                        ? currentTrack['album']['images'][0]['url']
+                        : null;
+    
+    // 暂停当前的自动滚动
+    final wasAutoScrollEnabled = _autoScroll;
+    if (_autoScroll) {
+      setState(() { _autoScroll = false; });
+    }
+    
+    // 准备歌词数据
+    final lyricsText = _lyrics.map((line) => line.text).toList();
+    
+    // 导航到选择页面
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LyricsSelectionPage(
+          lyrics: lyricsText,
+          trackTitle: trackName,
+          artistName: artistName,
+          albumCoverUrl: albumCoverUrl,
+        ),
+      ),
+    ).then((_) {
+      // 页面返回后恢复自动滚动状态
+      if (!mounted) return;
+      
+      if (wasAutoScrollEnabled && !_autoScroll) {
+        setState(() { _autoScroll = true; });
+        // 触发滚动到当前位置
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _autoScroll) {
+            final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] ?? 0;
+            final currentPosition = Duration(milliseconds: currentProgressMs);
+            final currentIndex = _getCurrentLineIndex(currentPosition);
+            if (currentIndex >= 0) {
+              _scrollToCurrentLine(currentIndex);
+              _previousLineIndex = currentIndex;
+            }
+          }
+        });
       }
     });
   }

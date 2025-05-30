@@ -313,5 +313,33 @@
   "translateLyrics": "Translate Lyrics",
   "copyLyricsModeHint": "Copy Lyrics Mode: Single repeat active, auto-scroll disabled.",
   "exitCopyMode": "Exit Copy Mode & Resume Scroll",
-  "enterCopyMode": "Enter Copy Lyrics Mode (Single Repeat)"
+  "enterCopyMode": "Enter Copy Lyrics Mode (Single Repeat)",
+  "selectLyrics": "Select Lyrics",
+  "selectLyricsTooltip": "Select lyrics fragments for analysis or sharing",
+  "selectAll": "Select All",
+  "deselectAll": "Deselect All",
+  "noLyricsSelected": "Please select some lyrics first",
+  "askGemini": "Ask Gemini",
+  "sharePoster": "Share Poster",
+  "copySelected": "Copy Selected",
+  "geminiAnalysisResult": "Gemini Analysis Result",
+  "lyricsTheme": "Theme",
+  "lyricsEmotion": "Emotion",
+  "lyricsMetaphor": "Metaphor Analysis",
+  "lyricsInterpretation": "Deep Interpretation",
+  "copyAnalysis": "Copy Analysis",
+  "analysisResultCopied": "Analysis result copied to clipboard",
+  "selectedLyricsCopied": "Copied {count} lines of lyrics",
+  "@selectedLyricsCopied": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "posterGenerationFailed": "Poster generation failed: {error}",
+  "analysisFailed": "Analysis failed: {error}",
+  "noLyricsToSelect": "No lyrics to select",
+  "posterLyricsLimitExceeded": "Maximum 10 lines of lyrics can be selected for poster generation",
+  "multiSelectMode": "Multi-select Mode"
 }

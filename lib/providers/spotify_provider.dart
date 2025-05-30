@@ -1794,7 +1794,7 @@ class SpotifyProvider extends ChangeNotifier {
       logger.e('$message 遇到其他错误，将重新抛出: $e');
       // For other non-401 errors, re-throw the original exception.
       if (e is Exception) {
-        throw e;
+      throw e;
       } else {
         // Wrap non-Exception errors if necessary, though typically 'e' will be an Exception.
         throw Exception('$message 发生未知错误: $e');

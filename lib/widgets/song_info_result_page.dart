@@ -141,7 +141,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     
     _rotationAnimation = Tween<double>(
       begin: 0.0,
-      end: 1.0,
+      end: 0.5, // 修改为0.5，一次只转半圈（180度）
     ).animate(CurvedAnimation(
       parent: _rotationController,
       curve: Curves.elasticInOut, // 使用弹性曲线，更夸张的弹跳效果
@@ -197,7 +197,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }
 
   void _startVibrationCycle() {
-    // 图标旋转一圈是1.8秒，三个振动一循环，所以每个振动间隔约600毫秒
+    // 图标旋转半圈是1.8秒，三个振动一循环，所以每个振动间隔约600毫秒
     const vibrationInterval = Duration(milliseconds: 600);
     int vibrationCount = 0;
     
