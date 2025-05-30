@@ -23,7 +23,7 @@ import 'services/settings_service.dart'; // Add this line
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-void main() async {
+void maino() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // 设置iOS URL scheme处理

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/notification_service.dart';
 import '../services/lyrics_analysis_service.dart';
 import '../services/lyrics_poster_service.dart';
+import 'lyrics_poster_preview_page.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class LyricLine {
@@ -222,26 +223,18 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return;
     }
 
-    setState(() { _isLoading = true; });
-
-    try {
-      final posterService = LyricsPosterService();
-      await posterService.generateAndSharePoster(
-        lyrics: selectedLyrics.join('\n'),
-        trackTitle: widget.trackTitle,
-        artistName: widget.artistName,
-        albumCoverUrl: widget.albumCoverUrl,
-      );
-    } catch (e) {
-      if (mounted) {
-        Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar(l10n.posterGenerationFailed(e.toString()));
-      }
-    } finally {
-      if (mounted) {
-        setState(() { _isLoading = false; });
-      }
-    }
+    // 导航到海报预览页面
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LyricsPosterPreviewPage(
+          lyrics: selectedLyrics.join('\n'),
+          trackTitle: widget.trackTitle,
+          artistName: widget.artistName,
+          albumCoverUrl: widget.albumCoverUrl,
+        ),
+      ),
+    );
   }
 
   @override

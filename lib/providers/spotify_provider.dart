@@ -18,6 +18,7 @@ import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import '../pages/devices.dart';
 import 'dart:convert';
+import 'package:flutter/widgets.dart';
 
 final logger = Logger();
 
@@ -31,6 +32,16 @@ class SpotifyProvider extends ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   late SpotifyAuthService _spotifyService;
   static const String _clientIdKey = 'spotify_client_id';
+  final Logger logger = Logger();
+  
+  // 生命周期观察者
+  late final WidgetsBinding _binding;
+  late final _AppLifecycleObserver _lifecycleObserver;
+
+  // 网络状态跟踪
+  bool _hasNetworkIssue = false;
+  DateTime? _lastNetworkError;
+  int _consecutiveNetworkErrors = 0;
 
   String? username;
   Map<String, dynamic>? currentTrack;
@@ -51,6 +62,7 @@ class SpotifyProvider extends ChangeNotifier {
   
   SpotifyProvider() {
     _initSpotifyService();
+    _initLifecycleObserver();
     // 自动尝试读取本地 token，成功就把 username 填好并启动定时器
     Future.microtask(() => autoLogin());
   }
@@ -87,6 +99,65 @@ class SpotifyProvider extends ChangeNotifier {
     }).catchError((e) {
       logger.e('读取存储的ClientID失败: $e');
     });
+  }
+
+  void _initLifecycleObserver() {
+    _binding = WidgetsBinding.instance;
+    _lifecycleObserver = _AppLifecycleObserver(
+      onResume: _onAppResume,
+      onPause: _onAppPause,
+    );
+    _binding.addObserver(_lifecycleObserver);
+  }
+
+  /// 应用恢复到前台时的处理
+  Future<void> _onAppResume() async {
+    logger.i('应用恢复到前台，重新初始化连接状态');
+    
+    try {
+      // 等待一下，让网络连接稳定
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // 检查认证状态
+      if (await _spotifyService.isAuthenticated()) {
+        // 刷新token和用户信息
+        await _refreshUserProfile();
+        
+        // 重新启动定时器
+        if (username != null && _refreshTimer == null) {
+          startTrackRefresh();
+        }
+        
+        // 分阶段恢复功能，减少同时发起的网络请求
+        Future.delayed(const Duration(milliseconds: 1000), () async {
+          try {
+            await refreshCurrentTrack();
+          } catch (e) {
+            logger.w('恢复后刷新当前播放状态失败: $e');
+          }
+        });
+        
+        Future.delayed(const Duration(milliseconds: 2000), () async {
+          try {
+            await refreshAvailableDevices();
+          } catch (e) {
+            logger.w('恢复后刷新设备列表失败: $e');
+          }
+        });
+      }
+    } catch (e) {
+      logger.w('应用恢复时重新初始化失败: $e');
+    }
+  }
+
+  /// 应用进入后台时的处理
+  Future<void> _onAppPause() async {
+    logger.i('应用进入后台，暂停定时器');
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _progressTimer?.cancel();
+    _progressTimer = null;
+    // 可以在这里添加一些清理工作，比如暂停一些不必要的网络请求
   }
 
   Future<void> _refreshUserProfile() async {
@@ -359,12 +430,18 @@ class SpotifyProvider extends ChangeNotifier {
   void dispose() {
     _refreshTimer?.cancel();
     _progressTimer?.cancel();
+    // 清理生命周期观察者
+    _binding.removeObserver(_lifecycleObserver);
     super.dispose();
   }
 
   Future<void> refreshCurrentTrack() async {
     try {
       final track = await _spotifyService.getCurrentlyPlayingTrack();
+      
+      // 成功获取数据，检查并重置网络错误状态
+      _isNetworkError(Exception('success')); // 调用以重置计数（传入非网络错误）
+      
       logger.d('refreshCurrentTrack: API returned track: ${track != null ? json.encode(track) : "null"}');
 
       if (track != null) {
@@ -466,6 +543,15 @@ class SpotifyProvider extends ChangeNotifier {
       }
     } catch (e) {
       logger.e('Error in refreshCurrentTrack: $e');
+      
+      // 检查是否为网络连接错误
+      if (_isNetworkError(e)) {
+        // 对于网络错误，我们只记录日志，不显示用户通知
+        // 因为这是定时刷新操作，网络错误很常见
+        logger.w('refreshCurrentTrack: 网络连接错误，跳过本次刷新: $e');
+        return; // 直接返回，不调用_handleApiError
+      }
+      
       // Add a specific log before calling _handleApiError
       logger.w('refreshCurrentTrack caught an error. About to call _handleApiError. Error: $e');
       await _handleApiError(e, contextMessage: '刷新当前播放状态');
@@ -1705,9 +1791,91 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   // --- 添加新的错误处理辅助方法 ---
+  
+  /// 检查是否为网络连接错误
+  bool _isNetworkError(dynamic error) {
+    final errorString = error.toString().toLowerCase(); // 转为小写以增加匹配鲁棒性
+    bool isNetworkErrorType = false;
+
+    if (error is SpotifyAuthException) {
+      // 检查来自 SpotifyAuthService 的特定网络错误代码
+      isNetworkErrorType = error.code == 'NETWORK_RETRY_EXHAUSTED' || 
+                           error.code == 'RETRY_LOGIC_ERROR' || // 通常不应发生，但作为网络相关问题处理
+                           error.code == 'OPERATION_FAILED_UNKNOWN'; // 如果未知错误也认为是网络问题
+    }
+
+    // 检查通用的网络错误关键字
+    isNetworkErrorType = isNetworkErrorType ||
+           errorString.contains('socketexception') || 
+           errorString.contains('timeoutexception') ||
+           errorString.contains('clientexception') || // 包括 ClientException with SocketException
+           errorString.contains('connection') ||
+           errorString.contains('software caused connection abort') ||
+           errorString.contains('host unreachable') ||
+           errorString.contains('network is unreachable') ||
+           errorString.contains('network_error') || // 通用网络错误标记
+           errorString.contains('failed host lookup') || // DNS解析失败
+           errorString.contains('os error: connection refused'); // 连接被拒绝
+    
+    if (isNetworkErrorType) {
+      _consecutiveNetworkErrors++;
+      _lastNetworkError = DateTime.now();
+      _hasNetworkIssue = true;
+      
+      logger.w('检测到网络错误 (连续第 $_consecutiveNetworkErrors 次): $errorString');
+      
+      // 如果连续网络错误超过3次，暂停定时刷新一段时间
+      if (_consecutiveNetworkErrors >= 3 && _refreshTimer != null) { // 仅当定时器存在时才操作
+        logger.w('连续网络错误过多，暂停定时刷新30秒');
+        _pauseRefreshTimerTemporarily();
+      }
+    } else {
+      // 成功的请求或非网络错误，重置网络错误计数
+      if (_consecutiveNetworkErrors > 0) {
+        logger.i('网络连接已恢复或错误非网络相关，重置错误计数');
+        _consecutiveNetworkErrors = 0;
+        _hasNetworkIssue = false;
+      }
+    }
+    
+    return isNetworkErrorType;
+  }
+  
+  /// 暂时暂停刷新定时器
+  void _pauseRefreshTimerTemporarily() {
+    _refreshTimer?.cancel();
+    
+    // 30秒后重新启动定时器
+    Future.delayed(const Duration(seconds: 30), () {
+      if (username != null && _refreshTimer == null) {
+        logger.i('网络错误恢复期结束，重新启动定时刷新');
+        startTrackRefresh();
+      }
+    });
+  }
+  
   Future<void> _handleApiError(dynamic e, {String? contextMessage}) async {
     final message = contextMessage ?? 'API 调用';
     logger.e('$message 出错: $e', error: e, stackTrace: e is Error ? e.stackTrace : null);
+
+    // 检查是否为网络连接错误
+    if (_isNetworkError(e)) {
+      logger.w('$message 遇到网络连接错误: $e');
+      final context = navigatorKey.currentContext;
+      if (context != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('网络连接不稳定，请检查网络设置或稍后重试'),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      // 对于网络错误，我们可以选择不重新抛出，让应用继续运行
+      // 但如果调用方需要知道错误发生，可以重新抛出
+      // 这里我们选择不重新抛出，避免应用崩溃
+      return;
+    }
 
     if (e is SpotifyAuthException && e.code == '401') {
       logger.i('$message 遇到 401，尝试静默续约/重连...');
@@ -1802,4 +1970,26 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
   // --- 辅助方法结束 ---
+}
+
+// 应用生命周期观察者类
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  final Future<void> Function() onResume;
+  final Future<void> Function()? onPause;
+  
+  _AppLifecycleObserver({required this.onResume, this.onPause});
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        onResume();
+        break;
+      case AppLifecycleState.paused:
+        onPause?.call();
+        break;
+      default:
+        break;
+    }
+  }
 }

@@ -98,6 +98,51 @@ class SpotifyAuthService {
   Uri _buildUri(String path, [Map<String, String>? query]) =>
       Uri.https('api.spotify.com', '/v1$path', query?.isEmpty ?? true ? null : query);
 
+  /// 通用的网络重试包装器
+  Future<T> _withNetworkRetry<T>(
+    Future<T> Function() operation, {
+    String operationName = 'API操作',
+    int maxRetries = 3,
+    Duration baseDelay = const Duration(milliseconds: 500),
+  }) async {
+    int retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+      try {
+        return await operation().timeout(const Duration(seconds: 10));
+      } catch (e) {
+        retryCount++;
+        
+        // 如果是认证错误，不重试
+        if (e is SpotifyAuthException) rethrow;
+        
+        // 如果是网络连接错误且还有重试次数，则重试
+        final errorString = e.toString().toLowerCase();
+        final isRetryableNetworkError = errorString.contains('socketexception') || 
+                                    errorString.contains('timeoutexception') ||
+                                    errorString.contains('connection') ||
+                                    errorString.contains('clientexception');
+
+        if (retryCount < maxRetries && isRetryableNetworkError) {
+          print('$operationName: 网络错误，尝试第 $retryCount 次重试: $e');
+          await Future.delayed(baseDelay * retryCount); // 指数退避
+          continue;
+        }
+        
+        // 其他错误或重试次数用完
+        if (isRetryableNetworkError) { // 重试耗尽的网络错误
+            throw SpotifyAuthException('$operationName 时出错: 网络连接失败，已尝试 $maxRetries 次', code: 'NETWORK_RETRY_EXHAUSTED');
+        } else { // 其他非网络错误
+            throw SpotifyAuthException('$operationName 时出错: $e', code: 'OPERATION_FAILED_UNKNOWN');
+        }
+      }
+    }
+    
+    // 此处逻辑理论上不会到达，因为上面的循环会抛出异常或成功返回
+    // 但为了完整性，保留一个最终的异常抛出
+    throw SpotifyAuthException('$operationName 时出错: 未知错误，重试逻辑未按预期工作', code: 'RETRY_LOGIC_ERROR');
+  }
+
   // 新增：创建认证请求头，可选是否包含 Content-Type
   Future<Map<String, String>> _authHeaders({bool hasBody = true}) async {
     final token = await ensureFreshToken();
@@ -456,57 +501,58 @@ class SpotifyAuthService {
 
   /// 获取当前正在播放的曲目
   Future<Map<String, dynamic>?> getCurrentlyPlayingTrack() async {
-    try {
-      final headers = await _authHeaders(hasBody: false); // GET request, no body
-      final response = await http.get(
-        Uri.parse('https://api.spotify.com/v1/me/player/currently-playing'),
-        headers: headers,
-      );
-
-      // 如果返回204表示当前没有播放内容
-      if (response.statusCode == 204) {
-        return null;
-      }
-
-      if (response.statusCode != 200) {
-        throw SpotifyAuthException(
-          '获取当前播放曲目失败: ${response.body}',
-          code: response.statusCode.toString(),
+    return await _withNetworkRetry<Map<String, dynamic>?>(
+      () async {
+        final headers = await _authHeaders(hasBody: false); // GET request, no body
+        final response = await http.get(
+          Uri.parse('https://api.spotify.com/v1/me/player/currently-playing'),
+          headers: headers,
         );
-      }
 
-      return json.decode(response.body);
-    } catch (e) {
-      if (e is SpotifyAuthException) rethrow;
-      throw SpotifyAuthException('获取当前播放曲目时出错: $e');
-    }
+        // 如果返回204表示当前没有播放内容
+        if (response.statusCode == 204) {
+          return null;
+        }
+
+        if (response.statusCode != 200) {
+          throw SpotifyAuthException(
+            '获取当前播放曲目失败: ${response.body}',
+            code: response.statusCode.toString(),
+          );
+        }
+
+        return json.decode(response.body);
+      },
+      operationName: '获取当前播放曲目',
+    );
   }
 
   /// 获取播放状态
   Future<Map<String, dynamic>> getPlaybackState() async {
-    try {
-      final headers = await _authHeaders(hasBody: false); // GET request, no body
-      final response = await http.get(
-        Uri.parse('https://api.spotify.com/v1/me/player'),
-        headers: headers,
-      );
-
-      // 如果返回204表示当前没有活动设备
-      if (response.statusCode == 204) {
-        return {};
-      }
-
-      if (response.statusCode != 200) {
-        throw SpotifyAuthException(
-          '获取播放状态失败: ${response.body}',
-          code: response.statusCode.toString(),
+    return await _withNetworkRetry<Map<String, dynamic>>(
+      () async {
+        final headers = await _authHeaders(hasBody: false); // GET request, no body
+        final response = await http.get(
+          Uri.parse('https://api.spotify.com/v1/me/player'),
+          headers: headers,
         );
-      }
 
-      return json.decode(response.body);
-    } catch (e) {
-      rethrow;
-    }
+        // 如果返回204表示当前没有活动设备
+        if (response.statusCode == 204) {
+          return {};
+        }
+
+        if (response.statusCode != 200) {
+          throw SpotifyAuthException(
+            '获取播放状态失败: ${response.body}',
+            code: response.statusCode.toString(),
+          );
+        }
+
+        return json.decode(response.body);
+      },
+      operationName: '获取播放状态',
+    );
   }
 
   /// 创建辅助方法处理API请求，先不带device_id，失败时再补充
