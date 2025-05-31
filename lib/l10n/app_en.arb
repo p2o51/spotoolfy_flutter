@@ -325,8 +325,10 @@
   "geminiAnalysisResult": "Gemini Analysis Result",
   "lyricsTheme": "Theme",
   "lyricsEmotion": "Emotion",
-  "lyricsMetaphor": "Metaphor Analysis",
-  "lyricsInterpretation": "Deep Interpretation",
+  "lyricsMetaphor": "Metaphor and Symbolism",
+  "lyricsInterpretation": "In-depth Interpretation",
+  "lyricsReference": "References and Allusions",
+  "lyricsKeywordsExplanation": "Keywords Explanation",
   "copyAnalysis": "Copy Analysis",
   "analysisResultCopied": "Analysis result copied to clipboard",
   "selectedLyricsCopied": "Copied {count} lines of lyrics",
@@ -339,6 +341,13 @@
   },
   "posterGenerationFailed": "Poster generation failed: {error}",
   "analysisFailed": "Analysis failed: {error}",
+  "@analysisFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "noLyricsToSelect": "No lyrics to select",
   "posterLyricsLimitExceeded": "Maximum 10 lines of lyrics can be selected for poster generation",
   "multiSelectMode": "Multi-select Mode"

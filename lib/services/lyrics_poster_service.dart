@@ -184,7 +184,10 @@ class LyricsPosterService {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, finalPosterHeight));
 
-    final backgroundPaint = Paint()..color = backgroundColor.withValues(alpha: backgroundColor.a * 0.5);
+    // 让颜色变淡，例如与白色混合50%，并确保最终颜色不透明
+    final Color lightenedBackgroundColor = Color.lerp(backgroundColor, Colors.white, 0.5)!;
+    // 使用淡化后的不透明颜色作为背景
+    final backgroundPaint = Paint()..color = lightenedBackgroundColor;
     canvas.drawRect(Rect.fromLTWH(0, 0, width, finalPosterHeight), backgroundPaint);
 
     double currentY = topMargin;

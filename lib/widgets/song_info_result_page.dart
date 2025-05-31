@@ -132,8 +132,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     );
     
     _pulseAnimation = Tween<double>(
-      begin: 0.6,
-      end: 1.4,
+      begin: 0.8,
+      end: 1.2,
     ).animate(CurvedAnimation(
       parent: _pulseController,
       curve: Curves.elasticInOut, // 脉冲也使用弹性效果
@@ -228,7 +228,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     // 启动动画
     _pulseController.repeat(reverse: true);
-    _rotationController.repeat();
+    _rotationController.repeat(reverse: true);
     _startLoadingTextAnimation();
     _startFunnyTextRotation();
     _startVibrationCycle();
@@ -273,7 +273,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     // 启动动画和文本轮换
     _pulseController.repeat(reverse: true);
-    _rotationController.repeat();
+    _rotationController.repeat(reverse: true);
     _startLoadingTextAnimation();
     _startFunnyTextRotation();
     _startVibrationCycle();

@@ -188,8 +188,10 @@
   "geminiAnalysisResult": "Gemini 分析結果",
   "lyricsTheme": "主題",
   "lyricsEmotion": "情感",
-  "lyricsMetaphor": "隱喻分析",
+  "lyricsMetaphor": "隱喻與象徵",
   "lyricsInterpretation": "深度解讀",
+  "lyricsReference": "引用與典故",
+  "lyricsKeywordsExplanation": "關鍵詞解釋",
   "copyAnalysis": "複製分析",
   "analysisResultCopied": "分析結果已複製到剪貼簿",
   "selectedLyricsCopied": "已複製 {count} 行歌詞",
@@ -197,5 +199,6 @@
   "analysisFailed": "分析失敗: {error}",
   "noLyricsToSelect": "沒有可選擇的歌詞",
   "posterLyricsLimitExceeded": "最多只能選擇10行歌詞生成海報",
-  "multiSelectMode": "多選模式"
+  "multiSelectMode": "多選模式",
+  "tapToSelectLyrics": "輕點歌詞行以選取"
 }

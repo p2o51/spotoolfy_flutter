@@ -218,91 +218,100 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       return _buildMiniPlayer(displayTrack, spotifyProvider);
     }
 
-    return RepaintBoundary(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: widget.isLargeScreen ? 600 : double.infinity,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  _buildMainContent(displayTrack, spotifyProvider),
-                  Positioned(
-                    bottom: 64,
-                    right: 10,
-                    child: PlayButton(
-                      isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        spotifyProvider.togglePlayPause();
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 64,
-                    child: MyButton(
-                      width: 64,
-                      height: 64,
-                      radius: 20,
-                      icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        spotifyProvider.togglePlayMode();
-                      },
-                    ),
-                  ),
-                  _buildDragIndicators(),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(48, 0, 48, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: HeaderAndFooter(
-                            header: displayTrack?['name'] ?? 'Godspeed',
-                            footer: displayTrack != null 
-                                ? (displayTrack['artists'] as List?)
-                                    ?.map((artist) => artist['name'] as String)
-                                    .join(', ') ?? 'Unknown Artist'
-                                : 'Camila Cabello',
-                            track: displayTrack,
-                          ),
-                        ),
-                        IconButton.filledTonal(
-                          onPressed: spotifyProvider.currentTrack != null && track != null
-                            ? () {
-                                HapticFeedback.lightImpact();
-                                spotifyProvider.toggleTrackSave();
-                              }
-                            : null,
-                          icon: Icon(
-                            context.select<SpotifyProvider, bool>((provider) => 
-                              provider.isCurrentTrackSaved ?? false)
-                                ? Icons.favorite
-                                : Icons.favorite_outline_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    if (widget.isLargeScreen) {
+      return RepaintBoundary(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: _buildLargeScreenPlayerLayout(displayTrack, spotifyProvider),
           ),
         ),
-      ),
-    );
+      );
+    } else {
+      return RepaintBoundary(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: double.infinity),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  children: [
+                    _buildMainContent(displayTrack, spotifyProvider),
+                    Positioned(
+                      bottom: 64,
+                      right: 10,
+                      child: PlayButton(
+                        isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          spotifyProvider.togglePlayPause();
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 64,
+                      child: MyButton(
+                        width: 64,
+                        height: 64,
+                        radius: 20,
+                        icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          spotifyProvider.togglePlayMode();
+                        },
+                      ),
+                    ),
+                    _buildDragIndicators(),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(48, 0, 48, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: HeaderAndFooter(
+                              header: displayTrack?['name'] ?? 'Godspeed',
+                              footer: displayTrack != null 
+                                  ? (displayTrack['artists'] as List?)
+                                      ?.map((artist) => artist['name'] as String)
+                                      .join(', ') ?? 'Unknown Artist'
+                                  : 'Camila Cabello',
+                              track: displayTrack,
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            onPressed: spotifyProvider.currentTrack != null && track != null
+                              ? () {
+                                  HapticFeedback.lightImpact();
+                                  spotifyProvider.toggleTrackSave();
+                                }
+                              : null,
+                            icon: Icon(
+                              context.select<SpotifyProvider, bool>((provider) => 
+                                provider.isCurrentTrackSaved ?? false)
+                                  ? Icons.favorite
+                                  : Icons.favorite_outline_rounded,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildMainContent(Map<String, dynamic>? track, SpotifyProvider spotify) {
@@ -337,7 +346,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           });
         },
         onLongPress: () async {
-          final currentTrackData = context.read<SpotifyProvider>().currentTrack;
+          final currentTrackData = spotify.currentTrack;
           String? urlToLaunch;
 
           // 1. Try to get context URL (album, playlist, etc.)
@@ -796,6 +805,207 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildLargeScreenPlayerLayout(Map<String, dynamic>? displayTrack, SpotifyProvider spotifyProvider) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        const double textSectionFixedHeight = 70.0;
+        const double spacingBelowArt = 8.0;
+        const double artExternalPaddingHorizontal = 48.0 * 2;
+        const double artExternalPaddingVertical = 32.0 * 2;
+
+        double artContentAvailableWidth = constraints.maxWidth - artExternalPaddingHorizontal;
+        double artContentAvailableHeight = constraints.maxHeight -
+                                          textSectionFixedHeight -
+                                          spacingBelowArt -
+                                          artExternalPaddingVertical;
+        artContentAvailableWidth = max(0, artContentAvailableWidth);
+        artContentAvailableHeight = max(0, artContentAvailableHeight);
+        double artDimension = min(artContentAvailableWidth, artContentAvailableHeight);
+        artDimension = max(0, artDimension);
+
+        final isPlaying = context.select<SpotifyProvider, bool>(
+          (provider) => provider.currentTrack?['is_playing'] ?? false
+        );
+
+        final double stackWidth = artDimension * 1.2;
+        final double stackHeight = artDimension * 1.2;
+
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: stackWidth,
+              height: stackHeight,
+              child: Stack(
+                children: [
+                  Center(
+                    child: _buildConfigurableMainContent(
+                      displayTrack,
+                      spotifyProvider,
+                      isPlaying: isPlaying,
+                      artDimension: artDimension, // Actual album art content is still artDimension
+                    ),
+                  ),
+                  Positioned(
+                    bottom: stackHeight * 0.10, // 距离底部 20% container 高度
+                    right: -stackWidth * 0.05, // 距离右边 0
+                    child: PlayButton(
+                      isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        spotifyProvider.togglePlayPause();
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    bottom: -stackHeight * 0.02, // 距离底部 0
+                    left: stackWidth * 0.10, // 距离左边 10% container 宽度
+                    child: MyButton(
+                      width: 64,
+                      height: 64,
+                      radius: 20,
+                      icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        spotifyProvider.togglePlayMode();
+                      },
+                    ),
+                  ),
+                  _buildDragIndicators(),
+                ],
+              ),
+            ),
+            const SizedBox(height: spacingBelowArt), // Use the defined spacing
+            SizedBox(
+              height: textSectionFixedHeight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(48, 0, 48, 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: HeaderAndFooter(
+                            header: displayTrack?['name'] ?? 'Godspeed',
+                            footer: displayTrack != null 
+                                ? (displayTrack['artists'] as List?)
+                                    ?.map((artist) => artist['name'] as String)
+                                    .join(', ') ?? 'Unknown Artist'
+                                : 'Camila Cabello',
+                            track: displayTrack,
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          onPressed: spotifyProvider.currentTrack != null && displayTrack != null
+                            ? () {
+                                HapticFeedback.lightImpact();
+                                spotifyProvider.toggleTrackSave();
+                              }
+                            : null,
+                          icon: Icon(
+                            context.select<SpotifyProvider, bool>((provider) => 
+                              provider.isCurrentTrackSaved ?? false)
+                                ? Icons.favorite
+                                : Icons.favorite_outline_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildConfigurableMainContent(Map<String, dynamic>? track, SpotifyProvider spotify, {required bool isPlaying, double? artDimension}) {
+    if (isPlaying) {
+      _playStateController.forward();
+    } else {
+      _playStateController.reverse();
+    }
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_transitionController, _playStateController]),
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value * _playStateScaleAnimation.value,
+          child: Opacity(
+            opacity: _opacityAnimation.value * _playStateOpacityAnimation.value,
+            child: child,
+          ),
+        );
+      },
+      child: GestureDetector(
+        onHorizontalDragStart: _handleHorizontalDragStart,
+        onHorizontalDragUpdate: _handleHorizontalDragUpdate,
+        onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(details, spotify),
+        onTap: () {
+          setState(() {
+            _isSeekOverlayVisible = !_isSeekOverlayVisible;
+          });
+        },
+        onLongPress: () async {
+          final currentTrackData = spotify.currentTrack;
+          String? urlToLaunch;
+
+          // 1. Try to get context URL (album, playlist, etc.)
+          final contextData = currentTrackData?['context'];
+          if (contextData != null && contextData['external_urls'] is Map) {
+            urlToLaunch = contextData['external_urls']['spotify'];
+          }
+
+          // 2. If no context URL, try track URL
+          if (urlToLaunch == null) {
+            final trackData = currentTrackData?['item'];
+            if (trackData != null && trackData['external_urls'] is Map) {
+              urlToLaunch = trackData['external_urls']['spotify'];
+            }
+          }
+
+          // 3. Try launching the found URL or fallback to opening Spotify app
+          if (urlToLaunch != null) {
+            _launchSpotifyURL(context, urlToLaunch);
+          } else {
+            // Fallback: Try opening the Spotify app directly
+            final spotifyUri = Uri.parse('spotify:');
+            try {
+              if (await canLaunchUrl(spotifyUri)) {
+                await launchUrl(spotifyUri, mode: LaunchMode.externalApplication);
+              } else {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('无法打开 Spotify 应用')),
+                );
+              }
+            } catch (e) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('打开 Spotify 应用失败')),
+              );
+            }
+          }
+        },
+        child: RepaintBoundary(
+          child: artDimension != null
+              ? SizedBox(
+                  width: artDimension,
+                  height: artDimension,
+                  child: _buildAlbumArt(track),
+                )
+              : _buildAlbumArt(track),
+        ),
+      ),
     );
   }
 }

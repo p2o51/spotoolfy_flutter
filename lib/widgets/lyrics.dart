@@ -1067,14 +1067,17 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       setState(() { _autoScroll = false; });
     }
     
-    // 准备歌词数据
-    final lyricsText = _lyrics.map((line) => line.text).toList();
+    // 准备歌词数据，包含时间戳和文本
+    final List<Map<String, dynamic>> lyricsData = _lyrics.map((line) => {
+      'timestamp': line.timestamp,
+      'text': line.text,
+    }).toList();
     
     // 导航到选择页面
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => LyricsSelectionPage(
-          lyrics: lyricsText,
+          lyrics: lyricsData, //传递包含时间戳和文本的列表
           trackTitle: trackName,
           artistName: artistName,
           albumCoverUrl: albumCoverUrl,

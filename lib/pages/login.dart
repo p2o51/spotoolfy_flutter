@@ -680,48 +680,24 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               title: Text(l10n.spotifyCredentialsDialogTitle), 
               content: SizedBox(
                 width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Text(
-                        'If you failed to log in with the default Client ID, you need to create your own app in the Spotify Developers Platform and configure the redirect URI as "spotoolfy://callback"',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                child: TextField(
+                  controller: clientIdController,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    TextField(
-                      controller: clientIdController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        labelText: l10n.clientIdLabel,
-                        hintText: '64103961829a42328a6634fb80574191', 
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton(
-                      onPressed: () {
-                        launchUrl(Uri.parse('https://developer.spotify.com/dashboard'));
-                      },
-                      child: Text('Access the Spotify for Developers platform'),
-                    ),
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text(
-                        'Note: Please make sure to set the redirect URI in the Spotify Developer Platform to: "spotoolfy://callback"',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                    labelText: l10n.clientIdLabel,
+                    hintText: '64103961829a42328a6634fb80574191', 
+                  ),
                 ),
               ),
               actions: [
+                TextButton(
+                  onPressed: () {
+                    launchUrl(Uri.parse('https://spotoolfy.gojyuplus.one/config'));
+                  },
+                  child: Text('Tutorial'),
+                ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: Text(l10n.cancelButton), 
