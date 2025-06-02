@@ -124,7 +124,7 @@ class LyricsPosterService {
       calculatedHeight += headerHeight + elementSpacing;
     }
 
-    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.5); // 调整行高
+    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.5, fontWeight: FontWeight.w600); // 调整行高，使用与歌词页面相同的字重
     final List<String> lyricLines = lyrics.split('\n');
     final List<TextPainter> lyricLinePainters = [];
     double totalLyricsBlockHeight = 0;
