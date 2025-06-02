@@ -10,7 +10,7 @@ import '../providers/spotify_provider.dart';
 import 'lyrics_poster_preview_page.dart';
 import 'lyrics_analysis_page.dart';
 import 'add_note.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class LyricLine {
   final Duration timestamp;

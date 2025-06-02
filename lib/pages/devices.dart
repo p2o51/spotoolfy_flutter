@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../models/spotify_device.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({super.key});

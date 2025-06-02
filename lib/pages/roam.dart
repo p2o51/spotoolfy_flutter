@@ -9,7 +9,7 @@ import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
 import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导入
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../widgets/materialui.dart'; // <--- 导入 WavyDivider
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class Roam extends StatefulWidget {
   const Roam({super.key});

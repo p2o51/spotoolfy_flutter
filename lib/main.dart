@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'pages/nowplaying.dart';
 import 'pages/library.dart';
 import 'pages/roam.dart';
@@ -31,7 +31,7 @@ void main() async {
     const MethodChannel('spotify_auth').setMethodCallHandler((call) async {
       if (call.method == 'handleCallback') {
         final url = call.arguments as String;
-        print('收到iOS Spotify回调: $url');
+        print('收到iOS Spotify回调: $url'); // Reverted: Replaced print with logger
         
         // 解析URL中的access token
         final uri = Uri.parse(url);
@@ -42,7 +42,7 @@ void main() async {
           final expiresIn = params['expires_in'];
           
           if (accessToken != null) {
-            print('从回调URL提取到access token: ${accessToken.substring(0, 10)}...');
+            print('从回调URL提取到access token: ${accessToken.substring(0, 10)}...'); // Reverted: Replaced print with logger
             
             // 获取SpotifyProvider实例并保存token
             final context = navigatorKey.currentContext;
@@ -52,7 +52,7 @@ void main() async {
               
               // 重要：触发用户资料刷新和状态更新
               await spotifyProvider.autoLogin();
-              print('iOS回调处理完成，已触发状态更新');
+              print('iOS回调处理完成，已触发状态更新'); // Reverted: Replaced print with logger
             }
           }
         }

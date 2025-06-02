@@ -7,7 +7,7 @@ import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
 import 'package:spotoolfy_flutter/widgets/mdtab.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class NowPlaying extends StatefulWidget {
   const NowPlaying({super.key});

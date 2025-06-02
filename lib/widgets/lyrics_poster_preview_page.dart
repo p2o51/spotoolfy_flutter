@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart'; // 确保导入
 // import 'package:share_plus/share_plus.dart'; // Removed unused import
 import '../services/notification_service.dart';
 import '../services/lyrics_poster_service.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class LyricsPosterPreviewPage extends StatefulWidget {
   final String lyrics;

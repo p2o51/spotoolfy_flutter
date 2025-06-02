@@ -6,7 +6,7 @@ import '../models/track.dart';
 import 'package:flutter/services.dart';
 import './materialui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class AddNoteSheet extends StatefulWidget {
   final String? prefilledContent;

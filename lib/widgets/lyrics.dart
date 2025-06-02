@@ -14,7 +14,7 @@ import 'dart:async';
 import '../services/settings_service.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class LyricLine {
   final Duration timestamp;

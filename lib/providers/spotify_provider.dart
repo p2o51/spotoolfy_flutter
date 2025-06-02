@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-// import 'package:flutter/widgets.dart'; // Unnecessary
+import 'package:flutter/widgets.dart';
 import 'dart:async';
 import '../services/spotify_service.dart';
 import '../models/spotify_device.dart';
@@ -9,16 +9,12 @@ import '../main.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
-// import '../config/secrets.dart'; // No longer using clientSecret from here for SpotifyAuthService
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-// import 'package:http/http.dart' as http; // Unused -> NEEDED NOW! - Already present
-// import 'package:spotify_sdk/spotify_sdk.dart'; // Unused
 import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import '../pages/devices.dart';
 import 'dart:convert';
-import 'package:flutter/widgets.dart';
 
 final logger = Logger();
 
@@ -42,6 +38,10 @@ class SpotifyProvider extends ChangeNotifier {
   bool _hasNetworkIssue = false;
   DateTime? _lastNetworkError;
   int _consecutiveNetworkErrors = 0;
+
+  // 添加网络错误提示的智能控制
+  DateTime? _lastUserNotification;
+  static const Duration _notificationCooldown = Duration(minutes: 2); // 通知冷却时间
 
   String? username;
   Map<String, dynamic>? currentTrack;
@@ -289,7 +289,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('刷新可用设备列表失败: $e');
-      await _handleApiError(e, contextMessage: '刷新可用设备列表');
+      await _handleApiError(e, contextMessage: '刷新可用设备列表', isUserInitiated: true);
     }
   }
 
@@ -321,7 +321,7 @@ class SpotifyProvider extends ChangeNotifier {
       ]);
     } catch (e) {
       // debugPrint('转移播放失败: $e');
-      await _handleApiError(e, contextMessage: '转移播放');
+      await _handleApiError(e, contextMessage: '转移播放', isUserInitiated: true);
       rethrow; // Rethrow original or modified error from _handleApiError
     }
   }
@@ -350,7 +350,7 @@ class SpotifyProvider extends ChangeNotifier {
       await refreshAvailableDevices();
     } catch (e) {
       // debugPrint('设置音量失败: $e');
-      await _handleApiError(e, contextMessage: '设置音量');
+      await _handleApiError(e, contextMessage: '设置音量', isUserInitiated: true);
       rethrow; // Rethrow original or modified error from _handleApiError
     }
   }
@@ -863,7 +863,7 @@ class SpotifyProvider extends ChangeNotifier {
       print('===== SPOTIFY PROVIDER DEBUG END =====');
       // 即便发生其他错误，也先尝试让 _handleApiError 处理，如果它重新抛出，则这里会捕获并返回 false
       // 如果 _handleApiError 成功处理（例如401后静默续签），则不会到这里
-      await _handleApiError(e, contextMessage: '_ensureAuthenticatedAndReady');
+      await _handleApiError(e, contextMessage: '_ensureAuthenticatedAndReady', isUserInitiated: true);
       return false; // 如果 _handleApiError 没有重抛出会话过期等，则返回false阻止操作
     }
   }
@@ -957,7 +957,7 @@ class SpotifyProvider extends ChangeNotifier {
           print('恢复原始播放状态: ${currentTrack!['is_playing']}');
           notifyListeners();
         }
-        await _handleApiError(e, contextMessage: '播放/暂停切换 (auth error)');
+        await _handleApiError(e, contextMessage: '播放/暂停切换 (auth error)', isUserInitiated: true);
         print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
       }
     } catch (e) {
@@ -968,7 +968,7 @@ class SpotifyProvider extends ChangeNotifier {
         print('恢复原始播放状态: ${currentTrack!['is_playing']}');
         notifyListeners();
       }
-      await _handleApiError(e, contextMessage: '播放/暂停切换 (unknown error)');
+      await _handleApiError(e, contextMessage: '播放/暂停切换 (unknown error)', isUserInitiated: true);
       print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
     }
   }
@@ -986,7 +986,7 @@ class SpotifyProvider extends ChangeNotifier {
       logger.d('seekToPosition: _spotifyService.seekToPosition() 调用成功');
     } catch (e) {
       logger.e('seekToPosition: 捕获错误', error: e);
-      await _handleApiError(e, contextMessage: '跳转到指定位置');
+      await _handleApiError(e, contextMessage: '跳转到指定位置', isUserInitiated: true);
     } finally {
       _isSkipping = false;
       logger.d('seekToPosition: 刷新当前曲目信息');
@@ -1008,7 +1008,7 @@ class SpotifyProvider extends ChangeNotifier {
       logger.d('skipToNext: _spotifyService.skipToNext() 调用成功');
     } catch (e) {
       logger.e('skipToNext: 捕获错误', error: e);
-      await _handleApiError(e, contextMessage: '播放下一首');
+      await _handleApiError(e, contextMessage: '播放下一首', isUserInitiated: true);
     } finally {
       _isSkipping = false;
       logger.d('skipToNext: 刷新当前曲目信息');
@@ -1030,7 +1030,7 @@ class SpotifyProvider extends ChangeNotifier {
       logger.d('skipToPrevious: _spotifyService.skipToPrevious() 调用成功');
     } catch (e) {
       logger.e('skipToPrevious: 捕获错误', error: e);
-      await _handleApiError(e, contextMessage: '播放上一首');
+      await _handleApiError(e, contextMessage: '播放上一首', isUserInitiated: true);
     } finally {
       _isSkipping = false;
       logger.d('skipToPrevious: 刷新当前曲目信息');
@@ -1084,7 +1084,7 @@ class SpotifyProvider extends ChangeNotifier {
       // } catch (recheckError) {
       //   print('重新检查收藏状态失败: $recheckError');
       // }
-      await _handleApiError(e, contextMessage: '切换收藏状态');
+      await _handleApiError(e, contextMessage: '切换收藏状态', isUserInitiated: true);
     }
   }
 
@@ -1179,7 +1179,7 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // debugPrint('设置播放模式失败: $e');
-      await _handleApiError(e, contextMessage: '设置播放模式');
+      await _handleApiError(e, contextMessage: '设置播放模式', isUserInitiated: true);
     }
   }
 
@@ -1387,7 +1387,7 @@ class SpotifyProvider extends ChangeNotifier {
       
     } catch (e) {
       // debugPrint('播放 $type 失败: $e');
-      await _handleApiError(e, contextMessage: '播放 $type');
+      await _handleApiError(e, contextMessage: '播放 $type', isUserInitiated: true);
       // Check if the error is due to a restricted device (already handled by _handleApiError or original throw)
       if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
         // Show a snackbar or dialog informing the user
@@ -1443,7 +1443,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     } catch (e) {
       // debugPrint('播放歌曲失败: $e');
-      await _handleApiError(e, contextMessage: '播放歌曲');
+      await _handleApiError(e, contextMessage: '播放歌曲', isUserInitiated: true);
       // Check if the error is due to a restricted device
        if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
         // Show a snackbar or dialog informing the user
@@ -1491,7 +1491,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     } catch (e) {
       // debugPrint('在上下文中播放歌曲时出错: $e');
-      await _handleApiError(e, contextMessage: '在上下文中播放歌曲');
+      await _handleApiError(e, contextMessage: '在上下文中播放歌曲', isUserInitiated: true);
       // Check if the error is due to a restricted device (already handled by service, but catch here too for UI feedback)
        if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
         // Show a snackbar or dialog informing the user
@@ -1565,7 +1565,7 @@ class SpotifyProvider extends ChangeNotifier {
       return playlists;
     } catch (e) {
       // debugPrint('获取用户播放列表失败: $e');
-      await _handleApiError(e, contextMessage: '获取用户播放列表');
+      await _handleApiError(e, contextMessage: '获取用户播放列表', isUserInitiated: true);
       return [];
     }
   }
@@ -1854,23 +1854,69 @@ class SpotifyProvider extends ChangeNotifier {
     });
   }
   
-  Future<void> _handleApiError(dynamic e, {String? contextMessage}) async {
+  /// 判断是否应该显示网络错误通知
+  bool _shouldShowNetworkErrorNotification(bool isUserInitiated) {
+    // 如果是用户主动操作，总是显示通知（但要考虑冷却时间）
+    if (isUserInitiated) {
+      // 检查通知冷却时间
+      if (_lastUserNotification != null) {
+        final timeSinceLastNotification = DateTime.now().difference(_lastUserNotification!);
+        if (timeSinceLastNotification < _notificationCooldown) {
+          return false; // 还在冷却期内，不显示通知
+        }
+      }
+      return true;
+    }
+    
+    // 对于后台自动操作，只有在连续错误较多且长时间没有通知用户时才显示
+    if (_consecutiveNetworkErrors >= 5) { // 提高阈值，从3次改为5次
+      if (_lastUserNotification == null) {
+        return true; // 从未通知过用户
+      }
+      
+      final timeSinceLastNotification = DateTime.now().difference(_lastUserNotification!);
+      // 如果距离上次通知超过5分钟，且网络问题持续，则再次通知
+      return timeSinceLastNotification > const Duration(minutes: 5);
+    }
+    
+    return false; // 默认不显示通知
+  }
+  
+  /// 获取网络错误消息
+  String _getNetworkErrorMessage(bool isUserInitiated) {
+    if (isUserInitiated) {
+      return '网络连接不稳定，请检查网络设置或稍后重试';
+    } else {
+      // 对于后台操作，使用更温和的提示
+      return '网络连接暂时不稳定，应用将在网络恢复后自动重试';
+    }
+  }
+  
+  Future<void> _handleApiError(dynamic e, {String? contextMessage, bool isUserInitiated = false}) async {
     final message = contextMessage ?? 'API 调用';
     logger.e('$message 出错: $e', error: e, stackTrace: e is Error ? e.stackTrace : null);
 
     // 检查是否为网络连接错误
     if (_isNetworkError(e)) {
       logger.w('$message 遇到网络连接错误: $e');
-      final context = navigatorKey.currentContext;
-      if (context != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('网络连接不稳定，请检查网络设置或稍后重试'),
-            duration: Duration(seconds: 3),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      
+      // 智能的网络错误提示策略
+      final shouldShowNotification = _shouldShowNetworkErrorNotification(isUserInitiated);
+      
+      if (shouldShowNotification) {
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_getNetworkErrorMessage(isUserInitiated)),
+              duration: Duration(seconds: 3),
+              backgroundColor: Colors.grey[600], // 改为柔和的灰色
+            ),
+          );
+          _lastUserNotification = DateTime.now();
+        }
       }
+      
       // 对于网络错误，我们可以选择不重新抛出，让应用继续运行
       // 但如果调用方需要知道错误发生，可以重新抛出
       // 这里我们选择不重新抛出，避免应用崩溃

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart'; // Import AppLocalizations
+import '../l10n/app_localizations.dart'; // Import AppLocalizations
 import '../providers/spotify_provider.dart';
 import '../providers/local_database_provider.dart'; // Import LocalDatabaseProvider
 import 'package:url_launcher/url_launcher.dart';

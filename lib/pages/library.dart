@@ -10,7 +10,7 @@ import '../providers/search_provider.dart';
 import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import '../services/insights_service.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class Library extends StatefulWidget {
   const Library({super.key});

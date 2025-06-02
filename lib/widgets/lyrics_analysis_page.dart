@@ -5,7 +5,7 @@ import 'dart:math'; // Added for Random
 import '../services/notification_service.dart';
 import '../services/lyrics_analysis_service.dart';
 import '../widgets/materialui.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 class LyricsAnalysisPage extends StatefulWidget {
   final String lyrics;

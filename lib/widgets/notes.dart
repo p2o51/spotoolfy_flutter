@@ -11,7 +11,7 @@ import 'materialui.dart';
 import 'stats_card.dart'; // Import the new StatsCard widget
 import '../utils/date_formatter.dart'; // Assuming getLeadingText uses this
 import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 final logger = Logger(); // Added logger instance
 

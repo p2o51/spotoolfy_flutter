@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/local_database_provider.dart';
 import '../models/translation.dart';
 // 导入 AppLocalizations 类，用于访问本地化字符串
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 
 // --- 本地化辅助函数 ---
 
