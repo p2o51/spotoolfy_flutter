@@ -15,6 +15,7 @@ import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import '../pages/devices.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final logger = Logger();
 
@@ -30,9 +31,12 @@ class SpotifyProvider extends ChangeNotifier {
   static const String _clientIdKey = 'spotify_client_id';
   final Logger logger = Logger();
   
+  // 异步初始化控制
+  Completer<void> _initDone = Completer<void>();
+  
   // 生命周期观察者
   late final WidgetsBinding _binding;
-  late final _AppLifecycleObserver _lifecycleObserver;
+  _AppLifecycleObserver? _lifecycleObserver;
 
   // 网络状态跟踪
   bool _hasNetworkIssue = false;
@@ -50,6 +54,7 @@ class SpotifyProvider extends ChangeNotifier {
   Timer? _progressTimer;
   DateTime? _lastProgressUpdate;
   bool isLoading = false;
+  bool _isBootstrapping = false; // 防止并发bootstrap
   Map<String, dynamic>? previousTrack;
   Map<String, dynamic>? nextTrack;
   PlayMode _currentMode = PlayMode.sequential;
@@ -61,53 +66,81 @@ class SpotifyProvider extends ChangeNotifier {
   final Map<String, String> _imageCache = {};
   
   SpotifyProvider() {
-    _initSpotifyService();
-    _initLifecycleObserver();
-    // 自动尝试读取本地 token，成功就把 username 填好并启动定时器
-    Future.microtask(() => autoLogin());
+    _bootstrap();
   }
 
-  void _initSpotifyService() {
-    // 使用默认的ClientID初始化Spotify服务
-    // 如果用户配置了自己的ClientID，会在autoLogin中重新初始化
-    const String clientId = String.fromEnvironment('SPOTIFY_CLIENT_ID', defaultValue: '64103961829a42328a6634fb80574191');
-    const String redirectUrl = String.fromEnvironment('SPOTIFY_REDIRECT_URL', defaultValue: 'spotoolfy://callback');
+  /// 异步初始化bootstrap过程
+  Future<void> _bootstrap() async {
+    // 防止并发bootstrap
+    if (_isBootstrapping) {
+      logger.w('Bootstrap已在进行中，跳过重复调用');
+      return;
+    }
+    
+    _isBootstrapping = true;
+    try {
+      // 确保在设备解锁后再读取存储
+      await WidgetsBinding.instance.endOfFrame;
+      
+      // 使用SharedPreferences读取Client ID，避免KeyStore的限制
+      final sp = await SharedPreferences.getInstance();
+      final storedClientId = sp.getString(_clientIdKey);
+      
+      logger.d('Bootstrap: 从SharedPreferences读取ClientID: ${storedClientId ?? "null"}');
+      
+      // 使用读取到的或默认的ClientID初始化服务
+      const String defaultClientId = String.fromEnvironment('SPOTIFY_CLIENT_ID', defaultValue: '64103961829a42328a6634fb80574191');
+      const String redirectUrl = String.fromEnvironment('SPOTIFY_REDIRECT_URL', defaultValue: 'spotoolfy://callback');
 
-    _spotifyService = SpotifyAuthService(
-      clientId: clientId,
-      redirectUrl: redirectUrl,
-    );
+      _spotifyService = SpotifyAuthService(
+        clientId: storedClientId ?? defaultClientId,
+        redirectUrl: redirectUrl,
+      );
 
-    // 设置token刷新回调
-    _spotifyService.onTokenRefreshed = () {
-      _refreshUserProfile();
-    };
-    _isInitialized = true;
-
-    // 读取存储的ClientID并在需要时重新初始化
-    _secureStorage.read(key: _clientIdKey).then((storedClientId) {
-      if (storedClientId != null && storedClientId.isNotEmpty && storedClientId != clientId) {
-        logger.d('从存储读取到自定义ClientID，重新初始化SpotifyService');
-        _spotifyService = SpotifyAuthService(
-          clientId: storedClientId,
-          redirectUrl: redirectUrl,
-        );
-        _spotifyService.onTokenRefreshed = () {
-          _refreshUserProfile();
-        };
+      // 设置token刷新回调
+      _spotifyService.onTokenRefreshed = () {
+        _refreshUserProfile();
+      };
+      
+      _isInitialized = true;
+      _initDone.complete(); // 标记初始化完成
+      
+      logger.d('Bootstrap: SpotifyService初始化完成');
+      
+      // 初始化生命周期观察者
+      _initLifecycleObserver();
+      
+      // 尝试自动登录
+      await autoLogin();
+      
+    } catch (e) {
+      logger.e('Bootstrap过程失败: $e');
+      if (!_initDone.isCompleted) {
+        _initDone.completeError(e);
       }
-    }).catchError((e) {
-      logger.e('读取存储的ClientID失败: $e');
-    });
+    } finally {
+      _isBootstrapping = false;
+    }
+  }
+
+  /// 通用的服务调用保护器，确保初始化完成后才执行
+  Future<T> _guard<T>(Future<T> Function() job) async {
+    await _initDone.future;
+    return job();
   }
 
   void _initLifecycleObserver() {
+    // 先移除旧的监听器（如果存在）
+    if (_lifecycleObserver != null) {
+      _binding.removeObserver(_lifecycleObserver!);
+    }
+    
     _binding = WidgetsBinding.instance;
     _lifecycleObserver = _AppLifecycleObserver(
       onResume: _onAppResume,
       onPause: _onAppPause,
     );
-    _binding.addObserver(_lifecycleObserver);
+    _binding.addObserver(_lifecycleObserver!);
   }
 
   /// 应用恢复到前台时的处理
@@ -119,7 +152,7 @@ class SpotifyProvider extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 500));
       
       // 检查认证状态
-      if (await _spotifyService.isAuthenticated()) {
+      if (await _guard(() => _spotifyService.isAuthenticated())) {
         // 刷新token和用户信息
         await _refreshUserProfile();
         
@@ -162,7 +195,7 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<void> _refreshUserProfile() async {
     try {
-      final user = await _spotifyService.getUserProfile();
+      final user = await _guard(() => _spotifyService.getUserProfile());
       username = user['display_name'];
       notifyListeners(); // UI 马上刷新
       if (_refreshTimer == null && username != null) startTrackRefresh(); // Only start if not already running and user is logged in
@@ -173,8 +206,11 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<void> setClientCredentials(String clientId) async {
     try {
-      // 保存新凭据
-      await _secureStorage.write(key: _clientIdKey, value: clientId);
+      // 使用SharedPreferences保存新凭据
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(_clientIdKey, clientId);
+      
+      logger.d('已保存新的ClientID到SharedPreferences: ${clientId.substring(0, 4)}...');
       
       final bool wasInitialized = _isInitialized; // Store original state
 
@@ -190,19 +226,33 @@ class SpotifyProvider extends ChangeNotifier {
       
       // 停止所有计时器
       _refreshTimer?.cancel();
+      _refreshTimer = null;
       _progressTimer?.cancel();
+      _progressTimer = null;
       
       // 如果之前已初始化并且已登录，先注销
       if (wasInitialized) { 
           try {
-            await _spotifyService.logout(); 
+            await _guard(() => _spotifyService.logout()); 
           } catch(e) {
             logger.e('注销旧凭据时出错: $e');
           }
       }
 
+      // 创建新的Completer以避免重复完成
+      _initDone = Completer<void>();
+
       // 用新凭据重新初始化服务
-      _initSpotifyService(); 
+      const String redirectUrl = String.fromEnvironment('SPOTIFY_REDIRECT_URL', defaultValue: 'spotoolfy://callback');
+      _spotifyService = SpotifyAuthService(
+        clientId: clientId,
+        redirectUrl: redirectUrl,
+      );
+      _spotifyService.onTokenRefreshed = () {
+        _refreshUserProfile();
+      };
+      _isInitialized = true;
+      _initDone.complete(); // 标记新的初始化完成
       
       // 记录新凭据应用情况
       logger.d('已应用新的ClientID: ${clientId.substring(0, 4)}...');
@@ -215,14 +265,16 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<Map<String, String?>> getClientCredentials() async {
-    final clientId = await _secureStorage.read(key: _clientIdKey);
+    final sp = await SharedPreferences.getInstance();
+    final clientId = sp.getString(_clientIdKey);
     return {
       'clientId': clientId,
     };
   }
 
   Future<void> resetClientCredentials() async {
-    await _secureStorage.delete(key: _clientIdKey);
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_clientIdKey);
     
     final bool wasInitialized = _isInitialized; // Store original state
 
@@ -236,16 +288,23 @@ class SpotifyProvider extends ChangeNotifier {
     _isInitialized = false; // Set to false before re-init
     
     _refreshTimer?.cancel();
+    _refreshTimer = null;
     _progressTimer?.cancel();
+    _progressTimer = null;
     
     if (wasInitialized) {
         try {
-          await _spotifyService.logout();
+          await _guard(() => _spotifyService.logout());
         } catch (e) {
           // debugPrint('注销时出错: $e');
         }
     }
-    _initSpotifyService();
+    
+    // 创建新的Completer以避免重复完成
+    _initDone = Completer<void>();
+    
+    // 重新进行bootstrap初始化
+    _bootstrap();
     notifyListeners();
   }
 
@@ -266,7 +325,7 @@ class SpotifyProvider extends ChangeNotifier {
   /// 刷新可用设备列表
   Future<void> refreshAvailableDevices() async {
     try {
-      final devices = await _spotifyService.getAvailableDevices();
+      final devices = await _guard(() => _spotifyService.getAvailableDevices());
       _availableDevices = devices
           .map((json) => SpotifyDevice.fromJson(json))
           .toList();
@@ -309,7 +368,7 @@ class SpotifyProvider extends ChangeNotifier {
         throw Exception('Device is restricted');
       }
       
-      await _spotifyService.transferPlayback(deviceId, play: play);
+      await _guard(() => _spotifyService.transferPlayback(deviceId, play: play));
       
       // 等待一小段时间确保转移完成
       await Future.delayed(const Duration(milliseconds: 500));
@@ -342,10 +401,10 @@ class SpotifyProvider extends ChangeNotifier {
         throw Exception('Device does not support volume control');
       }
       
-      await _spotifyService.setVolume(
+      await _guard(() => _spotifyService.setVolume(
         volumePercent.clamp(0, 100),
         deviceId: deviceId,
-      );
+      ));
       
       await refreshAvailableDevices();
     } catch (e) {
@@ -431,13 +490,15 @@ class SpotifyProvider extends ChangeNotifier {
     _refreshTimer?.cancel();
     _progressTimer?.cancel();
     // 清理生命周期观察者
-    _binding.removeObserver(_lifecycleObserver);
+    if (_lifecycleObserver != null) {
+      _binding.removeObserver(_lifecycleObserver!);
+    }
     super.dispose();
   }
 
   Future<void> refreshCurrentTrack() async {
     try {
-      final track = await _spotifyService.getCurrentlyPlayingTrack();
+      final track = await _guard(() => _spotifyService.getCurrentlyPlayingTrack());
       
       // 成功获取数据，检查并重置网络错误状态
       _isNetworkError(Exception('success')); // 调用以重置计数（传入非网络错误）
@@ -488,7 +549,7 @@ class SpotifyProvider extends ChangeNotifier {
 
             if (newId != oldId && newId != null) { 
               try {
-                isCurrentTrackSaved = await _spotifyService.isTrackSaved(newId);
+                isCurrentTrackSaved = await _guard(() => _spotifyService.isTrackSaved(newId));
                 logger.d('refreshCurrentTrack: Fetched save state for new track $newId: $isCurrentTrackSaved');
                 if (track['context'] != null) {
                     final enrichedContext = await _enrichPlayContext(Map<String, dynamic>.from(track['context']));
@@ -572,7 +633,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       if (type == 'album') {
         final albumId = uri.split(':').last;
-        final fullAlbum = await _spotifyService.getAlbum(albumId);
+        final fullAlbum = await _guard(() => _spotifyService.getAlbum(albumId));
         enrichedContext.addAll({
           'name': fullAlbum['name'],
           'images': fullAlbum['images'],
@@ -580,7 +641,7 @@ class SpotifyProvider extends ChangeNotifier {
         });
       } else if (type == 'playlist') {
         final playlistId = uri.split(':').last;
-        final fullPlaylist = await _spotifyService.getPlaylist(playlistId);
+        final fullPlaylist = await _guard(() => _spotifyService.getPlaylist(playlistId));
         enrichedContext.addAll({
           'name': fullPlaylist['name'],
           'images': fullPlaylist['images'],
@@ -610,7 +671,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     try {
       final trackId = currentTrack!['item']['id'];
-      isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
+      isCurrentTrackSaved = await _guard(() => _spotifyService.isTrackSaved(trackId));
       notifyListeners();
     } catch (e) {
       // debugPrint('检查歌曲保存状态失败: $e');
@@ -624,11 +685,11 @@ class SpotifyProvider extends ChangeNotifier {
       final expiresInSeconds = int.tryParse(expiresIn ?? '3600') ?? 3600;
       
       // 直接保存token到SpotifyAuthService
-      await _spotifyService.saveAuthResponse(accessToken, expiresInSeconds: expiresInSeconds);
+      await _guard(() => _spotifyService.saveAuthResponse(accessToken, expiresInSeconds: expiresInSeconds));
       
       // 立即获取用户资料并更新状态
       try {
-        final userProfile = await _spotifyService.getUserProfile();
+        final userProfile = await _guard(() => _spotifyService.getUserProfile());
         username = userProfile['display_name'];
         logger.d('iOS回调：成功获取用户资料: $username');
         
@@ -642,7 +703,11 @@ class SpotifyProvider extends ChangeNotifier {
       } catch (profileError) {
         logger.e('iOS回调：获取用户资料失败: $profileError');
         // 即使获取用户资料失败，也要触发token刷新回调
-        _spotifyService.onTokenRefreshed?.call();
+        try {
+          await _guard(() async => _spotifyService.onTokenRefreshed?.call());
+        } catch (e) {
+          logger.w('调用token刷新回调失败: $e');
+        }
       }
     } catch (e) {
       logger.e('保存回调token失败: $e');
@@ -657,16 +722,16 @@ class SpotifyProvider extends ChangeNotifier {
 
     try {
       if (!_isInitialized) {
-        _initSpotifyService(); 
+        _bootstrap(); 
       }
-      // It's possible _initSpotifyService failed if not handled well, 
+      // It's possible _bootstrap failed if not handled well, 
       // but let's assume it sets _isInitialized correctly or throws.
       if (!_isInitialized) { 
-        // This case should ideally not be reached if _initSpotifyService is robust
+        // This case should ideally not be reached if _bootstrap is robust
         return; 
       }
 
-      final token = await _spotifyService.ensureFreshToken();
+      final token = await _guard(() => _spotifyService.ensureFreshToken());
       if (token != null) {
         await _refreshUserProfile(); 
         await updateWidget();
@@ -695,13 +760,13 @@ class SpotifyProvider extends ChangeNotifier {
 
     try {
       if (!_isInitialized) {
-        _initSpotifyService();
+        _bootstrap();
         if (!_isInitialized) {
           throw SpotifyAuthException('SpotifyService 初始化失败');
         }
       }
 
-      final accessToken = await _spotifyService.login(); // This now calls ensureFreshToken or SDK getAccessToken
+      final accessToken = await _guard(() => _spotifyService.login()); // This now calls ensureFreshToken or SDK getAccessToken
                                                   // and onTokenRefreshed internally
 
       if (accessToken == null) {
@@ -767,14 +832,14 @@ class SpotifyProvider extends ChangeNotifier {
         if (username == null) { 
           logger.d('_ensureAuthenticatedAndReady: autoLogin failed or did not set username. Checking isAuthenticated...');
           print('自动登录失败或未设置用户名，检查是否已认证...');
-          if (!await _spotifyService.isAuthenticated()) {
+          if (!await _guard(() => _spotifyService.isAuthenticated())) {
             logger.w('_ensureAuthenticatedAndReady: Not authenticated after autoLogin failure. Throwing SESSION_EXPIRED.');
             print('自动登录后未认证，抛出 SESSION_EXPIRED');
             print('===== SPOTIFY PROVIDER DEBUG END =====');
             throw SpotifyAuthException('需要登录', code: 'SESSION_EXPIRED');
           }
           print('已认证但用户名为空，尝试获取用户资料...');
-          final userProfile = await _spotifyService.getUserProfile();
+          final userProfile = await _guard(() => _spotifyService.getUserProfile());
           username = userProfile['display_name'];
           startTrackRefresh(); 
           notifyListeners();
@@ -784,7 +849,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
       print('检查是否需要连接 Remote...');
-      if (!await _spotifyService.connectRemoteIfNeeded()) {
+      if (!await _guard(() => _spotifyService.connectRemoteIfNeeded())) {
         logger.w('_ensureAuthenticatedAndReady: Failed to connect Remote');
         print('连接 Remote 失败');
         if (!ignoreRemoteConnectionFailure) {
@@ -800,7 +865,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
       print('第一次获取播放状态...');
-      var playbackState = await _spotifyService.getPlaybackState();
+      var playbackState = await _guard(() => _spotifyService.getPlaybackState());
       var device = playbackState['device'];
       logger.d('_ensureAuthenticatedAndReady: Initial playback state device: $device');
       print('初次获取播放状态设备: $device');
@@ -810,7 +875,7 @@ class SpotifyProvider extends ChangeNotifier {
         logger.w('_ensureAuthenticatedAndReady: No device in initial playback state. Refreshing devices and trying again...');
         print('初次播放状态无设备，刷新设备列表后重试...');
         await refreshAvailableDevices();
-        playbackState = await _spotifyService.getPlaybackState();
+        playbackState = await _guard(() => _spotifyService.getPlaybackState());
         device = playbackState['device'];
         logger.d('_ensureAuthenticatedAndReady: Playback state after refresh device: $device');
         print('刷新后播放状态设备: $device');
@@ -885,7 +950,7 @@ class SpotifyProvider extends ChangeNotifier {
       print('认证和设备检查通过');
 
       print('获取当前播放状态...');
-      final playbackState = await _spotifyService.getPlaybackState();
+      final playbackState = await _guard(() => _spotifyService.getPlaybackState());
       initialPlaybackStateForRevert = playbackState;
       final bool isCurrentlyPlaying = playbackState['is_playing'] ?? false;
       
@@ -895,7 +960,7 @@ class SpotifyProvider extends ChangeNotifier {
       // 使用新的 togglePlayPause 方法替代直接调用 apiPut
       logger.d('togglePlayPause: 调用 _spotifyService.togglePlayPause()');
       print('调用 _spotifyService.togglePlayPause()...');
-      await _spotifyService.togglePlayPause();
+      await _guard(() => _spotifyService.togglePlayPause());
       logger.d('togglePlayPause: _spotifyService.togglePlayPause() 调用成功');
       print('_spotifyService.togglePlayPause() 调用成功');
       
@@ -982,7 +1047,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       _isSkipping = true;
       logger.d('seekToPosition: 调用 _spotifyService.seekToPosition()');
-      await _spotifyService.seekToPosition(Duration(milliseconds: positionMs));
+      await _guard(() => _spotifyService.seekToPosition(Duration(milliseconds: positionMs)));
       logger.d('seekToPosition: _spotifyService.seekToPosition() 调用成功');
     } catch (e) {
       logger.e('seekToPosition: 捕获错误', error: e);
@@ -1004,7 +1069,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       _isSkipping = true;
       logger.d('skipToNext: 调用 _spotifyService.skipToNext()');
-      await _spotifyService.skipToNext();
+      await _guard(() => _spotifyService.skipToNext());
       logger.d('skipToNext: _spotifyService.skipToNext() 调用成功');
     } catch (e) {
       logger.e('skipToNext: 捕获错误', error: e);
@@ -1026,7 +1091,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       _isSkipping = true;
       logger.d('skipToPrevious: 调用 _spotifyService.skipToPrevious()');
-      await _spotifyService.skipToPrevious();
+      await _guard(() => _spotifyService.skipToPrevious());
       logger.d('skipToPrevious: _spotifyService.skipToPrevious() 调用成功');
     } catch (e) {
       logger.e('skipToPrevious: 捕获错误', error: e);
@@ -1051,10 +1116,10 @@ class SpotifyProvider extends ChangeNotifier {
       notifyListeners();
       
       // Call the API to toggle the save state
-      await _spotifyService.toggleTrackSave(trackId);
+      await _guard(() => _spotifyService.toggleTrackSave(trackId));
       
       // Immediately fetch the actual state from Spotify to confirm
-      final actualState = await _spotifyService.isTrackSaved(trackId);
+      final actualState = await _guard(() => _spotifyService.isTrackSaved(trackId));
       
       // If the actual state differs from the optimistic update, correct it
       if (isCurrentTrackSaved != actualState) {
@@ -1092,7 +1157,7 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<void> refreshPlaybackQueue() async {
     try {
-      final queue = await _spotifyService.getPlaybackQueue();
+      final queue = await _guard(() => _spotifyService.getPlaybackQueue());
       final rawQueue = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
       
       // 移除队列长度限制
@@ -1135,7 +1200,7 @@ class SpotifyProvider extends ChangeNotifier {
   // 获取当前播放模式
   Future<void> syncPlaybackMode() async {
     try {
-      final state = await _spotifyService.getPlaybackState();
+      final state = await _guard(() => _spotifyService.getPlaybackState());
       final repeatMode = state['repeat_state'];
       final isShuffling = state['shuffle_state'] ?? false;
 
@@ -1162,16 +1227,16 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       switch (mode) {
         case PlayMode.singleRepeat:
-          await _spotifyService.setRepeatMode('track');
-          await _spotifyService.setShuffle(false);
+          await _guard(() => _spotifyService.setRepeatMode('track'));
+          await _guard(() => _spotifyService.setShuffle(false));
           break;
         case PlayMode.sequential:
-          await _spotifyService.setRepeatMode('context');
-          await _spotifyService.setShuffle(false);
+          await _guard(() => _spotifyService.setRepeatMode('context'));
+          await _guard(() => _spotifyService.setShuffle(false));
           break;
         case PlayMode.shuffle:
-          await _spotifyService.setRepeatMode('context');
-          await _spotifyService.setShuffle(true);
+          await _guard(() => _spotifyService.setRepeatMode('context'));
+          await _guard(() => _spotifyService.setShuffle(true));
           break;
       }
       _currentMode = mode;
@@ -1213,7 +1278,7 @@ class SpotifyProvider extends ChangeNotifier {
   // 刷新最近播放记录
   Future<void> refreshRecentlyPlayed() async {
     try {
-      final data = await _spotifyService.getRecentlyPlayed(limit: 50);
+      final data = await _guard(() => _spotifyService.getRecentlyPlayed(limit: 50));
       final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
       
       final playlistUris = <String>{};
@@ -1259,7 +1324,7 @@ class SpotifyProvider extends ChangeNotifier {
             playlistUris.add(uri);
             final playlistId = uri.split(':').last;
             try {
-              final playlist = await _spotifyService.getPlaylist(playlistId);
+              final playlist = await _guard(() => _spotifyService.getPlaylist(playlistId));
               uniquePlaylists.add(playlist);
               if (uniquePlaylists.length >= 10) break;
             } catch (e) {
@@ -1272,7 +1337,7 @@ class SpotifyProvider extends ChangeNotifier {
             albumUris.add(uri);
             final albumId = uri.split(':').last;
             try {
-              final album = await _spotifyService.getAlbum(albumId);
+              final album = await _guard(() => _spotifyService.getAlbum(albumId));
               uniqueAlbums.add(album);
               if (uniqueAlbums.length >= 10) break;
             } catch (e) {
@@ -1319,11 +1384,12 @@ class SpotifyProvider extends ChangeNotifier {
       _recentPlaylists.clear();
 
       // Clear the stored client ID as well, so next login/init uses default or prompts
-      await _secureStorage.delete(key: _clientIdKey);
+      final sp = await SharedPreferences.getInstance();
+      await sp.remove(_clientIdKey);
 
-      if (!_isInitialized) _initSpotifyService();
+      if (!_isInitialized) _bootstrap();
       if (_isInitialized) {
-         await _spotifyService.logout(); 
+         await _guard(() => _spotifyService.logout()); 
       }
 
       await updateWidget(); 
@@ -1372,11 +1438,11 @@ class SpotifyProvider extends ChangeNotifier {
       // Get the current active device ID if not explicitly provided
       final targetDeviceId = deviceId ?? activeDeviceId;
       
-      await _spotifyService.playContext(
+      await _guard(() => _spotifyService.playContext(
         contextUri: contextUri,
         offsetIndex: offsetIndex,
         deviceId: targetDeviceId, // Use the determined device ID
-      );
+      ));
 
       // Wait slightly to allow Spotify state to update
       await Future.delayed(const Duration(milliseconds: 500));
@@ -1421,17 +1487,17 @@ class SpotifyProvider extends ChangeNotifier {
 
       if (contextUri != null) {
         // If context is provided, play within that context
-        await _spotifyService.playTrackInContext(
+        await _guard(() => _spotifyService.playTrackInContext(
           contextUri: contextUri,
           trackUri: trackUri,
           deviceId: targetDeviceId,
-        );
+        ));
       } else {
         // Otherwise, play the track individually
-        await _spotifyService.playTrack(
+        await _guard(() => _spotifyService.playTrack(
           trackUri: trackUri,
           deviceId: targetDeviceId,
-        );
+        ));
       }
       
       // Wait slightly to allow Spotify state to update
@@ -1476,11 +1542,11 @@ class SpotifyProvider extends ChangeNotifier {
       final targetDeviceId = deviceId ?? activeDeviceId;
 
       // Call the service method which includes its own device checks
-      await _spotifyService.playTrackInContext(
+      await _guard(() => _spotifyService.playTrackInContext(
         contextUri: contextUri,
         trackUri: trackUri,
         deviceId: targetDeviceId,
-      );
+      ));
       
       // Wait slightly to allow Spotify state to update
       await Future.delayed(const Duration(milliseconds: 500));
@@ -1510,20 +1576,20 @@ class SpotifyProvider extends ChangeNotifier {
   /// Get authenticated headers from the Spotify service
   Future<Map<String, String>> getAuthenticatedHeaders() async {
     // Ensure service is initialized
-    if (!_isInitialized) _initSpotifyService();
+    if (!_isInitialized) _bootstrap();
     if (!_isInitialized) throw Exception('Spotify Service not initialized.');
-    return await _spotifyService.getAuthenticatedHeaders();
+    return await _guard(() => _spotifyService.getAuthenticatedHeaders());
   }
   
   /// 获取用户的播放列表
   Future<List<Map<String, dynamic>>> getUserPlaylists({int limit = 50, int offset = 0}) async {
     try {
-      if (!await _spotifyService.isAuthenticated()) {
+      if (!await _guard(() => _spotifyService.isAuthenticated())) {
         // debugPrint('未登录，无法获取播放列表');
         return [];
       }
 
-      final response = await _spotifyService.apiGet('/me/playlists?limit=$limit&offset=$offset');
+      final response = await _guard(() => _spotifyService.apiGet('/me/playlists?limit=$limit&offset=$offset'));
       if (response['items'] == null) return [];
 
       final List<Map<String, dynamic>> playlists = List<Map<String, dynamic>>.from(response['items'].map((item) => {
@@ -1573,12 +1639,12 @@ class SpotifyProvider extends ChangeNotifier {
   /// 获取用户收藏的专辑
   Future<List<Map<String, dynamic>>> getUserSavedAlbums({int limit = 50, int offset = 0}) async {
     try {
-      if (!await _spotifyService.isAuthenticated()) {
+      if (!await _guard(() => _spotifyService.isAuthenticated())) {
         // debugPrint('未登录，无法获取收藏专辑');
         return [];
       }
 
-      final response = await _spotifyService.apiGet('/me/albums?limit=$limit&offset=$offset');
+      final response = await _guard(() => _spotifyService.apiGet('/me/albums?limit=$limit&offset=$offset'));
       if (response['items'] == null) return [];
 
       final List<Map<String, dynamic>> albums = List<Map<String, dynamic>>.from(response['items'].map((item) => {
@@ -1626,12 +1692,12 @@ class SpotifyProvider extends ChangeNotifier {
   /// 获取最近播放的记录
   Future<List<Map<String, dynamic>>> getRecentlyPlayed() async {
     try {
-      if (!await _spotifyService.isAuthenticated()) {
+      if (!await _guard(() => _spotifyService.isAuthenticated())) {
         // debugPrint('未登录，无法获取最近播放');
         return [];
       }
 
-      final response = await _spotifyService.apiGet('/me/player/recently-played?limit=50');
+      final response = await _guard(() => _spotifyService.apiGet('/me/player/recently-played?limit=50'));
       if (response['items'] == null) return [];
 
       // 提取唯一的上下文（专辑和播放列表）
@@ -1647,7 +1713,7 @@ class SpotifyProvider extends ChangeNotifier {
             // 为上下文获取更详细信息
             Map<String, dynamic> details = {};
             try {
-              details = await _spotifyService.apiGet('/$contextType' 's/$contextId');
+              details = await _guard(() => _spotifyService.apiGet('/$contextType' 's/$contextId'));
             } catch (e) {
               // debugPrint('获取上下文详情失败: $e');
             }
@@ -1679,11 +1745,11 @@ class SpotifyProvider extends ChangeNotifier {
   /// Fetches the raw list of recently played track items from Spotify.
   Future<List<Map<String, dynamic>>> getRecentlyPlayedRawTracks({int limit = 50}) async {
     try {
-      if (!await _spotifyService.isAuthenticated()) {
+      if (!await _guard(() => _spotifyService.isAuthenticated())) {
         // debugPrint('未登录，无法获取原始最近播放记录');
         return [];
       }
-      return await _spotifyService.getRecentlyPlayedRawTracks(limit: limit);
+      return await _guard(() => _spotifyService.getRecentlyPlayedRawTracks(limit: limit));
     } catch (e) {
       // debugPrint('获取原始最近播放记录失败: $e');
       return [];
@@ -1693,7 +1759,7 @@ class SpotifyProvider extends ChangeNotifier {
   /// Search for items (tracks, albums, artists, playlists)
   Future<Map<String, List<Map<String, dynamic>>>> searchItems(String query, {List<String> types = const ['track', 'album', 'artist', 'playlist'], int limit = 20}) async {
     if (!_isInitialized) {
-      _initSpotifyService();
+      _bootstrap();
     }
     if (!_isInitialized) {
       throw Exception('Spotify service could not be initialized.');
@@ -1704,7 +1770,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       // Call the search method in SpotifyAuthService
       // Pass types as the second argument, and limit as a named argument
-      final response = await _spotifyService.search(query, types, limit: limit);
+      final response = await _guard(() => _spotifyService.search(query, types, limit: limit));
 
       // --- Add logging for decoded response ---
       // debugPrint('SpotifyProvider.searchItems - Decoded Response:');
@@ -1925,11 +1991,11 @@ class SpotifyProvider extends ChangeNotifier {
 
     if (e is SpotifyAuthException && e.code == '401') {
       logger.i('$message 遇到 401，尝试静默续约/重连...');
-      final token = await _spotifyService.getAccessToken();
+      final token = await _guard(() => _spotifyService.getAccessToken());
       if (token != null) { // Silent refresh was successful
         try {
           // Re-fetch user profile and re-initialize session state
-          final userProfile = await _spotifyService.getUserProfile();
+          final userProfile = await _guard(() => _spotifyService.getUserProfile());
           username = userProfile['display_name'];
           
           // Notify listeners that username might have changed (e.g. if it was null before)
@@ -1960,49 +2026,78 @@ class SpotifyProvider extends ChangeNotifier {
     } else if (e is SpotifyAuthException && (e.code == '403' || e.code == '415')) {
       logger.w('$message 遇到 ${e.code}: ${e.message}');
       final context = navigatorKey.currentContext;
-      if (context != null && context.mounted) {
-        String displayMessage;
-        bool isHandledKnown403 = false; // Flag to indicate if we should stop re-throwing
+      
+      if (e.code == '403') {
+        final lowerCaseMessage = e.message.toLowerCase();
+        
+        // 特别处理 insufficient_client_scope 错误
+        if (lowerCaseMessage.contains('insufficient') && 
+            (lowerCaseMessage.contains('scope') || lowerCaseMessage.contains('client'))) {
+          logger.w('检测到 insufficient_client_scope 错误，触发重新登录: ${e.message}');
+          
+          if (context != null && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('权限范围不足，正在重新获取完整授权...'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          
+          try {
+            // 强制重新登录以获取完整的scope
+            await login();
+            logger.i('insufficient_client_scope: 重新登录成功，返回允许重试');
+            return; // 允许调用方重试原始操作
+          } catch (loginError) {
+            logger.e('insufficient_client_scope: 重新登录失败: $loginError');
+            if (context != null && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('重新获取授权失败，请手动重新登录'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+            // 重新登录失败，抛出会话过期错误
+            throw SpotifyAuthException('权限范围不足且重新登录失败，请手动重新登录', code: 'SESSION_EXPIRED');
+          }
+        }
+        
+        // 处理其他已知的403错误
+        if (context != null && context.mounted) {
+          String displayMessage;
+          bool isHandledKnown403 = false;
 
-        if (e.code == '403') {
-          final lowerCaseMessage = e.message.toLowerCase();
           if (lowerCaseMessage.contains('premium')) {
             displayMessage = '此操作需要 Spotify Premium 会员。';
             isHandledKnown403 = true;
           } else if (lowerCaseMessage.contains('restricted') || 
-                     lowerCaseMessage.contains('restriction violated')) { // More specific check
+                     lowerCaseMessage.contains('restriction violated')) {
             displayMessage = '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
             isHandledKnown403 = true;
           } else {
             displayMessage = '权限不足 (403): ${e.message}';
-            // For generic 403, we might still want to re-throw or handle differently
-            // For now, let's consider it not fully handled for stopping re-throw unless specified
           }
-        } else { // 415 or other codes that might fall into this block
-          displayMessage = '请求格式错误 (${e.code})，请稍后重试或联系开发者。';
-          // Potentially set isHandledKnown403 = true if 415 is also considered fully handled by SnackBar
-          // For now, let's assume only specific 403s are non-re-throwable by this flag
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(displayMessage)),
+          );
+          
+          // 对于已知的403错误，不重新抛出
+          if (isHandledKnown403) {
+            logger.i('已处理的403错误 (${e.message})，不再重新抛出。');
+            return;
+          }
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(displayMessage)),
-        );
-      }
-      // 对于403和415，我们通常不希望应用层面再做其他特定的恢复逻辑，
-      // 而是通知用户。如果需要，可以决定是否重新抛出。
-      // 为了保持与之前行为的一致性（即不静默吞掉所有非401错误），我们仍然重新抛出。
-      // --- MODIFICATION START ---
-      // Only re-throw if it's not one of the specifically handled 403 errors where a user message was shown.
-      if (e is SpotifyAuthException && e.code == '403') {
-        // Use the already determined isHandledKnown403 flag or re-check condition
-        final lowerCaseMessage = e.message.toLowerCase();
-        if (lowerCaseMessage.contains('premium') || 
-            lowerCaseMessage.contains('restricted') || 
-            lowerCaseMessage.contains('restriction violated')) {
-          logger.i('已处理的403错误 (${e.message})，不再重新抛出。');
-          return; // Do not re-throw for these specific handled 403s
+      } else { // 415 或其他错误码
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('请求格式错误 (${e.code})，请稍后重试或联系开发者。')),
+          );
         }
       }
-      // --- MODIFICATION END ---
+      
       throw e;
     } else {
       logger.e('$message 遇到其他错误，将重新抛出: $e');

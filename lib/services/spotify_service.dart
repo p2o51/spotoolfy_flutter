@@ -233,8 +233,8 @@ class SpotifyAuthService {
   /// 检查是否已认证
   Future<bool> isAuthenticated() async {
     try {
-      final token = await _secureStorage.read(key: _accessTokenKey);
-      final expirationStr = await _secureStorage.read(key: _expirationKey);
+      final token = await _secureStorage.read(key: _accessTokenKey).catchError((_) => null);
+      final expirationStr = await _secureStorage.read(key: _expirationKey).catchError((_) => null);
 
       if (token == null || expirationStr == null) {
         return false;
@@ -247,6 +247,7 @@ class SpotifyAuthService {
 
       return true;
     } catch (e) {
+      logger.w('检查认证状态时出错，可能是Keystore未解锁: $e');
       return false;
     }
   }
@@ -305,11 +306,16 @@ class SpotifyAuthService {
 
   /// 确保 token 有效，必要时刷新
   Future<String?> ensureFreshToken() async {
-    final tok = await _secureStorage.read(key: _accessTokenKey);
-    final expS = await _secureStorage.read(key: _expirationKey);
-    if (tok != null && expS != null) {
-      final exp = DateTime.parse(expS);
-      if (exp.difference(DateTime.now()).inMinutes > 5) return tok;
+    try {
+      final tok = await _secureStorage.read(key: _accessTokenKey).catchError((_) => null);
+      final expS = await _secureStorage.read(key: _expirationKey).catchError((_) => null);
+      if (tok != null && expS != null) {
+        final exp = DateTime.parse(expS);
+        if (exp.difference(DateTime.now()).inMinutes > 5) return tok;
+      }
+    } catch (e) {
+      logger.w('读取token时出错，可能是Keystore未解锁: $e');
+      return null;
     }
     
     // 在iOS上，如果我们已经在授权流程中，避免重复调用SDK
