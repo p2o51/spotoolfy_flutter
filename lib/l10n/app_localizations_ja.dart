@@ -635,4 +635,214 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get multiSelectMode => '複数選択モード';
+
+  @override
+  String get tapToSelectLyrics => '歌詞行をタップして選択';
+
+  @override
+  String get appTitle => 'Spotoolfy';
+
+  @override
+  String get nowPlayingLabel => '再生中';
+
+  @override
+  String get libraryLabel => 'ライブラリ';
+
+  @override
+  String get roamLabel => '探索';
+
+  @override
+  String get tutorialButtonText => 'チュートリアル';
+
+  @override
+  String get languageEnglish => 'English';
+
+  @override
+  String get languageSimplifiedChinese => '简体中文 (Simplified Chinese)';
+
+  @override
+  String get languageTraditionalChinese => '繁體中文 (Traditional Chinese)';
+
+  @override
+  String get languageJapanese => '日本語 (Japanese)';
+
+  @override
+  String get collapseTooltip => '折りたたむ';
+
+  @override
+  String get expandTooltip => '展開する';
+
+  @override
+  String get incompleteRecordError => '続行できない：記録情報が不完全';
+
+  @override
+  String get optionsTitle => 'オプション';
+
+  @override
+  String playFromTimestamp(String timestamp) {
+    return '$timestamp から再生';
+  }
+
+  @override
+  String get editNoteTitle => 'メモを編集';
+
+  @override
+  String get ratedStatus => '評価済み';
+
+  @override
+  String get noItemsFound => '項目が見つからない';
+
+  @override
+  String get cannotCreateSpotifyLink => 'Spotify リンクを作成できない';
+
+  @override
+  String get cannotOpenSpotify => 'Spotify を開けない';
+
+  @override
+  String failedToOpenSpotify(String error) {
+    return 'Spotify を開くのに失敗した: $error';
+  }
+
+  @override
+  String get playlistsTab => 'プレイリスト';
+
+  @override
+  String get albumsTab => 'アルバム';
+
+  @override
+  String get tryAgainButton => '再試行';
+
+  @override
+  String get playTrackToSeeThoughts => '思考を見るには曲を再生して。';
+
+  @override
+  String get copyButtonText => 'コピー';
+
+  @override
+  String get posterButtonLabel => 'ポスター';
+
+  @override
+  String get noteButtonLabel => 'メモ';
+
+  @override
+  String get lyricsAnalysisTitle => '歌詞分析';
+
+  @override
+  String get regenerateAnalysisTooltip => '分析を再生成';
+
+  @override
+  String get copyAllAnalysisTooltip => 'すべての分析をコピー';
+
+  @override
+  String get geminiGrounding => 'Gemini が考えている...';
+
+  @override
+  String get retryButton => '再試行';
+
+  @override
+  String get noAnalysisResults => '分析結果がない';
+
+  @override
+  String get noDeepAnalysisContent => 'この歌詞部分には深い分析内容がない';
+
+  @override
+  String get simpleContentExplanation =>
+      'これは歌詞の内容が比較的単純であるか、明らかな隠喩、引用、その他の文学的手法がないためかもしれない';
+
+  @override
+  String get reanalyzeButton => '再分析';
+
+  @override
+  String get onlyFoundDimensionsInfo => 'これらの歌詞で見つかった分析次元のみ表示';
+
+  @override
+  String get songInfoRegeneratedMessage => '楽曲情報が再生成された';
+
+  @override
+  String get songInformationTitle => '楽曲情報';
+
+  @override
+  String get regenerateTooltip => '再生成';
+
+  @override
+  String get noSongInfoAvailable => '利用可能な楽曲情報がない';
+
+  @override
+  String get generatedByGemini => 'Gemini 2.5 Flash によって生成';
+
+  @override
+  String get poweredByGoogleSearch => 'Google 検索グラウンディングによる';
+
+  @override
+  String get creationTimeTitle => '作成時間';
+
+  @override
+  String get creationLocationTitle => '作成場所';
+
+  @override
+  String get lyricistTitle => '作詞';
+
+  @override
+  String get composerTitle => '作曲';
+
+  @override
+  String get producerTitle => 'プロデューサー';
+
+  @override
+  String get songAnalysisTitle => '楽曲分析';
+
+  @override
+  String get selectArtistTitle => 'アーティストを選択';
+
+  @override
+  String get backToLibraryTooltip => 'ライブラリに戻る';
+
+  @override
+  String get appWatermark => 'Spotoolfy';
+
+  @override
+  String get loadingAnalyzing => 'AI で歌詞を分析している...';
+
+  @override
+  String get loadingDecoding => '音楽の謎を解読している...';
+
+  @override
+  String get loadingSearching => '洞察を検索している...';
+
+  @override
+  String get loadingThinking => 'Gemini が考えている...';
+
+  @override
+  String get loadingGenerating => '分析を生成している...';
+
+  @override
+  String loadingChatting(String artist) {
+    return '$artist とチャットしている...';
+  }
+
+  @override
+  String get loadingDiscovering => '隠された意味を発見している...';
+
+  @override
+  String get loadingExploring => '歌詞の深さを探っている...';
+
+  @override
+  String get loadingUnraveling => '詩的な層を解きほぐしている...';
+
+  @override
+  String get loadingConnecting => '感情の糸をつなげている...';
+
+  @override
+  String get currentQueueEmpty => '現在のキューは空';
+
+  @override
+  String get queueUpNext => '次に再生';
+
+  @override
+  String get noQueueItems => 'upcoming tracks がない';
+
+  @override
+  String queuePositionInfo(int position, int total) {
+    return '$total 曲中 $position 番目';
+  }
 }

@@ -634,6 +634,215 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get multiSelectMode => '多选模式';
+
+  @override
+  String get tapToSelectLyrics => '轻点歌词行以选中';
+
+  @override
+  String get appTitle => 'Spotoolfy';
+
+  @override
+  String get nowPlayingLabel => '播放中';
+
+  @override
+  String get libraryLabel => '资料库';
+
+  @override
+  String get roamLabel => '漫游';
+
+  @override
+  String get tutorialButtonText => '教程';
+
+  @override
+  String get languageEnglish => 'English';
+
+  @override
+  String get languageSimplifiedChinese => '简体中文 (Simplified Chinese)';
+
+  @override
+  String get languageTraditionalChinese => '繁體中文 (Traditional Chinese)';
+
+  @override
+  String get languageJapanese => '日本語 (Japanese)';
+
+  @override
+  String get collapseTooltip => '收起';
+
+  @override
+  String get expandTooltip => '展开';
+
+  @override
+  String get incompleteRecordError => '无法继续：记录信息不完整';
+
+  @override
+  String get optionsTitle => '选项';
+
+  @override
+  String playFromTimestamp(String timestamp) {
+    return '从 $timestamp 播放';
+  }
+
+  @override
+  String get editNoteTitle => '编辑笔记';
+
+  @override
+  String get ratedStatus => '已评分';
+
+  @override
+  String get noItemsFound => '未找到项目';
+
+  @override
+  String get cannotCreateSpotifyLink => '无法创建 Spotify 链接';
+
+  @override
+  String get cannotOpenSpotify => '无法打开 Spotify';
+
+  @override
+  String failedToOpenSpotify(String error) {
+    return '打开 Spotify 失败: $error';
+  }
+
+  @override
+  String get playlistsTab => '播放列表';
+
+  @override
+  String get albumsTab => '专辑';
+
+  @override
+  String get tryAgainButton => '重试';
+
+  @override
+  String get playTrackToSeeThoughts => '播放歌曲以查看想法。';
+
+  @override
+  String get copyButtonText => '复制';
+
+  @override
+  String get posterButtonLabel => '海报';
+
+  @override
+  String get noteButtonLabel => '笔记';
+
+  @override
+  String get lyricsAnalysisTitle => '歌词分析';
+
+  @override
+  String get regenerateAnalysisTooltip => '重新生成分析';
+
+  @override
+  String get copyAllAnalysisTooltip => '复制所有分析';
+
+  @override
+  String get geminiGrounding => 'Gemini 正在思考...';
+
+  @override
+  String get retryButton => '重试';
+
+  @override
+  String get noAnalysisResults => '没有分析结果';
+
+  @override
+  String get noDeepAnalysisContent => '该歌词片段暂无深度分析内容';
+
+  @override
+  String get simpleContentExplanation => '这可能是因为歌词内容相对简单，或没有明显的隐喻、引用等文学手法';
+
+  @override
+  String get reanalyzeButton => '重新分析';
+
+  @override
+  String get onlyFoundDimensionsInfo => '只显示在该歌词中发现的分析维度';
+
+  @override
+  String get songInfoRegeneratedMessage => '歌曲信息已重新生成';
+
+  @override
+  String get songInformationTitle => '歌曲信息';
+
+  @override
+  String get regenerateTooltip => '重新生成';
+
+  @override
+  String get noSongInfoAvailable => '无可用歌曲信息';
+
+  @override
+  String get generatedByGemini => '由 Gemini 2.5 Flash 生成';
+
+  @override
+  String get poweredByGoogleSearch => '由 Google 搜索基础提供支持';
+
+  @override
+  String get creationTimeTitle => '创作时间';
+
+  @override
+  String get creationLocationTitle => '创作地点';
+
+  @override
+  String get lyricistTitle => '作词';
+
+  @override
+  String get composerTitle => '作曲';
+
+  @override
+  String get producerTitle => '制作人';
+
+  @override
+  String get songAnalysisTitle => '歌曲分析';
+
+  @override
+  String get selectArtistTitle => '选择艺术家';
+
+  @override
+  String get backToLibraryTooltip => '返回资料库';
+
+  @override
+  String get appWatermark => 'Spotoolfy';
+
+  @override
+  String get loadingAnalyzing => '正在用 AI 分析歌词...';
+
+  @override
+  String get loadingDecoding => '正在解码音乐奥秘...';
+
+  @override
+  String get loadingSearching => '正在搜索洞察...';
+
+  @override
+  String get loadingThinking => 'Gemini 正在思考...';
+
+  @override
+  String get loadingGenerating => '正在生成分析...';
+
+  @override
+  String loadingChatting(String artist) {
+    return '正在与 $artist 对话...';
+  }
+
+  @override
+  String get loadingDiscovering => '正在发现隐藏的含义...';
+
+  @override
+  String get loadingExploring => '正在探索歌词深度...';
+
+  @override
+  String get loadingUnraveling => '正在揭开诗意层次...';
+
+  @override
+  String get loadingConnecting => '正在连接情感线索...';
+
+  @override
+  String get currentQueueEmpty => '当前队列为空';
+
+  @override
+  String get queueUpNext => '即将播放';
+
+  @override
+  String get noQueueItems => '没有即将播放的曲目';
+
+  @override
+  String queuePositionInfo(int position, int total) {
+    return '第 $position 首，共 $total 首';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1266,4 +1475,213 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get multiSelectMode => '多選模式';
+
+  @override
+  String get tapToSelectLyrics => '輕點歌詞行以選取';
+
+  @override
+  String get appTitle => 'Spotoolfy';
+
+  @override
+  String get nowPlayingLabel => '播放中';
+
+  @override
+  String get libraryLabel => '音樂庫';
+
+  @override
+  String get roamLabel => '探索';
+
+  @override
+  String get tutorialButtonText => '教學';
+
+  @override
+  String get languageEnglish => 'English';
+
+  @override
+  String get languageSimplifiedChinese => '简体中文 (Simplified Chinese)';
+
+  @override
+  String get languageTraditionalChinese => '繁體中文 (Traditional Chinese)';
+
+  @override
+  String get languageJapanese => '日本語 (Japanese)';
+
+  @override
+  String get collapseTooltip => '收合';
+
+  @override
+  String get expandTooltip => '展開';
+
+  @override
+  String get incompleteRecordError => '無法繼續：紀錄資訊不完整';
+
+  @override
+  String get optionsTitle => '選項';
+
+  @override
+  String playFromTimestamp(String timestamp) {
+    return '從 $timestamp 播放';
+  }
+
+  @override
+  String get editNoteTitle => '編輯筆記';
+
+  @override
+  String get ratedStatus => '已評分';
+
+  @override
+  String get noItemsFound => '找不到項目';
+
+  @override
+  String get cannotCreateSpotifyLink => '無法建立 Spotify 連結';
+
+  @override
+  String get cannotOpenSpotify => '無法開啟 Spotify';
+
+  @override
+  String failedToOpenSpotify(String error) {
+    return '開啟 Spotify 失敗: $error';
+  }
+
+  @override
+  String get playlistsTab => '播放清單';
+
+  @override
+  String get albumsTab => '專輯';
+
+  @override
+  String get tryAgainButton => '重試';
+
+  @override
+  String get playTrackToSeeThoughts => '播放歌曲以查看想法。';
+
+  @override
+  String get copyButtonText => '複製';
+
+  @override
+  String get posterButtonLabel => '海報';
+
+  @override
+  String get noteButtonLabel => '筆記';
+
+  @override
+  String get lyricsAnalysisTitle => '歌詞分析';
+
+  @override
+  String get regenerateAnalysisTooltip => '重新產生分析';
+
+  @override
+  String get copyAllAnalysisTooltip => '複製所有分析';
+
+  @override
+  String get geminiGrounding => 'Gemini 正在思考...';
+
+  @override
+  String get retryButton => '重試';
+
+  @override
+  String get noAnalysisResults => '沒有分析結果';
+
+  @override
+  String get noDeepAnalysisContent => '該歌詞片段暫無深度分析內容';
+
+  @override
+  String get simpleContentExplanation => '這可能是因為歌詞內容相對簡單，或沒有明顯的隱喻、引用等文學手法';
+
+  @override
+  String get reanalyzeButton => '重新分析';
+
+  @override
+  String get onlyFoundDimensionsInfo => '只顯示在該歌詞中發現的分析維度';
+
+  @override
+  String get songInfoRegeneratedMessage => '歌曲資訊已重新產生';
+
+  @override
+  String get songInformationTitle => '歌曲資訊';
+
+  @override
+  String get regenerateTooltip => '重新產生';
+
+  @override
+  String get noSongInfoAvailable => '無可用歌曲資訊';
+
+  @override
+  String get generatedByGemini => '由 Gemini 2.5 Flash 產生';
+
+  @override
+  String get poweredByGoogleSearch => '由 Google 搜尋基礎提供支援';
+
+  @override
+  String get creationTimeTitle => '創作時間';
+
+  @override
+  String get creationLocationTitle => '創作地點';
+
+  @override
+  String get lyricistTitle => '作詞';
+
+  @override
+  String get composerTitle => '作曲';
+
+  @override
+  String get producerTitle => '製作人';
+
+  @override
+  String get songAnalysisTitle => '歌曲分析';
+
+  @override
+  String get selectArtistTitle => '選擇藝人';
+
+  @override
+  String get backToLibraryTooltip => '返回音樂庫';
+
+  @override
+  String get appWatermark => 'Spotoolfy';
+
+  @override
+  String get loadingAnalyzing => '正在用 AI 分析歌詞...';
+
+  @override
+  String get loadingDecoding => '正在解碼音樂奧秘...';
+
+  @override
+  String get loadingSearching => '正在搜尋洞察...';
+
+  @override
+  String get loadingThinking => 'Gemini 正在思考...';
+
+  @override
+  String get loadingGenerating => '正在產生分析...';
+
+  @override
+  String loadingChatting(String artist) {
+    return '正在與 $artist 對話...';
+  }
+
+  @override
+  String get loadingDiscovering => '正在發現隱藏的含義...';
+
+  @override
+  String get loadingExploring => '正在探索歌詞深度...';
+
+  @override
+  String get loadingUnraveling => '正在揭開詩意層次...';
+
+  @override
+  String get loadingConnecting => '正在連接情感線索...';
+
+  @override
+  String get currentQueueEmpty => '目前佇列為空';
+
+  @override
+  String get queueUpNext => '即將播放';
+
+  @override
+  String get noQueueItems => '沒有即將播放的曲目';
+
+  @override
+  String queuePositionInfo(int position, int total) {
+    return '第 $position 首，共 $total 首';
+  }
 }

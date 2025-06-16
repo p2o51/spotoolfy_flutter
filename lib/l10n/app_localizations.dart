@@ -1270,6 +1270,408 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Multi-select Mode'**
   String get multiSelectMode;
+
+  /// No description provided for @tapToSelectLyrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap lyric line to select'**
+  String get tapToSelectLyrics;
+
+  /// No description provided for @appTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Spotoolfy'**
+  String get appTitle;
+
+  /// No description provided for @nowPlayingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'NowPlaying'**
+  String get nowPlayingLabel;
+
+  /// No description provided for @libraryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get libraryLabel;
+
+  /// No description provided for @roamLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Roam'**
+  String get roamLabel;
+
+  /// No description provided for @tutorialButtonText.
+  ///
+  /// In en, this message translates to:
+  /// **'Tutorial'**
+  String get tutorialButtonText;
+
+  /// No description provided for @languageEnglish.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageEnglish;
+
+  /// No description provided for @languageSimplifiedChinese.
+  ///
+  /// In en, this message translates to:
+  /// **'简体中文 (Simplified Chinese)'**
+  String get languageSimplifiedChinese;
+
+  /// No description provided for @languageTraditionalChinese.
+  ///
+  /// In en, this message translates to:
+  /// **'繁體中文 (Traditional Chinese)'**
+  String get languageTraditionalChinese;
+
+  /// No description provided for @languageJapanese.
+  ///
+  /// In en, this message translates to:
+  /// **'日本語 (Japanese)'**
+  String get languageJapanese;
+
+  /// No description provided for @collapseTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get collapseTooltip;
+
+  /// No description provided for @expandTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand'**
+  String get expandTooltip;
+
+  /// No description provided for @incompleteRecordError.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot proceed: Incomplete record information'**
+  String get incompleteRecordError;
+
+  /// No description provided for @optionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Options'**
+  String get optionsTitle;
+
+  /// Button text to play from a specific timestamp
+  ///
+  /// In en, this message translates to:
+  /// **'Play from {timestamp}'**
+  String playFromTimestamp(String timestamp);
+
+  /// No description provided for @editNoteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Note'**
+  String get editNoteTitle;
+
+  /// No description provided for @ratedStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Rated'**
+  String get ratedStatus;
+
+  /// No description provided for @noItemsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No items found'**
+  String get noItemsFound;
+
+  /// No description provided for @cannotCreateSpotifyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot create Spotify link'**
+  String get cannotCreateSpotifyLink;
+
+  /// No description provided for @cannotOpenSpotify.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot open Spotify'**
+  String get cannotOpenSpotify;
+
+  /// Error message when failing to open Spotify
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to open Spotify: {error}'**
+  String failedToOpenSpotify(String error);
+
+  /// No description provided for @playlistsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get playlistsTab;
+
+  /// No description provided for @albumsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Albums'**
+  String get albumsTab;
+
+  /// No description provided for @tryAgainButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Try Again'**
+  String get tryAgainButton;
+
+  /// No description provided for @playTrackToSeeThoughts.
+  ///
+  /// In en, this message translates to:
+  /// **'Play a track to see thoughts.'**
+  String get playTrackToSeeThoughts;
+
+  /// No description provided for @copyButtonText.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyButtonText;
+
+  /// No description provided for @posterButtonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Poster'**
+  String get posterButtonLabel;
+
+  /// No description provided for @noteButtonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get noteButtonLabel;
+
+  /// No description provided for @lyricsAnalysisTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics Analysis'**
+  String get lyricsAnalysisTitle;
+
+  /// No description provided for @regenerateAnalysisTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate Analysis'**
+  String get regenerateAnalysisTooltip;
+
+  /// No description provided for @copyAllAnalysisTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy All Analysis'**
+  String get copyAllAnalysisTooltip;
+
+  /// No description provided for @geminiGrounding.
+  ///
+  /// In en, this message translates to:
+  /// **'Gemini\'s grounding...'**
+  String get geminiGrounding;
+
+  /// No description provided for @retryButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryButton;
+
+  /// No description provided for @noAnalysisResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No analysis results'**
+  String get noAnalysisResults;
+
+  /// No description provided for @noDeepAnalysisContent.
+  ///
+  /// In en, this message translates to:
+  /// **'No deep analysis content for this lyric fragment'**
+  String get noDeepAnalysisContent;
+
+  /// No description provided for @simpleContentExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'This may be because the lyrics are relatively simple, or have no obvious metaphors, references, or literary devices'**
+  String get simpleContentExplanation;
+
+  /// No description provided for @reanalyzeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-analyze'**
+  String get reanalyzeButton;
+
+  /// No description provided for @onlyFoundDimensionsInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Only displays analysis dimensions found in these lyrics'**
+  String get onlyFoundDimensionsInfo;
+
+  /// No description provided for @songInfoRegeneratedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Song information regenerated'**
+  String get songInfoRegeneratedMessage;
+
+  /// No description provided for @songInformationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Song Information'**
+  String get songInformationTitle;
+
+  /// No description provided for @regenerateTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate'**
+  String get regenerateTooltip;
+
+  /// No description provided for @noSongInfoAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No song information available'**
+  String get noSongInfoAvailable;
+
+  /// No description provided for @generatedByGemini.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated by Gemini 2.5 Flash'**
+  String get generatedByGemini;
+
+  /// No description provided for @poweredByGoogleSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Powered by Google Search Grounding'**
+  String get poweredByGoogleSearch;
+
+  /// No description provided for @creationTimeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Creation Time'**
+  String get creationTimeTitle;
+
+  /// No description provided for @creationLocationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Creation Location'**
+  String get creationLocationTitle;
+
+  /// No description provided for @lyricistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyricist'**
+  String get lyricistTitle;
+
+  /// No description provided for @composerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Composer'**
+  String get composerTitle;
+
+  /// No description provided for @producerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Producer'**
+  String get producerTitle;
+
+  /// No description provided for @songAnalysisTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Song Analysis'**
+  String get songAnalysisTitle;
+
+  /// No description provided for @selectArtistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Artist'**
+  String get selectArtistTitle;
+
+  /// No description provided for @backToLibraryTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to library'**
+  String get backToLibraryTooltip;
+
+  /// No description provided for @appWatermark.
+  ///
+  /// In en, this message translates to:
+  /// **'Spotoolfy'**
+  String get appWatermark;
+
+  /// No description provided for @loadingAnalyzing.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyzing lyrics with AI...'**
+  String get loadingAnalyzing;
+
+  /// No description provided for @loadingDecoding.
+  ///
+  /// In en, this message translates to:
+  /// **'Decoding musical mysteries...'**
+  String get loadingDecoding;
+
+  /// No description provided for @loadingSearching.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching for insights...'**
+  String get loadingSearching;
+
+  /// No description provided for @loadingThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Gemini is thinking...'**
+  String get loadingThinking;
+
+  /// No description provided for @loadingGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating analysis...'**
+  String get loadingGenerating;
+
+  /// Loading message mentioning artist
+  ///
+  /// In en, this message translates to:
+  /// **'Having a chat with {artist}...'**
+  String loadingChatting(String artist);
+
+  /// No description provided for @loadingDiscovering.
+  ///
+  /// In en, this message translates to:
+  /// **'Discovering hidden meanings...'**
+  String get loadingDiscovering;
+
+  /// No description provided for @loadingExploring.
+  ///
+  /// In en, this message translates to:
+  /// **'Exploring lyrical depths...'**
+  String get loadingExploring;
+
+  /// No description provided for @loadingUnraveling.
+  ///
+  /// In en, this message translates to:
+  /// **'Unraveling poetic layers...'**
+  String get loadingUnraveling;
+
+  /// No description provided for @loadingConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting emotional threads...'**
+  String get loadingConnecting;
+
+  /// No description provided for @currentQueueEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Current queue is empty'**
+  String get currentQueueEmpty;
+
+  /// No description provided for @queueUpNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next'**
+  String get queueUpNext;
+
+  /// No description provided for @noQueueItems.
+  ///
+  /// In en, this message translates to:
+  /// **'No upcoming tracks'**
+  String get noQueueItems;
+
+  /// Position indicator in queue
+  ///
+  /// In en, this message translates to:
+  /// **'Track {position} of {total}'**
+  String queuePositionInfo(int position, int total);
 }
 
 class _AppLocalizationsDelegate

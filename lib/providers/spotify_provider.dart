@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:async';
+import 'dart:io';
 import '../services/spotify_service.dart';
 import '../models/spotify_device.dart';
 import 'package:collection/collection.dart';
@@ -8,7 +9,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
@@ -198,7 +198,7 @@ class SpotifyProvider extends ChangeNotifier {
       final user = await _guard(() => _spotifyService.getUserProfile());
       username = user['display_name'];
       notifyListeners(); // UI 马上刷新
-      if (_refreshTimer == null && username != null) startTrackRefresh(); // Only start if not already running and user is logged in
+      if (_refreshTimer == null && username != null) startTrackRefresh(); // 仅在定时器未运行且用户已登录时启动
     } catch (_) {
       /* 忽略失败 */
     }
@@ -681,11 +681,14 @@ class SpotifyProvider extends ChangeNotifier {
 
   /// 处理从URL回调中获取的token
   Future<void> handleCallbackToken(String accessToken, String? expiresIn) async {
+    logger.i('收到iOS授权回调，token长度: ${accessToken.length}');
+    
     try {
       final expiresInSeconds = int.tryParse(expiresIn ?? '3600') ?? 3600;
       
       // 直接保存token到SpotifyAuthService
       await _guard(() => _spotifyService.saveAuthResponse(accessToken, expiresInSeconds: expiresInSeconds));
+      logger.d('iOS回调：token已保存到安全存储');
       
       // 立即获取用户资料并更新状态
       try {
@@ -699,7 +702,7 @@ class SpotifyProvider extends ChangeNotifier {
         // 触发UI更新
         notifyListeners();
         
-        print('成功保存从回调获取的access token并更新用户状态');
+        logger.i('iOS回调：成功保存access token并更新用户状态');
       } catch (profileError) {
         logger.e('iOS回调：获取用户资料失败: $profileError');
         // 即使获取用户资料失败，也要触发token刷新回调
@@ -709,14 +712,27 @@ class SpotifyProvider extends ChangeNotifier {
           logger.w('调用token刷新回调失败: $e');
         }
       }
+      
     } catch (e) {
       logger.e('保存回调token失败: $e');
+    } finally {
+      // ⬇️⬇️ 关键修复：确保回调后重置loading状态 ⬇️⬇️
+      if (isLoading) {
+        isLoading = false;
+        notifyListeners();
+        logger.d('iOS回调：已重置isLoading状态');
+      }
     }
   }
 
   /// 自动登录
   Future<void> autoLogin() async {
-    if (isLoading) return; // Avoid concurrent autoLogin calls
+    // 如果正在加载中，跳过自动登录
+    if (isLoading) {
+      logger.d('跳过自动登录：已在加载中');
+      return;
+    }
+    
     isLoading = true;
     notifyListeners();
 
@@ -733,17 +749,19 @@ class SpotifyProvider extends ChangeNotifier {
 
       final token = await _guard(() => _spotifyService.ensureFreshToken());
       if (token != null) {
+        logger.d('自动登录：使用现有token成功');
         await _refreshUserProfile(); 
         await updateWidget();
       } else {
         // No token, ensure user is in a logged-out state if they weren't already
+        logger.d('自动登录：未找到有效token，保持登出状态');
         if (username != null) {
             username = null;
             // No need to call notifyListeners here, finally block will do it.
         }
       }
     } catch (e) {
-      // debugPrint('AutoLogin error: $e');
+      logger.w('自动登录失败: $e');
       if (username != null) {
         username = null; 
       }
@@ -755,6 +773,11 @@ class SpotifyProvider extends ChangeNotifier {
 
   /// 登录
   Future<void> login() async {
+    if (isLoading) {
+      logger.w('登录操作已在进行中，跳过重复调用');
+      return;
+    }
+    
     isLoading = true;
     notifyListeners();
 
@@ -766,13 +789,16 @@ class SpotifyProvider extends ChangeNotifier {
         }
       }
 
+      logger.d('开始Spotify登录流程');
       final accessToken = await _guard(() => _spotifyService.login()); // This now calls ensureFreshToken or SDK getAccessToken
                                                   // and onTokenRefreshed internally
 
       if (accessToken == null) {
+         logger.w('登录返回null token，可能被用户取消');
          // Login was cancelled or failed silently in ensureFreshToken/login in service
          // UI should reflect this (e.g. isLoading false, no username)
       } else {
+        logger.d('登录成功获取token，长度: ${accessToken.length}');
         // Token obtained, _refreshUserProfile should have been called by onTokenRefreshed
         // If not, or for robustness:
         if (username == null) await _refreshUserProfile(); 
@@ -780,9 +806,11 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
     } catch (e) {
+      logger.e('登录过程出错: $e');
       // Handle SpotifyAuthException (e.g. AUTH_CANCELLED, CONFIG_ERROR)
       // or other exceptions
       if (e is SpotifyAuthException && e.code == 'AUTH_CANCELLED') {
+        logger.d('用户取消授权');
         // User cancelled, do nothing further, isLoading will be set to false in finally
       } else {
         // For other errors, rethrow or handle appropriately
@@ -791,8 +819,15 @@ class SpotifyProvider extends ChangeNotifier {
         rethrow;
       }
     } finally {
-      isLoading = false;
-      notifyListeners();
+      // 注意：对于iOS，isLoading会在handleCallbackToken()的finally中重置
+      // 对于Android/其他平台，在这里重置
+      if (!Platform.isIOS) {
+        isLoading = false;
+        notifyListeners();
+        logger.d('登录流程结束，isLoading已重置为false');
+      } else {
+        logger.d('iOS登录流程：等待回调重置isLoading状态');
+      }
     }
   }
 
@@ -1370,6 +1405,12 @@ class SpotifyProvider extends ChangeNotifier {
       _refreshTimer = null;
       _progressTimer?.cancel(); 
       _progressTimer = null;
+
+      // 注销时重置loading状态
+      if (isLoading) {
+        logger.d('注销时重置isLoading状态');
+        isLoading = false;
+      }
 
       username = null; 
       currentTrack = null;
