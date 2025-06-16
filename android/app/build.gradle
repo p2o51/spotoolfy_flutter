@@ -41,6 +41,9 @@ android {
                 'redirectHostName': 'callback',
                 'redirectSchemeName': 'spotoolfy'
         ]
+
+        // 只打包我们声明过的资源，减小 APK
+        resourceConfigurations.addAll(["en", "ja", "zh-rCN", "zh-rTW"])
     }
 
     buildTypes {
@@ -54,7 +57,7 @@ android {
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.palette:palette-ktx:1.0.0'
     implementation 'com.github.bumptech.glide:glide:4.12.0'

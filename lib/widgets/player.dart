@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'dart:math';
 import '../widgets/song_info_result_page.dart';
 import '../services/notification_service.dart';
+import '../l10n/app_localizations.dart';
 
 class Player extends StatefulWidget {
   final bool isLargeScreen;
@@ -375,13 +376,13 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               } else {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('无法打开 Spotify 应用')),
+                  SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify)),
                 );
               }
             } catch (e) {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('打开 Spotify 应用失败')),
+                SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(''))),
               );
             }
           }
@@ -749,13 +750,13 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法打开 Spotify: $url')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(url))),
         );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('打开 Spotify 链接失败')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(''))),
       );
     }
   }
@@ -985,13 +986,13 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               } else {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('无法打开 Spotify 应用')),
+                  SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify)),
                 );
               }
             } catch (e) {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('打开 Spotify 应用失败')),
+                SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(''))),
               );
             }
           }

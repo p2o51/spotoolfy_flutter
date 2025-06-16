@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../l10n/app_localizations.dart';
 
 class QueueDisplay extends StatelessWidget {
   const QueueDisplay({super.key});
@@ -139,7 +140,7 @@ class QueueDisplay extends StatelessWidget {
     
     if (spotifyUri == null && webUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法构建Spotify链接'))
+        SnackBar(content: Text(AppLocalizations.of(context)!.cannotCreateSpotifyLink))
       );
       return;
     }
@@ -169,12 +170,12 @@ class QueueDisplay extends StatelessWidget {
       
       // 两种方式都失败
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法打开Spotify'))
+        SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify))
       );
     } catch (e) {
       debugPrint('打开Spotify出错: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('打开Spotify失败: $e'))
+        SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(e.toString())))
       );
     }
   }

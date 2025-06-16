@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.annotation.NonNull
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -44,6 +46,7 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
+        // Widget 控制通道
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.gojyuplusone.spotoolfy/widget")
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -72,6 +75,54 @@ class MainActivity: FlutterActivity() {
                         )
                     }
                     result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // 语言设置通道
+        val languageChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "language_channel")
+        languageChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setAppLocale" -> {
+                    try {
+                        val languageTag = call.argument<String>("languageTag")
+                        if (languageTag != null) {
+                            val localeList = LocaleListCompat.forLanguageTags(languageTag)
+                            AppCompatDelegate.setApplicationLocales(localeList)
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_ARGUMENT", "Language tag is null", null)
+                        }
+                    } catch (e: Exception) {
+                        result.error("SET_LOCALE_ERROR", e.message, null)
+                    }
+                }
+                "clearAppLocale" -> {
+                    try {
+                        AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("CLEAR_LOCALE_ERROR", e.message, null)
+                    }
+                }
+                "openSystemLanguageSettings" -> {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            val intent = Intent(android.provider.Settings.ACTION_APP_LOCALE_SETTINGS).apply {
+                                data = android.net.Uri.fromParts("package", packageName, null)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } else {
+                            result.error("UNSUPPORTED", "System language settings not supported on this Android version", null)
+                        }
+                    } catch (e: Exception) {
+                        result.error("OPEN_SETTINGS_ERROR", e.message, null)
+                    }
+                }
+                "supportsSystemLanguageSettings" -> {
+                    result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 }
                 else -> result.notImplemented()
             }

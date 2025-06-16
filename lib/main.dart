@@ -18,7 +18,8 @@ import 'providers/search_provider.dart';
 import 'providers/local_database_provider.dart';
 import 'services/lyrics_service.dart';
 import 'services/notification_service.dart';
-import 'services/settings_service.dart'; // Add this line
+import 'services/settings_service.dart';
+import 'services/language_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -93,9 +94,31 @@ void main() async {
   );
 }
 
-class MyThemedApp extends StatelessWidget {
+class MyThemedApp extends StatefulWidget {
   const MyThemedApp({super.key});
+  
+  @override
+  State<MyThemedApp> createState() => _MyThemedAppState();
+}
 
+class _MyThemedAppState extends State<MyThemedApp> {
+  Locale? _locale;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedLocale();
+  }
+  
+  Future<void> _loadSavedLocale() async {
+    final savedLocale = await LanguageService.getSavedLocale();
+    if (savedLocale != null && mounted) {
+      setState(() {
+        _locale = savedLocale;
+      });
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -115,18 +138,14 @@ class MyThemedApp extends StatelessWidget {
     return MaterialApp(
       scaffoldMessengerKey: scaffoldMessengerKey,
       navigatorKey: navigatorKey,
+      locale: _locale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('en'),       // English
-        Locale('zh'),       // Simplified Chinese
-        Locale('zh', 'TW'), // Traditional Chinese
-        Locale('ja'),       // Japanese
-      ],
+      supportedLocales: LanguageService.supportedLocales,
       theme: ThemeData(
         fontFamily: 'Montserrat',
         colorScheme: themeProvider.colorScheme,
@@ -445,18 +464,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   _selectedIndex = index;
                 });
               },
-              destinations: const [
+              destinations: [
                 NavigationRailDestination(
-                  icon: Icon(Icons.music_note),
-                  label: Text('NowPlaying'),
+                  icon: const Icon(Icons.music_note),
+                  label: Text(AppLocalizations.of(context)!.nowPlayingLabel),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  label: Text('Library'),
+                  icon: const Icon(Icons.library_music_outlined),
+                  label: Text(AppLocalizations.of(context)!.libraryLabel),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.radio),
-                  label: Text('Roam'),
+                  icon: const Icon(Icons.radio),
+                  label: Text(AppLocalizations.of(context)!.roamLabel),
                 ),
               ],
             ),
@@ -480,18 +499,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               _selectedIndex = index;
             });
           },
-          destinations: const [
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.music_note),
-              label: 'NowPlaying',
+              icon: const Icon(Icons.music_note),
+              label: AppLocalizations.of(context)!.nowPlayingLabel,
             ),
             NavigationDestination(
-              icon: Icon(Icons.library_music_outlined),
-              label: 'Library',
+              icon: const Icon(Icons.library_music_outlined),
+              label: AppLocalizations.of(context)!.libraryLabel,
             ),
             NavigationDestination(
-              icon: Icon(Icons.radio),
-              label: 'Roam',
+              icon: const Icon(Icons.radio),
+              label: AppLocalizations.of(context)!.roamLabel,
             ),
           ],
         ),

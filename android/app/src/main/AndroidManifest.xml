@@ -24,11 +24,18 @@
         android:icon="@mipmap/launcher_icon"
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
+        android:localeConfig="@xml/locale_config"
         android:theme="@style/AppTheme">
 
-        <meta-data
-            android:name="android.app.locale_config"
-            android:resource="@xml/locale_config"/>
+        <!-- 让系统自动备份并恢复用户的语言偏好 -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true"/>
+        </service>
 
         <activity
             android:name=".MainActivity"

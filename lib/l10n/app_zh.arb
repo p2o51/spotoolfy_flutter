@@ -263,5 +263,10 @@
   "currentQueueEmpty": "当前队列为空",
   "queueUpNext": "即将播放",
   "noQueueItems": "没有即将播放的曲目",
-  "queuePositionInfo": "第 {position} 首，共 {total} 首"
+  "queuePositionInfo": "第 {position} 首，共 {total} 首",
+  "failedToSwitchDevice": "切换设备失败: {error}",
+  "deviceRestrictedMessage": "设备 '{device}' 受限，无法通过API控制。",
+  "insufficientPermissionsReauth": "权限范围不足，正在重新获取完整授权...",
+  "reauthFailedManualLogin": "重新获取授权失败，请手动重新登录",
+  "badRequestError": "请求格式错误 ({code})，请稍后重试或联系开发者。"
 }

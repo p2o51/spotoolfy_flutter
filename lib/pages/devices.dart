@@ -137,7 +137,7 @@ class DeviceListItem extends StatelessWidget {
           } catch (e) {
              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                   SnackBar(content: Text('切换设备失败: ${e.toString()}')),
+                   SnackBar(content: Text(AppLocalizations.of(context)!.failedToSwitchDevice(e.toString()))),
                 );
              }
           }

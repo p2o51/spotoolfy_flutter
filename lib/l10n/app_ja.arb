@@ -266,5 +266,10 @@
   "currentQueueEmpty": "現在のキューは空",
   "queueUpNext": "次に再生",
   "noQueueItems": "upcoming tracks がない",
-  "queuePositionInfo": "{total} 曲中 {position} 番目"
+  "queuePositionInfo": "{total} 曲中 {position} 番目",
+  "failedToSwitchDevice": "デバイス切り替えに失敗した: {error}",
+  "deviceRestrictedMessage": "デバイス '{device}' は制限されており、API経由で制御できない。",
+  "insufficientPermissionsReauth": "権限が不足しています、再認証中...",
+  "reauthFailedManualLogin": "再認証に失敗しました、手動でログインしてください",
+  "badRequestError": "リクエストエラー ({code})、後でもう一度試すか開発者に連絡してください。"
 }

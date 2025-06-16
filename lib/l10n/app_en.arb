@@ -457,5 +457,37 @@
         "example": "10"
       }
     }
+  },
+  "failedToSwitchDevice": "Failed to switch device: {error}",
+  "@failedToSwitchDevice": {
+    "description": "Error message when failing to switch device",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Connection error"
+      }
+    }
+  },
+  "deviceRestrictedMessage": "Device '{device}' is restricted and cannot be controlled via API.",
+  "@deviceRestrictedMessage": {
+    "description": "Message when device is restricted",
+    "placeholders": {
+      "device": {
+        "type": "String",
+        "example": "iPhone"
+      }
+    }
+  },
+  "insufficientPermissionsReauth": "Insufficient permissions, reauthorizing...",
+  "reauthFailedManualLogin": "Reauthorization failed, please login manually",
+  "badRequestError": "Bad request ({code}), please try again later or contact developer.",
+  "@badRequestError": {
+    "description": "Error message for bad request",
+    "placeholders": {
+      "code": {
+        "type": "String",
+        "example": "400"
+      }
+    }
   }
 }
