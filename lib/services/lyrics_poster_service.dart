@@ -31,22 +31,22 @@ class LyricsPosterService {
     const double scaleFactor = 2.0; // 2倍分辨率
     const double baseWidth = 720;
     const double width = baseWidth * scaleFactor;
-    const double horizontalMargin = 24.0 * scaleFactor; // 按比例缩放边距
+    const double horizontalMargin = 32.0 * scaleFactor; // 增加左右边距
     const double contentWidth = width - 2 * horizontalMargin;
 
     // 字号调整 - 按比例缩放
     const double titleFontSize = 28.0 * scaleFactor;
-    const double artistFontSize = 24.0 * scaleFactor;
-    const double lyricsFontSize = 32 * scaleFactor; 
-    const double watermarkFontSize = 24.0 * scaleFactor;
+    const double artistFontSize = 28.0 * scaleFactor;
+    const double lyricsFontSize = 40 * scaleFactor; 
+    const double watermarkFontSize = 20.0 * scaleFactor; // 减小水印字号
 
-    const double topMargin = 30.0 * scaleFactor; 
-    const double bottomMargin = 30.0 * scaleFactor; // 增加底部间距，与顶部保持对称
-    const double elementSpacing = 18.0 * scaleFactor; 
-    const double interTextSpacing = 6.0 * scaleFactor; 
-    const double albumArtSize = 120.0 * scaleFactor;
-    const double albumCornerRadius = 12.0 * scaleFactor; // 新增：封面圆角半径
-    const double headerSpacing = 40.0 * scaleFactor; // 增加封面和文字之间的间距
+    const double topMargin = 40.0 * scaleFactor; // 增加顶部边距
+    const double bottomMargin = 40.0 * scaleFactor; 
+    const double elementSpacing = 24.0 * scaleFactor; // 增加元素间距
+    const double interTextSpacing = 8.0 * scaleFactor; 
+    const double albumArtSize = 100.0 * scaleFactor; // 稍微减小封面尺寸
+    const double albumCornerRadius = 8.0 * scaleFactor; 
+    const double headerSpacing = 20.0 * scaleFactor; // 减少封面和文字之间的间距
 
     double calculatedHeight = 0;
     calculatedHeight += topMargin;
@@ -58,13 +58,13 @@ class LyricsPosterService {
       try {
         loadedAlbumImage = await _loadNetworkImage(albumCoverUrl);
         // 计算标题和艺术家的高度来确定header区域高度
-        final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor);
+        final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400); // Regular字重
         final titlePainter = TextPainter(
           text: TextSpan(text: trackTitle, style: titleStyle),
           textDirection: TextDirection.ltr,
           textAlign: TextAlign.left,
         );
-        final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor);
+        final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor, fontWeight: FontWeight.w400); // Regular字重
         final artistPainter = TextPainter(
           text: TextSpan(text: artistName, style: artistStyle),
           textDirection: TextDirection.ltr,
@@ -83,48 +83,48 @@ class LyricsPosterService {
       } catch (e) {
         logger.w('Failed to load album cover for height calculation: $e');
         // 如果封面加载失败，仍然计算标题和艺术家高度
-        final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor);
+        final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400);
         final titlePainter = TextPainter(
           text: TextSpan(text: trackTitle, style: titleStyle),
           textDirection: TextDirection.ltr,
-          textAlign: TextAlign.center,
+          textAlign: TextAlign.left, // 改为左对齐
         );
         titlePainter.layout(maxWidth: contentWidth);
         headerHeight += titlePainter.height + interTextSpacing;
 
-        final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor);
+        final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor, fontWeight: FontWeight.w400);
         final artistPainter = TextPainter(
           text: TextSpan(text: artistName, style: artistStyle),
           textDirection: TextDirection.ltr,
-          textAlign: TextAlign.center,
+          textAlign: TextAlign.left, // 改为左对齐
         );
         artistPainter.layout(maxWidth: contentWidth);
         headerHeight += artistPainter.height;
         calculatedHeight += headerHeight + elementSpacing;
       }
     } else {
-      // 没有封面时，标题和艺术家居中显示
-      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor);
+      // 没有封面时，标题和艺术家左对齐显示
+      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400);
       final titlePainter = TextPainter(
         text: TextSpan(text: trackTitle, style: titleStyle),
         textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
+        textAlign: TextAlign.left, // 改为左对齐
       );
       titlePainter.layout(maxWidth: contentWidth);
       headerHeight += titlePainter.height + interTextSpacing;
 
-      final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor);
+      final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor, fontWeight: FontWeight.w400);
       final artistPainter = TextPainter(
         text: TextSpan(text: artistName, style: artistStyle),
         textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
+        textAlign: TextAlign.left, // 改为左对齐
       );
       artistPainter.layout(maxWidth: contentWidth);
       headerHeight += artistPainter.height;
       calculatedHeight += headerHeight + elementSpacing;
     }
 
-    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.5, fontWeight: FontWeight.w600); // 调整行高，使用与歌词页面相同的字重
+    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.4, fontWeight: FontWeight.w600); // SemiBold字重，调整行高
     final List<String> lyricLines = lyrics.split('\n');
     final List<TextPainter> lyricLinePainters = [];
     double totalLyricsBlockHeight = 0;
@@ -134,7 +134,7 @@ class LyricsPosterService {
         final lyricLinePainter = TextPainter(
           text: TextSpan(text: line.isEmpty ? ' ' : line, style: lyricsStyle),
           textDirection: TextDirection.ltr,
-          textAlign: TextAlign.center,
+          textAlign: TextAlign.left, // 改为左对齐
         );
         lyricLinePainter.layout(maxWidth: contentWidth);
         lyricLinePainters.add(lyricLinePainter);
@@ -149,14 +149,14 @@ class LyricsPosterService {
       }
     }
     calculatedHeight += totalLyricsBlockHeight;
-    if (lyricLinePainters.isNotEmpty) calculatedHeight += elementSpacing; // Add spacing only if there are lyrics
+    if (lyricLinePainters.isNotEmpty) calculatedHeight += elementSpacing; 
 
-    // 去掉水印的斜体
-    final watermarkStyle = TextStyle(fontFamily: fontFamily, fontSize: watermarkFontSize, color: watermarkColor);
+    // 水印样式
+    final watermarkStyle = TextStyle(fontFamily: fontFamily, fontSize: watermarkFontSize, color: watermarkColor, fontWeight: FontWeight.w400);
     final watermarkPainter = TextPainter(
       text: TextSpan(text: 'Spotoolfy', style: watermarkStyle),
       textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
+      textAlign: TextAlign.left, // 改为左对齐
     );
     watermarkPainter.layout(maxWidth: contentWidth);
     
@@ -184,23 +184,21 @@ class LyricsPosterService {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, finalPosterHeight));
 
-    // 让颜色变淡，例如与白色混合50%，并确保最终颜色不透明
-    final Color lightenedBackgroundColor = Color.lerp(backgroundColor, Colors.white, 0.5)!;
-    // 使用淡化后的不透明颜色作为背景
-    final backgroundPaint = Paint()..color = lightenedBackgroundColor;
+    // 使用背景颜色直接作为背景，不进行颜色混合
+    final backgroundPaint = Paint()..color = backgroundColor;
     canvas.drawRect(Rect.fromLTWH(0, 0, width, finalPosterHeight), backgroundPaint);
 
     double currentY = topMargin;
 
     if (loadedAlbumImage != null) {
-      // 计算header整体的紧凑宽度和居中位置
-      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor);
+      // 左对齐布局：封面和文字都从左侧开始
+      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400);
       final titlePainter = TextPainter(
         text: TextSpan(text: trackTitle, style: titleStyle),
         textDirection: TextDirection.ltr,
         textAlign: TextAlign.left,
       );
-      final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor);
+      final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor, fontWeight: FontWeight.w400);
       final artistPainter = TextPainter(
         text: TextSpan(text: artistName, style: artistStyle),
         textDirection: TextDirection.ltr,
@@ -212,15 +210,8 @@ class LyricsPosterService {
       titlePainter.layout(maxWidth: maxTextWidth);
       artistPainter.layout(maxWidth: maxTextWidth);
       
-      // 计算整个header的实际宽度：封面 + 间距 + 文字的最大宽度
-      final actualTextWidth = titlePainter.width > artistPainter.width ? titlePainter.width : artistPainter.width;
-      final actualHeaderWidth = albumArtSize + headerSpacing + actualTextWidth;
-      
-      // 让整个header在海报中水平居中
-      final headerStartX = (width - actualHeaderWidth) / 2;
-      
-      // 绘制圆角封面
-      final albumX = headerStartX;
+      // 绘制圆角封面（左对齐）
+      final albumX = horizontalMargin;
       final albumRect = Rect.fromLTWH(albumX, currentY, albumArtSize, albumArtSize);
       final albumRRect = RRect.fromRectAndRadius(albumRect, const Radius.circular(albumCornerRadius));
       
@@ -250,46 +241,46 @@ class LyricsPosterService {
       
       currentY += headerHeight + elementSpacing;
     } else {
-      // 没有封面时，标题和艺术家居中显示
-      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor);
-      final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor);
+      // 没有封面时，标题和艺术家左对齐显示
+      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400);
+      final artistStyle = TextStyle(fontFamily: fontFamily, fontSize: artistFontSize, color: artistColor, fontWeight: FontWeight.w400);
       
       final titlePainter = TextPainter(
         text: TextSpan(text: trackTitle, style: titleStyle),
         textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
+        textAlign: TextAlign.left,
       );
       titlePainter.layout(maxWidth: contentWidth);
       
       final artistPainter = TextPainter(
         text: TextSpan(text: artistName, style: artistStyle),
         textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
+        textAlign: TextAlign.left,
       );
       artistPainter.layout(maxWidth: contentWidth);
       
-      _drawText(canvas, trackTitle, Offset(width / 2, currentY + titlePainter.height / 2), titleStyle, contentWidth, TextAlign.center);
+      _drawText(canvas, trackTitle, Offset(horizontalMargin, currentY + titlePainter.height / 2), titleStyle, contentWidth, TextAlign.left);
       currentY += titlePainter.height + interTextSpacing;
 
-      _drawText(canvas, artistName, Offset(width / 2, currentY + artistPainter.height / 2), artistStyle, contentWidth, TextAlign.center);
+      _drawText(canvas, artistName, Offset(horizontalMargin, currentY + artistPainter.height / 2), artistStyle, contentWidth, TextAlign.left);
       currentY += artistPainter.height + elementSpacing;
     }
 
+    // 绘制歌词（左对齐）
     for (final painter in lyricLinePainters) {
-      _drawTextPainter(canvas, painter, Offset(width / 2, currentY + painter.height / 2), TextAlign.center);
+      _drawTextPainter(canvas, painter, Offset(horizontalMargin, currentY + painter.height / 2), TextAlign.left);
       currentY += painter.height;
     }
     if (lyricLinePainters.isNotEmpty) {
       currentY += elementSpacing;
     }
 
-    // 绘制水印：图标 + 文字组合，跟在歌词后面
+    // 绘制水印：图标 + 文字组合，左对齐
     final watermarkY = currentY + (watermarkHeight / 2);
     
     if (watermarkIcon != null) {
-      // 计算图标+文字组合的总宽度
-      final totalWatermarkWidth = iconSize + iconTextSpacing + watermarkPainter.width;
-      final watermarkStartX = (width - totalWatermarkWidth) / 2;
+      // 左对齐布局
+      final watermarkStartX = horizontalMargin;
       
       // 绘制图标
       final iconY = watermarkY - (watermarkHeight / 2) + (watermarkHeight - iconSize) / 2;
@@ -305,8 +296,8 @@ class LyricsPosterService {
       final textY = watermarkY - (watermarkHeight / 2) + (watermarkHeight - watermarkPainter.height) / 2;
       watermarkPainter.paint(canvas, Offset(textX, textY));
     } else {
-      // 如果图标加载失败，只显示文字
-      _drawText(canvas, 'Spotoolfy', Offset(width / 2, watermarkY), watermarkStyle, contentWidth, TextAlign.center);
+      // 如果图标加载失败，只显示文字（左对齐）
+      _drawText(canvas, 'Spotoolfy', Offset(horizontalMargin, watermarkY), watermarkStyle, contentWidth, TextAlign.left);
     }
 
     final picture = recorder.endRecording();
@@ -388,11 +379,11 @@ class LyricsPosterService {
     return frame.image;
   }
 
-  // 辅助方法：绘制文本 (支持居中对齐)
+  // 辅助方法：绘制文本 (支持左对齐)
   void _drawText(
     Canvas canvas,
     String text,
-    Offset position, // This is the CENTER of the text block
+    Offset position, // 对于左对齐，这是文本块的左上角位置
     TextStyle style,
     double maxWidth,
     TextAlign textAlign,
@@ -408,28 +399,25 @@ class LyricsPosterService {
     if (textAlign == TextAlign.center) {
       dx -= textPainter.width / 2;
     } else if (textAlign == TextAlign.right) {
-      // This case needs to be thought out if position.dx is not the right edge of the container
       dx -= textPainter.width; 
     }
-    // For TextAlign.left, if position.dx is the center of the container, 
-    // dx should be position.dx - containerWidth/2 + padding, or simply the left starting x.
-    // Given our usage (centering text within a contentWidth area), this is mostly for TextAlign.center.
+    // 对于 TextAlign.left，dx 保持不变
 
     final offsetY = position.dy - textPainter.height / 2; 
     
     textPainter.paint(canvas, Offset(dx, offsetY));
   }
 
-  void _drawTextPainter(Canvas canvas, TextPainter textPainter, Offset centerPosition, TextAlign textAlign) {
-    double dx = centerPosition.dx;
-    // Assuming textPainter.width is available after layout
+  void _drawTextPainter(Canvas canvas, TextPainter textPainter, Offset position, TextAlign textAlign) {
+    double dx = position.dx;
     if (textAlign == TextAlign.center) {
       dx -= textPainter.width / 2;
     } else if (textAlign == TextAlign.right) {
       dx -= textPainter.width;
     }
+    // 对于 TextAlign.left，dx 保持不变
     
-    final offsetY = centerPosition.dy - textPainter.height / 2;
+    final offsetY = position.dy - textPainter.height / 2;
     textPainter.paint(canvas, Offset(dx, offsetY));
   }
 

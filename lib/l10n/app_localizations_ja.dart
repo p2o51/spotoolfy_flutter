@@ -845,4 +845,25 @@ class AppLocalizationsJa extends AppLocalizations {
   String queuePositionInfo(int position, int total) {
     return '$total 曲中 $position 番目';
   }
+
+  @override
+  String failedToSwitchDevice(String error) {
+    return 'デバイス切り替えに失敗した: $error';
+  }
+
+  @override
+  String deviceRestrictedMessage(String device) {
+    return 'デバイス \'$device\' は制限されており、API経由で制御できない。';
+  }
+
+  @override
+  String get insufficientPermissionsReauth => '権限が不足しています、再認証中...';
+
+  @override
+  String get reauthFailedManualLogin => '再認証に失敗しました、手動でログインしてください';
+
+  @override
+  String badRequestError(String code) {
+    return 'リクエストエラー ($code)、後でもう一度試すか開発者に連絡してください。';
+  }
 }

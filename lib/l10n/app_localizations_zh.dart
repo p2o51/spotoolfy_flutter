@@ -843,6 +843,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String queuePositionInfo(int position, int total) {
     return '第 $position 首，共 $total 首';
   }
+
+  @override
+  String failedToSwitchDevice(String error) {
+    return '切换设备失败: $error';
+  }
+
+  @override
+  String deviceRestrictedMessage(String device) {
+    return '设备 \'$device\' 受限，无法通过API控制。';
+  }
+
+  @override
+  String get insufficientPermissionsReauth => '权限范围不足，正在重新获取完整授权...';
+
+  @override
+  String get reauthFailedManualLogin => '重新获取授权失败，请手动重新登录';
+
+  @override
+  String badRequestError(String code) {
+    return '请求格式错误 ($code)，请稍后重试或联系开发者。';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1683,5 +1704,26 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   @override
   String queuePositionInfo(int position, int total) {
     return '第 $position 首，共 $total 首';
+  }
+
+  @override
+  String failedToSwitchDevice(String error) {
+    return '切換裝置失敗: $error';
+  }
+
+  @override
+  String deviceRestrictedMessage(String device) {
+    return '裝置 \'$device\' 受限，無法透過API控制。';
+  }
+
+  @override
+  String get insufficientPermissionsReauth => '權限範圍不足，正在重新取得完整授權...';
+
+  @override
+  String get reauthFailedManualLogin => '重新取得授權失敗，請手動重新登入';
+
+  @override
+  String badRequestError(String code) {
+    return '請求格式錯誤 ($code)，請稍後重試或聯繫開發者。';
   }
 }

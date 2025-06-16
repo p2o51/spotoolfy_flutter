@@ -124,7 +124,7 @@ class DeviceListItem extends StatelessWidget {
           bottomRight: Radius.circular(isLast ? 24 : 8),
         ),
       ),
-      color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.6),
+      color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.6),
       child: InkWell(
         onTap: isDisabled ? null : () async {
           HapticFeedback.lightImpact();

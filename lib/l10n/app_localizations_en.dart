@@ -867,4 +867,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String queuePositionInfo(int position, int total) {
     return 'Track $position of $total';
   }
+
+  @override
+  String failedToSwitchDevice(String error) {
+    return 'Failed to switch device: $error';
+  }
+
+  @override
+  String deviceRestrictedMessage(String device) {
+    return 'Device \'$device\' is restricted and cannot be controlled via API.';
+  }
+
+  @override
+  String get insufficientPermissionsReauth =>
+      'Insufficient permissions, reauthorizing...';
+
+  @override
+  String get reauthFailedManualLogin =>
+      'Reauthorization failed, please login manually';
+
+  @override
+  String badRequestError(String code) {
+    return 'Bad request ($code), please try again later or contact developer.';
+  }
 }

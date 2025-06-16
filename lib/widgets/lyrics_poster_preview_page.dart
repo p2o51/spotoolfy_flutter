@@ -64,13 +64,13 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
         trackTitle: widget.trackTitle,
         artistName: widget.artistName,
         albumCoverUrl: widget.albumCoverUrl,
-        // Updated color scheme based on new requirements
-        backgroundColor: theme.colorScheme.tertiaryFixed,
-        titleColor: theme.colorScheme.onTertiaryFixed,
-        artistColor: theme.colorScheme.primary, // Artist name is primary
-        lyricsColor: theme.colorScheme.primary, // Lyrics are primary
-        watermarkColor: theme.colorScheme.onTertiaryFixed.withOpacity(0.6), // Watermark onTertiaryFixed with opacity
-        separatorColor: theme.colorScheme.outline.withAlpha((0.3 * 255).round()), // Or specify another color if needed
+        // 根据新的设计要求更新颜色配置
+        backgroundColor: theme.colorScheme.onPrimaryContainer, // 背景为onPrimaryContainer颜色
+        titleColor: theme.colorScheme.primaryContainer, // 歌曲标题为primaryContainer颜色
+        artistColor: theme.colorScheme.primary, // 歌手为primary颜色
+        lyricsColor: theme.colorScheme.primaryContainer, // 歌词为primaryContainer颜色
+        watermarkColor: theme.colorScheme.primary, // 脚注为primary颜色
+        separatorColor: theme.colorScheme.outline.withAlpha((0.3 * 255).round()),
         fontFamily: uiFontFamily, // 传递字体族
       );
 

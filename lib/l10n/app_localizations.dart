@@ -1672,6 +1672,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Track {position} of {total}'**
   String queuePositionInfo(int position, int total);
+
+  /// Error message when failing to switch device
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to switch device: {error}'**
+  String failedToSwitchDevice(String error);
+
+  /// Message when device is restricted
+  ///
+  /// In en, this message translates to:
+  /// **'Device \'{device}\' is restricted and cannot be controlled via API.'**
+  String deviceRestrictedMessage(String device);
+
+  /// No description provided for @insufficientPermissionsReauth.
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient permissions, reauthorizing...'**
+  String get insufficientPermissionsReauth;
+
+  /// No description provided for @reauthFailedManualLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Reauthorization failed, please login manually'**
+  String get reauthFailedManualLogin;
+
+  /// Error message for bad request
+  ///
+  /// In en, this message translates to:
+  /// **'Bad request ({code}), please try again later or contact developer.'**
+  String badRequestError(String code);
 }
 
 class _AppLocalizationsDelegate
