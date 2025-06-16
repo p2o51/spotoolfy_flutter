@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert'; // Import dart:convert for JSON handling
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences
+import 'package:logger/logger.dart';
 import 'spotify_provider.dart';
+
+final logger = Logger();
 
 class LibraryProvider extends ChangeNotifier {
   final SpotifyProvider _spotifyProvider;
@@ -101,7 +104,7 @@ class LibraryProvider extends ChangeNotifier {
       final stopwatch = Stopwatch()..start(); // Measure cache load time
       bool cacheLoaded = await _loadFromCache();
       stopwatch.stop();
-      print("Cache load attempt took ${stopwatch.elapsedMilliseconds}ms");
+      logger.d("Cache load attempt took ${stopwatch.elapsedMilliseconds}ms");
 
       if (cacheLoaded) {
         _isLoading = false;
@@ -125,7 +128,7 @@ class LibraryProvider extends ChangeNotifier {
         _spotifyProvider.getUserSavedAlbums(),
       ]);
       stopwatch.stop();
-      print("API fetch took ${stopwatch.elapsedMilliseconds}ms");
+      logger.d("API fetch took ${stopwatch.elapsedMilliseconds}ms");
       
       _userPlaylists = results[0];
       _userSavedAlbums = results[1];
@@ -137,7 +140,7 @@ class LibraryProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Failed to load library data: $e';
-      print(_errorMessage); // Log error
+      logger.w(_errorMessage); // Log error
       _isLoading = false;
       notifyListeners();
       // Optionally try loading expired cache as fallback on API error?
@@ -156,13 +159,13 @@ class LibraryProvider extends ChangeNotifier {
       if (timestampString != null) {
         if (ignoreTimestamp) {
           isCacheValid = true;
-          print("Loading expired cache as fallback.");
+          logger.i("Loading expired cache as fallback.");
         } else {
           final timestamp = DateTime.parse(timestampString);
           if (DateTime.now().difference(timestamp) <= _cacheDuration) {
             isCacheValid = true;
           } else {
-            print("Library cache expired.");
+            logger.i("Library cache expired.");
           }
         }
       }
@@ -175,12 +178,12 @@ class LibraryProvider extends ChangeNotifier {
           // Use compute function for potentially long JSON decoding? (Consider if lists are huge)
           _userPlaylists = List<Map<String, dynamic>>.from(jsonDecode(playlistsJson));
           _userSavedAlbums = List<Map<String, dynamic>>.from(jsonDecode(albumsJson));
-          print("Library data loaded from cache.");
+          logger.i("Library data loaded from cache.");
           return true; // Cache loaded successfully
         }
       }
     } catch (e) {
-      print("Error loading library from cache: $e");
+      logger.w("Error loading library from cache: $e");
       // Clear cache if parsing fails to avoid loading corrupted data next time
       await _clearCache(); 
     }
@@ -198,9 +201,9 @@ class LibraryProvider extends ChangeNotifier {
       await prefs.setString(_playlistsCacheKey, playlistsJson);
       await prefs.setString(_albumsCacheKey, albumsJson);
       await prefs.setString(_cacheTimestampKey, DateTime.now().toIso8601String());
-      print("Library data saved to cache.");
+      logger.i("Library data saved to cache.");
     } catch (e) {
-      print("Error saving library to cache: $e");
+      logger.w("Error saving library to cache: $e");
     }
   }
 
@@ -211,10 +214,20 @@ class LibraryProvider extends ChangeNotifier {
       await prefs.remove(_playlistsCacheKey);
       await prefs.remove(_albumsCacheKey);
       await prefs.remove(_cacheTimestampKey);
-      print("Library cache cleared.");
+      logger.i("Library cache cleared.");
     } catch (e) {
-      print("Error clearing library cache: $e");
+      logger.w("Error clearing library cache: $e");
     }
+  }
+  
+  // Public method to manually clear cache (for settings page)
+  Future<void> clearCache() async {
+    await _clearCache();
+    // Also clear in-memory data
+    _userPlaylists = [];
+    _userSavedAlbums = [];
+    _isFirstLoad = true;
+    notifyListeners();
   }
   
   // Load more data when scrolling (pagination) - NOT CACHED
@@ -256,11 +269,13 @@ class LibraryProvider extends ChangeNotifier {
       // Don't check _isFirstLoad here, always try loading on login
       loadData();
     } else {
-      // Clear data on logout
+      // Clear data on logout but keep cache for faster reload
       _userPlaylists = [];
       _userSavedAlbums = [];
       _isFirstLoad = true;
-      _clearCache(); // Clear cache on logout
+      // OPTIMIZATION: Keep cache across login sessions to improve re-login experience
+      // Only clear cache if explicitly requested (e.g., in settings)
+      // _clearCache(); // Don't clear cache on logout by default
       notifyListeners();
     }
   }

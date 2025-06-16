@@ -1256,7 +1256,7 @@ abstract class AppLocalizations {
   /// No description provided for @noLyricsToSelect.
   ///
   /// In en, this message translates to:
-  /// **'No lyrics to select'**
+  /// **'No lyrics available to select'**
   String get noLyricsToSelect;
 
   /// No description provided for @posterLyricsLimitExceeded.
@@ -1702,6 +1702,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bad request ({code}), please try again later or contact developer.'**
   String badRequestError(String code);
+
+  /// No description provided for @searchLyrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Lyrics'**
+  String get searchLyrics;
+
+  /// No description provided for @noCurrentTrackPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'No track currently playing'**
+  String get noCurrentTrackPlaying;
+
+  /// No description provided for @cannotGetTrackInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot get current track information'**
+  String get cannotGetTrackInfo;
+
+  /// No description provided for @lyricsSearchAppliedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics successfully searched and applied'**
+  String get lyricsSearchAppliedSuccess;
 }
 
 class _AppLocalizationsDelegate

@@ -268,5 +268,10 @@
   "deviceRestrictedMessage": "设备 '{device}' 受限，无法通过API控制。",
   "insufficientPermissionsReauth": "权限范围不足，正在重新获取完整授权...",
   "reauthFailedManualLogin": "重新获取授权失败，请手动重新登录",
-  "badRequestError": "请求格式错误 ({code})，请稍后重试或联系开发者。"
+  "badRequestError": "请求格式错误 ({code})，请稍后重试或联系开发者。",
+  "searchLyrics": "搜索歌词",
+  "noCurrentTrackPlaying": "没有正在播放的歌曲",
+  "cannotGetTrackInfo": "无法获取当前歌曲信息",
+  "lyricsSearchAppliedSuccess": "歌词已成功搜索并应用",
+  "noLyricsToSelect": "没有可选择的歌词"
 }

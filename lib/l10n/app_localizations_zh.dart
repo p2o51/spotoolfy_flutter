@@ -864,6 +864,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String badRequestError(String code) {
     return '请求格式错误 ($code)，请稍后重试或联系开发者。';
   }
+
+  @override
+  String get searchLyrics => '搜索歌词';
+
+  @override
+  String get noCurrentTrackPlaying => '没有正在播放的歌曲';
+
+  @override
+  String get cannotGetTrackInfo => '无法获取当前歌曲信息';
+
+  @override
+  String get lyricsSearchAppliedSuccess => '歌词已成功搜索并应用';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1726,4 +1738,16 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String badRequestError(String code) {
     return '請求格式錯誤 ($code)，請稍後重試或聯繫開發者。';
   }
+
+  @override
+  String get searchLyrics => '搜尋歌詞';
+
+  @override
+  String get noCurrentTrackPlaying => '沒有正在播放的歌曲';
+
+  @override
+  String get cannotGetTrackInfo => '無法取得目前歌曲資訊';
+
+  @override
+  String get lyricsSearchAppliedSuccess => '歌詞已成功搜尋並套用';
 }

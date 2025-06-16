@@ -628,7 +628,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get noLyricsToSelect => '選択できる歌詞がありません';
+  String get noLyricsToSelect => '選択できる歌詞がない';
 
   @override
   String get posterLyricsLimitExceeded => 'ポスター生成には最大10行まで選択できます';
@@ -866,4 +866,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String badRequestError(String code) {
     return 'リクエストエラー ($code)、後でもう一度試すか開発者に連絡してください。';
   }
+
+  @override
+  String get searchLyrics => '歌詞を検索';
+
+  @override
+  String get noCurrentTrackPlaying => '現在再生中の曲がない';
+
+  @override
+  String get cannotGetTrackInfo => '現在の曲情報を取得できない';
+
+  @override
+  String get lyricsSearchAppliedSuccess => '歌詞が正常に検索され適用された';
 }

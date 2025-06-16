@@ -489,5 +489,10 @@
         "example": "400"
       }
     }
-  }
+  },
+  "searchLyrics": "Search Lyrics",
+  "noCurrentTrackPlaying": "No track currently playing",
+  "cannotGetTrackInfo": "Cannot get current track information", 
+  "lyricsSearchAppliedSuccess": "Lyrics successfully searched and applied",
+  "noLyricsToSelect": "No lyrics available to select"
 }

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'dart:async';
 import 'dart:io';
 import '../services/spotify_service.dart';
@@ -9,11 +7,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
-import '../pages/devices.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,7 +22,6 @@ enum PlayMode {
 }
 
 class SpotifyProvider extends ChangeNotifier {
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   late SpotifyAuthService _spotifyService;
   static const String _clientIdKey = 'spotify_client_id';
   final Logger logger = Logger();
@@ -62,8 +57,19 @@ class SpotifyProvider extends ChangeNotifier {
   bool _isSkipping = false;
   bool _isInitialized = false;
 
-  // 添加图片预加载缓存
+  // 添加图片预加载缓存 - 持久化跨登录会话
   final Map<String, String> _imageCache = {};
+  
+  // 添加图片缓存管理方法
+  void clearImageCache() {
+    _imageCache.clear();
+  }
+  
+  // 获取缓存状态
+  bool isImageCached(String? imageUrl) {
+    if (imageUrl == null) return false;
+    return _imageCache.containsKey(imageUrl);
+  }
   
   SpotifyProvider() {
     _bootstrap();
@@ -443,12 +449,12 @@ class SpotifyProvider extends ChangeNotifier {
           _refreshTimer?.cancel();
           _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
             if (!_isSkipping) {
-              logger.v('_refreshTimer tick. Calling refreshCurrentTrack, refreshAvailableDevices & refreshPlaybackQueue.');
+              logger.t('_refreshTimer tick. Calling refreshCurrentTrack, refreshAvailableDevices & refreshPlaybackQueue.');
               refreshCurrentTrack(); // 使用恢复后的 refreshCurrentTrack
               refreshAvailableDevices(); // !! 加上这个 !!
               refreshPlaybackQueue(); // 定期刷新播放队列
             } else {
-              logger.v('_refreshTimer tick: Skipped due to _isSkipping=true.');
+              logger.t('_refreshTimer tick: Skipped due to _isSkipping=true.');
             }
           });
 
@@ -831,89 +837,68 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _showDevicesPage() async {
-    final context = navigatorKey.currentContext;
-    if (context != null) {
-      // 确保设备列表是新的
-      await refreshAvailableDevices();
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true, // Allow modal to take up more space
-        builder: (context) => const DevicesPage(),
-        shape: const RoundedRectangleBorder( // Optional: Add rounded corners
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-      );
-    } else {
-      // debugPrint('Error: Navigator context is null, cannot show devices page.');
-    }
-  }
 
   // Helper function to check for active device and show picker if needed
   Future<bool> _ensureAuthenticatedAndReady() async {
     logger.d('_ensureAuthenticatedAndReady: Start. Username: $username');
-    print('===== SPOTIFY PROVIDER DEBUG =====');
-    print('_ensureAuthenticatedAndReady: 开始. 用户名: $username');
+    logger.d('===== SPOTIFY PROVIDER DEBUG =====');
+    logger.d('_ensureAuthenticatedAndReady: 开始. 用户名: $username');
     
     // 开关：是否忽略 Remote 连接失败，继续 Web API
     // 在您的实际应用中，您可能希望这个值来自配置或用户的偏好设置
-    const bool ignoreRemoteConnectionFailure = true; 
+    // const bool ignoreRemoteConnectionFailure = true; // Always ignore for now 
 
     try {
       if (username == null) {
         logger.d('_ensureAuthenticatedAndReady: Username is null, attempting autoLogin...');
-        print('用户名为空，尝试自动登录...');
+        logger.d('用户名为空，尝试自动登录...');
         await autoLogin(); 
         if (username == null) { 
           logger.d('_ensureAuthenticatedAndReady: autoLogin failed or did not set username. Checking isAuthenticated...');
-          print('自动登录失败或未设置用户名，检查是否已认证...');
+          logger.d('自动登录失败或未设置用户名，检查是否已认证...');
           if (!await _guard(() => _spotifyService.isAuthenticated())) {
             logger.w('_ensureAuthenticatedAndReady: Not authenticated after autoLogin failure. Throwing SESSION_EXPIRED.');
-            print('自动登录后未认证，抛出 SESSION_EXPIRED');
-            print('===== SPOTIFY PROVIDER DEBUG END =====');
+            logger.w('自动登录后未认证，抛出 SESSION_EXPIRED');
+            logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
             throw SpotifyAuthException('需要登录', code: 'SESSION_EXPIRED');
           }
-          print('已认证但用户名为空，尝试获取用户资料...');
+          logger.d('已认证但用户名为空，尝试获取用户资料...');
           final userProfile = await _guard(() => _spotifyService.getUserProfile());
           username = userProfile['display_name'];
           startTrackRefresh(); 
           notifyListeners();
         }
         logger.d('_ensureAuthenticatedAndReady: autoLogin processed. Username: $username');
-        print('自动登录处理完成。用户名: $username');
+        logger.d('自动登录处理完成。用户名: $username');
       }
 
-      print('检查是否需要连接 Remote...');
+      logger.d('检查是否需要连接 Remote...');
       if (!await _guard(() => _spotifyService.connectRemoteIfNeeded())) {
         logger.w('_ensureAuthenticatedAndReady: Failed to connect Remote');
-        print('连接 Remote 失败');
-        if (!ignoreRemoteConnectionFailure) {
-          print('===== SPOTIFY PROVIDER DEBUG END =====');
-          throw SpotifyAuthException('无法连接到 Spotify Remote', code: 'REMOTE_CONNECTION_FAILED');
-        } else {
-          logger.i('_ensureAuthenticatedAndReady: Remote 连接失败，但已配置为忽略并继续 Web API 操作。');
-          print('Remote 连接失败，但已配置为忽略并继续 Web API 操作。');
-        }
+        logger.w('连接 Remote 失败');
+        // Since ignoreRemoteConnectionFailure = true, always ignore failure and continue
+        logger.i('_ensureAuthenticatedAndReady: Remote 连接失败，但已配置为忽略并继续 Web API 操作。');
+        logger.i('Remote 连接失败，但已配置为忽略并继续 Web API 操作。');
       } else {
         logger.d('_ensureAuthenticatedAndReady: connectRemoteIfNeeded succeeded or was skipped.');
-        print('Remote 连接成功或已跳过。');
+        logger.d('Remote 连接成功或已跳过。');
       }
 
-      print('第一次获取播放状态...');
+      logger.d('第一次获取播放状态...');
       var playbackState = await _guard(() => _spotifyService.getPlaybackState());
       var device = playbackState['device'];
       logger.d('_ensureAuthenticatedAndReady: Initial playback state device: $device');
-      print('初次获取播放状态设备: $device');
+      logger.d('初次获取播放状态设备: $device');
 
       // 如果初次获取没有设备信息，尝试刷新设备列表再获取一次
       if (device == null) {
         logger.w('_ensureAuthenticatedAndReady: No device in initial playback state. Refreshing devices and trying again...');
-        print('初次播放状态无设备，刷新设备列表后重试...');
+        logger.w('初次播放状态无设备，刷新设备列表后重试...');
         await refreshAvailableDevices();
         playbackState = await _guard(() => _spotifyService.getPlaybackState());
         device = playbackState['device'];
         logger.d('_ensureAuthenticatedAndReady: Playback state after refresh device: $device');
-        print('刷新后播放状态设备: $device');
+        logger.d('刷新后播放状态设备: $device');
       }
       
       final hasDevice = device != null;
@@ -922,22 +907,22 @@ class SpotifyProvider extends ChangeNotifier {
       final isActive = hasDevice ? device['is_active'] : false;
       final isRestricted = hasDevice ? device['is_restricted'] : false;
       
-      print('播放状态设备信息: 有设备=$hasDevice, 名称=$deviceName, ID=$deviceId, 活跃=$isActive, 受限=$isRestricted');
+      logger.d('播放状态设备信息: 有设备=$hasDevice, 名称=$deviceName, ID=$deviceId, 活跃=$isActive, 受限=$isRestricted');
       
       if (device == null) {
         // 如果仍然没有设备，根据您的建议，可以考虑显示设备选择器或允许_withDevice处理
         // 当前我们保持原来的逻辑：允许后续指令尝试执行
         logger.w('_ensureAuthenticatedAndReady: No active device info even after refresh, but continuing to allow command attempt.');
-        print('刷新后仍无活跃设备信息，但继续尝试发送指令');
+        logger.w('刷新后仍无活跃设备信息，但继续尝试发送指令');
         // 即使没有设备，也返回 true，让 _withDevice 尝试处理
-        print('===== SPOTIFY PROVIDER DEBUG END =====');
+        logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
         return true; 
       }
       
       // 如果设备受限，则不应继续
       if (isRestricted) {
         logger.w('_ensureAuthenticatedAndReady: Device is restricted. Cannot proceed with command.');
-        print('设备 ($deviceName) 受限，无法继续操作。');
+        logger.w('设备 ($deviceName) 受限，无法继续操作。');
         // 可以在这里抛出异常或向用户显示消息
          final context = navigatorKey.currentContext;
         if (context != null && context.mounted) {
@@ -945,22 +930,23 @@ class SpotifyProvider extends ChangeNotifier {
             SnackBar(content: Text('设备 \'$deviceName\' 受限，无法通过API控制。')),
           );
         }
-        print('===== SPOTIFY PROVIDER DEBUG END =====');
+        logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
         return false; // 阻止后续操作
       }
       
+      // 设备可用，继续操作
       logger.d('_ensureAuthenticatedAndReady: Authenticated and ready. Returning true.');
-      print('已认证并就绪，返回 true');
-      print('===== SPOTIFY PROVIDER DEBUG END =====');
+      logger.d('已认证并就绪，返回 true');
+      logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
       return true;
     } on SpotifyAuthException catch (e) {
-      print('捕获 SpotifyAuthException: ${e.message} (${e.code})');
-      print('===== SPOTIFY PROVIDER DEBUG END =====');
+      logger.e('捕获 SpotifyAuthException: ${e.message} (${e.code})');
+      logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
       rethrow;
     } catch (e) {
       logger.e('_ensureAuthenticatedAndReady: Error occurred', error: e);
-      print('发生错误: $e');
-      print('===== SPOTIFY PROVIDER DEBUG END =====');
+      logger.e('发生错误: $e');
+      logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
       // 即便发生其他错误，也先尝试让 _handleApiError 处理，如果它重新抛出，则这里会捕获并返回 false
       // 如果 _handleApiError 成功处理（例如401后静默续签），则不会到这里
       await _handleApiError(e, contextMessage: '_ensureAuthenticatedAndReady', isUserInitiated: true);
@@ -970,106 +956,106 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<void> togglePlayPause() async {
     logger.d('togglePlayPause: 开始执行');
-    print('===== TOGGLE PLAY/PAUSE DEBUG =====');
-    print('togglePlayPause: 开始执行');
+    logger.d('===== TOGGLE PLAY/PAUSE DEBUG =====');
+    logger.d('togglePlayPause: 开始执行');
     
     Map<String, dynamic>? initialPlaybackStateForRevert;
     try {
-      print('检查认证和设备就绪情况...');
+      logger.d('检查认证和设备就绪情况...');
       if (!await _ensureAuthenticatedAndReady()) {
         logger.w('togglePlayPause: _ensureAuthenticatedAndReady 返回 false，中止操作');
-        print('_ensureAuthenticatedAndReady 返回 false，中止操作');
-        print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
+        logger.w('_ensureAuthenticatedAndReady 返回 false，中止操作');
+        logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
         return;
       }
-      print('认证和设备检查通过');
+      logger.d('认证和设备检查通过');
 
-      print('获取当前播放状态...');
+      logger.d('获取当前播放状态...');
       final playbackState = await _guard(() => _spotifyService.getPlaybackState());
       initialPlaybackStateForRevert = playbackState;
       final bool isCurrentlyPlaying = playbackState['is_playing'] ?? false;
       
       logger.d('togglePlayPause: 当前播放状态 - isPlaying: $isCurrentlyPlaying');
-      print('当前播放状态 - isPlaying: $isCurrentlyPlaying');
+      logger.d('当前播放状态 - isPlaying: $isCurrentlyPlaying');
 
       // 使用新的 togglePlayPause 方法替代直接调用 apiPut
       logger.d('togglePlayPause: 调用 _spotifyService.togglePlayPause()');
-      print('调用 _spotifyService.togglePlayPause()...');
+      logger.d('调用 _spotifyService.togglePlayPause()...');
       await _guard(() => _spotifyService.togglePlayPause());
       logger.d('togglePlayPause: _spotifyService.togglePlayPause() 调用成功');
-      print('_spotifyService.togglePlayPause() 调用成功');
+      logger.d('_spotifyService.togglePlayPause() 调用成功');
       
       // 更新本地状态
       if (currentTrack != null) {
         currentTrack!['is_playing'] = !isCurrentlyPlaying; // 切换播放状态
         logger.d('togglePlayPause: 更新本地状态 - is_playing: ${currentTrack!['is_playing']}');
-        print('更新本地状态 - is_playing: ${currentTrack!['is_playing']}');
+        logger.d('更新本地状态 - is_playing: ${currentTrack!['is_playing']}');
       }
       
       notifyListeners();
 
-      print('延时600毫秒后刷新曲目信息...');
+      logger.d('延时600毫秒后刷新曲目信息...');
       await Future.delayed(const Duration(milliseconds: 600));
       logger.d('togglePlayPause: 刷新当前曲目信息');
-      print('刷新当前曲目信息...');
+      logger.d('刷新当前曲目信息...');
       await refreshCurrentTrack();
-      print('更新组件...');
+      logger.d('更新组件...');
       await updateWidget();
       logger.d('togglePlayPause: 成功完成');
-      print('成功完成');
-      print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
+      logger.d('成功完成');
+      logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
 
     } on SpotifyAuthException catch (e) {
       logger.e('togglePlayPause: 捕获 SpotifyAuthException: ${e.message} (${e.code})');
-      print('捕获 SpotifyAuthException: ${e.message} (${e.code})');
+      logger.e('捕获 SpotifyAuthException: ${e.message} (${e.code})');
       
       if (e.code == 'SESSION_EXPIRED' || e.code == 'PROFILE_FETCH_ERROR_AFTER_REFRESH') {
         logger.d('togglePlayPause: Session expired, attempting login...');
-        print('会话过期，尝试登录...');
+        logger.d('会话过期，尝试登录...');
         try {
           await login();
           logger.d('togglePlayPause: Login successful, retrying original play/pause command...');
-          print('登录成功，重试原始播放/暂停命令...');
-          print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
+          logger.d('登录成功，重试原始播放/暂停命令...');
+          logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
           // 登录成功后重试原始指令
           await togglePlayPause();
         } catch (loginError) {
           if (loginError is SpotifyAuthException && loginError.code == 'AUTH_CANCELLED') {
             logger.d('togglePlayPause: User cancelled login');
-            print('用户取消登录');
+            logger.d('用户取消登录');
           } else {
             logger.e('togglePlayPause: Login failed', error: loginError);
-            print('登录失败: $loginError');
+            logger.e('登录失败: $loginError');
             // 恢复原始状态
             if (currentTrack != null && initialPlaybackStateForRevert != null) {
               currentTrack!['is_playing'] = initialPlaybackStateForRevert['is_playing'] ?? false;
-              print('恢复原始播放状态: ${currentTrack!['is_playing']}');
+              logger.d('恢复原始播放状态: ${currentTrack!['is_playing']}');
               notifyListeners();
             }
           }
-          print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
+          logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
         }
       } else {
         logger.e('togglePlayPause: Auth error occurred', error: e);
-        print('认证错误: ${e.message} (${e.code})');
+        logger.e('认证错误: ${e.message} (${e.code})');
         if (currentTrack != null && initialPlaybackStateForRevert != null) {
           currentTrack!['is_playing'] = initialPlaybackStateForRevert['is_playing'] ?? false;
-          print('恢复原始播放状态: ${currentTrack!['is_playing']}');
+          logger.d('恢复原始播放状态: ${currentTrack!['is_playing']}');
           notifyListeners();
         }
         await _handleApiError(e, contextMessage: '播放/暂停切换 (auth error)', isUserInitiated: true);
-        print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
+        logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
       }
     } catch (e) {
       logger.e('togglePlayPause: Unknown error occurred', error: e);
-      print('发生未知错误: $e');
+      logger.e('发生未知错误: $e');
       if (currentTrack != null && initialPlaybackStateForRevert != null) {
         currentTrack!['is_playing'] = initialPlaybackStateForRevert['is_playing'] ?? false;
-        print('恢复原始播放状态: ${currentTrack!['is_playing']}');
+        logger.d('恢复原始播放状态: ${currentTrack!['is_playing']}');
         notifyListeners();
       }
       await _handleApiError(e, contextMessage: '播放/暂停切换 (unknown error)', isUserInitiated: true);
-      print('===== TOGGLE PLAY/PAUSE DEBUG END =====');
+      logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
     }
   }
 
@@ -1420,7 +1406,8 @@ class SpotifyProvider extends ChangeNotifier {
       _availableDevices.clear();
       _activeDeviceId = null;
       upcomingTracks.clear();
-      _imageCache.clear();
+      // Keep image cache across login sessions to avoid reloading
+      // _imageCache.clear(); // OPTIMIZATION: Don't clear image cache on logout
       _recentAlbums.clear();
       _recentPlaylists.clear();
 

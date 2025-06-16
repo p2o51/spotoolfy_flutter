@@ -271,5 +271,10 @@
   "deviceRestrictedMessage": "裝置 '{device}' 受限，無法透過API控制。",
   "insufficientPermissionsReauth": "權限範圍不足，正在重新取得完整授權...",
   "reauthFailedManualLogin": "重新取得授權失敗，請手動重新登入",
-  "badRequestError": "請求格式錯誤 ({code})，請稍後重試或聯繫開發者。"
+  "badRequestError": "請求格式錯誤 ({code})，請稍後重試或聯繫開發者。",
+  "searchLyrics": "搜尋歌詞",
+  "noCurrentTrackPlaying": "沒有正在播放的歌曲",
+  "cannotGetTrackInfo": "無法取得目前歌曲資訊",
+  "lyricsSearchAppliedSuccess": "歌詞已成功搜尋並套用",
+  "noLyricsToSelect": "沒有可選擇的歌詞"
 }

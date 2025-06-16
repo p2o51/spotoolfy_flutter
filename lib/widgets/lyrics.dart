@@ -43,8 +43,10 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
   bool _isTranslating = false;
   bool _isCopyLyricsMode = false;
   bool _isScrollRetryScheduled = false;
+  int _scrollRetryCount = 0; // Track retry attempts
   PlayMode? _previousPlayMode;
   int _previousLineIndex = -1; // Track last scrolled line
+  double? _cachedAverageHeight; // Cache average height for performance
 
   @override
   bool get wantKeepAlive => true;
@@ -83,6 +85,8 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
           _lyrics = [];
           _lastTrackId = null;
           _lineHeights.clear();
+          _cachedAverageHeight = null; // Reset cached average height
+          _scrollRetryCount = 0; // Reset retry count
           _autoScroll = true; // Default to auto-scroll when lyrics clear/load
           _previousLineIndex = -1;
         });
@@ -108,6 +112,8 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     setState(() {
       _lyrics = [];
       _lineHeights.clear();
+      _cachedAverageHeight = null; // Reset cached average height
+      _scrollRetryCount = 0; // Reset retry count for new track
       _autoScroll = true; // Default to auto-scroll when new lyrics load
       _previousLineIndex = -1;
     });
@@ -136,8 +142,8 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
         // Keep _autoScroll = true
       });
       if (mounted) {
-        // Show error message using named placeholder
-        notificationService.showSnackBar('歌词获取失败');
+        final l10n = AppLocalizations.of(context)!;
+        notificationService.showSnackBar(l10n.lyricsFailedToLoad);
       }
     }
   }
@@ -147,9 +153,11 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
      if (!mounted || _lyrics.isEmpty) return;
      final measuredHeightsCount = _lineHeights.length;
      if (measuredHeightsCount < _lyrics.length) {
-        final avgHeight = measuredHeightsCount > 0
-            ? _lineHeights.values.fold(0.0, (sum, h) => sum + h) / measuredHeightsCount
-            : 40.0; // Default fallback height
+        // Use cached average height if available, otherwise calculate
+        if (_cachedAverageHeight == null && measuredHeightsCount > 0) {
+          _cachedAverageHeight = _lineHeights.values.fold(0.0, (sum, h) => sum + h) / measuredHeightsCount;
+        }
+        final avgHeight = _cachedAverageHeight ?? 40.0; // Default fallback height
         for (int i = 0; i < _lyrics.length; i++) {
            _lineHeights.putIfAbsent(i, () => avgHeight);
         }
@@ -176,7 +184,8 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     final notificationService = Provider.of<NotificationService>(context, listen: false);
 
     if (currentTrackId == null) {
-      notificationService.showSnackBar('没有正在播放的歌曲');
+      final l10n = AppLocalizations.of(context)!;
+      notificationService.showSnackBar(l10n.couldNotGetCurrentTrackId);
       return;
     }
 
@@ -416,8 +425,9 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       }
 
       if (!heightsAvailable) {
-        if (!_isScrollRetryScheduled) {
+        if (!_isScrollRetryScheduled && _scrollRetryCount < 3) { // Limit retries to 3
           _isScrollRetryScheduled = true;
+          _scrollRetryCount++;
           Future.delayed(const Duration(milliseconds: 200), () {
             if (mounted && _autoScroll) { // Check autoScroll again
                _isScrollRetryScheduled = false;
@@ -439,6 +449,7 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       }
 
       _isScrollRetryScheduled = false; // Reset retry flag if heights are available
+      _scrollRetryCount = 0; // Reset retry count on successful scroll
       
       final viewportHeight = _scrollController.position.viewportDimension;
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -460,26 +471,27 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       // Clamp the offset within the valid scroll range [0, maxScroll]
       final clampedOffset = targetOffset.clamp(0.0, maxScroll);
       
-      // --- Calculate dynamic duration based on scroll distance ---
+      // --- Calculate optimized dynamic duration based on scroll distance ---
       final currentOffset = _scrollController.offset;
       final scrollDistance = (clampedOffset - currentOffset).abs();
       
-      // Define base duration and scaling factor (adjust as needed)
-      const double baseDurationMs = 300.0;
-      const double extraMsPer1000Pixels = 200.0;
-      const double maxDurationMs = 800.0; // Cap the duration
+      // Improved duration calculation for smoother scrolling
+      const double baseDurationMs = 250.0; // Reduced base duration for snappier feel
+      const double extraMsPer1000Pixels = 150.0; // Reduced scaling for faster long scrolls
+      const double maxDurationMs = 700.0; // Reduced max duration
+      const double minDurationMs = 150.0; // Added minimum duration for very short scrolls
 
       final dynamicDurationMs = (baseDurationMs + (scrollDistance / 1000.0) * extraMsPer1000Pixels)
-          .clamp(baseDurationMs, maxDurationMs)
+          .clamp(minDurationMs, maxDurationMs)
           .toInt();
       final duration = Duration(milliseconds: dynamicDurationMs);
-      // --- End of dynamic duration calculation ---
+      // --- End of optimized dynamic duration calculation ---
 
-      // Animate the scroll
+      // Animate the scroll with improved curve
       _scrollController.animateTo(
         clampedOffset,
-        duration: duration, // Use dynamic duration
-        curve: Curves.easeOutCubic, // Match style animation curve
+        duration: duration, // Use optimized dynamic duration
+        curve: Curves.easeInOutCubic, // More natural easing curve
       );
     } catch (e) {
       // Log scroll errors if necessary
@@ -501,8 +513,6 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
         final currentTrackData = provider.currentTrack; // Get current track data
         final currentTrackId = currentTrackData?['item']?['id'];
         final bool trackJustChanged = (currentTrackId != _lastTrackId);
-        // Flag to indicate if lyrics have just been loaded for this track in this build cycle
-        bool lyricsJustLoaded = false;
 
         // 1. Handle track change: Load lyrics if track ID changes
         if (trackJustChanged) {
@@ -588,17 +598,10 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                         // Update height map directly without causing a rebuild
                         if (mounted && _lineHeights[index] != size.height) {
                           _lineHeights[index] = size.height;
-                          // REMOVED: setState(() { _lineHeights[index] = size.height; });
-                          // REMOVED: Logic to re-trigger scroll from MeasureSize callback
-                          /*
-                          if (_autoScroll && index == currentLineIndex) {
-                             WidgetsBinding.instance.addPostFrameCallback((_) {
-                               if (mounted && _autoScroll) {
-                                  _scrollToCurrentLine(currentLineIndex);
-                               }
-                             });
+                          // Invalidate cached average height when new measurements come in
+                          if (_cachedAverageHeight != null && _lineHeights.length > 5) {
+                            _cachedAverageHeight = null; // Force recalculation on next use
                           }
-                          */
                         }
                       },
                       child: GestureDetector(
@@ -782,7 +785,7 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                           IconButton.filledTonal(
                             icon: const Icon(Icons.search),
                             onPressed: _showSearchLyricsPage,
-                            tooltip: '搜索歌词', // l10n.searchLyrics, // "Search Lyrics" // TODO: Add l10n key
+                            tooltip: l10n.searchLyrics,
                           ),
                           const SizedBox(width: 8),
 
@@ -946,7 +949,7 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     final l10n = AppLocalizations.of(context)!;
 
     if (currentTrack == null) {
-      notificationService.showSnackBar('没有正在播放的歌曲');
+      notificationService.showSnackBar(l10n.noCurrentTrackPlaying);
       return;
     }
     
@@ -957,7 +960,7 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                           .join(', ') ?? ''; // Join multiple artists
     
     if (trackId == null || trackName.isEmpty) {
-      notificationService.showSnackBar('无法获取当前歌曲信息');
+      notificationService.showSnackBar(l10n.cannotGetTrackInfo);
       return;
     }
     
@@ -1012,7 +1015,7 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
         });
         
         // Show success message
-        notificationService.showSnackBar('歌词已成功搜索并应用');
+        notificationService.showSnackBar(l10n.lyricsSearchAppliedSuccess);
       } else {
          // If no lyrics were returned or user cancelled,
          // restore auto-scroll state if it was previously enabled
@@ -1042,14 +1045,15 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrack = spotifyProvider.currentTrack?['item'];
     final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
 
     if (currentTrack == null) {
-      notificationService.showSnackBar('没有正在播放的歌曲');
+      notificationService.showSnackBar(l10n.noCurrentTrackPlaying);
       return;
     }
 
     if (_lyrics.isEmpty) {
-      notificationService.showSnackBar('没有可选择的歌词');
+      notificationService.showSnackBar(l10n.noLyricsToSelect);
       return;
     }
     

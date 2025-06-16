@@ -646,7 +646,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get noLyricsToSelect => 'No lyrics to select';
+  String get noLyricsToSelect => 'No lyrics available to select';
 
   @override
   String get posterLyricsLimitExceeded =>
@@ -890,4 +890,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String badRequestError(String code) {
     return 'Bad request ($code), please try again later or contact developer.';
   }
+
+  @override
+  String get searchLyrics => 'Search Lyrics';
+
+  @override
+  String get noCurrentTrackPlaying => 'No track currently playing';
+
+  @override
+  String get cannotGetTrackInfo => 'Cannot get current track information';
+
+  @override
+  String get lyricsSearchAppliedSuccess =>
+      'Lyrics successfully searched and applied';
 }

@@ -271,5 +271,10 @@
   "deviceRestrictedMessage": "デバイス '{device}' は制限されており、API経由で制御できない。",
   "insufficientPermissionsReauth": "権限が不足しています、再認証中...",
   "reauthFailedManualLogin": "再認証に失敗しました、手動でログインしてください",
-  "badRequestError": "リクエストエラー ({code})、後でもう一度試すか開発者に連絡してください。"
+  "badRequestError": "リクエストエラー ({code})、後でもう一度試すか開発者に連絡してください。",
+  "searchLyrics": "歌詞を検索",
+  "noCurrentTrackPlaying": "現在再生中の曲がない",
+  "cannotGetTrackInfo": "現在の曲情報を取得できない",
+  "lyricsSearchAppliedSuccess": "歌詞が正常に検索され適用された",
+  "noLyricsToSelect": "選択できる歌詞がない"
 }
