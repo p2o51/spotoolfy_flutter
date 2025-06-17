@@ -48,7 +48,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     if (!mounted) return;
     final theme = Theme.of(context);
     // 获取主题字体或指定默认字体
-    final String? uiFontFamily = theme.textTheme.bodyMedium?.fontFamily ?? 'Montserrat'; // Default to Montserrat if not found
+    final String uiFontFamily = theme.textTheme.bodyMedium?.fontFamily ?? 'Montserrat'; // Default to Montserrat if not found
 
     setState(() {
       _isLoading = true;

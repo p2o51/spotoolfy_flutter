@@ -77,13 +77,13 @@ class TranslationResultPage extends StatefulWidget {
   final String trackId;
 
   const TranslationResultPage({
-    Key? key,
+    super.key,
     required this.originalLyrics,
     required this.translatedLyrics,
     required this.onReTranslate,
     required this.translationStyle,
     required this.trackId,
-  }) : super(key: key);
+  });
 
   @override
   State<TranslationResultPage> createState() => _TranslationResultPageState();
@@ -128,6 +128,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       });
 
       final currentLanguage = await _settingsService.getTargetLanguage();
+      if (!mounted) return;
       final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
       final cachedTranslation = await localDbProvider.fetchTranslation(
         widget.trackId,

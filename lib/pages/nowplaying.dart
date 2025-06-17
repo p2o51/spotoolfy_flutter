@@ -152,7 +152,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         children: [
           Expanded(
             flex: 1,
-            child: Container(
+            child: SizedBox(
               height: double.infinity, // 给Player提供明确的高度约束
               child: const Center( // 添加Center组件使Player垂直居中
                 child: Player(isLargeScreen: true),

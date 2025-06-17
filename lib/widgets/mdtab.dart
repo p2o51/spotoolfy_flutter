@@ -5,10 +5,10 @@ class SimplePageIndicator extends StatefulWidget {
   final PageController pageController;
 
   const SimplePageIndicator({
-    Key? key,
+    super.key,
     required this.pages,
     required this.pageController,
-  }) : super(key: key);
+  });
 
   @override
   State<SimplePageIndicator> createState() => _SimplePageIndicatorState();
@@ -103,6 +103,8 @@ class PageData {
 
 // 使用示例
 class ExamplePage extends StatefulWidget {
+  const ExamplePage({super.key});
+
   @override
   State<ExamplePage> createState() => _ExamplePageState();
 }

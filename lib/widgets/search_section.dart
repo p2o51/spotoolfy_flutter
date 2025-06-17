@@ -9,9 +9,9 @@ class SearchSection extends StatefulWidget {
   final VoidCallback onBackPressed;
   
   const SearchSection({
-    Key? key,
+    super.key,
     required this.onBackPressed,
-  }) : super(key: key);
+  });
 
   @override
   State<SearchSection> createState() => _SearchSectionState();

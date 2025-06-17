@@ -8,6 +8,7 @@ import '../models/record.dart';
 import '../models/track.dart'; // Assuming Track might be needed indirectly
 import '../models/translation.dart';
 import '../providers/spotify_provider.dart'; // Import SpotifyProvider
+import '../services/lyrics_service.dart';
 import 'package:file_picker/file_picker.dart'; // For picking file
 import 'package:logger/logger.dart'; // Added logger
 import 'package:flutter/material.dart'; // 需要引入 Material 用于 AlertDialog 等
@@ -17,6 +18,7 @@ final logger = Logger(); // Added logger instance
 class LocalDatabaseProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final SpotifyProvider _spotifyProvider; // Add SpotifyProvider instance variable
+  final LyricsService _lyricsService = LyricsService();
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -246,6 +248,77 @@ class LocalDatabaseProvider with ChangeNotifier {
     }
   }
 
+  /// Extracts a relevant lyrics snippet around the given timestamp
+  Future<String?> _getLyricsSnippet(String trackId, String trackName, String artistName, int? timestampMs) async {
+    try {
+      // Get full lyrics from the lyrics service
+      final fullLyrics = await _lyricsService.getLyrics(trackName, artistName, trackId);
+      if (fullLyrics == null || fullLyrics.isEmpty) {
+        return null;
+      }
+
+      // If no timestamp provided, return the first few lines
+      if (timestampMs == null || timestampMs <= 0) {
+        final lines = fullLyrics.split('\n').take(3).toList();
+        return lines.join('\n').trim();
+      }
+
+      // Parse LRC format lyrics to find lyrics around the timestamp
+      final lines = fullLyrics.split('\n');
+      final lrcEntries = <int, String>{};
+      
+      for (final line in lines) {
+        // Match LRC format: [mm:ss.xx] or [mm:ss] 
+        final match = RegExp(r'^\[(\d{1,2}):(\d{2})(?:\.(\d{2}))?\](.*)').firstMatch(line);
+        if (match != null) {
+          final minutes = int.parse(match.group(1)!);
+          final seconds = int.parse(match.group(2)!);
+          final centiseconds = int.tryParse(match.group(3) ?? '0') ?? 0;
+          final lyricsText = match.group(4)!.trim();
+          
+          final timeMs = (minutes * 60 + seconds) * 1000 + centiseconds * 10;
+          if (lyricsText.isNotEmpty) {
+            lrcEntries[timeMs] = lyricsText;
+          }
+        }
+      }
+
+      if (lrcEntries.isEmpty) {
+        // If not LRC format, return first few lines
+        final plainLines = fullLyrics.split('\n').take(3).toList();
+        return plainLines.join('\n').trim();
+      }
+
+      // Find the lyrics line closest to the timestamp
+      final sortedTimes = lrcEntries.keys.toList()..sort();
+      int closestTime = sortedTimes.first;
+      
+      for (final time in sortedTimes) {
+        if (time <= timestampMs) {
+          closestTime = time;
+        } else {
+          break;
+        }
+      }
+
+      // Get the current line and next 1-2 lines for context
+      final currentIndex = sortedTimes.indexOf(closestTime);
+      final snippetLines = <String>[];
+      
+      for (int i = currentIndex; i < sortedTimes.length && snippetLines.length < 3; i++) {
+        final line = lrcEntries[sortedTimes[i]]!;
+        if (line.isNotEmpty) {
+          snippetLines.add(line);
+        }
+      }
+
+      return snippetLines.join('\n').trim();
+    } catch (e) {
+      logger.d('Failed to get lyrics snippet: $e');
+      return null;
+    }
+  }
+
   /// Adds a new record for a given track.
   /// Handles inserting the track if it doesn't exist or updating its lastRecordedAt timestamp.
   Future<void> addRecord({
@@ -282,7 +355,15 @@ class LocalDatabaseProvider with ChangeNotifier {
         await _dbHelper.updateTrackLastRecordedAt(track.trackId, recordedAt);
       }
 
-      // 2. Create the Record object
+      // 2. Get lyrics snippet for the current timestamp
+      final lyricsSnippet = await _getLyricsSnippet(
+        track.trackId, 
+        track.trackName, 
+        track.artistName, 
+        songTimestampMs
+      );
+
+      // 3. Create the Record object
       final newRecord = Record(
         trackId: track.trackId,
         noteContent: noteContent,
@@ -291,14 +372,14 @@ class LocalDatabaseProvider with ChangeNotifier {
         recordedAt: recordedAt, // Use the timestamp generated at the start
         contextUri: contextUri,
         contextName: contextName,
-        lyricsSnapshot: null, // TODO: Implement saving lyrics snippet instead of full lyrics or null
+        lyricsSnapshot: lyricsSnippet, // Save the lyrics snippet around the timestamp
       );
 
-      // 3. Insert the new record
+      // 4. Insert the new record
       final recordId = await _dbHelper.insertRecord(newRecord);
       logger.d('Inserted new record with ID: $recordId for track ${track.trackId}');
 
-      // 4. Refresh ALL relevant data lists to update UI
+      // 5. Refresh ALL relevant data lists to update UI
       await Future.wait([
         fetchRecordsForTrack(track.trackId),
         fetchAllRecordsOrderedByTime(), // Refresh the ordered list

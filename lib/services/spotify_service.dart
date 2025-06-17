@@ -591,8 +591,11 @@ class SpotifyAuthService {
       // Initial attempt (potentially without device_id in query if not passed by caller)
       http.Response r = await makeRequest(""); 
       logger.d("[$attemptType Attempt] Response Status: ${r.statusCode}");
-      if (r.body.isNotEmpty) logger.d("[$attemptType Attempt] Response Body: ${r.body}");
-      else logger.d("[$attemptType Attempt] Response Body: Empty");
+      if (r.body.isNotEmpty) {
+        logger.d("[$attemptType Attempt] Response Body: ${r.body}");
+      } else {
+        logger.d("[$attemptType Attempt] Response Body: Empty");
+      }
 
       // For control endpoints like play, pause, next, previous, seek,
       // a 200 OK might also indicate success if the API behaves unexpectedly (though 204/202 is typical).
@@ -617,7 +620,9 @@ class SpotifyAuthService {
 
       final devices = await getAvailableDevices();
       logger.d("[$attemptType] Found ${devices.length} devices.");
-      devices.forEach((d) => logger.d("[$attemptType] Device: ${d['name']} (${d['id']}), Active: ${d['is_active']}"));
+      for (final d in devices) {
+        logger.d("[$attemptType] Device: ${d['name']} (${d['id']}), Active: ${d['is_active']}");
+      }
 
       final activeDevice = devices.firstWhereOrNull((d) => d['is_active'] == true);
       String? targetDeviceIdForRetry;
@@ -654,8 +659,11 @@ class SpotifyAuthService {
         }
         
         logger.d("[$attemptType Attempt] Response Status: ${r.statusCode}");
-        if (r.body.isNotEmpty) logger.d("[$attemptType Attempt] Response Body: ${r.body}");
-        else logger.d("[$attemptType Attempt] Response Body: Empty");
+        if (r.body.isNotEmpty) {
+          logger.d("[$attemptType Attempt] Response Body: ${r.body}");
+        } else {
+          logger.d("[$attemptType Attempt] Response Body: Empty");
+        }
 
         // 重试时也要包含200作为成功状态码
         if (r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200) {

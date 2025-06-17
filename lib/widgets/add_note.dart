@@ -61,7 +61,8 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
         });
       }
     } catch (e) {
-      // 获取失败时保持默认评分
+      // 获取失败时保持默认评分，不需要额外处理
+      debugPrint('Failed to load last used rating: $e');
     }
   }
 
@@ -71,6 +72,8 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_lastUsedRatingKey, rating);
     } catch (e) {
+      // 保存失败不影响应用功能，仅记录日志
+      debugPrint('Failed to save last used rating: $e');
     }
   }
 

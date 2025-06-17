@@ -82,6 +82,11 @@ class _RoamState extends State<Roam> {
                   Navigator.pop(bottomSheetContext); // Close the sheet
                   final trackUri = 'spotify:track:$trackId';
                    logger.d('Attempting to play URI: $trackUri from $songTimestampMs ms');
+                  
+                  // Capture context before async operations
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  final localizations = AppLocalizations.of(context)!;
+                  
                   try {
                     // 先播放曲目
                     await spotifyProvider.playTrack(trackUri: trackUri);
@@ -91,9 +96,9 @@ class _RoamState extends State<Roam> {
                   } catch (e) {
                     logger.d('Error calling playTrack or seekToPosition: $e');
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      scaffoldMessenger.showSnackBar(
                         SnackBar(
-                          content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
+                          content: Text(localizations.playbackFailed(e.toString())),
                           duration: const Duration(seconds: 2),
                         ),
                       );
@@ -102,19 +107,19 @@ class _RoamState extends State<Roam> {
                 },
               ),
             CupertinoActionSheetAction(
-              child: Text(AppLocalizations.of(context)!.editNote),
               onPressed: () {
                 Navigator.pop(bottomSheetContext); // Close the sheet
                 _showEditDialog(context, record); // Show edit dialog
               },
+              child: Text(AppLocalizations.of(context)!.editNote),
             ),
             CupertinoActionSheetAction(
-              child: Text(AppLocalizations.of(context)!.deleteNote),
               isDestructiveAction: true,
               onPressed: () {
                 Navigator.pop(bottomSheetContext); // Close the sheet
                 _confirmDeleteRecord(context, recordId, trackId); // Show delete confirmation
               },
+              child: Text(AppLocalizations.of(context)!.deleteNote),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
@@ -197,7 +202,6 @@ class _RoamState extends State<Roam> {
                   TextButton(
                     child: Text(AppLocalizations.of(context)!.saveChanges),
                     onPressed: () {
-                      // TODO: Ensure provider has updateRecord method implemented
                       localDbProvider.updateRecord(
                         recordId: recordId,
                         trackId: trackId,
@@ -231,7 +235,6 @@ class _RoamState extends State<Roam> {
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               child: Text(AppLocalizations.of(context)!.deleteNote),
               onPressed: () {
-                // TODO: Ensure provider has deleteRecord method implemented
                 Provider.of<LocalDatabaseProvider>(context, listen: false).deleteRecord(
                    recordId: recordId,
                    trackId: trackId, // Pass trackId

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spotoolfy_flutter/services/lyrics_service.dart';
 import 'package:spotoolfy_flutter/services/lyrics/qq_provider.dart';
@@ -40,7 +41,7 @@ void main() {
         }
       } else {
         // 如果API需要登录，打印信息并跳过
-        print('网易云API需要登录，跳过测试');
+        debugPrint('网易云API需要登录，跳过测试');
       }
     }, skip: '网易云API可能需要登录');
 

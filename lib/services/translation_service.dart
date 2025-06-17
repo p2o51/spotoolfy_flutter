@@ -33,7 +33,7 @@ class TranslationService {
 
     // Generate cache key including language and style
     final thinkingSuffix = enableThinking ? '_thinking$_thinkingBudget' : '_noThinking';
-    final cacheKey = '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_${styleNameUsed}$thinkingSuffix';
+    final cacheKey = '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed$thinkingSuffix';
     final prefs = await SharedPreferences.getInstance();
 
     // Try fetching from cache first

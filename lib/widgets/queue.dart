@@ -19,7 +19,7 @@ class QueueDisplay extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           
-          if (currentQueue == null || currentQueue.isEmpty)
+          if (currentQueue.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -101,6 +101,9 @@ class QueueDisplay extends StatelessWidget {
   
   // 打开Spotify应用或网页
   Future<void> _openInSpotify(BuildContext context, Map<String, dynamic> track) async {
+    // Capture BuildContext before async gap
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final localizations = AppLocalizations.of(context)!;
     String? webUrl;
     String? spotifyUri;
     
@@ -139,8 +142,8 @@ class QueueDisplay extends StatelessWidget {
     }
     
     if (spotifyUri == null && webUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.cannotCreateSpotifyLink))
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text(localizations.cannotCreateSpotifyLink))
       );
       return;
     }
@@ -169,13 +172,13 @@ class QueueDisplay extends StatelessWidget {
       }
       
       // 两种方式都失败
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify))
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text(localizations.cannotOpenSpotify))
       );
     } catch (e) {
       debugPrint('打开Spotify出错: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(e.toString())))
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text(localizations.failedToOpenSpotify(e.toString())))
       );
     }
   }

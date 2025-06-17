@@ -415,7 +415,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               currentImageUrl,
               maxWidth: MediaQuery.sizeOf(context).width.toInt(),
             );
-            themeProvider.updateThemeFromImage(imageProvider, context);
+            themeProvider.updateThemeFromImage(imageProvider, MediaQuery.platformBrightnessOf(context));
           }
           _isThemeUpdating = false;
         });
@@ -743,20 +743,24 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   void _launchSpotifyURL(BuildContext context, String? url) async {
     if (url == null) return;
     
+    // Capture context before async operations
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final localizations = AppLocalizations.of(context)!;
+    
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(url))),
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text(localizations.failedToOpenSpotify(url))),
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(''))),
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text(localizations.failedToOpenSpotify(''))),
       );
     }
   }

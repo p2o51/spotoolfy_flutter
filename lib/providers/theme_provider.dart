@@ -23,7 +23,7 @@ class ThemeProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> updateThemeFromImage(ImageProvider imageProvider, BuildContext context) async {
+  Future<void> updateThemeFromImage(ImageProvider imageProvider, [Brightness? brightness]) async {
     try {
       final PaletteGenerator generator = await PaletteGenerator.fromImageProvider(
         imageProvider,
@@ -34,10 +34,10 @@ class ThemeProvider extends ChangeNotifier {
                                 generator.vibrantColor?.color ?? 
                                 Colors.blue;
 
-      final brightness = MediaQuery.platformBrightnessOf(context);
+      final effectiveBrightness = brightness ?? Brightness.light;
       _colorScheme = ColorScheme.fromSeed(
         seedColor: dominantColor,
-        brightness: brightness,
+        brightness: effectiveBrightness,
       );
       
       notifyListeners();

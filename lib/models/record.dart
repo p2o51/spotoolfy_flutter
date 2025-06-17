@@ -1,4 +1,6 @@
 /// Represents a user's record or note about a specific track.
+library;
+
 import 'package:flutter/foundation.dart';
 
 class Record {
