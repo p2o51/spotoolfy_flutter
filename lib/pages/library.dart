@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/rendering.dart';
+import 'package:logger/logger.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/library_provider.dart';
@@ -11,6 +11,8 @@ import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import '../services/insights_service.dart';
 import '../l10n/app_localizations.dart';
+
+final logger = Logger();
 
 class Library extends StatefulWidget {
   const Library({super.key});
@@ -176,7 +178,7 @@ class _LibraryState extends State<Library> {
                                     end: Alignment.bottomCenter,
                                     colors: [
                                       Theme.of(context).scaffoldBackgroundColor, // Match background
-                                      Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.0),
                                     ],
                                   ),
                                 ),
@@ -237,7 +239,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
         });
       }
     } catch (e) {
-      print('Error loading cached insights: $e');
+      logger.e('Error loading cached insights: $e');
     }
   }
 
@@ -245,13 +247,15 @@ class _MyCarouselViewState extends State<MyCarouselView> {
   void _copyToClipboard(String text, String messageType) {
     Clipboard.setData(ClipboardData(text: text)).then((_) {
       // 显示Snackbar提示
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.copiedToClipboard(messageType)),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.copiedToClipboard(messageType)),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
       );
+      }
     });
   }
 
@@ -267,7 +271,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       final id = parts[2];
       spotifyProvider.playContext(type: type, id: id);
     } else {
-      print('Error: Could not parse context URI: $contextUri');
+      logger.e('Error: Could not parse context URI: $contextUri');
     }
   }
 
@@ -307,7 +311,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
           _isLoadingInsights = false;
           _isInsightsExpanded = true; // Also expand to show the error
         });
-        print('Error generating insights: $e');
+        logger.e('Error generating insights: $e');
       }
     }
   }
@@ -369,7 +373,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                           _playContext(context, contextUri);
                         }
                       } else {
-                         print('Error: Invalid index ($index) tapped in CarouselView.');
+                         logger.w('Error: Invalid index ($index) tapped in CarouselView.');
                       }
                     },
                     children: recentContexts.map((contextData) {

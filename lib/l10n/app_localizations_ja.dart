@@ -920,4 +920,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get artistType => 'アーティスト';
+
+  @override
+  String get daysAgo => '日前';
+
+  @override
+  String get hoursAgo => '時間前';
+
+  @override
+  String get minsAgo => '分前';
+
+  @override
+  String get secsAgo => '秒前';
 }

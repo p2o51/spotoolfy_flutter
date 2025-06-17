@@ -34,8 +34,7 @@ class SpotifyProvider extends ChangeNotifier {
   _AppLifecycleObserver? _lifecycleObserver;
 
   // 网络状态跟踪
-  bool _hasNetworkIssue = false;
-  DateTime? _lastNetworkError;
+  // Network tracking fields removed - no longer used
   int _consecutiveNetworkErrors = 0;
 
   // 添加网络错误提示的智能控制
@@ -1913,8 +1912,7 @@ class SpotifyProvider extends ChangeNotifier {
     
     if (isNetworkErrorType) {
       _consecutiveNetworkErrors++;
-      _lastNetworkError = DateTime.now();
-      _hasNetworkIssue = true;
+      // Network issue tracking removed
       
       logger.w('检测到网络错误 (连续第 $_consecutiveNetworkErrors 次): $errorString');
       
@@ -1928,7 +1926,7 @@ class SpotifyProvider extends ChangeNotifier {
       if (_consecutiveNetworkErrors > 0) {
         logger.i('网络连接已恢复或错误非网络相关，重置错误计数');
         _consecutiveNetworkErrors = 0;
-        _hasNetworkIssue = false;
+        // Network issue tracking removed
       }
     }
     

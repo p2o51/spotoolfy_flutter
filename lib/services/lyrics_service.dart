@@ -116,17 +116,7 @@ class LyricsService {
     }
   }
 
-  /// 评估歌词质量（用于比较多个源的结果）
-  int _evaluateLyricQuality(String lyric) {
-    // 计算行数
-    final lines = lyric.split('\n');
-    final timetaggedLines = lines.where((line) =>
-      line.startsWith('[') && line.contains(']') && line.substring(1, line.indexOf(']')).contains(':')
-    ).length;
-
-    // 简单质量评分：时间标签行数
-    return timetaggedLines;
-  }
+  // _evaluateLyricQuality method removed as it was unused
 
   /// 清除缓存
   Future<void> clearCache() async {

@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spotoolfy_flutter/services/lyrics_service.dart';
-import 'package:spotoolfy_flutter/services/lyrics/lyric_provider.dart';
 import 'package:spotoolfy_flutter/services/lyrics/qq_provider.dart';
 import 'package:spotoolfy_flutter/services/lyrics/netease_provider.dart';
 

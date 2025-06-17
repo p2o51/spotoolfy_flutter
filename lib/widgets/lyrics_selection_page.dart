@@ -72,7 +72,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     if (_lyricLines.isEmpty) return -1;
     
     // 如果当前位置在第一行之前，返回 -1
-    if (_lyricLines.length > 0 && currentPosition < _lyricLines[0].timestamp) {
+    if (_lyricLines.isNotEmpty && currentPosition < _lyricLines[0].timestamp) {
       return -1;
     }
     
@@ -396,7 +396,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
               color: theme.colorScheme.surface,
               border: Border(
                 top: BorderSide(
-                  color: theme.colorScheme.outline.withOpacity(0.2),
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
                 ),
               ),
             ),
@@ -442,17 +442,17 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                                 icon: Icon(
                                   Icons.image,
                                   color: (_selectedCount > 15 || _isLoading)
-                                      ? theme.colorScheme.onSurface.withOpacity(0.38)
+                                      ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
                                       : null,
                                 ),
                                 label: Text(l10n.posterButtonLabel),
                                 style: FilledButton.styleFrom(
                                   // fixedSize: const Size(double.infinity, 56),
                                   backgroundColor: (_selectedCount > 15 || _isLoading)
-                                      ? theme.colorScheme.onSurface.withOpacity(0.12)
+                                      ? theme.colorScheme.onSurface.withValues(alpha: 0.12)
                                       : null,
                                   foregroundColor: (_selectedCount > 15 || _isLoading)
-                                      ? theme.colorScheme.onSurface.withOpacity(0.38)
+                                      ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
                                       : null,
                                 ), 
                               ),
@@ -549,7 +549,7 @@ class _LyricTile extends StatelessWidget {
           borderRadius: borderRadius,
         ),
         color: line.isSelected 
-            ? theme.colorScheme.secondaryContainer.withOpacity(0.6)
+            ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.6)
             : theme.colorScheme.surface, // 当前播放行不改变背景色
         child: InkWell(
           onTap: onTap,

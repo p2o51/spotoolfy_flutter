@@ -40,7 +40,6 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   late AnimationController _infoAnimationController;
   late List<Animation<double>> _infoAnimations;
   
-  String _loadingText = '';
   int _dotCount = 0;
   
   late String _currentFunnyText;
@@ -142,7 +141,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       if (mounted && _isLoading) {
         setState(() {
           _dotCount = (_dotCount + 1) % 4;
-          _loadingText = '${AppLocalizations.of(context)!.loadingAnalyzing}${'.' * _dotCount}';
+          // Loading text animation (dots only for now)
         });
         _startLoadingTextAnimation();
       }

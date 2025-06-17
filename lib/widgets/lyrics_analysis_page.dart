@@ -205,7 +205,6 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -359,7 +358,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: AnimatedBuilder(

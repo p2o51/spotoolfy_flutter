@@ -1,6 +1,7 @@
 //roam.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 // import '../providers/firestore_provider.dart'; // Remove old provider
 import '../providers/local_database_provider.dart'; // Import new provider
 // import 'package:flutter/services.dart'; // Unnecessary import removed
@@ -10,6 +11,8 @@ import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导�
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../widgets/materialui.dart'; // <--- 导入 WavyDivider
 import '../l10n/app_localizations.dart';
+
+final logger = Logger();
 
 class Roam extends StatefulWidget {
   const Roam({super.key});
@@ -36,7 +39,7 @@ class _RoamState extends State<Roam> {
   // --- Helper Methods for Edit/Delete ---
 
   void _showActionSheet(BuildContext context, Map<String, dynamic> record) {
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+    // localDbProvider variable removed as unused
     // 获取 SpotifyProvider
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
     // Ensure your map fetched from the DB includes 'id', 'trackId', and 'songTimestampMs'
@@ -78,7 +81,7 @@ class _RoamState extends State<Roam> {
                 onPressed: () async {
                   Navigator.pop(bottomSheetContext); // Close the sheet
                   final trackUri = 'spotify:track:$trackId';
-                   print('Attempting to play URI: $trackUri from $songTimestampMs ms');
+                   logger.d('Attempting to play URI: $trackUri from $songTimestampMs ms');
                   try {
                     // 先播放曲目
                     await spotifyProvider.playTrack(trackUri: trackUri);
@@ -86,13 +89,15 @@ class _RoamState extends State<Roam> {
                     final duration = Duration(milliseconds: songTimestampMs); // Convert ms to Duration
                     await spotifyProvider.seekToPosition(duration.inMilliseconds); // Use seekToPosition with Duration
                   } catch (e) {
-                    print('Error calling playTrack or seekToPosition: $e');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    logger.d('Error calling playTrack or seekToPosition: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
                   }
                 },
               ),
@@ -351,7 +356,7 @@ class _RoamState extends State<Roam> {
                                      formattedTime = '$dateStr $timeStr';
                                    }
                                 } catch (e) {
-                                  print("Error parsing timestamp string: $e");
+                                  logger.d("Error parsing timestamp string: $e");
                                   // Keep 'Unknown Time' if parsing fails
                                 }
                               }
@@ -377,13 +382,13 @@ class _RoamState extends State<Roam> {
                                 children: [
                                   InkWell(
                                     onTap: trackId != null ? () {
-                                      print('Tapped on card with trackId: $trackId');
+                                      logger.d('Tapped on card with trackId: $trackId');
                                       final trackUri = 'spotify:track:$trackId';
-                                      print('Attempting to play URI: $trackUri');
+                                      logger.d('Attempting to play URI: $trackUri');
                                       try {
                                         spotifyProvider.playTrack(trackUri: trackUri);
                                       } catch (e) {
-                                         print('Error calling playTrack: $e');
+                                         logger.d('Error calling playTrack: $e');
                                          ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
                                             content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
@@ -393,7 +398,7 @@ class _RoamState extends State<Roam> {
                                       }
                                     } : null,
                                     onLongPress: recordId != null ? () { 
-                                      print('Long pressed on card with recordId: $recordId'); 
+                                      logger.d('Long pressed on card with recordId: $recordId'); 
                                       _showActionSheet(context, record); 
                                     } : null,
                                     borderRadius: BorderRadius.circular(16),
@@ -451,12 +456,12 @@ class _RoamState extends State<Roam> {
                                                           placeholder: (context, url) => Container(
                                                             width: 50, height: 50,
                                                             color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                            child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                            child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.5)),
                                                           ),
                                                           errorWidget: (context, url, error) => Container(
                                                             width: 50, height: 50,
                                                             color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                            child: Icon(Icons.broken_image_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                            child: Icon(Icons.broken_image_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.5)),
                                                           ),
                                                         ),
                                                       ),
@@ -472,7 +477,7 @@ class _RoamState extends State<Roam> {
                                                             Text(
                                                               AppLocalizations.of(context)!.recordsAt(formattedTime),
                                                               style: Theme.of(context).textTheme.labelSmall?.copyWith( // Use labelMedium for timestamp
-                                                                color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                                                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
                                                                 fontWeight: FontWeight.normal,
                                                               ),
                                                                maxLines: 1,
@@ -523,7 +528,7 @@ class _RoamState extends State<Roam> {
                                     indent: 16,
                                     endIndent: 16,
                                     // 使用主题颜色，而不是透明色
-                                    color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                                   ),
                                 ],
                               );
@@ -584,7 +589,7 @@ class _RoamState extends State<Roam> {
                                  formattedTime = '$dateStr $timeStr';
                                }
                             } catch (e) {
-                              print("Error parsing timestamp string: $e");
+                              logger.d("Error parsing timestamp string: $e");
                               // Keep 'Unknown Time' if parsing fails
                             }
                           }
@@ -617,14 +622,14 @@ class _RoamState extends State<Roam> {
                                 ),
                                 child: InkWell(
                                   onTap: trackId != null ? () {
-                                    print('Tapped on card with trackId: $trackId');
+                                    logger.d('Tapped on card with trackId: $trackId');
                                     final trackUri = 'spotify:track:$trackId';
-                                    print('Attempting to play URI: $trackUri');
+                                    logger.d('Attempting to play URI: $trackUri');
                                     try {
                                       spotifyProvider.playTrack(trackUri: trackUri);
                                       // REMOVED Playback SnackBar
                                     } catch (e) {
-                                       print('Error calling playTrack: $e');
+                                       logger.d('Error calling playTrack: $e');
                                        ScaffoldMessenger.of(context).showSnackBar( // Keep error SnackBar
                                         SnackBar(
                                           content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
@@ -633,7 +638,7 @@ class _RoamState extends State<Roam> {
                                       );
                                     }
                                   } : null,
-                                  onLongPress: recordId != null ? () { print('Long pressed on card with recordId: $recordId'); _showActionSheet(context, record); } : () { print('Long press disabled for record: ${record['noteContent']}'); },
+                                  onLongPress: recordId != null ? () { logger.d('Long pressed on card with recordId: $recordId'); _showActionSheet(context, record); } : () { logger.d('Long press disabled for record: ${record['noteContent']}'); },
                                   // Apply borderRadius to InkWell for ripple effect consistency
                                   borderRadius: BorderRadius.only(
                                     topLeft: Radius.circular(isFirst ? 24 : 16), // Adjusted radius
@@ -701,12 +706,12 @@ class _RoamState extends State<Roam> {
                                                         placeholder: (context, url) => Container(
                                                           width: 50, height: 50,
                                                           color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                          child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                          child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.5)),
                                                         ),
                                                         errorWidget: (context, url, error) => Container(
                                                           width: 50, height: 50,
                                                           color: Theme.of(context).colorScheme.secondaryContainer.withAlpha(100),
-                                                          child: Icon(Icons.broken_image_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.5)),
+                                                          child: Icon(Icons.broken_image_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.5)),
                                                         ),
                                                       ),
                                                     ),
@@ -722,7 +727,7 @@ class _RoamState extends State<Roam> {
                                                           Text(
                                                             AppLocalizations.of(context)!.recordsAt(formattedTime),
                                                             style: Theme.of(context).textTheme.labelSmall?.copyWith( // Use labelMedium for timestamp
-                                                              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+                                                              color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
                                                               fontWeight: FontWeight.normal,
                                                             ),
                                                               maxLines: 1,
@@ -775,7 +780,7 @@ class _RoamState extends State<Roam> {
                                   indent: 16, // Indent from left
                                   endIndent: 16, // Indent from right
                                   // Optional: Customize color
-                                  // color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                                  // color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                                 ),
                             ],
                           );
@@ -866,9 +871,9 @@ class NotesCarouselView extends StatelessWidget {
                   final record = randomRecords[index];
                   final trackId = record['trackId'] as String?;
                   if (trackId != null) {
-                    print('Tapped on carousel index: $index, trackId: $trackId');
+                    logger.d('Tapped on carousel index: $index, trackId: $trackId');
                     final trackUri = 'spotify:track:$trackId';
-                    print('Attempting to play URI from carousel: $trackUri');
+                    logger.d('Attempting to play URI from carousel: $trackUri');
                     try {
                       spotifyProvider.playTrack(trackUri: trackUri);
                       // REMOVED SnackBar for playback attempt in carousel
@@ -879,7 +884,7 @@ class NotesCarouselView extends StatelessWidget {
                       //   ),
                       // );
                     } catch (e) {
-                      print('Error calling playTrack from carousel: $e');
+                      logger.d('Error calling playTrack from carousel: $e');
                       ScaffoldMessenger.of(context).showSnackBar( // Keep error SnackBar
                         SnackBar(
                           content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
@@ -888,10 +893,10 @@ class NotesCarouselView extends StatelessWidget {
                       );
                     }
                   } else {
-                     print('Tapped on carousel index: $index, but trackId is null.');
+                     logger.d('Tapped on carousel index: $index, but trackId is null.');
                   }
                 } else {
-                   print('Error: Invalid index ($index) tapped in CarouselView.');
+                   logger.d('Error: Invalid index ($index) tapped in CarouselView.');
                 }
               },
               children: randomRecords.map((record) {
@@ -901,7 +906,7 @@ class NotesCarouselView extends StatelessWidget {
                 // final trackId = record['trackId'] as String?; // No longer needed here
 
                 // Remove the InkWell wrapper
-                // print('Building carousel item for trackId: $trackId'); // Removed diagnostic print
+                // logger.d('Building carousel item for trackId: $trackId'); // Removed diagnostic print
                 return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8),
                   child: ClipRRect(
@@ -927,7 +932,7 @@ class NotesCarouselView extends StatelessWidget {
                         Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Colors.black.withOpacity(0.1), Colors.black.withOpacity(0.7)],
+                              colors: [Colors.black.withValues(alpha: 0.1), Colors.black.withValues(alpha: 0.7)],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                             ),
@@ -945,7 +950,7 @@ class NotesCarouselView extends StatelessWidget {
                                         Icon(
                                           Icons.format_quote_rounded,
                                           size: 20,
-                                          color: Colors.white.withOpacity(0.9),
+                                          color: Colors.white.withValues(alpha: 0.9),
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
@@ -971,7 +976,7 @@ class NotesCarouselView extends StatelessWidget {
                                     ),
                               ),
                               const SizedBox(height: 8),
-                              Divider(color: Colors.white.withOpacity(0.3)),
+                              Divider(color: Colors.white.withValues(alpha: 0.3)),
                               const SizedBox(height: 8),
                               // Track Info and Rating
                               Row(
@@ -991,7 +996,7 @@ class NotesCarouselView extends StatelessWidget {
                                         Text(
                                           '${record['artistName'] ?? 'Unknown Artist'}',
                                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Colors.white.withOpacity(0.8),
+                                            color: Colors.white.withValues(alpha: 0.8),
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,

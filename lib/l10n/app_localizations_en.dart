@@ -947,4 +947,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get artistType => 'Artist';
+
+  @override
+  String get daysAgo => 'Days Ago';
+
+  @override
+  String get hoursAgo => 'Hours Ago';
+
+  @override
+  String get minsAgo => 'Mins Ago';
+
+  @override
+  String get secsAgo => 'Secs Ago';
 }

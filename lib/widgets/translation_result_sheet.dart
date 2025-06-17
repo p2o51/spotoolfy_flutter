@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard and HapticFeedback
+import 'package:logger/logger.dart';
 import '../services/settings_service.dart'; // Import TranslationStyle and SettingsService
 import 'package:provider/provider.dart';
 import '../providers/local_database_provider.dart';
-import '../models/translation.dart';
+// import '../models/translation.dart'; // Unused import
 // 导入 AppLocalizations 类，用于访问本地化字符串
 import '../l10n/app_localizations.dart';
 
@@ -64,6 +65,8 @@ String _getTranslationStyleTooltip(TranslationStyle style, AppLocalizations l10n
 }
 
 // --- Widget 主体 ---
+
+final logger = Logger();
 
 // 将类名更改为 TranslationResultPage，以反映其新用途
 class TranslationResultPage extends StatefulWidget {
@@ -213,7 +216,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     try {
       copyAsSingleLine = await _settingsService.getCopyLyricsAsSingleLine();
     } catch (e) {
-      print("Error reading copy setting: $e");
+      logger.d("Error reading copy setting: $e");
     }
 
     final lyricsToCopy = isWideScreen

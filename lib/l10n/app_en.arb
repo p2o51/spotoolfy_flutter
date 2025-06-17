@@ -529,5 +529,11 @@
   "playlistType": "Playlist",
   "albumType": "Album",
   "songType": "Song",
-  "artistType": "Artist"
+  "artistType": "Artist",
+  "daysAgo": "Days Ago",
+  "hoursAgo": "Hours Ago",
+  "minsAgo": "Mins Ago",
+  "secsAgo": "Secs Ago",
+  "today": "Today",
+  "yesterday": "Yesterday"
 }

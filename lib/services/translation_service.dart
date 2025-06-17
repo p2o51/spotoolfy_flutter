@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:logger/logger.dart';
 import '../services/settings_service.dart';
+
+final logger = Logger();
 
 class TranslationService {
   final SettingsService _settingsService = SettingsService();
@@ -36,7 +39,7 @@ class TranslationService {
     // Try fetching from cache first
     final cachedTranslation = prefs.getString(cacheKey);
     if (cachedTranslation != null && !forceRefresh) {
-      print('Translation cache hit for $cacheKey');
+      logger.d('Translation cache hit for $cacheKey');
       // Return cached text along with the language/style it was created with
       return {
         'text': cachedTranslation,
@@ -48,7 +51,7 @@ class TranslationService {
     // If forcing refresh, remove existing cache entry
     if (forceRefresh) {
       await prefs.remove(cacheKey);
-      print('Forcing refresh: Removed cache for $cacheKey');
+      logger.d('Forcing refresh: Removed cache for $cacheKey');
     }
 
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
@@ -134,8 +137,8 @@ class TranslationService {
             translatedText = translatedText.replaceAll(RegExp(r'^\s*###\s*|\s*###\s*$'), '');
             
             // 打印调试信息 (开发阶段，最终可以移除)
-            print('Raw result from AI:\n$rawResult');
-            print('Final cleaned translation:\n$translatedText');
+            logger.d('Raw result from AI:\n$rawResult');
+            logger.d('Final cleaned translation:\n$translatedText');
             
             // Save to cache (even if refreshed, save the new result)
             // Use the style-specific cache key but save only the clean text
@@ -165,7 +168,7 @@ class TranslationService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('Error during translation API call or processing: $e');
+      logger.d('Error during translation API call or processing: $e');
       // Return null if translation fails
       return null;
     }
@@ -276,7 +279,7 @@ Translated Lyrics ($languageName) [Machine Translation Classic Style]:
         }
       }
     } catch (e) {
-      print('Failed to clear translation cache: $e');
+      logger.d('Failed to clear translation cache: $e');
     }
   }
 
@@ -298,7 +301,7 @@ Translated Lyrics ($languageName) [Machine Translation Classic Style]:
       }
       return totalSize;
     } catch (e) {
-      print('Failed to get translation cache size: $e');
+      logger.d('Failed to get translation cache size: $e');
       return 0;
     }
   }

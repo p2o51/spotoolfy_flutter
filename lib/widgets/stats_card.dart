@@ -29,7 +29,7 @@ class StatsCard extends StatelessWidget {
     final dividerColor = colorScheme.tertiaryContainer; // Light pink
     final iconBackgroundColor = colorScheme.primary; // Dark purple
     final primaryTextColor = colorScheme.primary; // Or a specific dark color
-    final secondaryTextColor = primaryTextColor.withOpacity(0.6);
+    final secondaryTextColor = primaryTextColor.withValues(alpha: 0.6);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),

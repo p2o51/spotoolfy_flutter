@@ -918,6 +918,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get artistType => '艺术家';
+
+  @override
+  String get daysAgo => '天前';
+
+  @override
+  String get hoursAgo => '小时前';
+
+  @override
+  String get minsAgo => '分钟前';
+
+  @override
+  String get secsAgo => '秒前';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1834,4 +1846,16 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get artistType => '藝人';
+
+  @override
+  String get daysAgo => '天前';
+
+  @override
+  String get hoursAgo => '小時前';
+
+  @override
+  String get minsAgo => '分鐘前';
+
+  @override
+  String get secsAgo => '秒前';
 }

@@ -60,25 +60,27 @@ class _NotesDisplayState extends State<NotesDisplay> {
           title: Text(AppLocalizations.of(context)!.optionsTitle),
           actions: <CupertinoActionSheetAction>[
             // 新增：从指定时间播放
-            if (trackId != null && songTimestampMs != null && songTimestampMs > 0)
+            if (songTimestampMs != null && songTimestampMs > 0)
               CupertinoActionSheetAction(
                 child: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
                 onPressed: () async {
                   Navigator.pop(bottomSheetContext);
                   final trackUri = 'spotify:track:$trackId';
-                  print('Attempting to play URI: $trackUri from $songTimestampMs ms');
+                  logger.i('Attempting to play URI: $trackUri from $songTimestampMs ms');
                   try {
                     await spotifyProvider.playTrack(trackUri: trackUri);
                     final duration = Duration(milliseconds: songTimestampMs);
                     await spotifyProvider.seekToPosition(duration.inMilliseconds);
                   } catch (e) {
-                    print('Error calling playTrack or seekToPosition: $e');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    logger.e('Error calling playTrack or seekToPosition: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
                   }
                 },
               ),
@@ -142,23 +144,25 @@ class _NotesDisplayState extends State<NotesDisplay> {
             // 新增：从指定时间播放
             if (songTimestampMs != null && songTimestampMs > 0)
               CupertinoActionSheetAction(
-                child: Text('Play from $formattedTimestamp'), // TODO: Add localization
+                child: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
                 onPressed: () async {
                   Navigator.pop(bottomSheetContext);
                   final trackUri = 'spotify:track:$trackId';
-                  print('Attempting to play URI: $trackUri from $songTimestampMs ms');
+                  logger.i('Attempting to play URI: $trackUri from $songTimestampMs ms');
                   try {
                     await spotifyProvider.playTrack(trackUri: trackUri);
                     final duration = Duration(milliseconds: songTimestampMs);
                     await spotifyProvider.seekToPosition(duration.inMilliseconds);
                   } catch (e) {
-                    print('Error calling playTrack or seekToPosition: $e');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    logger.e('Error calling playTrack or seekToPosition: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
                   }
                 },
               ),
@@ -381,23 +385,23 @@ class _NotesDisplayState extends State<NotesDisplay> {
 
   // --- Helper Functions for StatsCard Data ---
 
-  Map<String, String> _formatTimeAgo(int timestampMs) {
+  Map<String, String> _formatTimeAgo(BuildContext context, int timestampMs) {
     final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
     final now = DateTime.now();
     final difference = now.difference(dt);
 
     if (difference.inDays > 0) {
-      return {'value': difference.inDays.toString(), 'unit': 'Days Ago'}; // TODO: Localization
+      return {'value': difference.inDays.toString(), 'unit': AppLocalizations.of(context)!.daysAgo};
     } else if (difference.inHours > 0) {
-      return {'value': difference.inHours.toString(), 'unit': 'Hours Ago'}; // TODO: Localization
+      return {'value': difference.inHours.toString(), 'unit': AppLocalizations.of(context)!.hoursAgo};
     } else if (difference.inMinutes > 0) {
-      return {'value': difference.inMinutes.toString(), 'unit': 'Mins Ago'}; // TODO: Localization
+      return {'value': difference.inMinutes.toString(), 'unit': AppLocalizations.of(context)!.minsAgo};
     } else {
-      return {'value': difference.inSeconds.toString(), 'unit': 'Secs Ago'}; // TODO: Localization
+      return {'value': difference.inSeconds.toString(), 'unit': AppLocalizations.of(context)!.secsAgo};
     }
   }
 
-  Map<String, String> _formatLastPlayed(int timestampMs) {
+  Map<String, String> _formatLastPlayed(BuildContext context, int timestampMs) {
     final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -406,9 +410,9 @@ class _NotesDisplayState extends State<NotesDisplay> {
 
     String line1;
     if (dateToFormat == today) {
-      line1 = 'Today,'; // TODO: Localization
+      line1 = '${AppLocalizations.of(context)!.today},';
     } else if (dateToFormat == yesterday) {
-      line1 = 'Yesterday,'; // TODO: Localization
+      line1 = '${AppLocalizations.of(context)!.yesterday},';
     } else {
       line1 = DateFormat.yMd().format(dt); // Format as date if older
     }
@@ -492,7 +496,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
     if (records.isNotEmpty) {
       // First Recorded
       final earliestRecordTimestamp = records.map((r) => r.recordedAt).reduce(min);
-      final firstRecordedMap = _formatTimeAgo(earliestRecordTimestamp);
+      final firstRecordedMap = _formatTimeAgo(context, earliestRecordTimestamp);
       firstRecordedValue = firstRecordedMap['value']!;
       firstRecordedUnit = firstRecordedMap['unit']!;
 
@@ -518,12 +522,12 @@ class _NotesDisplayState extends State<NotesDisplay> {
 
     if (latestPlayedTimestamp != null) {
       // Last Played At
-      final lastPlayedMap = _formatLastPlayed(latestPlayedTimestamp);
+      final lastPlayedMap = _formatLastPlayed(context, latestPlayedTimestamp);
       lastPlayedLine1 = lastPlayedMap['line1']!;
       lastPlayedLine2 = lastPlayedMap['line2']!;
     } else if (records.isNotEmpty) {
       // Fallback: Use latest record time if latestPlayedAt is unavailable
-      final lastPlayedMap = _formatLastPlayed(records.first.recordedAt); // Use latest record time
+      final lastPlayedMap = _formatLastPlayed(context, records.first.recordedAt); // Use latest record time
       lastPlayedLine1 = lastPlayedMap['line1']!;
       lastPlayedLine2 = lastPlayedMap['line2']!;
     }

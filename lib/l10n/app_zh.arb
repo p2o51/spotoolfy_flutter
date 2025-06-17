@@ -292,5 +292,11 @@
   "playlistType": "播放列表",
   "albumType": "专辑",
   "songType": "歌曲",
-  "artistType": "艺术家"
+  "artistType": "艺术家",
+  "daysAgo": "天前",
+  "hoursAgo": "小时前",
+  "minsAgo": "分钟前",
+  "secsAgo": "秒前",
+  "today": "今天",
+  "yesterday": "昨天"
 }

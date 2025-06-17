@@ -295,5 +295,11 @@
   "playlistType": "プレイリスト",
   "albumType": "アルバム",
   "songType": "曲",
-  "artistType": "アーティスト"
+  "artistType": "アーティスト",
+  "daysAgo": "日前",
+  "hoursAgo": "時間前",
+  "minsAgo": "分前",
+  "secsAgo": "秒前",
+  "today": "今日",
+  "yesterday": "昨日"
 }

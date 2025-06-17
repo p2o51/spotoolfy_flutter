@@ -1,13 +1,13 @@
 //spotify_service.dart
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:spotify_sdk/spotify_sdk.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
-import 'package:logger/logger.dart';
 import 'package:collection/collection.dart'; // Added import for firstWhereOrNull
 
 final logger = Logger();
@@ -124,7 +124,7 @@ class SpotifyAuthService {
                                     errorString.contains('clientexception');
 
         if (retryCount < maxRetries && isRetryableNetworkError) {
-          print('$operationName: 网络错误，尝试第 $retryCount 次重试: $e');
+          logger.d('$operationName: 网络错误，尝试第 $retryCount 次重试: $e');
           await Future.delayed(baseDelay * retryCount); // 指数退避
           continue;
         }
@@ -446,7 +446,7 @@ class SpotifyAuthService {
         ),
       ]);
     } catch (e) {
-      // print('Error saving auth response to secure storage: $e');
+      // logger.d('Error saving auth response to secure storage: $e');
       rethrow;
     }
   }
@@ -564,7 +564,7 @@ class SpotifyAuthService {
   /// 创建辅助方法处理API请求，先不带device_id，失败时再补充
   Future<void> _withDevice(String path,
       {String method = 'PUT', Map<String, String> query = const {}, Map<String, dynamic>? body}) async {
-    print("===== SPOTIFY API DEBUG (_withDevice) =====");
+    logger.d("===== SPOTIFY API DEBUG (_withDevice) =====");
     String attemptType = "Initial";
     
     try {
@@ -577,9 +577,9 @@ class SpotifyAuthService {
         // For simplicity, let's ensure device_id is primarily handled via the `query` map for retries.
         
         final headers = await _authHeaders(hasBody: body != null);
-        print("[$attemptType Attempt] $method ${currentUri.toString()}");
-        if (body != null) print("[$attemptType Attempt] Body: ${jsonEncode(body)}");
-        print("[$attemptType Attempt] Headers: $headers");
+        logger.d("[$attemptType Attempt] $method ${currentUri.toString()}");
+        if (body != null) logger.d("[$attemptType Attempt] Body: ${jsonEncode(body)}");
+        logger.d("[$attemptType Attempt] Headers: $headers");
 
         if (method == 'POST') {
           return await http.post(currentUri, headers: headers, body: body != null ? jsonEncode(body) : null);
@@ -590,9 +590,9 @@ class SpotifyAuthService {
 
       // Initial attempt (potentially without device_id in query if not passed by caller)
       http.Response r = await makeRequest(""); 
-      print("[$attemptType Attempt] Response Status: ${r.statusCode}");
-      if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
-      else print("[$attemptType Attempt] Response Body: Empty");
+      logger.d("[$attemptType Attempt] Response Status: ${r.statusCode}");
+      if (r.body.isNotEmpty) logger.d("[$attemptType Attempt] Response Body: ${r.body}");
+      else logger.d("[$attemptType Attempt] Response Body: Empty");
 
       // For control endpoints like play, pause, next, previous, seek,
       // a 200 OK might also indicate success if the API behaves unexpectedly (though 204/202 is typical).
@@ -600,37 +600,37 @@ class SpotifyAuthService {
       bool isSuccessStatusCode = r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200;
 
       if (isSuccessStatusCode) {
-        print("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
-        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        logger.d("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
+        logger.d("===== SPOTIFY API DEBUG (_withDevice) END =====");
         return;
       }
 
       if (r.statusCode == 401) {
-        print("[$attemptType Attempt] Authorization expired (401).");
-        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        logger.d("[$attemptType Attempt] Authorization expired (401).");
+        logger.d("===== SPOTIFY API DEBUG (_withDevice) END =====");
         throw SpotifyAuthException('授权已过期或无效', code: '401');
       }
       
       // If initial attempt failed with other 4xx/5xx, try with device_id
-      print("[$attemptType Attempt] Failed (${r.statusCode}). Trying to find active device for retry...");
+      logger.d("[$attemptType Attempt] Failed (${r.statusCode}). Trying to find active device for retry...");
       attemptType = "Retry";
 
       final devices = await getAvailableDevices();
-      print("[$attemptType] Found ${devices.length} devices.");
-      devices.forEach((d) => print("[$attemptType] Device: ${d['name']} (${d['id']}), Active: ${d['is_active']}"));
+      logger.d("[$attemptType] Found ${devices.length} devices.");
+      devices.forEach((d) => logger.d("[$attemptType] Device: ${d['name']} (${d['id']}), Active: ${d['is_active']}"));
 
       final activeDevice = devices.firstWhereOrNull((d) => d['is_active'] == true);
       String? targetDeviceIdForRetry;
 
       if (activeDevice != null) {
         targetDeviceIdForRetry = activeDevice['id'] as String?;
-        print("[$attemptType] Using active device: ${activeDevice['name']} ($targetDeviceIdForRetry)");
+        logger.d("[$attemptType] Using active device: ${activeDevice['name']} ($targetDeviceIdForRetry)");
       } else if (devices.isNotEmpty) {
         targetDeviceIdForRetry = devices.first['id'] as String?;
-        print("[$attemptType] No active device, using first available: ${devices.first['name']} ($targetDeviceIdForRetry)");
+        logger.d("[$attemptType] No active device, using first available: ${devices.first['name']} ($targetDeviceIdForRetry)");
       } else {
-        print("[$attemptType] No devices available for retry.");
-        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        logger.d("[$attemptType] No devices available for retry.");
+        logger.d("===== SPOTIFY API DEBUG (_withDevice) END =====");
         throw SpotifyAuthException('找不到可用播放设备 (重试也无设备)', code: 'NO_DEVICE_ON_RETRY');
       }
 
@@ -643,9 +643,9 @@ class SpotifyAuthService {
         final retryUri = _buildUri(path, retryQuery); 
         final headersForRetry = await _authHeaders(hasBody: body != null); 
 
-        print("[$attemptType Attempt] $method ${retryUri.toString()}");
-        if (body != null) print("[$attemptType Attempt] Body: ${jsonEncode(body)}");
-        print("[$attemptType Attempt] Headers: $headersForRetry");
+        logger.d("[$attemptType Attempt] $method ${retryUri.toString()}");
+        if (body != null) logger.d("[$attemptType Attempt] Body: ${jsonEncode(body)}");
+        logger.d("[$attemptType Attempt] Headers: $headersForRetry");
 
         if (method == 'POST') {
           r = await http.post(retryUri, headers: headersForRetry, body: body != null ? jsonEncode(body) : null);
@@ -653,49 +653,49 @@ class SpotifyAuthService {
           r = await http.put(retryUri, headers: headersForRetry, body: body != null ? jsonEncode(body) : null);
         }
         
-        print("[$attemptType Attempt] Response Status: ${r.statusCode}");
-        if (r.body.isNotEmpty) print("[$attemptType Attempt] Response Body: ${r.body}");
-        else print("[$attemptType Attempt] Response Body: Empty");
+        logger.d("[$attemptType Attempt] Response Status: ${r.statusCode}");
+        if (r.body.isNotEmpty) logger.d("[$attemptType Attempt] Response Body: ${r.body}");
+        else logger.d("[$attemptType Attempt] Response Body: Empty");
 
         // 重试时也要包含200作为成功状态码
         if (r.statusCode == 204 || r.statusCode == 202 || r.statusCode == 200) {
-          print("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
-          print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+          logger.d("[$attemptType Attempt] Successfully processed ($method $path) with status ${r.statusCode}.");
+          logger.d("===== SPOTIFY API DEBUG (_withDevice) END =====");
           return;
         }
-        print("[$attemptType Attempt] Failed (${r.statusCode}). Error response: ${r.body}");
-        print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+        logger.d("[$attemptType Attempt] Failed (${r.statusCode}). Error response: ${r.body}");
+        logger.d("===== SPOTIFY API DEBUG (_withDevice) END =====");
         throw SpotifyAuthException('控制失败 (重试后): ${r.body}', code: r.statusCode.toString());
       }
       // Should not be reached if targetDeviceIdForRetry was null due to earlier throw, but as a safeguard:
-      print("[$attemptType] Retry attempt not made as no target device ID was found.");
-      print("===== SPOTIFY API DEBUG (_withDevice) END =====");
+      logger.d("[$attemptType] Retry attempt not made as no target device ID was found.");
+      logger.d("===== SPOTIFY API DEBUG (_withDevice) END =====");
       throw SpotifyAuthException('重试尝试未进行，无目标设备ID', code: 'RETRY_NOT_ATTEMPTED');
 
     } catch (e) {
-      print("Error in _withDevice: $e");
+      logger.d("Error in _withDevice: $e");
       if (e is SpotifyAuthException) {
-        print("===== SPOTIFY API DEBUG (_withDevice) END (Exception) =====");
+        logger.d("===== SPOTIFY API DEBUG (_withDevice) END (Exception) =====");
         rethrow;
       }
-      print("===== SPOTIFY API DEBUG (_withDevice) END (Unknown Exception) =====");
+      logger.d("===== SPOTIFY API DEBUG (_withDevice) END (Unknown Exception) =====");
       throw SpotifyAuthException('_withDevice 内部错误: $e');
     }
   }
 
   /// 播放/暂停切换
   Future<void> togglePlayPause() async {
-    print('===== TOGGLE PLAY/PAUSE SERVICE =====');
+    logger.d('===== TOGGLE PLAY/PAUSE SERVICE =====');
     try {
-      print('获取当前播放状态...');
+      logger.d('获取当前播放状态...');
       final playbackState = await getPlaybackState();
       final isPlaying = playbackState['is_playing'] ?? false;
       final currentDeviceId = playbackState['device']?['id'] as String?;
       
-      print('当前播放状态: ${isPlaying ? "播放中" : "已暂停"}, 设备ID: $currentDeviceId');
+      logger.d('当前播放状态: ${isPlaying ? "播放中" : "已暂停"}, 设备ID: $currentDeviceId');
       
       final action = isPlaying ? 'pause' : 'play';
-      print('即将执行操作: $action');
+      logger.d('即将执行操作: $action');
       
       // 始终尝试传递 device_id (如果已知)
       await _withDevice(
@@ -703,11 +703,11 @@ class SpotifyAuthService {
         query: currentDeviceId != null ? {'device_id': currentDeviceId} : {},
       );
       
-      print('操作执行成功');
-      print('===== TOGGLE PLAY/PAUSE SERVICE END =====');
+      logger.d('操作执行成功');
+      logger.d('===== TOGGLE PLAY/PAUSE SERVICE END =====');
     } catch (e) {
-      print('togglePlayPause 出错: $e');
-      print('===== TOGGLE PLAY/PAUSE SERVICE END =====');
+      logger.d('togglePlayPause 出错: $e');
+      logger.d('===== TOGGLE PLAY/PAUSE SERVICE END =====');
       rethrow;
     }
   }

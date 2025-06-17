@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:logger/logger.dart';
 import 'package:html_unescape/html_unescape.dart';
 
 /// 歌词提供者抽象类

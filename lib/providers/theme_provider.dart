@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:palette_generator/palette_generator.dart';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class ThemeProvider extends ChangeNotifier {
   ColorScheme _colorScheme = ColorScheme.fromSeed(seedColor: Colors.blue);
@@ -39,7 +42,7 @@ class ThemeProvider extends ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('更新主题颜色失败: $e');
+      logger.e('更新主题颜色失败: $e');
     }
   }
 }

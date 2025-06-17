@@ -154,11 +154,10 @@ class _ExamplePageState extends State<ExamplePage> {
 // 添加这个新类来处理粘性效果
 class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
-  final Color? backgroundColor;
+  // backgroundColor parameter removed as unused
   
   _StickyTabDelegate({
     required this.child,
-    this.backgroundColor,
   });
 
   @override
@@ -181,7 +180,7 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
       },
       blendMode: BlendMode.dstIn,
       child: Container(
-        color: backgroundColor ?? Theme.of(context).colorScheme.surface,
+        color: Theme.of(context).colorScheme.surface,
         child: child,
       ),
     );
@@ -195,7 +194,6 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant _StickyTabDelegate oldDelegate) {
-    return oldDelegate.child != child || 
-           oldDelegate.backgroundColor != backgroundColor;
+    return oldDelegate.child != child;
   }
 }

@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class LanguageService {
   static const String _languageKey = 'selected_language';
@@ -33,7 +36,7 @@ class LanguageService {
       
       return null;
     } catch (e) {
-      print('Error getting saved locale: $e');
+      logger.d('Error getting saved locale: $e');
       return null;
     }
   }
@@ -48,7 +51,7 @@ class LanguageService {
       
       await prefs.setString(_languageKey, languageCode);
     } catch (e) {
-      print('Error saving locale: $e');
+      logger.d('Error saving locale: $e');
     }
   }
   
@@ -58,7 +61,7 @@ class LanguageService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_languageKey);
     } catch (e) {
-      print('Error clearing saved locale: $e');
+      logger.d('Error clearing saved locale: $e');
     }
   }
   
@@ -81,7 +84,7 @@ class LanguageService {
         await saveLocale(locale);
       }
     } catch (e) {
-      print('Error setting app locale: $e');
+      logger.d('Error setting app locale: $e');
       // 降级到仅保存偏好设置
       if (locale != null) {
         await saveLocale(locale);
@@ -98,7 +101,7 @@ class LanguageService {
     try {
       await _channel.invokeMethod('openSystemLanguageSettings');
     } catch (e) {
-      print('Error opening system language settings: $e');
+      logger.d('Error opening system language settings: $e');
     }
   }
   
@@ -110,7 +113,7 @@ class LanguageService {
       final result = await _channel.invokeMethod('supportsSystemLanguageSettings');
       return result as bool? ?? false;
     } catch (e) {
-      print('Error checking system language support: $e');
+      logger.d('Error checking system language support: $e');
       return false;
     }
   }

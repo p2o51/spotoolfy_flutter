@@ -119,7 +119,7 @@ class _SearchSectionState extends State<SearchSection> {
             Icon(
               Icons.search_off,
               size: 48,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -131,7 +131,7 @@ class _SearchSectionState extends State<SearchSection> {
               AppLocalizations.of(context)!.tryDifferentKeywords,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           ],
