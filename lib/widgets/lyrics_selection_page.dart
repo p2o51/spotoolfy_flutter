@@ -240,7 +240,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
               if (_hasSelectedLyrics())
                 TextButton(
                   onPressed: _isLoading ? null : _copySelectedLyrics,
-                  child: const Text('Copy'),
+                  child: Text(l10n.copyButtonText),
                 ),
               if (_hasSelectedLyrics())
                 Padding(
@@ -445,7 +445,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                                       ? theme.colorScheme.onSurface.withOpacity(0.38)
                                       : null,
                                 ),
-                                label: const Text('Poster'),
+                                label: Text(l10n.posterButtonLabel),
                                 style: FilledButton.styleFrom(
                                   // fixedSize: const Size(double.infinity, 56),
                                   backgroundColor: (_selectedCount > 15 || _isLoading)
@@ -462,7 +462,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                                child: FilledButton.tonalIcon(
                                 onPressed: _createNoteWithLyrics,
                                 icon: const Icon(Icons.note_add),
-                                label: const Text('Note'),
+                                label: Text(l10n.noteButtonLabel),
                                 style: FilledButton.styleFrom(
                                   // fixedSize: const Size(double.infinity, 56),
                                 ),
@@ -472,7 +472,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                         )
                       : Center(
                           child: Text(
-                            "Tap lyric line to select",
+                            l10n.tapToSelectLyrics,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.w700,

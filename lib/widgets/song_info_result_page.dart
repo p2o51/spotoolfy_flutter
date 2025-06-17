@@ -5,6 +5,7 @@ import 'dart:math';
 import '../services/song_info_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/materialui.dart';
+import '../l10n/app_localizations.dart';
 
 class SongInfoResultPage extends StatefulWidget {
   final Map<String, dynamic> trackData;
@@ -39,71 +40,35 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   late AnimationController _infoAnimationController;
   late List<Animation<double>> _infoAnimations;
   
-  String _loadingText = 'Analyzing song information...';
+  String _loadingText = '';
   int _dotCount = 0;
-  
-  // 幽默的英文加载文本列表
-  final List<String> _funnyLoadingTexts = [
-    'Teaching Gemini to appreciate good music...',
-    'Consulting the music gods...',
-    'Decoding musical DNA...',
-    'Asking Spotify for gossip...',
-    'Summoning the rhythm spirits...',
-    'Translating beats into wisdom...',
-    'Downloading musical memories...',
-    'Celebrating the breakup...',
-    'Analyzing sonic fingerprints...',
-    'Channeling the artist\'s soul...',
-    'Extracting melody secrets...',
-    'Interviewing the instruments...',
-    'Reading between the notes...',
-    'Diving into the sound waves...',
-    'Unlocking harmonic mysteries...',
-    'Searching the musical universe...',
-    '365 partying...',
-    'Deciphering lyrical codes...',
-    'Awakening dormant frequencies...',
-    'Exploring temporal soundscapes...',
-    'Gathering acoustic intelligence...',
-    'Scanning musical dimensions...',
-    'Harvesting sonic data...',
-    'Communicating with vinyl spirits...',
-    'Investigating melodic patterns...',
-    'Calibrating emotional resonance...',
-  ];
-
-  // 包含歌曲信息的动态文本模板
-  final List<String> _dynamicTextTemplates = [
-    'Having a chat with {artist}...',
-    'Asking {artist} about "{song}"...',
-    'Getting the inside scoop on "{song}"...',
-    'Interviewing {artist} backstage...',
-    'Decoding {artist}\'s creative process...',
-    'Exploring the story behind "{song}"...',
-    'Channeling {artist}\'s inspiration...',
-    'Diving into {artist}\'s musical mind...',
-    'Uncovering "{song}" secrets...',
-    'Learning from {artist}\'s experience...',
-    'Analyzing {artist}\'s artistic vision...',
-    'Discovering "{song}" hidden meanings...',
-  ];
   
   late String _currentFunnyText;
 
   String _getRandomFunnyText() {
-    final trackName = widget.trackData['name'] as String? ?? 'Unknown Track';
+    final l10n = AppLocalizations.of(context)!;
+    final trackName = widget.trackData['name'] as String? ?? l10n.unknownTrack;
     final artistNames = (widget.trackData['artists'] as List?)
         ?.map((artist) => artist['name'] as String)
-        .join(', ') ?? 'Unknown Artist';
+        .join(', ') ?? l10n.unknownArtist;
+
+    final staticTexts = [
+      l10n.loadingAnalyzing,
+      l10n.loadingDecoding,
+      l10n.loadingSearching,
+      l10n.loadingThinking,
+      l10n.loadingGenerating,
+      l10n.loadingDiscovering,
+      l10n.loadingExploring,
+      l10n.loadingUnraveling,
+      l10n.loadingConnecting,
+    ];
 
     // 60% 概率使用动态文本，40% 概率使用静态文本
-    if (Random().nextDouble() < 0.6 && trackName != 'Unknown Track' && artistNames != 'Unknown Artist') {
-      final template = _dynamicTextTemplates[Random().nextInt(_dynamicTextTemplates.length)];
-      return template
-          .replaceAll('{artist}', artistNames)
-          .replaceAll('{song}', trackName);
+    if (Random().nextDouble() < 0.6 && trackName != l10n.unknownTrack && artistNames != l10n.unknownArtist) {
+      return l10n.loadingChatting(artistNames);
     } else {
-      return _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+      return staticTexts[Random().nextInt(staticTexts.length)];
     }
   }
 
@@ -177,7 +142,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       if (mounted && _isLoading) {
         setState(() {
           _dotCount = (_dotCount + 1) % 4;
-          _loadingText = 'Analyzing song information${'.' * _dotCount}';
+          _loadingText = '${AppLocalizations.of(context)!.loadingAnalyzing}${'.' * _dotCount}';
         });
         _startLoadingTextAnimation();
       }
@@ -251,11 +216,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         // 启动信息出现动画
         _infoAnimationController.forward();
       } else {
-        _showError('Unable to get song information');
+        _showError(AppLocalizations.of(context)!.noSongInfoAvailable);
       }
     } catch (e) {
       if (mounted) {
-        _showError('Failed to get song information: ${e.toString()}');
+        _showError('${AppLocalizations.of(context)!.noSongInfoAvailable}: ${e.toString()}');
       }
     }
   }
@@ -297,7 +262,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         
         if (mounted) {
           Provider.of<NotificationService>(context, listen: false)
-              .showSnackBar('Song information regenerated');
+              .showSnackBar(AppLocalizations.of(context)!.songInfoRegeneratedMessage);
         }
       } else {
         throw Exception('Regeneration failed');
@@ -333,7 +298,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   void _copyToClipboard(String content, String type) {
     Clipboard.setData(ClipboardData(text: content));
     Provider.of<NotificationService>(context, listen: false)
-        .showSnackBar('$type copied to clipboard');
+        .showSnackBar('$type ${AppLocalizations.of(context)!.copiedToClipboard}');
   }
 
   @override
@@ -353,7 +318,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Song Information'),
+        title: Text(AppLocalizations.of(context)!.songInformationTitle),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -361,7 +326,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               onPressed: _regenerateSongInfo,
-              tooltip: 'Regenerate',
+              tooltip: AppLocalizations.of(context)!.regenerateTooltip,
             ),
         ],
       ),
@@ -566,7 +531,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             
             // 固定的 Gemini grounding 文本
             Text(
-              "Gemini's grounding...",
+              AppLocalizations.of(context)!.geminiGrounding,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -593,7 +558,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Regeneration failed: $_regenerationError',
+                '${AppLocalizations.of(context)!.operationFailed}: $_regenerationError',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onErrorContainer,
                 ),
@@ -618,7 +583,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             ),
             const SizedBox(height: 16),
             Text(
-              'No song information available',
+              AppLocalizations.of(context)!.noSongInfoAvailable,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -634,14 +599,14 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       child: Column(
         children: [
           Text(
-            'Generated by Gemini 2.5 Flash',
+            AppLocalizations.of(context)!.generatedByGemini,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Powered by Google Search Grounding',
+            AppLocalizations.of(context)!.poweredByGoogleSearch,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -692,7 +657,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                       IconButton(
                         icon: const Icon(Icons.copy_rounded, size: 18),
                         onPressed: () => _copyToClipboard(content, title),
-                        tooltip: 'Copy $title',
+                        tooltip: '${AppLocalizations.of(context)!.copyButtonText} $title',
                         visualDensity: VisualDensity.compact,
                       ),
                     ],
@@ -724,7 +689,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['creation_time'] != null && _currentSongInfo!['creation_time'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: 'Creation Time',
+        title: AppLocalizations.of(context)!.creationTimeTitle,
         content: _currentSongInfo!['creation_time'] as String,
         icon: Icons.schedule_rounded,
         animationIndex: animationIndex++,
@@ -735,7 +700,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['creation_location'] != null && _currentSongInfo!['creation_location'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: 'Creation Location',
+        title: AppLocalizations.of(context)!.creationLocationTitle,
         content: _currentSongInfo!['creation_location'] as String,
         icon: Icons.location_on_rounded,
         animationIndex: animationIndex++,
@@ -746,7 +711,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['lyricist'] != null && _currentSongInfo!['lyricist'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: 'Lyricist',
+        title: AppLocalizations.of(context)!.lyricistTitle,
         content: _currentSongInfo!['lyricist'] as String,
         icon: Icons.edit_rounded,
         animationIndex: animationIndex++,
@@ -757,7 +722,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['composer'] != null && _currentSongInfo!['composer'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: 'Composer',
+        title: AppLocalizations.of(context)!.composerTitle,
         content: _currentSongInfo!['composer'] as String,
         icon: Icons.music_note_rounded,
         animationIndex: animationIndex++,
@@ -768,7 +733,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentSongInfo!['producer'] != null && _currentSongInfo!['producer'] != '') {
       cards.add(_buildInfoSection(
         context,
-        title: 'Producer',
+        title: AppLocalizations.of(context)!.producerTitle,
         content: _currentSongInfo!['producer'] as String,
         icon: Icons.settings_rounded,
         animationIndex: animationIndex++,
@@ -790,7 +755,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       
       cards.add(_buildInfoSection(
         context,
-        title: 'Song Analysis',
+        title: AppLocalizations.of(context)!.songAnalysisTitle,
         content: _currentSongInfo!['review'] as String,
         icon: Icons.article_rounded,
         animationIndex: animationIndex++,

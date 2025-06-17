@@ -6,6 +6,7 @@ import '../widgets/materialui.dart' as custom_ui;
 import '../widgets/materialui.dart'; // Import WavyDivider
 import '../pages/library.dart'; // Add import for MyCarouselView
 import 'package:flutter/services.dart'; // 新增导入
+import '../l10n/app_localizations.dart';
 
 class LibrarySection extends StatefulWidget {
   // Optional controller to allow parent widget to initiate refresh
@@ -134,7 +135,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                   child: Center(
                     child: custom_ui.IconHeader(
                       icon: Icons.library_music,
-                      text: "YOUR LIBRARY",
+                      text: AppLocalizations.of(context)!.yourLibrary,
                     ),
                   ),
                 ),
@@ -148,7 +149,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                     children: [
                       FilterChip(
                         selected: libraryProvider.showPlaylists,
-                        label: const Text('Playlists'),
+                        label: Text(AppLocalizations.of(context)!.playlistsTab),
                         onSelected: (bool selected) {
                           HapticFeedback.lightImpact();
                           libraryProvider.setFilters(showPlaylists: selected);
@@ -156,7 +157,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                       ),
                       FilterChip(
                         selected: libraryProvider.showAlbums,
-                        label: const Text('Albums'),
+                        label: Text(AppLocalizations.of(context)!.albumsTab),
                         onSelected: (bool selected) {
                           HapticFeedback.lightImpact();
                           libraryProvider.setFilters(showAlbums: selected);
@@ -206,7 +207,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Error loading library',
+                  AppLocalizations.of(context)!.errorLoadingLibrary,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
@@ -218,7 +219,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _refreshData,
-                  child: const Text('Try Again'),
+                  child: Text(AppLocalizations.of(context)!.tryAgainButton),
                 ),
               ],
             ),

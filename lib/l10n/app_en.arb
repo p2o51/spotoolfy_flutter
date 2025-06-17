@@ -494,5 +494,40 @@
   "noCurrentTrackPlaying": "No track currently playing",
   "cannotGetTrackInfo": "Cannot get current track information", 
   "lyricsSearchAppliedSuccess": "Lyrics successfully searched and applied",
-  "noLyricsToSelect": "No lyrics available to select"
+  "noLyricsToSelect": "No lyrics available to select",
+  "collapseTooltip": "Collapse",
+  "expandTooltip": "Expand",
+  "incompleteRecordError": "Cannot proceed: Incomplete record information",
+  "optionsTitle": "Options",
+  "playFromTimestamp": "Play from {timestamp}",
+  "@playFromTimestamp": {
+    "description": "Button text to play from a specific timestamp",
+    "placeholders": {
+      "timestamp": {
+        "type": "String",
+        "example": "2:30"
+      }
+    }
+  },
+  "editNoteTitle": "Edit Note",
+  "ratedStatus": "Rated",
+  "noteContent": "Note Content",
+  "saveChanges": "Save",
+  "thoughts": "THOUGHTS",
+  "noTrack": "NO TRACK",
+  "playTrackToSeeThoughts": "Play a track to see thoughts.",
+  "noIdeasYet": "No ideas for this song yet.\nCome share the first idea!",
+  "relatedThoughts": "Related Thoughts",
+  "yourLibrary": "YOUR LIBRARY",
+  "errorLoadingLibrary": "Error loading library",
+  "searchResults": "SEARCH RESULTS",
+  "backToLibraryTooltip": "Back to library",
+  "noResultsFound": "No results found",
+  "tryDifferentKeywords": "Try different keywords or check your spelling",
+  "infoLabel": "Info",
+  "selectArtistTitle": "Select Artist",
+  "playlistType": "Playlist",
+  "albumType": "Album",
+  "songType": "Song",
+  "artistType": "Artist"
 }

@@ -510,7 +510,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                   ),
                   _buildSeekButton(
                     icon: Icons.info_outline_rounded,
-                    label: '信息',
+                    label: AppLocalizations.of(context)!.infoLabel,
                     onPressed: () {
                       HapticFeedback.lightImpact();
                       _showSongInfo();
@@ -563,7 +563,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     final currentTrack = spotifyProvider.currentTrack;
     
     if (currentTrack == null || currentTrack['item'] == null) {
-      notificationService.showSnackBar('没有正在播放的歌曲');
+      notificationService.showSnackBar(AppLocalizations.of(context)!.noCurrentTrackPlaying);
       return;
     }
 
@@ -771,7 +771,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Select Artist'),
+          title: Text(AppLocalizations.of(context)!.selectArtistTitle),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -798,7 +798,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancel'),
+              child: Text(AppLocalizations.of(context)!.cancel),
               onPressed: () {
                 Navigator.pop(dialogContext); // Close the dialog
               },

@@ -876,6 +876,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get lyricsSearchAppliedSuccess => '歌词已成功搜索并应用';
+
+  @override
+  String get thoughts => '想法';
+
+  @override
+  String get noTrack => '无音轨';
+
+  @override
+  String get noIdeasYet => '暂无关于这首歌的想法。\n来分享第一个想法吧！';
+
+  @override
+  String get relatedThoughts => '相关想法';
+
+  @override
+  String get yourLibrary => '您的资料库';
+
+  @override
+  String get errorLoadingLibrary => '加载资料库时出错';
+
+  @override
+  String get searchResults => '搜索结果';
+
+  @override
+  String get noResultsFound => '未找到结果';
+
+  @override
+  String get tryDifferentKeywords => '请尝试不同的关键词或检查拼写';
+
+  @override
+  String get infoLabel => '信息';
+
+  @override
+  String get playlistType => '播放列表';
+
+  @override
+  String get albumType => '专辑';
+
+  @override
+  String get songType => '歌曲';
+
+  @override
+  String get artistType => '艺术家';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1664,10 +1706,10 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get songAnalysisTitle => '歌曲分析';
 
   @override
-  String get selectArtistTitle => '選擇藝人';
+  String get selectArtistTitle => '選擇藝術家';
 
   @override
-  String get backToLibraryTooltip => '返回音樂庫';
+  String get backToLibraryTooltip => '返回資料庫';
 
   @override
   String get appWatermark => 'Spotoolfy';
@@ -1750,4 +1792,46 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get lyricsSearchAppliedSuccess => '歌詞已成功搜尋並套用';
+
+  @override
+  String get thoughts => '想法';
+
+  @override
+  String get noTrack => '無音軌';
+
+  @override
+  String get noIdeasYet => '暫無關於這首歌的想法。\n來分享第一個想法吧！';
+
+  @override
+  String get relatedThoughts => '相關想法';
+
+  @override
+  String get yourLibrary => '您的資料庫';
+
+  @override
+  String get errorLoadingLibrary => '載入資料庫時發生錯誤';
+
+  @override
+  String get searchResults => '搜尋結果';
+
+  @override
+  String get noResultsFound => '未找到結果';
+
+  @override
+  String get tryDifferentKeywords => '請嘗試不同的關鍵字或檢查拼字';
+
+  @override
+  String get infoLabel => '資訊';
+
+  @override
+  String get playlistType => '播放清單';
+
+  @override
+  String get albumType => '專輯';
+
+  @override
+  String get songType => '歌曲';
+
+  @override
+  String get artistType => '藝人';
 }

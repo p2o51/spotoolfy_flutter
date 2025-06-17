@@ -138,7 +138,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
               child: IconButton(
                 icon: Icon(_isExpanded ? Icons.expand_more : Icons.expand_less),
                 onPressed: _toggleExpand,
-                tooltip: _isExpanded ? 'Collapse' : 'Expand',
+                tooltip: _isExpanded ? AppLocalizations.of(context)!.collapseTooltip : AppLocalizations.of(context)!.expandTooltip,
               ),
             ),
         ],

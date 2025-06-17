@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/lyrics/lyric_provider.dart'; 
 import '../services/lyrics/qq_provider.dart'; 
 import '../services/lyrics/netease_provider.dart'; 
-// import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -128,7 +128,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       });
     } catch (e) {
       if (mounted) {
-        _notificationService.showErrorSnackBar('搜索错误: ${e.toString()}');
+        _notificationService.showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
       }
       
       if (mounted) {
@@ -151,7 +151,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
      });
 
      try {
-       _notificationService.showSnackBar('正在获取歌词...');
+       _notificationService.showSnackBar(AppLocalizations.of(context)!.lyricsFetching);
        // 使用提供者获取歌词
        final rawLyric = await result.provider.fetchLyric(result.match.songId);
 
@@ -168,12 +168,12 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
          navigator.pop(normalizedLyric); // 使用捕获的 navigator
        } else {
          if (mounted) {
-            _notificationService.showErrorSnackBar('无法获取所选歌曲的歌词。');
+            _notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsNotFoundForTrack);
          }
        }
      } catch (e) {
         if (mounted) {
-         _notificationService.showErrorSnackBar('获取歌词时出错: ${e.toString()}');
+         _notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsFetchError(e.toString()));
         }
      } finally {
        if (mounted) {
@@ -213,7 +213,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('搜索歌词'),
+        title: Text(AppLocalizations.of(context)!.searchLyrics),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -226,7 +226,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
               controller: _searchController,
               focusNode: _searchFocusNode,
               decoration: InputDecoration(
-                hintText: '输入歌曲名和歌手名搜索...',
+                hintText: AppLocalizations.of(context)!.searchHint,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _isLoading
                     ? const Padding(
@@ -238,7 +238,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
                     : (_searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
-                            tooltip: '清除搜索',
+                            tooltip: AppLocalizations.of(context)!.clearSearch,
                             onPressed: () {
                               _searchController.clear();
                               _performSearch('');
@@ -273,7 +273,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
                child: Padding(
                  padding: const EdgeInsets.all(20.0),
                  child: Text(
-                   '输入歌曲名和歌手名搜索歌词',
+                   AppLocalizations.of(context)!.searchHint,
                    textAlign: TextAlign.center,
                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                      color: Theme.of(context).colorScheme.secondary,
@@ -316,7 +316,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
-                    '没有找到与"$_currentQuery"相关的结果',
+                    AppLocalizations.of(context)!.noResultsFound,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Theme.of(context).colorScheme.secondary,

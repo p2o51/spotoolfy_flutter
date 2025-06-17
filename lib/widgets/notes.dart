@@ -37,7 +37,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
 
     if (recordId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot proceed: Incomplete record information')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.incompleteRecordError)),
       );
       return;
     }
@@ -57,12 +57,12 @@ class _NotesDisplayState extends State<NotesDisplay> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
         return CupertinoActionSheet(
-          title: Text('Options'),
+          title: Text(AppLocalizations.of(context)!.optionsTitle),
           actions: <CupertinoActionSheetAction>[
             // 新增：从指定时间播放
             if (trackId != null && songTimestampMs != null && songTimestampMs > 0)
               CupertinoActionSheetAction(
-                child: Text('Play from $formattedTimestamp'), // TODO: Add localization
+                child: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
                 onPressed: () async {
                   Navigator.pop(bottomSheetContext);
                   final trackUri = 'spotify:track:$trackId';
@@ -75,7 +75,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                     print('Error calling playTrack or seekToPosition: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text("Playback failed: ${e.toString()}"),
+                        content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
                         duration: const Duration(seconds: 2),
                       ),
                     );
@@ -155,7 +155,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                     print('Error calling playTrack or seekToPosition: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text("Playback failed: ${e.toString()}"),
+                        content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
                         duration: const Duration(seconds: 2),
                       ),
                     );
@@ -350,8 +350,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Confirm Delete'),
-          content: const Text('Are you sure you want to delete this note? This action cannot be undone.'),
+          title: Text(AppLocalizations.of(context)!.confirmDelete),
+          content: Text(AppLocalizations.of(context)!.deleteConfirmMessage),
           actions: [
             TextButton(
               child: Text(AppLocalizations.of(context)!.cancel),
@@ -359,7 +359,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text('Delete'),
+              child: Text(AppLocalizations.of(context)!.deleteNote),
               onPressed: () {
                 Provider.of<LocalDatabaseProvider>(context, listen: false).deleteRecord(
                   recordId: recordId,
@@ -567,24 +567,24 @@ class _NotesDisplayState extends State<NotesDisplay> {
           IconHeader(
             icon: Icons.comment_bank_outlined,
             text: currentTrack != null 
-              ? 'THOUGHTS'
-              : 'NO TRACK'
+              ? AppLocalizations.of(context)!.thoughts
+              : AppLocalizations.of(context)!.noTrack
           ),
           if (currentTrackId == null)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Play a track to see thoughts.'),
+                padding: const EdgeInsets.all(16),
+                child: Text(AppLocalizations.of(context)!.playTrackToSeeThoughts),
               ),
             )
           else if (localDbProvider.isLoading && _lastFetchedTrackId == currentTrackId && localDbProvider.currentTrackRecords.isEmpty)
             const Center(child: CircularProgressIndicator())
           else if (localDbProvider.currentTrackRecords.isEmpty)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Text(
-                  'No ideas for this song yet. \n Come share the first idea!',
+                  AppLocalizations.of(context)!.noIdeasYet,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -632,7 +632,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       title: Text(
                         // Check if note content is empty
                         (record.noteContent?.isEmpty ?? true)
-                          ? 'Rated'
+                          ? AppLocalizations.of(context)!.ratedStatus
                           : record.noteContent!,
                         style: (record.noteContent?.isEmpty ?? true)
                           ? TextStyle(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.onSurfaceVariant)
@@ -657,7 +657,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             const SizedBox(height: 16),
             IconHeader(
               icon: Icons.library_music_outlined,
-              text: 'Related Thoughts',
+              text: AppLocalizations.of(context)!.relatedThoughts,
             ),
             Card(
               elevation: 0,
@@ -704,7 +704,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
                       title: Text(
                         // Check if related note content is empty
                         (relatedRecord['noteContent'] as String?)?.isEmpty ?? true
-                          ? 'Rated'
+                          ? AppLocalizations.of(context)!.ratedStatus
                           : relatedRecord['noteContent'] as String,
                         style: (relatedRecord['noteContent'] as String?)?.isEmpty ?? true
                           ? TextStyle(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.onSurfaceVariant)

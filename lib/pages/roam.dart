@@ -46,7 +46,7 @@ class _RoamState extends State<Roam> {
 
     if (recordId == null || trackId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot proceed: Incomplete record information')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.incompleteRecordError)),
       );
       return;
     }
@@ -68,13 +68,13 @@ class _RoamState extends State<Roam> {
       builder: (BuildContext bottomSheetContext) {
         // Using CupertinoActionSheet for iOS style, you can use Column + ListTiles for Material
         return CupertinoActionSheet(
-          title: Text(record['trackName'] ?? 'Options'),
+          title: Text(record['trackName'] ?? AppLocalizations.of(context)!.optionsTitle),
           // message: Text(record['noteContent'] ?? ''), // Optional: show content snippet
           actions: <CupertinoActionSheetAction>[
             // 新增：从指定时间播放
             if (songTimestampMs != null && songTimestampMs > 0)
               CupertinoActionSheetAction(
-                child: Text('Play from $formattedTimestamp'),
+                child: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
                 onPressed: () async {
                   Navigator.pop(bottomSheetContext); // Close the sheet
                   final trackUri = 'spotify:track:$trackId';
@@ -89,7 +89,7 @@ class _RoamState extends State<Roam> {
                     print('Error calling playTrack or seekToPosition: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text("Playback failed: ${e.toString()}"),
+                        content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
                         duration: const Duration(seconds: 2),
                       ),
                     );
@@ -148,7 +148,7 @@ class _RoamState extends State<Roam> {
         return StatefulBuilder( // Use StatefulBuilder to update rating selection within the dialog
            builder: (context, setDialogState) {
               return AlertDialog(
-                title: const Text('Edit Note'),
+                title: Text(AppLocalizations.of(context)!.editNoteTitle),
                 content: SingleChildScrollView( // Allow scrolling if content is long
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -156,9 +156,9 @@ class _RoamState extends State<Roam> {
                       TextField(
                         controller: textController,
                         maxLines: null, // Allow multiple lines
-                        decoration: const InputDecoration(
-                          labelText: 'Note Content',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: AppLocalizations.of(context)!.noteContent,
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -186,11 +186,11 @@ class _RoamState extends State<Roam> {
                 ),
                 actions: [
                   TextButton(
-                    child: const Text('Cancel'),
+                    child: Text(AppLocalizations.of(context)!.cancel),
                     onPressed: () => Navigator.pop(dialogContext),
                   ),
                   TextButton(
-                    child: const Text('Save'),
+                    child: Text(AppLocalizations.of(context)!.saveChanges),
                     onPressed: () {
                       // TODO: Ensure provider has updateRecord method implemented
                       localDbProvider.updateRecord(
@@ -423,7 +423,7 @@ class _RoamState extends State<Roam> {
                                                Padding(
                                                  padding: const EdgeInsets.only(bottom: 12.0),
                                                  child: Text(
-                                                   'Rated',
+                                                   AppLocalizations.of(context)!.ratedStatus,
                                                    style: TextStyle(
                                                      fontStyle: FontStyle.italic,
                                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -470,7 +470,7 @@ class _RoamState extends State<Roam> {
                                                           children: [
                                                             // Timestamp
                                                             Text(
-                                                              'Records at $formattedTime',
+                                                              AppLocalizations.of(context)!.recordsAt(formattedTime),
                                                               style: Theme.of(context).textTheme.labelSmall?.copyWith( // Use labelMedium for timestamp
                                                                 color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
                                                                 fontWeight: FontWeight.normal,
@@ -673,7 +673,7 @@ class _RoamState extends State<Roam> {
                                             Padding(
                                               padding: const EdgeInsets.only(bottom: 12.0),
                                               child: Text(
-                                                'Rated',
+                                                AppLocalizations.of(context)!.ratedStatus,
                                                 style: TextStyle(
                                                   fontStyle: FontStyle.italic,
                                                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -720,7 +720,7 @@ class _RoamState extends State<Roam> {
                                                         children: [
                                                           // Timestamp
                                                           Text(
-                                                            'Records at $formattedTime',
+                                                            AppLocalizations.of(context)!.recordsAt(formattedTime),
                                                             style: Theme.of(context).textTheme.labelSmall?.copyWith( // Use labelMedium for timestamp
                                                               color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
                                                               fontWeight: FontWeight.normal,
@@ -962,7 +962,7 @@ class NotesCarouselView extends StatelessWidget {
                                     )
                                   : Center( // Center 'Rated' text if no content
                                       child: Text(
-                                        'Rated',
+                                        AppLocalizations.of(context)!.ratedStatus,
                                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                           color: Colors.white70,
                                           fontStyle: FontStyle.italic,

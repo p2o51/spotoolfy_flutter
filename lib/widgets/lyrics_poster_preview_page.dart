@@ -108,12 +108,12 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
       
       if (mounted) {
         Provider.of<NotificationService>(context, listen: false)
-            .showSnackBar('海报已保存到相册'); // Hardcoded string
+            .showSnackBar(AppLocalizations.of(context)!.exportSuccess);
       }
     } catch (e) {
       if (mounted) {
         Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('保存失败: ${e.toString()}'); // Hardcoded string
+            .showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -137,7 +137,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     } catch (e) {
       if (mounted) {
         Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('分享失败: ${e.toString()}'); // Hardcoded string
+            .showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -154,7 +154,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('海报预览'), // Hardcoded string
+        title: Text(AppLocalizations.of(context)!.sharePoster),
         backgroundColor: theme.colorScheme.surface,
       ),
       body: Column(
@@ -190,7 +190,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
                     child: FilledButton.tonalIcon(
                       onPressed: _isOperating ? null : _savePoster,
                       icon: const Icon(Icons.download),
-                      label: const Text('保存'), // Hardcoded string
+                      label: Text(AppLocalizations.of(context)!.saveChanges),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -198,7 +198,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
                     child: FilledButton.icon(
                       onPressed: _isOperating ? null : _sharePoster,
                       icon: const Icon(Icons.share),
-                      label: const Text('分享'), // Hardcoded string
+                      label: Text(AppLocalizations.of(context)!.sharePoster),
                     ),
                   ),
                 ],
@@ -217,7 +217,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
           Text(
-            /* l10n?.generatingPoster ?? */ '正在生成海报...', // Hardcoded
+            AppLocalizations.of(context)!.loadingGenerating,
             style: theme.textTheme.bodyMedium,
           ),
         ],
@@ -235,7 +235,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            /* l10n?.posterGenerationFailed(_errorMessage!) ?? */ '海报生成失败: $_errorMessage', // Hardcoded
+            AppLocalizations.of(context)!.posterGenerationFailed(_errorMessage!),
             style: theme.textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
@@ -243,7 +243,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
           FilledButton.icon(
             onPressed: _generatePoster,
             icon: const Icon(Icons.refresh),
-            label: const Text('重试'), // Hardcoded
+            label: Text(AppLocalizations.of(context)!.retryButton),
           ),
         ],
       );
@@ -264,7 +264,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                /* l10n?.imageLoadFailed ?? */ '图片加载失败', // Hardcoded
+                AppLocalizations.of(context)!.lyricsFailedToLoad,
                 style: theme.textTheme.bodyMedium,
               ),
             ],

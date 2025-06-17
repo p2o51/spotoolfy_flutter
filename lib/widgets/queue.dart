@@ -20,11 +20,11 @@ class QueueDisplay extends StatelessWidget {
         children: [
           
           if (currentQueue == null || currentQueue.isEmpty)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Text(
-                  'No tracks in queue',
+                  AppLocalizations.of(context)!.currentQueueEmpty,
                   textAlign: TextAlign.center,
                 ),
               ),

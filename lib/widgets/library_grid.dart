@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/spotify_provider.dart';
 import 'package:flutter/services.dart';
+import '../l10n/app_localizations.dart';
 
 class LibraryGrid extends StatelessWidget {
   final List<Map<String, dynamic>> items;
@@ -25,12 +26,12 @@ class LibraryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty && !isLoadingMore) {
       // Return a sliver message if items are empty and not just loading more
-      return const SliverFillRemaining(
+      return SliverFillRemaining(
         hasScrollBody: false,
         child: Center(
           child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('No items found'),
+            padding: const EdgeInsets.all(16),
+            child: Text(AppLocalizations.of(context)!.noItemsFound),
           ),
         ),
       );
@@ -115,7 +116,7 @@ class LibraryGrid extends StatelessWidget {
     if (spotifyUri == null && webUrl == null) {
       if (!context.mounted) return; // Check context before using
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot create Spotify link'))
+        SnackBar(content: Text(AppLocalizations.of(context)!.cannotCreateSpotifyLink))
       );
       return;
     }
@@ -146,13 +147,13 @@ class LibraryGrid extends StatelessWidget {
       // Both methods failed
       if (!context.mounted) return; // Check context before using
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot open Spotify'))
+        SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify))
       );
     } catch (e) {
       // print('Error opening Spotify: $e');
       if (!context.mounted) return; // Check context before using
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to open Spotify: $e'))
+        SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(e.toString())))
       );
     }
   }
@@ -225,7 +226,7 @@ class _LibraryGridItem extends StatelessWidget {
             ),
           ),
           Text(
-            _getItemSubtitle(item),
+            _getItemSubtitle(context, item),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -237,22 +238,22 @@ class _LibraryGridItem extends StatelessWidget {
     );
   }
 
-  String _getItemSubtitle(Map<String, dynamic> item) {
+  String _getItemSubtitle(BuildContext context, Map<String, dynamic> item) {
     switch (item['type']) {
       case 'playlist':
-        return 'Playlist';
+        return AppLocalizations.of(context)!.playlistType;
       case 'album':
         if (item['artists'] != null && item['artists'].isNotEmpty) {
-          return 'Album • ${item['artists'][0]['name']}';
+          return '${AppLocalizations.of(context)!.albumType} • ${item['artists'][0]['name']}';
         }
-        return 'Album';
+        return AppLocalizations.of(context)!.albumType;
       case 'track':
         if (item['artists'] != null && item['artists'].isNotEmpty) {
-          return 'Song • ${item['artists'][0]['name']}';
+          return '${AppLocalizations.of(context)!.songType} • ${item['artists'][0]['name']}';
         }
-        return 'Song';
+        return AppLocalizations.of(context)!.songType;
       case 'artist':
-        return 'Artist';
+        return AppLocalizations.of(context)!.artistType;
       default:
         return item['type'] ?? '';
     }

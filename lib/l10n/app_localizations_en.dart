@@ -903,4 +903,48 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get lyricsSearchAppliedSuccess =>
       'Lyrics successfully searched and applied';
+
+  @override
+  String get thoughts => 'THOUGHTS';
+
+  @override
+  String get noTrack => 'NO TRACK';
+
+  @override
+  String get noIdeasYet =>
+      'No ideas for this song yet.\nCome share the first idea!';
+
+  @override
+  String get relatedThoughts => 'Related Thoughts';
+
+  @override
+  String get yourLibrary => 'YOUR LIBRARY';
+
+  @override
+  String get errorLoadingLibrary => 'Error loading library';
+
+  @override
+  String get searchResults => 'SEARCH RESULTS';
+
+  @override
+  String get noResultsFound => 'No results found';
+
+  @override
+  String get tryDifferentKeywords =>
+      'Try different keywords or check your spelling';
+
+  @override
+  String get infoLabel => 'Info';
+
+  @override
+  String get playlistType => 'Playlist';
+
+  @override
+  String get albumType => 'Album';
+
+  @override
+  String get songType => 'Song';
+
+  @override
+  String get artistType => 'Artist';
 }

@@ -536,7 +536,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get noteContent => 'メモ内容';
+  String get noteContent => 'ノート内容';
 
   @override
   String get saveChanges => '保存';
@@ -713,7 +713,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get tryAgainButton => '再試行';
 
   @override
-  String get playTrackToSeeThoughts => '思考を見るには曲を再生して。';
+  String get playTrackToSeeThoughts => 'トラックを再生して思考を見る。';
 
   @override
   String get copyButtonText => 'コピー';
@@ -878,4 +878,46 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get lyricsSearchAppliedSuccess => '歌詞が正常に検索され適用された';
+
+  @override
+  String get thoughts => '思考';
+
+  @override
+  String get noTrack => 'トラックなし';
+
+  @override
+  String get noIdeasYet => 'この曲についてのアイデアはまだありません。\n最初のアイデアをシェアしてください！';
+
+  @override
+  String get relatedThoughts => '関連思考';
+
+  @override
+  String get yourLibrary => 'あなたのライブラリ';
+
+  @override
+  String get errorLoadingLibrary => 'ライブラリの読み込みエラー';
+
+  @override
+  String get searchResults => '検索結果';
+
+  @override
+  String get noResultsFound => '結果が見つかりません';
+
+  @override
+  String get tryDifferentKeywords => '別のキーワードを試すか、スペルを確認してください';
+
+  @override
+  String get infoLabel => '情報';
+
+  @override
+  String get playlistType => 'プレイリスト';
+
+  @override
+  String get albumType => 'アルバム';
+
+  @override
+  String get songType => '曲';
+
+  @override
+  String get artistType => 'アーティスト';
 }

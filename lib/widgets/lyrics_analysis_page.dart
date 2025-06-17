@@ -39,36 +39,6 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
 
   // Loading Texts
   late String _currentFunnyText;
-  final List<String> _funnyLoadingTexts = [
-    'Decoding hidden meanings in lyrics...',
-    'Analyzing poetic metaphors...',
-    'Searching for cultural references...',
-    'Interpreting lyrical symbolism...',
-    'Exploring wordplay and puns...',
-    'Uncovering emotional undertones...',
-    'Reading between the lines...',
-    'Dissecting literary devices...',
-    'Finding deeper meanings...',
-    'Analyzing lyrical themes...',
-    'Interpreting artistic expression...',
-    'Exploring narrative structure...',
-    'Deciphering poetic language...',
-    'Understanding lyrical context...',
-    'Analyzing emotional depth...',
-    'Discovering hidden stories...',
-  ];
-
-  final List<String> _dynamicTextTemplates = [
-    'Having a chat with {artist}...',
-    'Asking {artist} about "{song}"...',
-    'Getting the inside scoop on "{song}"...',
-    'Interviewing {artist} backstage...',
-    'Decoding {artist}\'s creative process...',
-    'Exploring the story behind "{song}"...',
-    'Channeling {artist}\'s inspiration...',
-    'Diving into {artist}\'s musical mind...',
-    'Uncovering "{song}" secrets...',
-  ];
 
   @override
   void initState() {
@@ -103,18 +73,27 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
   }
 
   String _getRandomFunnyText() {
-    final lyrics = widget.lyrics.trim();
+    final l10n = AppLocalizations.of(context)!;
     final trackName = widget.trackTitle;
     final artistName = widget.artistName;
 
+    final staticTexts = [
+      l10n.loadingAnalyzing,
+      l10n.loadingDecoding,
+      l10n.loadingSearching,
+      l10n.loadingThinking,
+      l10n.loadingGenerating,
+      l10n.loadingDiscovering,
+      l10n.loadingExploring,
+      l10n.loadingUnraveling,
+      l10n.loadingConnecting,
+    ];
+
     // 60% 概率使用动态文本，40% 概率使用静态文本
     if (Random().nextDouble() < 0.6 && trackName.isNotEmpty && artistName.isNotEmpty) {
-      final template = _dynamicTextTemplates[Random().nextInt(_dynamicTextTemplates.length)];
-      return template
-          .replaceAll('{artist}', artistName)
-          .replaceAll('{song}', trackName);
+      return l10n.loadingChatting(artistName);
     } else {
-      return _funnyLoadingTexts[Random().nextInt(_funnyLoadingTexts.length)];
+      return staticTexts[Random().nextInt(staticTexts.length)];
     }
   }
 
@@ -211,7 +190,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
 
     if (contentParts.isEmpty) {
       Provider.of<NotificationService>(context, listen: false)
-          .showSnackBar('没有可复制的分析内容');
+          .showSnackBar(l10n.noAnalysisResults);
       return;
     }
 
@@ -231,7 +210,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lyrics Analysis'),
+        title: Text(AppLocalizations.of(context)!.lyricsAnalysisTitle),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -239,13 +218,13 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
             IconButton(
               onPressed: _performAnalysis,
               icon: const Icon(Icons.refresh),
-              tooltip: 'Regenerate Analysis',
+              tooltip: AppLocalizations.of(context)!.regenerateAnalysisTooltip,
             ),
           if (_analysisResult != null && _hasAnyContent())
             IconButton(
               onPressed: _copyAnalysis,
               icon: const Icon(Icons.copy_all),
-              tooltip: 'Copy All Analysis',
+              tooltip: AppLocalizations.of(context)!.copyAllAnalysisTooltip,
             ),
         ],
       ),
@@ -436,7 +415,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               ),
               const SizedBox(height: 16),
               Text(
-                "Gemini's grounding...",
+                l10n.geminiGrounding,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -469,7 +448,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _performAnalysis,
-                child: const Text('重试'),
+                child: Text(l10n.retryButton),
               ),
             ],
           ),
@@ -478,8 +457,8 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
     }
 
     if (_analysisResult == null) {
-      return const Center(
-        child: Text('没有分析结果'),
+      return Center(
+        child: Text(l10n.noAnalysisResults),
       );
     }
 
@@ -538,7 +517,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               ),
               const SizedBox(height: 16),
               Text(
-                '该歌词片段暂无深度分析内容',
+                l10n.noDeepAnalysisContent,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -546,7 +525,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               ),
               const SizedBox(height: 8),
               Text(
-                '这可能是因为歌词内容相对简单，\n或没有明显的隐喻、引用等文学手法',
+                l10n.simpleContentExplanation,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -555,7 +534,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               const SizedBox(height: 24),
               OutlinedButton(
                 onPressed: _performAnalysis,
-                child: const Text('重新分析'),
+                child: Text(l10n.reanalyzeButton),
               ),
             ],
           ),
@@ -587,7 +566,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '只显示在该歌词中发现的分析维度',
+                      l10n.onlyFoundDimensionsInfo,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -621,6 +600,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
 
   Widget _buildAnalysisSection(String title, String content, IconData icon, Color iconColor) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -646,7 +626,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
               IconButton(
                 icon: const Icon(Icons.copy_rounded, size: 18),
                 onPressed: () => _copyToClipboard(content, title),
-                tooltip: 'Copy $title',
+                tooltip: '${l10n.copyButtonText} $title',
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -670,6 +650,6 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
   void _copyToClipboard(String content, String type) {
     Clipboard.setData(ClipboardData(text: content));
     Provider.of<NotificationService>(context, listen: false)
-        .showSnackBar('$type copied to clipboard');
+        .showSnackBar('$type ${AppLocalizations.of(context)!.copiedToClipboard}');
   }
 } 

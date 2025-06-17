@@ -64,7 +64,7 @@ import 'app_localizations_zh.dart';
 /// property.
 abstract class AppLocalizations {
   AppLocalizations(String locale)
-      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -87,18 +87,18 @@ abstract class AppLocalizations {
   /// of delegates is preferred or required.
   static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
       <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('ja'),
     Locale('zh'),
-    Locale('zh', 'TW')
+    Locale('zh', 'TW'),
   ];
 
   /// No description provided for @settingsTitle.
@@ -1726,6 +1726,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Lyrics successfully searched and applied'**
   String get lyricsSearchAppliedSuccess;
+
+  /// No description provided for @thoughts.
+  ///
+  /// In en, this message translates to:
+  /// **'THOUGHTS'**
+  String get thoughts;
+
+  /// No description provided for @noTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'NO TRACK'**
+  String get noTrack;
+
+  /// No description provided for @noIdeasYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No ideas for this song yet.\nCome share the first idea!'**
+  String get noIdeasYet;
+
+  /// No description provided for @relatedThoughts.
+  ///
+  /// In en, this message translates to:
+  /// **'Related Thoughts'**
+  String get relatedThoughts;
+
+  /// No description provided for @yourLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'YOUR LIBRARY'**
+  String get yourLibrary;
+
+  /// No description provided for @errorLoadingLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Error loading library'**
+  String get errorLoadingLibrary;
+
+  /// No description provided for @searchResults.
+  ///
+  /// In en, this message translates to:
+  /// **'SEARCH RESULTS'**
+  String get searchResults;
+
+  /// No description provided for @noResultsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No results found'**
+  String get noResultsFound;
+
+  /// No description provided for @tryDifferentKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'Try different keywords or check your spelling'**
+  String get tryDifferentKeywords;
+
+  /// No description provided for @infoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Info'**
+  String get infoLabel;
+
+  /// No description provided for @playlistType.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist'**
+  String get playlistType;
+
+  /// No description provided for @albumType.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get albumType;
+
+  /// No description provided for @songType.
+  ///
+  /// In en, this message translates to:
+  /// **'Song'**
+  String get songType;
+
+  /// No description provided for @artistType.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
+  String get artistType;
 }
 
 class _AppLocalizationsDelegate
@@ -1769,8 +1853,9 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.',
+  );
 }

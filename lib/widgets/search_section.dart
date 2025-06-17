@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/search_provider.dart';
 import '../widgets/library_grid.dart';
 import '../widgets/materialui.dart' as custom_ui;
+import '../l10n/app_localizations.dart';
 
 class SearchSection extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -48,14 +49,14 @@ class _SearchSectionState extends State<SearchSection> {
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
                     onPressed: widget.onBackPressed,
-                    tooltip: 'Back to library',
+                    tooltip: AppLocalizations.of(context)!.backToLibraryTooltip,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Center(
                       child: custom_ui.IconHeader(
                         icon: Icons.search,
-                        text: "SEARCH RESULTS",
+                        text: AppLocalizations.of(context)!.searchResults,
                       ),
                     ),
                   ),
@@ -122,12 +123,12 @@ class _SearchSectionState extends State<SearchSection> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No results found',
+              AppLocalizations.of(context)!.noResultsFound,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'Try different keywords or check your spelling',
+              AppLocalizations.of(context)!.tryDifferentKeywords,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
