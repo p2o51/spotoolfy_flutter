@@ -35,7 +35,7 @@ class LyricsPosterService {
     // 字号调整 - 按比例缩放
     const double titleFontSize = 28.0 * scaleFactor;
     const double artistFontSize = 28.0 * scaleFactor;
-    const double lyricsFontSize = 40 * scaleFactor; 
+    const double lyricsFontSize = 44 * scaleFactor; 
     const double watermarkFontSize = 20.0 * scaleFactor; // 减小水印字号
 
     const double topMargin = 40.0 * scaleFactor; // 增加顶部边距
@@ -56,7 +56,7 @@ class LyricsPosterService {
       try {
         loadedAlbumImage = await _loadNetworkImage(albumCoverUrl);
         // 计算标题和艺术家的高度来确定header区域高度
-        final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400); // Regular字重
+        final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w600); 
         final titlePainter = TextPainter(
           text: TextSpan(text: trackTitle, style: titleStyle),
           textDirection: TextDirection.ltr,
@@ -102,7 +102,7 @@ class LyricsPosterService {
       }
     } else {
       // 没有封面时，标题和艺术家左对齐显示
-      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w400);
+      final titleStyle = TextStyle(fontFamily: fontFamily, fontSize: titleFontSize, color: titleColor, fontWeight: FontWeight.w600);
       final titlePainter = TextPainter(
         text: TextSpan(text: trackTitle, style: titleStyle),
         textDirection: TextDirection.ltr,
@@ -122,7 +122,7 @@ class LyricsPosterService {
       calculatedHeight += headerHeight + elementSpacing;
     }
 
-    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.4, fontWeight: FontWeight.w600); // SemiBold字重，调整行高
+    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.4, fontWeight: FontWeight.w700); // Bold字重，调整行高
     final List<String> lyricLines = lyrics.split('\n');
     final List<TextPainter> lyricLinePainters = [];
     double totalLyricsBlockHeight = 0;

@@ -420,11 +420,7 @@ class _RoamState extends State<Roam> {
                                             if (noteContent.isNotEmpty)
                                               Padding(
                                                 padding: const EdgeInsets.only(bottom: 12.0), // Add space below note
-                                                child: Text(
-                                                  noteContent,
-                                                  style: Theme.of(context).textTheme.bodyMedium, // Use bodyLarge for note
-                                                  overflow: TextOverflow.visible,
-                                                ),
+                                                child: _buildNoteContent(context, noteContent),
                                               ),
                                             // Show 'Rated' if noteContent is empty
                                             if (noteContent.isEmpty)
@@ -804,6 +800,53 @@ class _RoamState extends State<Roam> {
         );
       },
     );
+  }
+
+  // 构建笔记内容，检测三个引号包裹的歌词
+  Widget _buildNoteContent(BuildContext context, String noteContent) {
+    // 检测开头是否有三个双引号包裹的内容
+    final tripleQuotePattern = RegExp(r'^"""([\s\S]*?)"""(\s*)([\s\S]*)$');
+    final match = tripleQuotePattern.firstMatch(noteContent.trim());
+    
+    if (match != null) {
+      // 有三个引号包裹的内容
+      final quotedContent = match.group(1)?.trim() ?? '';
+      final remainingContent = match.group(3)?.trim() ?? '';
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 引用的歌词部分 - 斜体小字体
+          if (quotedContent.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                quotedContent,
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: Theme.of(context).textTheme.bodySmall?.fontSize,
+                ),
+                overflow: TextOverflow.visible,
+              ),
+            ),
+          // 剩余的笔记内容 - 正常样式
+          if (remainingContent.isNotEmpty)
+            Text(
+              remainingContent,
+              style: Theme.of(context).textTheme.bodyMedium,
+              overflow: TextOverflow.visible,
+            ),
+        ],
+      );
+    } else {
+      // 没有三个引号，正常显示
+      return Text(
+        noteContent,
+        style: Theme.of(context).textTheme.bodyMedium,
+        overflow: TextOverflow.visible,
+      );
+    }
   }
 }
 

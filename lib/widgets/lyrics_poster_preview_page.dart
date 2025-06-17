@@ -8,6 +8,79 @@ import '../services/notification_service.dart';
 import '../services/lyrics_poster_service.dart';
 import '../l10n/app_localizations.dart';
 
+// 海报样式枚举
+enum PosterStyle {
+  style1, // 默认样式
+  style2, // 样式2
+  style3, // 样式3
+  style4, // 样式4
+}
+
+// 海报颜色配置
+class PosterColorConfig {
+  final Color backgroundColor;
+  final Color titleColor;
+  final Color artistColor;
+  final Color lyricsColor;
+  final Color watermarkColor;
+  final Color separatorColor;
+
+  const PosterColorConfig({
+    required this.backgroundColor,
+    required this.titleColor,
+    required this.artistColor,
+    required this.lyricsColor,
+    required this.watermarkColor,
+    required this.separatorColor,
+  });
+
+  // 根据样式和主题获取颜色配置
+  static PosterColorConfig getConfig(PosterStyle style, ColorScheme colorScheme) {
+    switch (style) {
+      case PosterStyle.style1:
+        // 样式1: 歌词正文，脚注与标题：Primary Container, 歌手：Primary, 背景：On Primary Container
+        return PosterColorConfig(
+          backgroundColor: colorScheme.onPrimaryContainer,
+          titleColor: colorScheme.primaryContainer,
+          artistColor: colorScheme.primary,
+          lyricsColor: colorScheme.primaryContainer,
+          watermarkColor: colorScheme.primaryContainer,
+          separatorColor: colorScheme.outline.withValues(alpha: 0.3),
+        );
+      case PosterStyle.style2:
+        // 样式2: 歌词正文，脚注与标题：On Primary Container, 歌手：Primary, 背景：Primary Container
+        return PosterColorConfig(
+          backgroundColor: colorScheme.primaryContainer,
+          titleColor: colorScheme.onPrimaryContainer,
+          artistColor: colorScheme.primary,
+          lyricsColor: colorScheme.onPrimaryContainer,
+          watermarkColor: colorScheme.onPrimaryContainer,
+          separatorColor: colorScheme.outline.withValues(alpha: 0.3),
+        );
+      case PosterStyle.style3:
+        // 样式3: 歌词正文，脚注与标题：On Tertiary, 歌手：Tertiary Container, 背景：Tertiary
+        return PosterColorConfig(
+          backgroundColor: colorScheme.tertiary,
+          titleColor: colorScheme.onTertiary,
+          artistColor: colorScheme.tertiaryContainer,
+          lyricsColor: colorScheme.onTertiary,
+          watermarkColor: colorScheme.onTertiary,
+          separatorColor: colorScheme.outline.withValues(alpha: 0.3),
+        );
+      case PosterStyle.style4:
+        // 样式4: 歌词正文，脚注与标题：Tertiary, 歌手：Tertiary * 0.5（混白色）, 背景：Tertiary Container
+        return PosterColorConfig(
+          backgroundColor: colorScheme.tertiaryContainer,
+          titleColor: colorScheme.tertiary,
+          artistColor: Color.lerp(colorScheme.tertiary, Colors.white, 0.5)!,
+          lyricsColor: colorScheme.tertiary,
+          watermarkColor: colorScheme.tertiary,
+          separatorColor: colorScheme.outline.withValues(alpha: 0.3),
+        );
+    }
+  }
+}
+
 class LyricsPosterPreviewPage extends StatefulWidget {
   final String lyrics;
   final String trackTitle;
@@ -32,6 +105,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
   Uint8List? _posterBytes; // Store image bytes directly
   String? _tempFilePath; // Store temporary file path for sharing
   String? _errorMessage;
+  PosterStyle _currentStyle = PosterStyle.style1; // 当前选择的样式
 
   @override
   void initState() {
@@ -59,18 +133,20 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
 
     try {
       final posterService = LyricsPosterService();
+      final colorConfig = PosterColorConfig.getConfig(_currentStyle, theme.colorScheme);
+      
       final bytes = await posterService.generatePosterData(
         lyrics: widget.lyrics,
         trackTitle: widget.trackTitle,
         artistName: widget.artistName,
         albumCoverUrl: widget.albumCoverUrl,
-        // 根据新的设计要求更新颜色配置
-        backgroundColor: theme.colorScheme.onPrimaryContainer, // 背景为onPrimaryContainer颜色
-        titleColor: theme.colorScheme.primaryContainer, // 歌曲标题为primaryContainer颜色
-        artistColor: theme.colorScheme.primary, // 歌手为primary颜色
-        lyricsColor: theme.colorScheme.primaryContainer, // 歌词为primaryContainer颜色
-        watermarkColor: theme.colorScheme.primary, // 脚注为primary颜色
-        separatorColor: theme.colorScheme.outline.withAlpha((0.3 * 255).round()),
+        // 使用样式配置的颜色
+        backgroundColor: colorConfig.backgroundColor,
+        titleColor: colorConfig.titleColor,
+        artistColor: colorConfig.artistColor,
+        lyricsColor: colorConfig.lyricsColor,
+        watermarkColor: colorConfig.watermarkColor,
+        separatorColor: colorConfig.separatorColor,
         fontFamily: uiFontFamily, // 传递字体族
       );
 
@@ -146,6 +222,124 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     }
   }
 
+  // 切换海报样式并重新生成
+  void _changeStyle(PosterStyle newStyle) {
+    if (_currentStyle == newStyle || _isLoading || _isOperating) return;
+    
+    setState(() {
+      _currentStyle = newStyle;
+    });
+    
+    _generatePoster();
+  }
+
+  // 构建样式选择按钮
+  Widget _buildStyleButton(PosterStyle style, String label) {
+    final isSelected = _currentStyle == style;
+    final theme = Theme.of(context);
+    final colorConfig = PosterColorConfig.getConfig(style, theme.colorScheme);
+    
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Material(
+            color: isSelected 
+                ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _isLoading || _isOperating ? null : () => _changeStyle(style),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: isSelected 
+                        ? theme.colorScheme.primary 
+                        : theme.colorScheme.outline.withValues(alpha: 0.5),
+                    width: isSelected ? 2 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorConfig.backgroundColor,
+                      colorConfig.backgroundColor.withValues(alpha: 0.8),
+                    ],
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // 预览小样本
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 2,
+                            width: double.infinity,
+                            color: colorConfig.titleColor,
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            height: 1,
+                            width: 20,
+                            color: colorConfig.artistColor,
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            height: 1,
+                            width: 16,
+                            color: colorConfig.lyricsColor,
+                          ),
+                          const SizedBox(height: 1),
+                          Container(
+                            height: 1,
+                            width: 24,
+                            color: colorConfig.lyricsColor,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // 样式标签
+                    Positioned(
+                      bottom: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isSelected 
+                              ? theme.colorScheme.primary 
+                              : theme.colorScheme.outline.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: isSelected 
+                                ? theme.colorScheme.onPrimary 
+                                : theme.colorScheme.surface,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context); // Keep for parts that work in _buildPosterContent
@@ -180,26 +374,44 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
                 color: theme.colorScheme.surface,
                 border: Border(
                   top: BorderSide(
-                    color: theme.colorScheme.outline.withAlpha((0.2 * 255).round()), // Corrected deprecated member use
+                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
                   ),
                 ),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: _isOperating ? null : _savePoster,
-                      icon: const Icon(Icons.download),
-                      label: Text(AppLocalizations.of(context)!.saveChanges),
-                    ),
+                  // 第一行：样式选择按钮
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStyleButton(PosterStyle.style1, '1'),
+                      _buildStyleButton(PosterStyle.style2, '2'),
+                      _buildStyleButton(PosterStyle.style3, '3'),
+                      _buildStyleButton(PosterStyle.style4, '4'),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _isOperating ? null : _sharePoster,
-                      icon: const Icon(Icons.share),
-                      label: Text(AppLocalizations.of(context)!.sharePoster),
-                    ),
+                  const SizedBox(height: 12),
+                  // 第二行：保存和分享按钮
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: IconButton.filledTonal(
+                          onPressed: _isOperating ? null : _savePoster,
+                          icon: const Icon(Icons.download),
+                          tooltip: AppLocalizations.of(context)!.saveChanges,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: IconButton.filled(
+                          onPressed: _isOperating ? null : _sharePoster,
+                          icon: const Icon(Icons.share),
+                          tooltip: AppLocalizations.of(context)!.sharePoster,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
