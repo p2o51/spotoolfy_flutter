@@ -768,6 +768,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noSongInfoAvailable => '利用可能な楽曲情報がない';
 
   @override
+  String get generateAIContent => 'AI楽曲解析と背景情報を生成';
+
+  @override
+  String get generatingAIContent => '生成中...';
+
+  @override
+  String get deleteAIContent => 'AI解析コンテンツを削除';
+
+  @override
   String get generatedByGemini => 'Gemini 2.5 Flash によって生成';
 
   @override

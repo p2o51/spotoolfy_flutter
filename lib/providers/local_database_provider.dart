@@ -168,8 +168,10 @@ class LocalDatabaseProvider with ChangeNotifier {
      _setLoading(true);
      logger.d('Fetching $count random records with track info...');
      try {
-       // Ensure the list is mutable
-       final recordsFromDb = await _dbHelper.getRandomRecordsWithTrackInfo(count);
+       // 使用 Future.microtask 避免阻塞主线程
+       final recordsFromDb = await Future.microtask(() => 
+         _dbHelper.getRandomRecordsWithTrackInfo(count)
+       );
        _randomRecords = List<Map<String, dynamic>>.from(recordsFromDb);
      } catch (e) {
        logger.d('Error fetching random records: $e');
@@ -856,9 +858,10 @@ class LocalDatabaseProvider with ChangeNotifier {
     // _setLoading(true); // Potentially set loading here
     logger.d('Fetching all records ordered by time (descending: $descending)...');
     try {
-      _allRecordsOrdered = await _dbHelper.getAllRecordsWithTrackInfoOrderedByTime(descending: descending);
-      // Ensure the list is mutable
-      final recordsFromDb = await _dbHelper.getAllRecordsWithTrackInfoOrderedByTime(descending: descending);
+      // 使用 Future.microtask 避免阻塞主线程，并修复重复调用问题
+      final recordsFromDb = await Future.microtask(() => 
+        _dbHelper.getAllRecordsWithTrackInfoOrderedByTime(descending: descending)
+      );
       _allRecordsOrdered = List<Map<String, dynamic>>.from(recordsFromDb);
     } catch (e) {
       logger.d('Error fetching all ordered records: $e');
@@ -870,15 +873,17 @@ class LocalDatabaseProvider with ChangeNotifier {
   }
   // --- End new method ---
 
-  // Helper to fetch both types of data initially and on refresh
+  // Helper to fetch both types of data initially and on refresh - 优化启动性能
   Future<void> fetchInitialData() async {
     _setLoading(true);
     try {
-      // Use Future.wait to fetch concurrently
-      await Future.wait([
-        fetchRandomRecords(15), // Fetch random for carousel
-        fetchAllRecordsOrderedByTime() // Fetch all ordered for list
-      ]);
+      // 先获取随机记录（用于首屏显示）
+      await fetchRandomRecords(15);
+      
+      // 延迟获取全部记录，避免主线程阻塞
+      Future.delayed(const Duration(milliseconds: 100), () {
+        fetchAllRecordsOrderedByTime();
+      });
     } finally {
       _setLoading(false);
     }

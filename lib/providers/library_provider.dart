@@ -97,7 +97,7 @@ class LibraryProvider extends ChangeNotifier {
 
     // Check authentication first
     if (_spotifyProvider.username == null) {
-      logger.w("Cannot load library data: User not authenticated");
+      logger.d("Cannot load library data: User not authenticated");
       _errorMessage = 'Please log in to Spotify to view your library';
       _isLoading = false;
       notifyListeners();

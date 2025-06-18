@@ -44,8 +44,12 @@ class _LibrarySectionState extends State<LibrarySection> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Use listen: false as we only need to trigger the load, not react to changes here
       final libraryProvider = Provider.of<LibraryProvider>(context, listen: false);
-      // Check if it's the first load and not already loading
-      if (libraryProvider.isFirstLoad && !libraryProvider.isLoading) {
+      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+      
+      // 只有在用户已登录且是首次加载时才加载数据
+      if (libraryProvider.isFirstLoad && 
+          !libraryProvider.isLoading && 
+          spotifyProvider.username != null) {
          // Use _refreshData to ensure consistency with pull-to-refresh logic
          // (although calling libraryProvider.loadData() directly would also work)
          _refreshData();

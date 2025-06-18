@@ -97,7 +97,7 @@ class SpotifyProvider extends ChangeNotifier {
   
   /// 生成 OAuth state 参数以防止 CSRF 攻击
   /// 注意：当前 Spotify SDK 可能不支持自定义 state，此方法为将来扩展预留
-  @pragma('vm:unused')
+  // ignore: unused_element
   String _generateState() {
     final random = math.Random.secure();
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -184,16 +184,17 @@ class SpotifyProvider extends ChangeNotifier {
       
       logger.d('Bootstrap: 从SharedPreferences读取ClientID: ${storedClientId ?? "null"}');
       
-      // 安全的ClientID获取 - 不使用硬编码默认值
+      // 安全的ClientID获取 - 提供默认值
       const String envClientId = String.fromEnvironment('SPOTIFY_CLIENT_ID');
+      const String defaultClientId = '64103961829a42328a6634fb80574191';
       const String redirectUrl = String.fromEnvironment('SPOTIFY_REDIRECT_URL', defaultValue: 'spotoolfy://callback');
 
-      final clientId = storedClientId ?? envClientId;
+      final clientId = storedClientId ?? (envClientId.isNotEmpty ? envClientId : defaultClientId);
       
-      if (clientId.isEmpty) {
-        logger.e('Bootstrap: Spotify Client ID not found. Please configure it in settings.');
-        throw SpotifyAuthException('Spotify Client ID not configured. Please set it up in the app settings.', code: 'CLIENT_ID_MISSING');
-      }
+      // 现在应该永远不会为空，因为我们提供了默认值
+      logger.d('Bootstrap: 检查最终 Client ID: ${clientId.isEmpty ? "空" : "有效"}');
+      
+      logger.d('Bootstrap: Using Client ID: ${clientId.substring(0, 8)}...');
 
       _spotifyService = SpotifyAuthService(
         clientId: clientId,
@@ -213,11 +214,20 @@ class SpotifyProvider extends ChangeNotifier {
       // 初始化生命周期观察者
       _initLifecycleObserver();
       
-      // 尝试自动登录
-      await autoLogin();
+      // 尝试自动登录（如果 Client ID 可用）
+      try {
+        await autoLogin();
+      } catch (e) {
+        if (e is SpotifyAuthException && e.code == 'CLIENT_ID_MISSING') {
+          logger.d('Bootstrap: 跳过自动登录 - Client ID 未配置');
+          // 不重新抛出，允许应用正常启动
+        } else {
+          rethrow;
+        }
+      }
       
     } catch (e) {
-      logger.e('Bootstrap过程失败: $e');
+      logger.d('Bootstrap过程失败: $e');
       if (!_initDone.isCompleted) {
         _initDone.completeError(e);
       }
@@ -2104,9 +2114,55 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
   
+  /// 详细的错误日志记录和分析
+  void _logDetailedError(dynamic error, String contextMessage) {
+    if (error is SpotifyAuthException) {
+      switch (error.code) {
+        case '401':
+          logger.w('[$contextMessage] 授权过期或无效: ${error.message}');
+          break;
+        case '403':
+          logger.w('[$contextMessage] 权限不足: ${error.message}');
+          break;
+        case '404':
+          logger.w('[$contextMessage] 资源未找到: ${error.message}');
+          break;
+        case '429':
+          logger.w('[$contextMessage] 请求频率限制: ${error.message}');
+          break;
+        case 'CLIENT_ID_MISSING':
+          logger.e('[$contextMessage] 客户端ID未配置: ${error.message}');
+          break;
+        case 'CSRF_PROTECTION':
+          logger.e('[$contextMessage] CSRF防护触发: ${error.message}');
+          break;
+        case 'INVALID_TOKEN_FORMAT':
+          logger.e('[$contextMessage] 无效的令牌格式: ${error.message}');
+          break;
+        case 'SESSION_EXPIRED':
+          logger.i('[$contextMessage] 会话已过期，需要重新登录');
+          break;
+        case 'RESTRICTED_DEVICE':
+          logger.w('[$contextMessage] 设备受限: ${error.message}');
+          break;
+        default:
+          logger.e('[$contextMessage] Spotify API错误 (${error.code}): ${error.message}');
+      }
+    } else if (error.toString().contains('SocketException') || 
+               error.toString().contains('NetworkException')) {
+      logger.w('[$contextMessage] 网络连接问题: $error');
+    } else if (error.toString().contains('TimeoutException')) {
+      logger.w('[$contextMessage] 请求超时: $error');
+    } else {
+      logger.e('[$contextMessage] 未知错误: $error', error: error, stackTrace: error is Error ? error.stackTrace : null);
+    }
+  }
+  
   Future<void> _handleApiError(dynamic e, {String? contextMessage, bool isUserInitiated = false}) async {
     final message = contextMessage ?? 'API 调用';
-    logger.e('$message 出错: $e', error: e, stackTrace: e is Error ? e.stackTrace : null);
+    
+    // 详细的错误分析和日志
+    _logDetailedError(e, message);
 
     // 检查是否为网络连接错误
     if (_isNetworkError(e)) {

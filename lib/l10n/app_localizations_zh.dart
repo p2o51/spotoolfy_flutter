@@ -766,6 +766,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noSongInfoAvailable => '无可用歌曲信息';
 
   @override
+  String get generateAIContent => '点击生成歌曲背景信息和音乐解析';
+
+  @override
+  String get generatingAIContent => '正在生成中...';
+
+  @override
+  String get deleteAIContent => '点击删除AI分析内容';
+
+  @override
   String get generatedByGemini => '由 Gemini 2.5 Flash 生成';
 
   @override
@@ -1692,6 +1701,15 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get noSongInfoAvailable => '無可用歌曲資訊';
+
+  @override
+  String get generateAIContent => '點擊產生歌曲背景資訊和音樂解析';
+
+  @override
+  String get generatingAIContent => '正在產生中...';
+
+  @override
+  String get deleteAIContent => '點擊刪除AI分析內容';
 
   @override
   String get generatedByGemini => '由 Gemini 2.5 Flash 產生';

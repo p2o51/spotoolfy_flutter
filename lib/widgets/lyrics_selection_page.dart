@@ -87,6 +87,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   }
 
   void _deselectAllLines() {
+    HapticFeedback.lightImpact();
     setState(() {
       _selectedCount = 0;
       for (int i = 0; i < _lyricLines.length; i++) {
@@ -98,6 +99,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   void _toggleLineSelection(int index) {
     if (index < 0 || index >= _lyricLines.length) return;
     
+    HapticFeedback.selectionClick();
     setState(() {
       final wasSelected = _lyricLines[index].isSelected;
       _lyricLines[index].isSelected = !wasSelected;
@@ -116,6 +118,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   bool _hasSelectedLyrics() => _selectedCount > 0;
 
   Future<void> _askGemini() async {
+    HapticFeedback.lightImpact();
     final l10n = AppLocalizations.of(context)!;
     final selectedLyrics = _getSelectedLyrics();
     if (selectedLyrics.isEmpty) {
@@ -138,6 +141,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   }
 
   Future<void> _copySelectedLyrics() async {
+    HapticFeedback.lightImpact();
     final l10n = AppLocalizations.of(context)!;
     final selectedLyrics = _getSelectedLyrics();
     if (selectedLyrics.isEmpty) {
@@ -170,6 +174,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   }
 
   Future<void> _shareAsPoster() async {
+    HapticFeedback.lightImpact();
     final l10n = AppLocalizations.of(context)!;
     final selectedLyrics = _getSelectedLyrics();
     if (selectedLyrics.isEmpty) {
@@ -200,6 +205,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
   }
 
   Future<void> _createNoteWithLyrics() async {
+    HapticFeedback.lightImpact();
     final l10n = AppLocalizations.of(context)!;
     final selectedLyrics = _getSelectedLyrics();
     if (selectedLyrics.isEmpty) {

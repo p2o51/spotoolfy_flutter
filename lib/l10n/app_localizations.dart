@@ -1523,6 +1523,24 @@ abstract class AppLocalizations {
   /// **'No song information available'**
   String get noSongInfoAvailable;
 
+  /// No description provided for @generateAIContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate AI song analysis and background info'**
+  String get generateAIContent;
+
+  /// No description provided for @generatingAIContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating...'**
+  String get generatingAIContent;
+
+  /// No description provided for @deleteAIContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete AI analysis content'**
+  String get deleteAIContent;
+
   /// No description provided for @generatedByGemini.
   ///
   /// In en, this message translates to:

@@ -127,6 +127,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
   }
 
   Future<void> _performAnalysis() async {
+    HapticFeedback.lightImpact();
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -167,6 +168,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
   }
 
   Future<void> _copyAnalysis() async {
+    HapticFeedback.lightImpact();
     final l10n = AppLocalizations.of(context)!;
     if (_analysisResult == null) return;
 
@@ -647,6 +649,7 @@ class _LyricsAnalysisPageState extends State<LyricsAnalysisPage>
   }
 
   void _copyToClipboard(String content, String type) {
+    HapticFeedback.lightImpact();
     Clipboard.setData(ClipboardData(text: content));
     Provider.of<NotificationService>(context, listen: false)
         .showSnackBar('$type ${AppLocalizations.of(context)!.copiedToClipboard}');

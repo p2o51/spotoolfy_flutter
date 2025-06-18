@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data'; // For Uint8List
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart'; // 确保导入
 // import 'package:share_plus/share_plus.dart'; // Removed unused import
@@ -120,6 +120,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
 
   Future<void> _generatePoster() async {
     if (!mounted) return;
+    HapticFeedback.lightImpact();
     final theme = Theme.of(context);
     // 获取主题字体或指定默认字体
     final String uiFontFamily = theme.textTheme.bodyMedium?.fontFamily ?? 'Montserrat'; // Default to Montserrat if not found
@@ -175,6 +176,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
   Future<void> _savePoster() async {
     if (_posterBytes == null || _isOperating) return;
 
+    HapticFeedback.mediumImpact();
     // final l10n = AppLocalizations.of(context); // Kept for context if needed later
     setState(() { _isOperating = true; });
 
@@ -201,6 +203,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
   Future<void> _sharePoster() async {
     if (_tempFilePath == null || _isOperating) return;
     
+    HapticFeedback.mediumImpact();
     // final l10n = AppLocalizations.of(context); // Kept for context if needed later
     setState(() { _isOperating = true; });
 
@@ -226,6 +229,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
   void _changeStyle(PosterStyle newStyle) {
     if (_currentStyle == newStyle || _isLoading || _isOperating) return;
     
+    HapticFeedback.selectionClick();
     setState(() {
       _currentStyle = newStyle;
     });

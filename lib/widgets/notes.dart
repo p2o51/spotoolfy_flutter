@@ -214,10 +214,12 @@ class _NotesDisplayState extends State<NotesDisplay> with TickerProviderStateMix
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with IconHeader style from materialui.dart
-              IconHeader(
-                icon: Icons.info_outline,
-                text: AppLocalizations.of(context)!.songInformationTitle,
+              // Header with IconHeader style from materialui.dart - 居中显示
+              Center(
+                child: IconHeader(
+                  icon: Icons.info_outline,
+                  text: AppLocalizations.of(context)!.songInformationTitle,
+                ),
               ),
               const SizedBox(height: 8),
               // Info sections in the same order as song info page
@@ -243,17 +245,17 @@ class _NotesDisplayState extends State<NotesDisplay> with TickerProviderStateMix
     if (_cachedSongInfo != null && _cachedSongInfo!.isNotEmpty) {
       // 已有内容，显示删除按钮
       buttonIcon = Icons.delete_outline;
-      buttonText = '点击删除AI分析内容';
+      buttonText = AppLocalizations.of(context)!.deleteAIContent;
       onPressed = _isGeneratingAI ? null : _deleteAIContent;
     } else if (_isGeneratingAI) {
       // 正在生成，显示加载状态
       buttonIcon = Icons.hourglass_empty;
-      buttonText = '正在生成中...';
+      buttonText = AppLocalizations.of(context)!.generatingAIContent;
       onPressed = null;
     } else {
       // 没有内容，显示生成按钮
       buttonIcon = Icons.auto_awesome;
-      buttonText = '点击生成歌曲背景信息和音乐解析';
+      buttonText = AppLocalizations.of(context)!.generateAIContent;
       onPressed = _generateAIContent;
     }
     
@@ -264,11 +266,13 @@ class _NotesDisplayState extends State<NotesDisplay> with TickerProviderStateMix
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            // 如果没有内容，显示标题
+            // 如果没有内容，显示标题 - 居中显示
             if (_cachedSongInfo == null || _cachedSongInfo!.isEmpty) ...[
-              IconHeader(
-                icon: Icons.info_outline,
-                text: AppLocalizations.of(context)!.songInformationTitle,
+              Center(
+                child: IconHeader(
+                  icon: Icons.info_outline,
+                  text: AppLocalizations.of(context)!.songInformationTitle,
+                ),
               ),
               const SizedBox(height: 16),
             ],

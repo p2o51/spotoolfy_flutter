@@ -252,6 +252,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   Future<void> _regenerateSongInfo() async {
     if (_isRegenerating || _isLoading) return;
 
+    HapticFeedback.mediumImpact();
     setState(() {
       _isRegenerating = true;
       _regenerationError = null;
@@ -322,6 +323,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }
 
   void _copyToClipboard(String content, String type) {
+    HapticFeedback.lightImpact();
     Clipboard.setData(ClipboardData(text: content));
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;

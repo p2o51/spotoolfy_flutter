@@ -236,12 +236,15 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
-                  children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
                     _buildMainContent(displayTrack, spotifyProvider),
                     Positioned(
                       bottom: 64,
-                      right: 10,
+                      right: MediaQuery.of(context).size.width < 350 ? 25 : 
+                             MediaQuery.of(context).size.width < 400 ? 20 : 15,
                       child: PlayButton(
                         isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
                         onPressed: () {
@@ -265,7 +268,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       ),
                     ),
                     _buildDragIndicators(),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Padding(
@@ -619,7 +623,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       height: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width < 350 ? 8 : 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.transparent,
       ),
@@ -634,7 +640,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               child: _buildMiniAlbumArt(track),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: MediaQuery.of(context).size.width < 350 ? 8 : 16),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -664,8 +670,106 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               ],
             ),
           ),
-          // Control Buttons
-          Row(
+          // Control Buttons - 响应式设计
+          _buildResponsiveControlButtons(spotify, isPlaying),
+        ],
+      ),
+    );
+  }
+
+  /// 构建响应式控制按钮
+  Widget _buildResponsiveControlButtons(SpotifyProvider spotify, bool isPlaying) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        
+        // 根据屏幕宽度调整按钮大小和行为
+        if (screenWidth < 350) {
+          // 极窄屏幕：只显示播放/暂停按钮
+          return IconButton(
+            iconSize: 20, // 较小的图标
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(
+              minWidth: 36,
+              minHeight: 36,
+            ),
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: Icon(
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                key: ValueKey(isPlaying),
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              spotify.togglePlayPause();
+            },
+          );
+        } else if (screenWidth < 400) {
+          // 窄屏幕：使用紧凑按钮
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                iconSize: 20,
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, animation) {
+                    return ScaleTransition(
+                      scale: animation,
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    key: ValueKey(isPlaying),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  spotify.togglePlayPause();
+                },
+              ),
+              IconButton(
+                iconSize: 20,
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                icon: Icon(
+                  Icons.skip_next_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  spotify.skipToNext();
+                },
+              ),
+            ],
+          );
+        } else {
+          // 普通屏幕：使用标准按钮
+          return Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
@@ -696,12 +800,15 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                   Icons.skip_next_rounded,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                onPressed: () => spotify.skipToNext(),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  spotify.skipToNext();
+                },
               ),
             ],
-          ),
-        ],
-      ),
+          );
+        }
+      },
     );
   }
 
@@ -857,7 +964,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                   ),
                   Positioned(
                     bottom: stackHeight * 0.10, // 距离底部 20% container 高度
-                    right: -stackWidth * 0.05, // 距离右边 0
+                    right: max(stackWidth * 0.02, 10), // 确保至少10px边距，避免负值
                     child: PlayButton(
                       isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
                       onPressed: () {
@@ -867,7 +974,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     ),
                   ),
                   Positioned(
-                    bottom: -stackHeight * 0.02, // 距离底部 0
+                    bottom: max(stackHeight * 0.02, 10), // 确保至少10px底部边距，避免负值
                     left: stackWidth * 0.10, // 距离左边 10% container 宽度
                     child: MyButton(
                       width: 64,
@@ -1218,8 +1325,8 @@ class _PlayButtonState extends State<PlayButton> with SingleTickerProviderStateM
         child: TextButton(
           onPressed: widget.onPressed,
           child: Container(
-            width: 96,
-            height: 64,
+            width: MediaQuery.of(context).size.width < 400 ? 80 : 96,  // 窄屏幕使用更小尺寸
+            height: MediaQuery.of(context).size.width < 400 ? 56 : 64,  // 窄屏幕使用更小尺寸
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.circular(32.0),
