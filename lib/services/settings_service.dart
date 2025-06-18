@@ -42,6 +42,7 @@ class SettingsService {
   );
 
   static const _geminiApiKey = 'gemini_api_key';
+  static const _spotifyClientIdKey = 'spotify_client_id'; // Spotify Client ID
   static const _targetLanguageKey = 'target_translation_language';
   static const _translationStyleKey = 'translation_style'; // Key for style
   static const _copyLyricsAsSingleLineKey = 'copy_lyrics_single_line'; // Key for new setting
@@ -112,6 +113,16 @@ class SettingsService {
     final valueString = await _secureStorage.read(key: _enableThinkingForInsightsKey);
     // Parse the string to bool. Handles null and defaults to false.
     return valueString?.toLowerCase() == 'true';
+  }
+
+  // Method to save Spotify Client ID
+  Future<void> saveSpotifyClientId(String clientId) async {
+    await _secureStorage.write(key: _spotifyClientIdKey, value: clientId);
+  }
+
+  // Method to get Spotify Client ID
+  Future<String?> getSpotifyClientId() async {
+    return await _secureStorage.read(key: _spotifyClientIdKey);
   }
 
   // Method to save both settings at once, potentially useful in the UI

@@ -92,6 +92,7 @@ class SpotifyAuthService {
     'user-read-playback-state',
     'user-modify-playback-state',
     'user-read-recently-played',
+    'app-remote-control', // 添加 Spotify SDK 官方推荐的核心权限
   ];
 
   /// 简化版 _buildUri，放在类顶部工具区

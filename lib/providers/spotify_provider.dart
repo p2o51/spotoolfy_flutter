@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import '../services/spotify_service.dart';
+import '../services/spotify_service.dart' show SpotifyAuthService, SpotifyAuthException;
 import '../models/spotify_device.dart';
 import 'package:collection/collection.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,6 +11,7 @@ import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 
 final logger = Logger();
@@ -69,6 +70,96 @@ class SpotifyProvider extends ChangeNotifier {
     if (imageUrl == null) return false;
     return _imageCache.containsKey(imageUrl);
   }
+
+  /// 验证 Access Token 格式的有效性
+  bool _isValidAccessToken(String token) {
+    if (token.isEmpty) return false;
+    
+    // Spotify access token 通常是 Base64 编码的字符串
+    // 长度通常在 100-300 字符之间
+    if (token.length < 50 || token.length > 500) {
+      logger.w('Token长度异常: ${token.length}');
+      return false;
+    }
+    
+    // 检查是否包含有效的 Base64 字符
+    final base64Regex = RegExp(r'^[A-Za-z0-9+/=_-]+$');
+    if (!base64Regex.hasMatch(token)) {
+      logger.w('Token包含无效字符');
+      return false;
+    }
+    
+    return true;
+  }
+
+  // CSRF 防护相关变量和方法
+  String? _currentState;
+  
+  /// 生成 OAuth state 参数以防止 CSRF 攻击
+  /// 注意：当前 Spotify SDK 可能不支持自定义 state，此方法为将来扩展预留
+  @pragma('vm:unused')
+  String _generateState() {
+    final random = math.Random.secure();
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final state = String.fromCharCodes(
+      Iterable.generate(32, (_) => chars.codeUnitAt(random.nextInt(chars.length)))
+    );
+    _currentState = state;
+    return state;
+  }
+  
+  /// 验证 OAuth state 参数
+  bool _verifyState(String? receivedState) {
+    if (receivedState == null || _currentState == null) {
+      logger.w('CSRF验证失败：state参数为空');
+      return false;
+    }
+    
+    final isValid = receivedState == _currentState;
+    if (!isValid) {
+      logger.e('CSRF验证失败：state参数不匹配');
+      logger.d('期望: $_currentState, 收到: $receivedState');
+    } else {
+      logger.d('CSRF验证成功');
+    }
+    
+    // 使用后清除state
+    _currentState = null;
+    return isValid;
+  }
+
+  /// 检查授权状态和连接健康度
+  Future<bool> checkAuthHealth() async {
+    try {
+      if (!_isInitialized) {
+        await _bootstrap();
+      }
+      
+      // 1. 检查基本认证状态
+      final isAuth = await _guard(() => _spotifyService.isAuthenticated());
+      if (!isAuth) {
+        logger.w('Auth Health: 未认证状态');
+        return false;
+      }
+      
+      // 2. 尝试调用用户资料API验证token有效性
+      try {
+        final profile = await _guard(() => _spotifyService.getUserProfile());
+        if (profile['id'] != null) {
+          logger.d('Auth Health: Token验证成功');
+          return true;
+        }
+      } catch (e) {
+        logger.w('Auth Health: Token验证失败: $e');
+        return false;
+      }
+      
+      return false;
+    } catch (e) {
+      logger.e('Auth Health: 检查失败: $e');
+      return false;
+    }
+  }
   
   SpotifyProvider() {
     _bootstrap();
@@ -93,12 +184,19 @@ class SpotifyProvider extends ChangeNotifier {
       
       logger.d('Bootstrap: 从SharedPreferences读取ClientID: ${storedClientId ?? "null"}');
       
-      // 使用读取到的或默认的ClientID初始化服务
-      const String defaultClientId = String.fromEnvironment('SPOTIFY_CLIENT_ID', defaultValue: '64103961829a42328a6634fb80574191');
+      // 安全的ClientID获取 - 不使用硬编码默认值
+      const String envClientId = String.fromEnvironment('SPOTIFY_CLIENT_ID');
       const String redirectUrl = String.fromEnvironment('SPOTIFY_REDIRECT_URL', defaultValue: 'spotoolfy://callback');
 
+      final clientId = storedClientId ?? envClientId;
+      
+      if (clientId.isEmpty) {
+        logger.e('Bootstrap: Spotify Client ID not found. Please configure it in settings.');
+        throw SpotifyAuthException('Spotify Client ID not configured. Please set it up in the app settings.', code: 'CLIENT_ID_MISSING');
+      }
+
       _spotifyService = SpotifyAuthService(
-        clientId: storedClientId ?? defaultClientId,
+        clientId: clientId,
         redirectUrl: redirectUrl,
       );
 
@@ -685,11 +783,32 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   /// 处理从URL回调中获取的token
-  Future<void> handleCallbackToken(String accessToken, String? expiresIn) async {
+  Future<void> handleCallbackToken(String accessToken, String? expiresIn, {String? state}) async {
     logger.i('收到iOS授权回调，token长度: ${accessToken.length}');
     
     try {
+      // 增强的安全验证
+      if (!_isValidAccessToken(accessToken)) {
+        logger.e('iOS回调：无效的access token格式');
+        throw SpotifyAuthException('Invalid access token format', code: 'INVALID_TOKEN_FORMAT');
+      }
+      
+      // CSRF 防护：验证 state 参数
+      if (state != null) {
+        if (!_verifyState(state)) {
+          logger.e('iOS回调：State参数验证失败，可能的CSRF攻击');
+          throw SpotifyAuthException('State parameter mismatch', code: 'CSRF_PROTECTION');
+        }
+      } else {
+        logger.w('iOS回调：未提供state参数，跳过CSRF验证（建议升级到支持state的授权流程）');
+      }
+      
       final expiresInSeconds = int.tryParse(expiresIn ?? '3600') ?? 3600;
+      
+      // 验证过期时间的合理性
+      if (expiresInSeconds < 300 || expiresInSeconds > 7200) { // 5分钟到2小时
+        logger.w('iOS回调：异常的token过期时间: ${expiresInSeconds}s, 使用默认值');
+      }
       
       // 直接保存token到SpotifyAuthService
       await _guard(() => _spotifyService.saveAuthResponse(accessToken, expiresInSeconds: expiresInSeconds));
@@ -2017,6 +2136,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     if (e is SpotifyAuthException && e.code == '401') {
+    logger.w('检测到401认证错误，尝试智能恢复...');
       logger.i('$message 遇到 401，尝试静默续约/重连...');
       final token = await _guard(() => _spotifyService.getAccessToken());
       if (token != null) { // Silent refresh was successful

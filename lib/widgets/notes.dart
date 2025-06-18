@@ -1018,89 +1018,70 @@ class _NotesDisplayState extends State<NotesDisplay> with TickerProviderStateMix
               lastPlayedLine1: lastPlayedLine1,
               lastPlayedLine2: lastPlayedLine2,
             ),
-          // Add spacing only if StatsCard is shown
-          if (currentTrackId != null) const SizedBox(height: 16),
-          IconHeader(
-            icon: Icons.comment_bank_outlined,
-            text: currentTrack != null 
-              ? AppLocalizations.of(context)!.thoughts
-              : AppLocalizations.of(context)!.noTrack
-          ),
-          if (currentTrackId == null)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(AppLocalizations.of(context)!.playTrackToSeeThoughts),
-              ),
-            )
-          else if (localDbProvider.isLoading && _lastFetchedTrackId == currentTrackId && localDbProvider.currentTrackRecords.isEmpty)
-            const Center(child: CircularProgressIndicator())
-          else if (localDbProvider.currentTrackRecords.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  AppLocalizations.of(context)!.noIdeasYet,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          else
+          // 只有在有笔记时才显示 thoughts 部分
+          if (currentTrackId != null && localDbProvider.currentTrackRecords.isNotEmpty) ...[
+            // Add spacing only if StatsCard is shown
+            const SizedBox(height: 16),
+            IconHeader(
+              icon: Icons.comment_bank_outlined,
+              text: AppLocalizations.of(context)!.thoughts,
+            ),
             Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.3).round()),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: localDbProvider.currentTrackRecords.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final record = localDbProvider.currentTrackRecords[index];
-                  // Determine the icon based on the integer rating
-                  IconData ratingIcon;
-                  switch (record.rating) {
-                    case 0:
-                      ratingIcon = Icons.thumb_down_outlined;
-                      break;
-                    case 5:
-                      ratingIcon = Icons.whatshot_outlined;
-                      break;
-                    case 3:
-                    default:
-                      ratingIcon = Icons.sentiment_neutral_rounded;
-                      break;
-                  }
-                  
-                  // 为 ListTile 添加长按功能
-                  return InkWell(
-                    onLongPress: () => _showActionSheetForRecord(context, record),
-                    // 使 InkWell 占据整个宽度，以便长按事件更容易触发
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(
-                          getCurrentThoughtLeading(
-                            localDbProvider.currentTrackRecords,
-                            index,
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.3).round()),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: localDbProvider.currentTrackRecords.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final record = localDbProvider.currentTrackRecords[index];
+                    // Determine the icon based on the integer rating
+                    IconData ratingIcon;
+                    switch (record.rating) {
+                      case 0:
+                        ratingIcon = Icons.thumb_down_outlined;
+                        break;
+                      case 5:
+                        ratingIcon = Icons.whatshot_outlined;
+                        break;
+                      case 3:
+                      default:
+                        ratingIcon = Icons.sentiment_neutral_rounded;
+                        break;
+                    }
+                    
+                    // 为 ListTile 添加长按功能
+                    return InkWell(
+                      onLongPress: () => _showActionSheetForRecord(context, record),
+                      // 使 InkWell 占据整个宽度，以便长按事件更容易触发
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            getCurrentThoughtLeading(
+                              localDbProvider.currentTrackRecords,
+                              index,
+                            ),
                           ),
                         ),
+                        title: Text(
+                          // Check if note content is empty
+                          (record.noteContent?.isEmpty ?? true)
+                            ? AppLocalizations.of(context)!.ratedStatus
+                            : record.noteContent!,
+                          style: (record.noteContent?.isEmpty ?? true)
+                            ? TextStyle(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.onSurfaceVariant)
+                            : const TextStyle(fontSize: 16, height: 1.05),
+                        ),
+                        // Add the rating icon as the trailing widget
+                        trailing: Icon(ratingIcon, color: Theme.of(context).colorScheme.secondary),
                       ),
-                      title: Text(
-                        // Check if note content is empty
-                        (record.noteContent?.isEmpty ?? true)
-                          ? AppLocalizations.of(context)!.ratedStatus
-                          : record.noteContent!,
-                        style: (record.noteContent?.isEmpty ?? true)
-                          ? TextStyle(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.onSurfaceVariant)
-                          : const TextStyle(fontSize: 16, height: 1.05),
-                      ),
-                      // Add the rating icon as the trailing widget
-                      trailing: Icon(ratingIcon, color: Theme.of(context).colorScheme.secondary),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
+          ],
           // --- RELATED THOUGHTS (Use LocalDatabaseProvider) ---
           // Show loading indicator if fetching related records
           if (localDbProvider.isLoadingRelated)
