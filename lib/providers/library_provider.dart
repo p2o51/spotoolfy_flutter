@@ -26,12 +26,12 @@ class LibraryProvider extends ChangeNotifier {
   // Error state
   String? _errorMessage;
 
-  // Cache settings
+  // Cache settings - 保持完整数据缓存
   static const String _playlistsCacheKey = 'user_playlists_cache';
   static const String _albumsCacheKey = 'user_albums_cache';
   static const String _cacheTimestampKey = 'library_cache_timestamp';
-  // Cache duration (e.g., 1 hour)
-  static const Duration _cacheDuration = Duration(hours: 1);
+  // Cache duration - 6小时缓存，平衡性能和数据新鲜度
+  static const Duration _cacheDuration = Duration(hours: 6);
   
   // Getters
   List<Map<String, dynamic>> get userPlaylists => _userPlaylists;
@@ -95,6 +95,15 @@ class LibraryProvider extends ChangeNotifier {
   Future<void> loadData({bool forceRefresh = false}) async {
     if (_isLoading) return;
 
+    // Check authentication first
+    if (_spotifyProvider.username == null) {
+      logger.w("Cannot load library data: User not authenticated");
+      _errorMessage = 'Please log in to Spotify to view your library';
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
     _errorMessage = null;
     _isLoading = true;
     // Don't notify initial loading state immediately to avoid flicker if cache hits
@@ -122,6 +131,8 @@ class LibraryProvider extends ChangeNotifier {
 
     try {
       final stopwatch = Stopwatch()..start(); // Measure API fetch time
+      logger.i("Starting to fetch library data from Spotify API...");
+      
       // Parallel data loading to reduce total loading time
       final results = await Future.wait([
         _spotifyProvider.getUserPlaylists(),
@@ -132,6 +143,9 @@ class LibraryProvider extends ChangeNotifier {
       
       _userPlaylists = results[0];
       _userSavedAlbums = results[1];
+      
+      logger.i("Loaded ${_userPlaylists.length} playlists and ${_userSavedAlbums.length} albums");
+      
       _isFirstLoad = false;
       _isLoading = false;
 
@@ -142,9 +156,18 @@ class LibraryProvider extends ChangeNotifier {
       _errorMessage = 'Failed to load library data: $e';
       logger.w(_errorMessage); // Log error
       _isLoading = false;
+      
+      // 尝试加载过期缓存作为备用数据
+      if (!forceRefresh && _userPlaylists.isEmpty && _userSavedAlbums.isEmpty) {
+        logger.i("API failed, attempting to load expired cache as fallback...");
+        final cacheLoaded = await _loadFromCache(ignoreTimestamp: true);
+        if (cacheLoaded) {
+          logger.i("Successfully loaded expired cache as fallback");
+          _errorMessage = 'Using cached data - please refresh when connection improves';
+        }
+      }
+      
       notifyListeners();
-      // Optionally try loading expired cache as fallback on API error?
-      // if (!forceRefresh) await _loadFromCache(ignoreTimestamp: true);
     }
   }
 
@@ -175,33 +198,38 @@ class LibraryProvider extends ChangeNotifier {
         final albumsJson = prefs.getString(_albumsCacheKey);
 
         if (playlistsJson != null && albumsJson != null) {
-          // Use compute function for potentially long JSON decoding? (Consider if lists are huge)
           _userPlaylists = List<Map<String, dynamic>>.from(jsonDecode(playlistsJson));
           _userSavedAlbums = List<Map<String, dynamic>>.from(jsonDecode(albumsJson));
-          logger.i("Library data loaded from cache.");
+          logger.i("Complete library cache loaded: ${_userPlaylists.length} playlists, ${_userSavedAlbums.length} albums");
           return true; // Cache loaded successfully
         }
       }
     } catch (e) {
       logger.w("Error loading library from cache: $e");
-      // Clear cache if parsing fails to avoid loading corrupted data next time
-      await _clearCache(); 
+      // 只有在严重错误时才清除缓存，对于 JSON 解析错误可能只是临时的
+      if (e.toString().contains('FormatException') || e.toString().contains('type') || e.toString().contains('cast')) {
+        logger.e("Cache data corrupted, clearing cache");
+        await _clearCache(); 
+      } else {
+        logger.w("Cache load failed but keeping cache for retry");
+      }
     }
     return false; // Cache miss, invalid, expired, or error
   }
 
-  // Helper to save to cache
+  // 保存完整的库数据到缓存
   Future<void> _saveToCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Use compute function for potentially long JSON encoding?
+      
       final playlistsJson = jsonEncode(_userPlaylists);
       final albumsJson = jsonEncode(_userSavedAlbums);
 
       await prefs.setString(_playlistsCacheKey, playlistsJson);
       await prefs.setString(_albumsCacheKey, albumsJson);
       await prefs.setString(_cacheTimestampKey, DateTime.now().toIso8601String());
-      logger.i("Library data saved to cache.");
+      
+      logger.i("Complete library cache saved: ${_userPlaylists.length} playlists, ${_userSavedAlbums.length} albums");
     } catch (e) {
       logger.w("Error saving library to cache: $e");
     }
@@ -214,7 +242,7 @@ class LibraryProvider extends ChangeNotifier {
       await prefs.remove(_playlistsCacheKey);
       await prefs.remove(_albumsCacheKey);
       await prefs.remove(_cacheTimestampKey);
-      logger.i("Library cache cleared.");
+      logger.i("Complete library cache cleared.");
     } catch (e) {
       logger.w("Error clearing library cache: $e");
     }
@@ -228,6 +256,33 @@ class LibraryProvider extends ChangeNotifier {
     _userSavedAlbums = [];
     _isFirstLoad = true;
     notifyListeners();
+  }
+
+  // 智能缓存管理 - 仅在必要时清除缓存
+  Future<void> handleTokenExpiration() async {
+    logger.i("Token expired, clearing memory but keeping cache for re-login");
+    // 仅清除内存数据，保留磁盘缓存
+    _userPlaylists = [];
+    _userSavedAlbums = [];
+    _isFirstLoad = true;
+    _errorMessage = null;
+    notifyListeners();
+    // 不清除磁盘缓存，以便重新登录后快速加载
+  }
+
+  // 检查缓存是否可用作为备用数据
+  Future<bool> hasFallbackCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final timestampString = prefs.getString(_cacheTimestampKey);
+      final playlistsJson = prefs.getString(_playlistsCacheKey);
+      final albumsJson = prefs.getString(_albumsCacheKey);
+      
+      return timestampString != null && playlistsJson != null && albumsJson != null;
+    } catch (e) {
+      logger.w("Error checking fallback cache: $e");
+      return false;
+    }
   }
   
   // Load more data when scrolling (pagination) - NOT CACHED
@@ -269,10 +324,12 @@ class LibraryProvider extends ChangeNotifier {
       // Don't check _isFirstLoad here, always try loading on login
       loadData();
     } else {
-      // Clear data on logout but keep cache for faster reload
+      // 仅清除内存数据，保留缓存以便下次登录时快速加载
       _userPlaylists = [];
       _userSavedAlbums = [];
       _isFirstLoad = true;
+      _errorMessage = null; // 清除错误信息
+      logger.i("Auth state changed to logged out - keeping cache for faster re-login");
       // OPTIMIZATION: Keep cache across login sessions to improve re-login experience
       // Only clear cache if explicitly requested (e.g., in settings)
       // _clearCache(); // Don't clear cache on logout by default

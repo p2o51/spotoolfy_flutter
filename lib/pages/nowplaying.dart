@@ -22,6 +22,11 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   bool _isExpanded = false;
   int _currentPageIndex = 2; // 默认显示 LYRICS 页面
   
+  // 缓存变量
+  List<PageData>? _cachedPages;
+  bool? _cachedIsLargeScreen;
+  Size? _cachedScreenSize;
+  
   @override
   void initState() {
     super.initState();
@@ -74,52 +79,91 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     }
   }
 
-  List<PageData> _buildPages(BuildContext context) => [
-    PageData(
-      title: AppLocalizations.of(context)!.recordsTab,
-      icon: Icons.comment_rounded,
-      page: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              const NotesDisplay(),
-              const SizedBox(height: 80),
-            ],
+  // 优化的页面变化处理，减少不必要的setState调用
+  void _onPageChangedOptimized(int index) {
+    if (index != _currentPageIndex) {
+      setState(() {
+        _currentPageIndex = index;
+      });
+    }
+  }
+
+  List<PageData> _buildPages(BuildContext context) {
+    // 使用缓存避免重复构建
+    if (_cachedPages != null) {
+      return _cachedPages!;
+    }
+    
+    _cachedPages = [
+      PageData(
+        title: AppLocalizations.of(context)!.recordsTab,
+        icon: Icons.comment_rounded,
+        page: RepaintBoundary(
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 0),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: 8),
+                  NotesDisplay(),
+                  SizedBox(height: 80),
+                ],
+              ),
+            ),
           ),
         ),
       ),
-    ),
-    PageData(
-      title: AppLocalizations.of(context)!.queueTab,
-      icon: Icons.queue_music_rounded,
-      page: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              SizedBox(height: 8),
-              QueueDisplay(),
-            ],
+      PageData(
+        title: AppLocalizations.of(context)!.queueTab,
+        icon: Icons.queue_music_rounded,
+        page: RepaintBoundary(
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 0),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: 8),
+                  QueueDisplay(),
+                ],
+              ),
+            ),
           ),
         ),
       ),
-    ),
-    PageData(
-      title: AppLocalizations.of(context)!.lyricsTab,
-      icon: Icons.lyrics_rounded,
-      page: const LyricsWidget(),
-    ),
-  ];
+      PageData(
+        title: AppLocalizations.of(context)!.lyricsTab,
+        icon: Icons.lyrics_rounded,
+        page: const RepaintBoundary(
+          child: LyricsWidget(),
+        ),
+      ),
+    ];
+    
+    return _cachedPages!;
+  }
 
   @override
   bool get wantKeepAlive => true;
 
+  // 缓存屏幕尺寸信息
+  bool _getIsLargeScreen(BuildContext context) {
+    final currentSize = MediaQuery.of(context).size;
+    
+    // 如果尺寸发生变化，清除缓存
+    if (_cachedScreenSize != currentSize) {
+      _cachedScreenSize = currentSize;
+      _cachedIsLargeScreen = null;
+      _cachedPages = null; // 屏幕尺寸变化时也清除页面缓存
+    }
+    
+    _cachedIsLargeScreen ??= currentSize.width > 600;
+    return _cachedIsLargeScreen!;
+  }
+
   Widget _buildTabHeader() {
-    bool isLargeScreen = MediaQuery.of(context).size.width > 600;
+    bool isLargeScreen = _getIsLargeScreen(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -152,10 +196,12 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         children: [
           Expanded(
             flex: 1,
-            child: SizedBox(
-              height: double.infinity, // 给Player提供明确的高度约束
-              child: const Center( // 添加Center组件使Player垂直居中
-                child: Player(isLargeScreen: true),
+            child: RepaintBoundary(
+              child: SizedBox(
+                height: double.infinity, // 给Player提供明确的高度约束
+                child: const Center( // 添加Center组件使Player垂直居中
+                  child: Player(isLargeScreen: true),
+                ),
               ),
             ),
           ),
@@ -163,16 +209,14 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
             flex: 1,
             child: Column(
               children: [
-                _buildTabHeader(),
+                RepaintBoundary(child: _buildTabHeader()),
                 Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentPageIndex = index;
-                      });
-                    },
-                    children: _buildPages(context).map((page) => page.page).toList(),
+                  child: RepaintBoundary(
+                    child: PageView(
+                      controller: _pageController,
+                      onPageChanged: _onPageChangedOptimized,
+                      children: _buildPages(context).map((page) => page.page).toList(),
+                    ),
                   ),
                 ),
               ],
@@ -197,7 +241,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    bool isLargeScreen = MediaQuery.of(context).size.width > 600;
+    bool isLargeScreen = _getIsLargeScreen(context);
 
     if (isLargeScreen) {
       // On large screens, always use the side-by-side layout
@@ -207,62 +251,47 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       return Scaffold(
         body: Column(
           children: [
-            // Only animate this top part
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              switchInCurve: Curves.easeOut,
-              transitionBuilder: (child, animation) {
-                final offsetAnimation = Tween<Offset>(
-                  begin: const Offset(0.0, 0.1),
-                  end: Offset.zero,
-                ).animate(animation);
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: offsetAnimation,
+            // Only animate this top part - simplified animation
+            RepaintBoundary(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150), // 减少动画时长
+                switchInCurve: Curves.easeOut,
+                transitionBuilder: (child, animation) {
+                  // 简化为仅使用 FadeTransition，移除 SlideTransition 减少计算开销
+                  return FadeTransition(
+                    opacity: animation,
                     child: child,
-                  ),
-                );
-              },
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  alignment: Alignment.topCenter,
-                  children: <Widget>[
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
-                );
-              },
-              child: _isExpanded
-                ? KeyedSubtree(
-                    key: const ValueKey('expanded_header'),
-                    child: GestureDetector(
-                      onTap: _toggleExpand,
-                      child: const Player(isLargeScreen: false, isMiniPlayer: true),
+                  );
+                },
+                child: _isExpanded
+                  ? KeyedSubtree(
+                      key: const ValueKey('expanded_header'),
+                      child: GestureDetector(
+                        onTap: _toggleExpand,
+                        child: const Player(isLargeScreen: false, isMiniPlayer: true),
+                      ),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('collapsed_header'),
+                      child: const Column(
+                        children: [
+                          Player(isLargeScreen: false),
+                          SizedBox(height: 16),
+                        ],
+                      ),
                     ),
-                  )
-                : KeyedSubtree(
-                    key: const ValueKey('collapsed_header'),
-                    child: Column(
-                      children: const [
-                        Player(isLargeScreen: false),
-                        SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
+              ),
             ),
             // Tab header stays consistent
             _buildTabHeader(),
             // PageView stays consistent across states
             Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPageIndex = index;
-                  });
-                },
-                children: _buildPages(context).map((page) => page.page).toList(),
+              child: RepaintBoundary(
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: _onPageChangedOptimized,
+                  children: _buildPages(context).map((page) => page.page).toList(),
+                ),
               ),
             ),
           ],

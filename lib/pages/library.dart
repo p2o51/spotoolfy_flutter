@@ -26,6 +26,11 @@ class _LibraryState extends State<Library> {
   final FocusNode _searchFocusNode = FocusNode();
   bool _wasAuthenticated = false; // Track previous auth state
   VoidCallback? _refreshLibraryCallback;
+  
+  // 缓存变量
+  Size? _cachedScreenSize;
+  bool? _cachedIsWideScreen;
+  double? _cachedMaxContentWidth;
 
   @override
   void initState() {
@@ -65,6 +70,15 @@ class _LibraryState extends State<Library> {
     }
   }
 
+  // 缓存屏幕尺寸计算
+  void _updateScreenSizeCache(Size newSize) {
+    if (_cachedScreenSize != newSize) {
+      _cachedScreenSize = newSize;
+      _cachedIsWideScreen = newSize.width > 600;
+      _cachedMaxContentWidth = _cachedIsWideScreen! ? 1200.0 : newSize.width;
+    }
+  }
+
   @override
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
@@ -75,9 +89,9 @@ class _LibraryState extends State<Library> {
 
   @override
   Widget build(BuildContext context) {
-    // Restore Consumer2 to use SearchProvider and LibraryProvider
-    return Consumer2<SearchProvider, LibraryProvider>(
-      builder: (context, searchProvider, libraryProvider, child) {
+    // 拆分 Consumer 监听，提高性能
+    return Consumer<SearchProvider>(
+      builder: (context, searchProvider, child) {
         final isSearchActive = searchProvider.isSearchActive;
         
         // Sync controller if provider clears search
@@ -89,9 +103,9 @@ class _LibraryState extends State<Library> {
         
         return LayoutBuilder(
           builder: (context, constraints) {
-            final screenWidth = constraints.maxWidth;
-            final isWideScreen = screenWidth > 600;
-            final maxContentWidth = isWideScreen ? 1200.0 : screenWidth;
+            // 使用缓存的屏幕尺寸计算
+            _updateScreenSizeCache(constraints.biggest);
+            final maxContentWidth = _cachedMaxContentWidth!;
 
             return Center(
               child: ConstrainedBox(
@@ -100,10 +114,11 @@ class _LibraryState extends State<Library> {
                 child: Column(
                   children: [
                     // Common search bar
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      // 使用 TextField 替换 SearchBar
-                      child: TextField(
+                    RepaintBoundary(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        // 使用 TextField 替换 SearchBar
+                        child: TextField(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
                         decoration: InputDecoration(
@@ -141,6 +156,7 @@ class _LibraryState extends State<Library> {
                           _searchFocusNode.unfocus();
                         },
                         textInputAction: TextInputAction.search,
+                        ),
                       ),
                     ),
                     
@@ -148,21 +164,27 @@ class _LibraryState extends State<Library> {
                     Expanded(
                       child: Stack( // Wrap content with Stack
                         children: [
-                          // Original content
-                          isSearchActive
-                            ? SearchSection(
-                                onBackPressed: () {
-                                  _searchController.clear();
-                                  searchProvider.clearSearch();
-                                  _searchFocusNode.unfocus();
-                                },
-                              )
-                            : LibrarySection(
-                                // Register callbacks to allow LibrarySection to trigger actions
-                                registerRefreshCallback: (callback) {
-                                  _refreshLibraryCallback = callback;
-                                },
-                              ),
+                          // Original content with RepaintBoundary
+                          RepaintBoundary(
+                            child: isSearchActive
+                              ? SearchSection(
+                                  onBackPressed: () {
+                                    _searchController.clear();
+                                    searchProvider.clearSearch();
+                                    _searchFocusNode.unfocus();
+                                  },
+                                )
+                              : Consumer<LibraryProvider>(
+                                  builder: (context, libraryProvider, child) {
+                                    return LibrarySection(
+                                      // Register callbacks to allow LibrarySection to trigger actions
+                                      registerRefreshCallback: (callback) {
+                                        _refreshLibraryCallback = callback;
+                                      },
+                                    );
+                                  },
+                                ),
+                          ),
                           
                           // Gradient overlay
                           Positioned(
@@ -213,6 +235,11 @@ class _MyCarouselViewState extends State<MyCarouselView> {
   Map<String, dynamic>? _insightsResult;
   String? _insightsError;
   bool _isInsightsExpanded = false; // State for expansion
+  
+  // 缓存变量
+  Size? _cachedScreenSize;
+  double? _cachedCarouselHeight;
+  List<int>? _cachedFlexWeights;
 
   @override
   void initState() {
@@ -240,6 +267,22 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       }
     } catch (e) {
       logger.e('Error loading cached insights: $e');
+    }
+  }
+
+  // 缓存屏幕尺寸相关计算
+  void _updateCarouselSizeCache(Size newSize) {
+    if (_cachedScreenSize != newSize) {
+      _cachedScreenSize = newSize;
+      final screenWidth = newSize.width;
+      
+      _cachedCarouselHeight = screenWidth > 900 ? 300.0 : 190.0;
+      
+      _cachedFlexWeights = screenWidth > 900
+          ? [2, 7, 6, 5, 4, 3, 2]
+          : screenWidth > 600
+          ? [2, 6, 5, 4, 3, 2]
+          : [3, 6, 3, 2];
     }
   }
 
@@ -345,28 +388,27 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     // Build the carousel using recentContexts
     return LayoutBuilder(
       builder: (context, constraints) {
-        final screenWidth = constraints.maxWidth;
-        final carouselHeight = screenWidth > 900 ? 300.0 : 190.0;
-        final flexWeights = screenWidth > 900
-            ? const [2, 7, 6, 5, 4, 3, 2]
-            : screenWidth > 600
-            ? const [2, 6, 5, 4, 3, 2]
-            : const [3, 6, 3, 2];
+        // 使用缓存的尺寸计算
+        _updateCarouselSizeCache(constraints.biggest);
+        final carouselHeight = _cachedCarouselHeight!;
+        final flexWeights = _cachedFlexWeights!;
 
-        return Center(
-          child: Column( // Wrap carousel, button, and results in a Column
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, // Important for Column within potential scroll view
-            children: [
-              // Only show carousel if there are contexts
-              if (recentContexts.isNotEmpty)
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: carouselHeight),
-                  child: CarouselView.weighted(
-                    flexWeights: flexWeights,
-                    shrinkExtent: 0,
-                    itemSnapping: true,
-                    onTap: (index) {
+        return RepaintBoundary(
+          child: Center(
+            child: Column( // Wrap carousel, button, and results in a Column
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, // Important for Column within potential scroll view
+              children: [
+                // Only show carousel if there are contexts
+                if (recentContexts.isNotEmpty)
+                  RepaintBoundary(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: carouselHeight),
+                      child: CarouselView.weighted(
+                        flexWeights: flexWeights,
+                        shrinkExtent: 0,
+                        itemSnapping: true,
+                        onTap: (index) {
                       if (index >= 0 && index < recentContexts.length) {
                         final contextUri = recentContexts[index]['contextUri'] as String?;
                         if (contextUri != null) {
@@ -376,15 +418,15 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                          logger.w('Error: Invalid index ($index) tapped in CarouselView.');
                       }
                     },
-                    children: recentContexts.map((contextData) {
-                      final imageUrl = contextData['imageUrl'] as String?;
-                      final fallbackColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-                          child: imageUrl != null
-                              ? CachedNetworkImage(
+                        children: recentContexts.map((contextData) {
+                          final imageUrl = contextData['imageUrl'] as String?;
+                          final fallbackColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(32),
+                              child: imageUrl != null
+                                ? CachedNetworkImage(
                                   imageUrl: imageUrl,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
@@ -421,9 +463,10 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                                 ),
                         ),
                       );
-                    }).toList(),
+                        }).toList(),
+                      ),
+                    ),
                   ),
-                ),
               
               // Show message if no recent contexts but button should be visible
               if (recentContexts.isEmpty && !isCarouselLoading)
@@ -436,9 +479,10 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                 ),
 
               // 音乐人格、Generate Insights 按钮和展开/收起按钮在同一行
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-                child: Row(
+              RepaintBoundary(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                  child: Row(
                   children: [
                     // 音乐人格标签靠左
                     if (musicPersonality != null)
@@ -494,17 +538,21 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                           });
                         },
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
               // Loading Indicator or Results/Error Section
               if (_isLoadingInsights || (_isInsightsExpanded && (_insightsError != null || _insightsResult != null)))
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: _buildInsightsSection(context),
+                RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: _buildInsightsSection(context),
+                  ),
                 ),
-            ],
+              ],
+            ),
           ),
         );
       },

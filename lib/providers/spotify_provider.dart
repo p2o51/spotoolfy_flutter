@@ -1712,6 +1712,7 @@ class SpotifyProvider extends ChangeNotifier {
       return albums;
     } catch (e) {
       // debugPrint('获取收藏专辑失败: $e');
+      await _handleApiError(e, contextMessage: '获取收藏专辑', isUserInitiated: true);
       return [];
     }
   }

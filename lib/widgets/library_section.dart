@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/spotify_provider.dart';
 import '../widgets/library_grid.dart';
 import '../widgets/materialui.dart' as custom_ui;
 import '../widgets/materialui.dart'; // Import WavyDivider
@@ -88,8 +89,39 @@ class _LibrarySectionState extends State<LibrarySection> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LibraryProvider>(
-      builder: (context, libraryProvider, child) {
+    return Consumer2<LibraryProvider, SpotifyProvider>(
+      builder: (context, libraryProvider, spotifyProvider, child) {
+         // Check if user is authenticated
+         if (spotifyProvider.username == null) {
+           return Center(
+             child: Padding(
+               padding: const EdgeInsets.all(16.0),
+               child: Column(
+                 mainAxisAlignment: MainAxisAlignment.center,
+                 children: [
+                   Icon(
+                     Icons.login,
+                     size: 64,
+                     color: Theme.of(context).colorScheme.primary,
+                   ),
+                   const SizedBox(height: 16),
+                   Text(
+                     'Please Login',
+                     style: Theme.of(context).textTheme.titleLarge,
+                     textAlign: TextAlign.center,
+                   ),
+                   const SizedBox(height: 8),
+                   Text(
+                     'Login to Spotify to view your library',
+                     style: Theme.of(context).textTheme.bodyMedium,
+                     textAlign: TextAlign.center,
+                   ),
+                 ],
+               ),
+             ),
+           );
+         }
+         
          // Calculate grid cross axis count here
          final screenWidth = MediaQuery.of(context).size.width;
          final gridCrossAxisCount = switch (screenWidth) {
