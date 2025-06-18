@@ -759,7 +759,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get songInfoRegeneratedMessage => '楽曲情報が再生成された';
 
   @override
-  String get songInformationTitle => '楽曲情報';
+  String get songInformationTitle => 'INFORMATION';
 
   @override
   String get regenerateTooltip => '再生成';

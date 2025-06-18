@@ -1508,7 +1508,7 @@ abstract class AppLocalizations {
   /// No description provided for @songInformationTitle.
   ///
   /// In en, this message translates to:
-  /// **'Song Information'**
+  /// **'INFORMATION'**
   String get songInformationTitle;
 
   /// No description provided for @regenerateTooltip.

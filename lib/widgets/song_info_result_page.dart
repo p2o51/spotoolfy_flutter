@@ -45,6 +45,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   late String _currentFunnyText;
 
   String _getRandomFunnyText() {
+    // Only call this method after the widget is fully built
+    if (!mounted) return 'Loading...';
+    
     final l10n = AppLocalizations.of(context)!;
     final trackName = widget.trackData['name'] as String? ?? l10n.unknownTrack;
     final artistNames = (widget.trackData['artists'] as List?)
@@ -75,8 +78,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   void initState() {
     super.initState();
     
-    // 随机选择一个幽默文本
-    _currentFunnyText = _getRandomFunnyText();
+    // Initialize with a default text, will be set properly in didChangeDependencies
+    _currentFunnyText = 'Loading...';
     
     // 初始化动画控制器
     _pulseController = AnimationController(
@@ -124,15 +127,30 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       ));
     });
 
-    // 如果有初始数据，直接使用；否则开始加载
+    // 如果有初始数据，直接使用
     if (widget.initialSongInfo != null) {
       _currentSongInfo = widget.initialSongInfo;
       // 延迟启动动画，让页面先渲染
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _infoAnimationController.forward();
       });
-    } else {
-      _loadSongInfo();
+    }
+    // Note: _loadSongInfo() will be called in didChangeDependencies() if needed
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Now it's safe to call _getRandomFunnyText() since the context is fully initialized
+    if (_currentFunnyText == 'Loading...') {
+      _currentFunnyText = _getRandomFunnyText();
+    }
+    
+    // Start loading if no initial data was provided
+    if (widget.initialSongInfo == null && _currentSongInfo == null && !_isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadSongInfo();
+      });
     }
   }
 
@@ -187,7 +205,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       _isLoading = true;
       _regenerationError = null;
       // 每次加载时随机选择新的幽默文本
-      _currentFunnyText = _getRandomFunnyText();
+      if (mounted) {
+        _currentFunnyText = _getRandomFunnyText();
+      }
     });
 
     // 启动动画
@@ -215,11 +235,15 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         // 启动信息出现动画
         _infoAnimationController.forward();
       } else {
-        _showError(AppLocalizations.of(context)!.noSongInfoAvailable);
+        if (mounted) {
+          final l10n = AppLocalizations.of(context)!;
+          _showError(l10n.noSongInfoAvailable);
+        }
       }
     } catch (e) {
       if (mounted) {
-        _showError('${AppLocalizations.of(context)!.noSongInfoAvailable}: ${e.toString()}');
+        final l10n = AppLocalizations.of(context)!;
+        _showError('${l10n.noSongInfoAvailable}: ${e.toString()}');
       }
     }
   }
@@ -232,7 +256,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       _isRegenerating = true;
       _regenerationError = null;
       // 重新生成时也随机选择新的幽默文本
-      _currentFunnyText = _getRandomFunnyText();
+      if (mounted) {
+        _currentFunnyText = _getRandomFunnyText();
+      }
     });
 
     // 启动动画和文本轮换
@@ -260,8 +286,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         _infoAnimationController.forward();
         
         if (mounted) {
+          final l10n = AppLocalizations.of(context)!;
           Provider.of<NotificationService>(context, listen: false)
-              .showSnackBar(AppLocalizations.of(context)!.songInfoRegeneratedMessage);
+              .showSnackBar(l10n.songInfoRegeneratedMessage);
         }
       } else {
         throw Exception('Regeneration failed');
@@ -296,8 +323,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
   void _copyToClipboard(String content, String type) {
     Clipboard.setData(ClipboardData(text: content));
-    Provider.of<NotificationService>(context, listen: false)
-        .showSnackBar('$type ${AppLocalizations.of(context)!.copiedToClipboard}');
+    if (mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar('$type ${l10n.copiedToClipboard('content')}');
+    }
   }
 
   @override

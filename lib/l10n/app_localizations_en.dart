@@ -781,7 +781,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get songInfoRegeneratedMessage => 'Song information regenerated';
 
   @override
-  String get songInformationTitle => 'Song Information';
+  String get songInformationTitle => 'INFORMATION';
 
   @override
   String get regenerateTooltip => 'Regenerate';

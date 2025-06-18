@@ -239,7 +239,7 @@
   "reanalyzeButton": "再分析",
   "onlyFoundDimensionsInfo": "これらの歌詞で見つかった分析次元のみ表示",
   "songInfoRegeneratedMessage": "楽曲情報が再生成された",
-  "songInformationTitle": "楽曲情報",
+  "songInformationTitle": "INFORMATION",
   "regenerateTooltip": "再生成",
   "noSongInfoAvailable": "利用可能な楽曲情報がない",
   "generatedByGemini": "Gemini 2.5 Flash によって生成",

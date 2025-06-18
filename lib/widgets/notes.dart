@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For Clipboard
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart'; // Added logger
 import 'package:intl/intl.dart'; // Import intl for date formatting
+import 'dart:convert'; // Import for JSON operations
 import 'dart:math'; // Import for min function
 // import '../providers/firestore_provider.dart'; // Keep for homoThoughts for now
 import '../providers/local_database_provider.dart'; // Import new provider
@@ -12,6 +14,9 @@ import 'stats_card.dart'; // Import the new StatsCard widget
 import '../utils/date_formatter.dart'; // Assuming getLeadingText uses this
 import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
 import '../l10n/app_localizations.dart';
+import '../services/song_info_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math' as math;
 
 final logger = Logger(); // Added logger instance
 
@@ -22,8 +27,452 @@ class NotesDisplay extends StatefulWidget {
   State<NotesDisplay> createState() => _NotesDisplayState();
 }
 
-class _NotesDisplayState extends State<NotesDisplay> {
+class _NotesDisplayState extends State<NotesDisplay> with TickerProviderStateMixin {
   String? _lastFetchedTrackId;
+  final SongInfoService _songInfoService = SongInfoService();
+  Map<String, dynamic>? _cachedSongInfo;
+  bool _isGeneratingAI = false;
+  late AnimationController _generateButtonController;
+  late AnimationController _pulseController;
+  late AnimationController _rotationController;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _rotationAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateButtonController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    // 初始化动画控制器（参考songinfo页面）
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+    
+    _rotationController = AnimationController(
+      duration: const Duration(milliseconds: 1800),
+      vsync: this,
+    );
+    
+    _pulseAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.elasticInOut,
+    ));
+    
+    _rotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 0.5,
+    ).animate(CurvedAnimation(
+      parent: _rotationController,
+      curve: Curves.elasticInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _generateButtonController.dispose();
+    _pulseController.dispose();
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  // --- AI Content Methods ---
+  
+  void _startVibrationCycle() {
+    const vibrationInterval = Duration(milliseconds: 600);
+    int vibrationCount = 0;
+    
+    void performVibration() {
+      if (mounted && _isGeneratingAI) {
+        if (vibrationCount % 2 == 0) {
+          HapticFeedback.mediumImpact();
+        } else {
+          HapticFeedback.lightImpact();
+        }
+        
+        vibrationCount++;
+        Future.delayed(vibrationInterval, performVibration);
+      }
+    }
+    
+    performVibration();
+  }
+  
+  Future<void> _checkCachedSongInfo(String trackId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'cached_song_info_$trackId';
+      final cachedInfoJson = prefs.getString(cacheKey);
+      
+      if (cachedInfoJson != null && cachedInfoJson.isNotEmpty) {
+        final cachedInfo = Map<String, dynamic>.from(
+          jsonDecode(cachedInfoJson)
+        );
+        if (mounted) {
+          setState(() {
+            _cachedSongInfo = cachedInfo;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _cachedSongInfo = null;
+          });
+        }
+      }
+    } catch (e) {
+      logger.e('Error checking cached song info: $e');
+      if (mounted) {
+        setState(() {
+          _cachedSongInfo = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _generateAIContent() async {
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrack = spotifyProvider.currentTrack?['item'];
+    
+    if (currentTrack == null || _isGeneratingAI) return;
+
+    // Capture context-dependent values before async operations
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final errorColor = Theme.of(context).colorScheme.error;
+
+    setState(() {
+      _isGeneratingAI = true;
+    });
+
+    // Start animations and vibration
+    _generateButtonController.repeat();
+    _pulseController.repeat(reverse: true);
+    _rotationController.repeat(reverse: true);
+    _startVibrationCycle();
+
+    try {
+      final songInfo = await _songInfoService.generateSongInfo(
+        currentTrack,
+        skipCache: false,
+      );
+
+      if (songInfo != null && mounted) {
+        setState(() {
+          _cachedSongInfo = songInfo;
+        });
+      }
+    } catch (e) {
+      logger.e('Error generating AI content: $e');
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('生成失败: ${e.toString()}'),
+            backgroundColor: errorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingAI = false;
+        });
+        _generateButtonController.stop();
+        _generateButtonController.reset();
+        _pulseController.stop();
+        _rotationController.stop();
+      }
+    }
+  }
+
+  Widget _buildAIContentSection(BuildContext context) {
+    if (_cachedSongInfo != null && _cachedSongInfo!.isNotEmpty) {
+      // 检查是否有ideas - 如果没有就不显示
+      bool hasValidContent = false;
+      final fieldsToCheck = ['creation_time', 'creation_location', 'lyricist', 'composer', 'producer', 'review'];
+      for (String field in fieldsToCheck) {
+        if (_cachedSongInfo![field] != null && _cachedSongInfo![field] != '') {
+          hasValidContent = true;
+          break;
+        }
+      }
+      
+      if (!hasValidContent) {
+        return _buildAIButtonSection(context);
+      }
+      
+      return Card(
+        elevation: 0,
+        color: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with IconHeader style from materialui.dart
+              IconHeader(
+                icon: Icons.info_outline,
+                text: AppLocalizations.of(context)!.songInformationTitle,
+              ),
+              const SizedBox(height: 8),
+              // Info sections in the same order as song info page
+              ..._buildAIInfoSections(context),
+              const SizedBox(height: 16),
+              // 单个按钮区域
+              _buildAIButtonSection(context),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return _buildAIButtonSection(context);
+    }
+  }
+  
+  Widget _buildAIButtonSection(BuildContext context) {
+    // 确定按钮状态和文字
+    late IconData buttonIcon;
+    late String buttonText;
+    late VoidCallback? onPressed;
+    
+    if (_cachedSongInfo != null && _cachedSongInfo!.isNotEmpty) {
+      // 已有内容，显示删除按钮
+      buttonIcon = Icons.delete_outline;
+      buttonText = '点击删除AI分析内容';
+      onPressed = _isGeneratingAI ? null : _deleteAIContent;
+    } else if (_isGeneratingAI) {
+      // 正在生成，显示加载状态
+      buttonIcon = Icons.hourglass_empty;
+      buttonText = '正在生成中...';
+      onPressed = null;
+    } else {
+      // 没有内容，显示生成按钮
+      buttonIcon = Icons.auto_awesome;
+      buttonText = '点击生成歌曲背景信息和音乐解析';
+      onPressed = _generateAIContent;
+    }
+    
+    return Card(
+      elevation: 0,
+      color: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            // 如果没有内容，显示标题
+            if (_cachedSongInfo == null || _cachedSongInfo!.isEmpty) ...[
+              IconHeader(
+                icon: Icons.info_outline,
+                text: AppLocalizations.of(context)!.songInformationTitle,
+              ),
+              const SizedBox(height: 16),
+            ],
+            // 文字单独一行，居中
+            Text(
+              buttonText,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            // 按钮在下方居中，大小固定
+            Center(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_pulseController, _rotationController]),
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _isGeneratingAI ? _pulseAnimation.value : 1.0,
+                    child: Transform.rotate(
+                      angle: _isGeneratingAI ? _rotationAnimation.value * 2 * math.pi : 0.0,
+                      child: SizedBox(
+                        width: 56,  // 固定宽度
+                        height: 56, // 固定高度
+                        child: IconButton(
+                          icon: Icon(
+                            buttonIcon,
+                            size: 24, // 固定图标大小
+                          ),
+                          onPressed: onPressed,
+                          style: IconButton.styleFrom(
+                            backgroundColor: onPressed != null 
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                              : Theme.of(context).colorScheme.surfaceContainerHighest,
+                            foregroundColor: onPressed != null 
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                            shape: const CircleBorder(), // 圆形按钮
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _deleteAIContent() {
+    setState(() {
+      _cachedSongInfo = null;
+    });
+    
+    // 也从缓存中清除
+    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrack = spotifyProvider.currentTrack?['item'];
+    if (currentTrack != null) {
+      final trackId = currentTrack['id'] as String?;
+      if (trackId != null) {
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.remove('cached_song_info_$trackId');
+        });
+      }
+    }
+  }
+
+  List<Widget> _buildAIInfoSections(BuildContext context) {
+    List<Widget> sections = [];
+
+    // Same order as song info page
+    if (_cachedSongInfo!['creation_time'] != null && _cachedSongInfo!['creation_time'] != '') {
+      sections.add(_buildAIInfoSection(
+        context,
+        title: AppLocalizations.of(context)!.creationTimeTitle,
+        content: _cachedSongInfo!['creation_time'] as String,
+        icon: Icons.schedule_rounded,
+      ));
+      sections.add(const SizedBox(height: 4));
+    }
+
+    if (_cachedSongInfo!['creation_location'] != null && _cachedSongInfo!['creation_location'] != '') {
+      sections.add(_buildAIInfoSection(
+        context,
+        title: AppLocalizations.of(context)!.creationLocationTitle,
+        content: _cachedSongInfo!['creation_location'] as String,
+        icon: Icons.location_on_rounded,
+      ));
+      sections.add(const SizedBox(height: 4));
+    }
+
+    if (_cachedSongInfo!['lyricist'] != null && _cachedSongInfo!['lyricist'] != '') {
+      sections.add(_buildAIInfoSection(
+        context,
+        title: AppLocalizations.of(context)!.lyricistTitle,
+        content: _cachedSongInfo!['lyricist'] as String,
+        icon: Icons.edit_rounded,
+      ));
+      sections.add(const SizedBox(height: 4));
+    }
+
+    if (_cachedSongInfo!['composer'] != null && _cachedSongInfo!['composer'] != '') {
+      sections.add(_buildAIInfoSection(
+        context,
+        title: AppLocalizations.of(context)!.composerTitle,
+        content: _cachedSongInfo!['composer'] as String,
+        icon: Icons.music_note_rounded,
+      ));
+      sections.add(const SizedBox(height: 4));
+    }
+
+    if (_cachedSongInfo!['producer'] != null && _cachedSongInfo!['producer'] != '') {
+      sections.add(_buildAIInfoSection(
+        context,
+        title: AppLocalizations.of(context)!.producerTitle,
+        content: _cachedSongInfo!['producer'] as String,
+        icon: Icons.settings_rounded,
+      ));
+      sections.add(const SizedBox(height: 4));
+    }
+
+    // Add Song Analysis at the end if available
+    if (_cachedSongInfo!['review'] != null && _cachedSongInfo!['review'] != '') {
+      sections.add(_buildAIInfoSection(
+        context,
+        title: AppLocalizations.of(context)!.songAnalysisTitle,
+        content: _cachedSongInfo!['review'] as String,
+        icon: Icons.article_rounded,
+      ));
+      sections.add(const SizedBox(height: 4));
+    }
+
+    // Remove last spacing
+    if (sections.isNotEmpty && sections.last is SizedBox) {
+      sections.removeLast();
+    }
+
+    return sections;
+  }
+
+  Widget _buildAIInfoSection(
+    BuildContext context, {
+    required String title,
+    required String content,
+    required IconData icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    letterSpacing: 2.0,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                onPressed: () => _copyAIContent(content, title),
+                tooltip: '${AppLocalizations.of(context)!.copyButtonText} $title',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            content,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              height: 1.5,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyAIContent(String content, String type) {
+    Clipboard.setData(ClipboardData(text: content));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$type ${AppLocalizations.of(context)!.copiedToClipboard('content')}'),
+        ),
+      );
+    }
+  }
+
 
   // --- Helper Methods for Edit/Delete ---
   
@@ -461,6 +910,8 @@ class _NotesDisplayState extends State<NotesDisplay> {
              logger.d('NotesDisplay: Fetching related records for "$currentTrackName"');
              localDbProvider.fetchRelatedRecords(currentTrackId, currentTrackName);
           }
+          // Check for cached AI content
+          _checkCachedSongInfo(currentTrackId);
           setState(() {
             _lastFetchedTrackId = currentTrackId;
           });
@@ -475,6 +926,7 @@ class _NotesDisplayState extends State<NotesDisplay> {
             localDbProvider.clearRelatedRecords(); 
             setState(() {
                _lastFetchedTrackId = null;
+               _cachedSongInfo = null; // Clear cached AI content
             });
          }
        });
@@ -726,6 +1178,11 @@ class _NotesDisplayState extends State<NotesDisplay> {
                 },
               ),
             ),
+          ],
+          // --- AI Content Section ---
+          if (currentTrackId != null) ...[
+            const SizedBox(height: 16),
+            _buildAIContentSection(context),
           ],
         ],
       ),

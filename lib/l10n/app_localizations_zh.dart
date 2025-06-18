@@ -757,7 +757,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get songInfoRegeneratedMessage => '歌曲信息已重新生成';
 
   @override
-  String get songInformationTitle => '歌曲信息';
+  String get songInformationTitle => 'INFORMATION';
 
   @override
   String get regenerateTooltip => '重新生成';

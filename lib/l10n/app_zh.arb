@@ -236,7 +236,7 @@
   "reanalyzeButton": "重新分析",
   "onlyFoundDimensionsInfo": "只显示在该歌词中发现的分析维度",
   "songInfoRegeneratedMessage": "歌曲信息已重新生成",
-  "songInformationTitle": "歌曲信息",
+  "songInformationTitle": "INFORMATION",
   "regenerateTooltip": "重新生成",
   "noSongInfoAvailable": "无可用歌曲信息",
   "generatedByGemini": "由 Gemini 2.5 Flash 生成",
