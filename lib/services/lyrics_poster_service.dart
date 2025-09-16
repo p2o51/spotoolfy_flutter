@@ -35,7 +35,7 @@ class LyricsPosterService {
     // 字号调整 - 按比例缩放
     const double titleFontSize = 28.0 * scaleFactor;
     const double artistFontSize = 28.0 * scaleFactor;
-    const double lyricsFontSize = 44 * scaleFactor; 
+    const double lyricsFontSize = 40 * scaleFactor; 
     const double watermarkFontSize = 20.0 * scaleFactor; // 减小水印字号
 
     const double topMargin = 40.0 * scaleFactor; // 增加顶部边距
@@ -122,7 +122,7 @@ class LyricsPosterService {
       calculatedHeight += headerHeight + elementSpacing;
     }
 
-    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.4, fontWeight: FontWeight.w700); // Bold字重，调整行高
+    final lyricsStyle = TextStyle(fontFamily: fontFamily, fontSize: lyricsFontSize, color: lyricsColor, height: 1.3, fontWeight: FontWeight.w700); // UltraBold字重，调整行高
     final List<String> lyricLines = lyrics.split('\n');
     final List<TextPainter> lyricLinePainters = [];
     double totalLyricsBlockHeight = 0;

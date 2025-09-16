@@ -91,3 +91,4 @@ app.*.map.json
 
 # Sensitive configuration
 lib/config/secrets.dart
+AGENTS.md

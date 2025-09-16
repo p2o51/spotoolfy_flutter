@@ -369,37 +369,13 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       // controller: scrollController, // 移除 controller
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          // ... (动画代码保持不变) ...
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            final curvedAnimation = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOut,
-            );
-            final slideAnimation = Tween<Offset>(
-              begin: const Offset(0.0, 0.05),
-              end: Offset.zero,
-            ).animate(curvedAnimation);
-            return FadeTransition(
-              opacity: curvedAnimation,
-              child: SlideTransition(
-                position: slideAnimation,
-                child: child,
-              ),
-            );
-          },
-          child: Container(
-            key: ValueKey<bool>(_showTranslated),
-            alignment: Alignment.topLeft,
-            child: SelectableText(
-              // 如果有错误，显示错误信息 (已经本地化)；否则显示歌词
-              _translationError ?? lyricsToShow,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                height: 1.4,
-                // 如果是错误信息，使用错误颜色
-                color: _translationError != null ? theme.colorScheme.error : null,
-              ),
+        Container(
+          alignment: Alignment.topLeft,
+          child: SelectableText(
+            _translationError ?? lyricsToShow,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              height: 1.4,
+              color: _translationError != null ? theme.colorScheme.error : null,
             ),
           ),
         ),
