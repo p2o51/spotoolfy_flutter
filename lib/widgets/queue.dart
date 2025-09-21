@@ -10,15 +10,17 @@ class QueueDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spotifyProvider = Provider.of<SpotifyProvider>(context);
-    final currentQueue = spotifyProvider.upcomingTracks; // 假设这是播放队列数据
+    final currentQueue =
+        context.select<SpotifyProvider, List<Map<String, dynamic>>>(
+      (provider) => provider.upcomingTracks,
+    );
+    final spotifyProvider = context.read<SpotifyProvider>();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          
           if (currentQueue.isEmpty)
             Center(
               child: Padding(
@@ -32,7 +34,10 @@ class QueueDisplay extends StatelessWidget {
           else
             Card(
               elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest
+                  .withValues(alpha: 0.3),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -74,7 +79,8 @@ class QueueDisplay extends StatelessWidget {
                     ),
                     onTap: () {
                       final trackUri = track['uri'];
-                      final contextUri = spotifyProvider.currentTrack?['context']?['uri'];
+                      final contextUri =
+                          spotifyProvider.currentTrack?['context']?['uri'];
                       if (trackUri != null) {
                         spotifyProvider.playTrack(
                           trackUri: trackUri,
@@ -98,20 +104,22 @@ class QueueDisplay extends StatelessWidget {
     final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
-  
+
   // 打开Spotify应用或网页
-  Future<void> _openInSpotify(BuildContext context, Map<String, dynamic> track) async {
+  Future<void> _openInSpotify(
+      BuildContext context, Map<String, dynamic> track) async {
     // Capture BuildContext before async gap
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final localizations = AppLocalizations.of(context)!;
     String? webUrl;
     String? spotifyUri;
-    
+
     // 先尝试获取URI
-    if (track['uri'] != null && track['uri'].toString().startsWith('spotify:')) {
+    if (track['uri'] != null &&
+        track['uri'].toString().startsWith('spotify:')) {
       // 直接使用原始URI格式，如 spotify:track:37vIh6I03bNlWKlVMjGRK3
       spotifyUri = track['uri'].toString();
-      
+
       // 从URI构建web URL
       final segments = spotifyUri.split(':');
       if (segments.length >= 3) {
@@ -119,7 +127,7 @@ class QueueDisplay extends StatelessWidget {
         final id = segments[2];
         webUrl = 'https://open.spotify.com/$type/$id';
       }
-    } 
+    }
     // 尝试构建URI
     else if (track['type'] != null && track['id'] != null) {
       final type = track['type'].toString();
@@ -128,9 +136,10 @@ class QueueDisplay extends StatelessWidget {
       webUrl = 'https://open.spotify.com/$type/$id';
     }
     // 后备方案：尝试从external_urls
-    else if (track['external_urls'] != null && track['external_urls']['spotify'] != null) {
+    else if (track['external_urls'] != null &&
+        track['external_urls']['spotify'] != null) {
       webUrl = track['external_urls']['spotify'].toString();
-      
+
       // 尝试从URL创建URI
       if (webUrl.contains('open.spotify.com/')) {
         final path = webUrl.split('open.spotify.com/')[1].split('?')[0];
@@ -140,46 +149,43 @@ class QueueDisplay extends StatelessWidget {
         }
       }
     }
-    
+
     if (spotifyUri == null && webUrl == null) {
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text(localizations.cannotCreateSpotifyLink))
-      );
+          SnackBar(content: Text(localizations.cannotCreateSpotifyLink)));
       return;
     }
-    
+
     try {
       // 先尝试使用URI启动Spotify应用
       if (spotifyUri != null) {
         final uri = Uri.parse(spotifyUri);
         debugPrint('尝试打开Spotify应用：$uri');
-        
+
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
           return; // 成功打开应用后直接返回
         }
       }
-      
+
       // 如果无法打开应用，尝试打开网页
       if (webUrl != null) {
         final uri = Uri.parse(webUrl);
         debugPrint('尝试打开网页链接：$uri');
-        
+
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
           return;
         }
       }
-      
+
       // 两种方式都失败
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text(localizations.cannotOpenSpotify))
-      );
+          SnackBar(content: Text(localizations.cannotOpenSpotify)));
     } catch (e) {
       debugPrint('打开Spotify出错: $e');
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text(localizations.failedToOpenSpotify(e.toString())))
-      );
+      scaffoldMessenger.showSnackBar(SnackBar(
+          content: Text(localizations.failedToOpenSpotify(e.toString()))));
     }
   }
 }

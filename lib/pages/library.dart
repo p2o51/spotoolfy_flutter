@@ -514,14 +514,13 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                     else
                       const Spacer(),
 
-                    // Generate Insights按钮和展开/收起按钮靠右
-                    FilledButton.icon(
+                    // Generate Insights按钮和展开/收起按钮靠右（改为仅图标的圆形按钮）
+                    IconButton.filled(
                       onPressed: recentContexts.isNotEmpty && !_isLoadingInsights ? _generateInsights : null,
                       icon: const Icon(Icons.auto_awesome),
-                      label: Text(_isLoadingInsights ? AppLocalizations.of(context)!.generating : AppLocalizations.of(context)!.generateInsights),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 40),
-                      ),
+                      tooltip: _isLoadingInsights
+                          ? AppLocalizations.of(context)!.generating
+                          : AppLocalizations.of(context)!.generateInsights,
                     ),
                     
                     // 只有在有结果或错误时才显示展开/收起按钮

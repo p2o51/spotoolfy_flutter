@@ -45,6 +45,7 @@ class SpotifyProvider extends ChangeNotifier {
   Timer? _refreshTimer;
   Timer? _progressTimer;
   DateTime? _lastProgressUpdate;
+  DateTime? _lastProgressNotify;
   bool isLoading = false;
   bool _isBootstrapping = false; // 防止并发bootstrap
   Map<String, dynamic>? previousTrack;
@@ -53,9 +54,14 @@ class SpotifyProvider extends ChangeNotifier {
   PlayMode get currentMode => _currentMode;
   bool _isSkipping = false;
   bool _isInitialized = false;
+  bool _isRefreshTickRunning = false;
+  bool _isQueuePrefetchRunning = false;
 
   // 添加图片预加载缓存 - 持久化跨登录会话
   final Map<String, String> _imageCache = {};
+
+  static const Duration _progressTimerInterval = Duration(milliseconds: 500);
+  static const int _progressNotifyIntervalMs = 500;
 
   // 添加图片缓存管理方法
   void clearImageCache() {
@@ -573,22 +579,36 @@ class SpotifyProvider extends ChangeNotifier {
 
         _refreshTimer?.cancel();
         _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-          if (!_isSkipping) {
-            logger.t(
-                '_refreshTimer tick. Calling refreshCurrentTrack, refreshAvailableDevices & refreshPlaybackQueue.');
-            refreshCurrentTrack(); // 使用恢复后的 refreshCurrentTrack
-            refreshAvailableDevices(); // !! 加上这个 !!
-            refreshPlaybackQueue(); // 定期刷新播放队列
-          } else {
+          if (_isSkipping) {
             logger.t('_refreshTimer tick: Skipped due to _isSkipping=true.');
+            return;
           }
+          if (_isRefreshTickRunning) {
+            logger.t(
+                '_refreshTimer tick: Previous refresh still running, skipping.');
+            return;
+          }
+          _isRefreshTickRunning = true;
+          Future(() async {
+            try {
+              logger.t(
+                  '_refreshTimer tick. Refreshing current track, devices, and queue.');
+              await refreshCurrentTrack();
+              await refreshAvailableDevices();
+              await refreshPlaybackQueue();
+            } finally {
+              _isRefreshTickRunning = false;
+            }
+          });
         });
 
         _progressTimer?.cancel();
-        _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-          if (!_isSkipping &&
-              currentTrack != null &&
-              currentTrack!['is_playing'] == true) {
+        _progressTimer = Timer.periodic(_progressTimerInterval, (_) {
+          if (_isSkipping || currentTrack == null) {
+            return;
+          }
+
+          if (currentTrack!['is_playing'] == true) {
             final now = DateTime.now();
             if (_lastProgressUpdate != null) {
               final elapsed =
@@ -607,13 +627,19 @@ class SpotifyProvider extends ChangeNotifier {
 
                 if (currentTrack!['progress_ms'] != newProgressValue) {
                   currentTrack!['progress_ms'] = newProgressValue;
-                  notifyListeners();
+
+                  final shouldNotify = _lastProgressNotify == null ||
+                      now.difference(_lastProgressNotify!).inMilliseconds >=
+                          _progressNotifyIntervalMs;
+                  if (shouldNotify) {
+                    notifyListeners();
+                    _lastProgressNotify = now;
+                  }
                 }
               }
             }
             _lastProgressUpdate = now;
-          } else if (currentTrack != null &&
-              currentTrack!['is_playing'] == false) {
+          } else if (currentTrack!['is_playing'] == false) {
             _lastProgressUpdate = DateTime
                 .now(); // Also update if paused, to have a fresh start when resuming
           }
@@ -643,8 +669,13 @@ class SpotifyProvider extends ChangeNotifier {
       // 成功获取数据，检查并重置网络错误状态
       _isNetworkError(Exception('success')); // 调用以重置计数（传入非网络错误）
 
+      final debugTrackName = track?['item']?['name'];
+      final debugArtist = (track?['item']?['artists'] is List &&
+              track!['item']['artists'].isNotEmpty)
+          ? track['item']['artists'][0]['name']
+          : null;
       logger.d(
-          'refreshCurrentTrack: API returned track: ${track != null ? json.encode(track) : "null"}');
+          'refreshCurrentTrack: received ${debugTrackName ?? 'unknown track'} by ${debugArtist ?? 'unknown'} (progress ${track?['progress_ms'] ?? 'n/a'})');
 
       if (track != null) {
         final isPlayingFromApi = track['is_playing'] as bool?;
@@ -691,6 +722,7 @@ class SpotifyProvider extends ChangeNotifier {
                   progressFromApi != null) ||
               significantProgressJump) {
             _lastProgressUpdate = DateTime.now();
+            _lastProgressNotify = null;
           }
           needsNotify = true;
           logger.i(
@@ -758,12 +790,14 @@ class SpotifyProvider extends ChangeNotifier {
         if (needsNotify) {
           logger.d('refreshCurrentTrack: Calling notifyListeners()');
           notifyListeners();
+          _lastProgressNotify = DateTime.now();
         }
       } else if (currentTrack != null) {
         logger.d(
             'refreshCurrentTrack: API returned null, clearing currentTrack.');
         currentTrack = null;
         isCurrentTrackSaved = null;
+        _lastProgressNotify = null;
         notifyListeners();
       }
     } catch (e) {
@@ -1396,19 +1430,48 @@ class SpotifyProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> upcomingTracks = [];
 
+  bool _queuesDiffer(List<Map<String, dynamic>> newQueue) {
+    if (newQueue.length != upcomingTracks.length) {
+      return true;
+    }
+
+    for (var i = 0; i < math.min(newQueue.length, upcomingTracks.length); i++) {
+      final newUri = newQueue[i]['uri'];
+      final oldUri = upcomingTracks[i]['uri'];
+      if (newUri != oldUri) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<void> refreshPlaybackQueue() async {
     try {
       final queue = await _guard(() => _spotifyService.getPlaybackQueue());
       final rawQueue = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
 
+      final queueChanged = _queuesDiffer(rawQueue);
+
+      if (!queueChanged) {
+        return;
+      }
+
       // 移除队列长度限制
-      upcomingTracks = rawQueue.toList();
+      upcomingTracks = rawQueue;
 
       // 更安全地获取下一首歌曲
       nextTrack = upcomingTracks.isNotEmpty ? upcomingTracks.first : null;
 
-      // 批量缓存所有队列图片
-      await _cacheQueueImages();
+      if (!_isQueuePrefetchRunning) {
+        _isQueuePrefetchRunning = true;
+        Future(() async {
+          try {
+            await _cacheQueueImages();
+          } finally {
+            _isQueuePrefetchRunning = false;
+          }
+        });
+      }
 
       notifyListeners();
     } catch (e) {
@@ -1424,11 +1487,13 @@ class SpotifyProvider extends ChangeNotifier {
   Future<void> _cacheQueueImages() async {
     try {
       final imagesToCache = upcomingTracks
-          .map((track) => track['album']?['images']?[0]?['url'])
-          .where((url) => url != null)
+          .map((track) => track['album']?['images']?[0]?['url'] as String?)
+          .whereType<String>()
+          .where((url) => !_imageCache.containsKey(url))
+          .take(6)
           .toList();
 
-      for (var imageUrl in imagesToCache) {
+      for (final imageUrl in imagesToCache) {
         await _preloadImage(imageUrl);
       }
     } catch (e) {
