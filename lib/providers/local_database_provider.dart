@@ -168,6 +168,72 @@ class LocalDatabaseProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<Map<String, int?>> getLatestRatingsForTracks(
+      List<String> trackIds) async {
+    try {
+      return await _dbHelper.getLatestRatingsForTracks(trackIds);
+    } catch (e, s) {
+      logger.e('[LocalDBProvider] Failed to get latest ratings',
+          error: e, stackTrace: s);
+      return {};
+    }
+  }
+
+  Future<Map<String, Map<String, dynamic>?>> getLatestRatingsWithTimestampForTracks(
+      List<String> trackIds) async {
+    try {
+      return await _dbHelper.getLatestRatingsWithTimestampForTracks(trackIds);
+    } catch (e, s) {
+      logger.e('[LocalDBProvider] Failed to get latest ratings with timestamp',
+          error: e, stackTrace: s);
+      return {};
+    }
+  }
+
+  Future<void> quickRateTrack({
+    required String trackId,
+    required String trackName,
+    required String artistName,
+    required String albumName,
+    String? albumCoverUrl,
+    required int rating,
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final existingTrack = await _dbHelper.getTrack(trackId);
+      if (existingTrack == null) {
+        final track = Track(
+          trackId: trackId,
+          trackName: trackName,
+          artistName: artistName,
+          albumName: albumName,
+          albumCoverUrl: albumCoverUrl,
+          lastRecordedAt: timestamp,
+        );
+        await _dbHelper.insertTrack(track);
+      } else {
+        await _dbHelper.updateTrackLastRecordedAt(trackId, timestamp);
+      }
+
+      final record = Record(
+        trackId: trackId,
+        noteContent: null,
+        rating: rating,
+        songTimestampMs: null,
+        recordedAt: timestamp,
+        contextUri: null,
+        contextName: null,
+        lyricsSnapshot: null,
+      );
+
+      await _dbHelper.insertRecord(record);
+    } catch (e, s) {
+      logger.e('[LocalDBProvider] quickRateTrack failed for $trackId',
+          error: e, stackTrace: s);
+      rethrow;
+    }
+  }
+
   // --- Data Fetching Methods (Stubs initially) ---
 
   Future<void> fetchRecordsForTrack(String trackId) async {

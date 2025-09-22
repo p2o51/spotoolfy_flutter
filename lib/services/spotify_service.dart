@@ -1087,6 +1087,28 @@ class SpotifyAuthService {
     }
   }
 
+  /// 获取专辑的曲目列表（分页）。
+  Future<Map<String, dynamic>> getAlbumTracks(String albumId,
+      {int offset = 0, int limit = 50}) async {
+    try {
+      final headers = await _authHeaders(hasBody: false);
+      final uri = Uri.parse(
+          'https://api.spotify.com/v1/albums/$albumId/tracks?offset=$offset&limit=$limit');
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取专辑曲目失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// 获取可用设备列表
   Future<List<Map<String, dynamic>>> getAvailableDevices() async {
     try {

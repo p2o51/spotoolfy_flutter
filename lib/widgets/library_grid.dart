@@ -9,10 +9,10 @@ import '../l10n/app_localizations.dart';
 class LibraryGrid extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final bool isLoadingMore;
-  final Function? onItemTap;
-  final Function? onItemLongPress;
+  final void Function(Map<String, dynamic>)? onItemTap;
+  final void Function(Map<String, dynamic>)? onItemLongPress;
   final int gridCrossAxisCount; // Pass cross axis count from parent
-  
+
   const LibraryGrid({
     super.key,
     required this.items,
@@ -41,18 +41,18 @@ class LibraryGrid extends StatelessWidget {
     return SliverGrid(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-           // Build grid item
-           final item = items[index];
-           return _LibraryGridItem(
-             key: ValueKey(item['id']), // Add a key for better performance
-             item: item,
-             onTap: onItemTap != null 
-                 ? () => onItemTap!(item) 
-                 : () => _playItem(context, item),
-             onLongPress: onItemLongPress != null 
-                 ? () => onItemLongPress!(item) 
-                 : () => _openInSpotify(context, item),
-           );
+          // Build grid item
+          final item = items[index];
+          return _LibraryGridItem(
+            key: ValueKey(item['id']), // Add a key for better performance
+            item: item,
+            onTap: onItemTap != null
+                ? () => onItemTap!(item)
+                : () => _playItem(context, item),
+            onLongPress: onItemLongPress != null
+                ? () => onItemLongPress!(item)
+                : () => _openInSpotify(context, item),
+          );
         },
         childCount: items.length,
       ),
@@ -68,7 +68,8 @@ class LibraryGrid extends StatelessWidget {
   }
 
   void _playItem(BuildContext context, Map<String, dynamic> item) {
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     final type = item['type'];
     final id = item['id'];
     if (type != null && id != null) {
@@ -76,14 +77,15 @@ class LibraryGrid extends StatelessWidget {
     }
   }
 
-  Future<void> _openInSpotify(BuildContext context, Map<String, dynamic> item) async {
+  Future<void> _openInSpotify(
+      BuildContext context, Map<String, dynamic> item) async {
     String? webUrl;
     String? spotifyUri;
-    
+
     // Try to get URI
     if (item['uri'] != null && item['uri'].toString().startsWith('spotify:')) {
       spotifyUri = item['uri'].toString();
-      
+
       // Build web URL from URI
       final segments = spotifyUri.split(':');
       if (segments.length >= 3) {
@@ -91,7 +93,7 @@ class LibraryGrid extends StatelessWidget {
         final id = segments[2];
         webUrl = 'https://open.spotify.com/$type/$id';
       }
-    } 
+    }
     // Try to build URI
     else if (item['type'] != null && item['id'] != null) {
       final type = item['type'].toString();
@@ -100,9 +102,10 @@ class LibraryGrid extends StatelessWidget {
       webUrl = 'https://open.spotify.com/$type/$id';
     }
     // Fallback: try from external_urls
-    else if (item['external_urls'] != null && item['external_urls']['spotify'] != null) {
+    else if (item['external_urls'] != null &&
+        item['external_urls']['spotify'] != null) {
       webUrl = item['external_urls']['spotify'].toString();
-      
+
       // Try to create URI from URL
       if (webUrl.contains('open.spotify.com/')) {
         final path = webUrl.split('open.spotify.com/')[1].split('?')[0];
@@ -112,49 +115,48 @@ class LibraryGrid extends StatelessWidget {
         }
       }
     }
-    
+
     if (spotifyUri == null && webUrl == null) {
       if (!context.mounted) return; // Check context before using
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.cannotCreateSpotifyLink))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text(AppLocalizations.of(context)!.cannotCreateSpotifyLink)));
       return;
     }
-    
+
     try {
       // First try to launch Spotify app
       if (spotifyUri != null) {
         final uri = Uri.parse(spotifyUri);
         // print('Trying to open Spotify app: $uri');
-        
+
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
           return;
         }
       }
-      
+
       // If can't open app, try web
       if (webUrl != null) {
         final uri = Uri.parse(webUrl);
         // print('Trying to open web link: $uri');
-        
+
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
           return;
         }
       }
-      
+
       // Both methods failed
       if (!context.mounted) return; // Check context before using
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context)!.cannotOpenSpotify)));
     } catch (e) {
       // print('Error opening Spotify: $e');
       if (!context.mounted) return; // Check context before using
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(e.toString())))
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context)!
+              .failedToOpenSpotify(e.toString()))));
     }
   }
 }
@@ -196,7 +198,8 @@ class _LibraryGridItem extends StatelessWidget {
                   width: double.infinity,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: const Center(
                       child: SizedBox(
                         width: 24,
@@ -208,7 +211,8 @@ class _LibraryGridItem extends StatelessWidget {
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: const Icon(Icons.error),
                   ),
                 ),
@@ -221,17 +225,21 @@ class _LibraryGridItem extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w500,
-            ),
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                ),
           ),
           Text(
             _getItemSubtitle(context, item),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((255 * 0.7).round()),
-            ),
+                  color: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.color
+                      ?.withAlpha((255 * 0.7).round()),
+                ),
           ),
         ],
       ),
@@ -273,19 +281,19 @@ class LibraryGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-     // Return a sliver grid skeleton
-     return SliverGrid(
-       delegate: SliverChildBuilderDelegate(
-         (context, index) => _buildSkeletonItem(context),
-         childCount: itemCount,
-       ),
-       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-         crossAxisCount: gridCrossAxisCount,
-         childAspectRatio: 0.75,
-         crossAxisSpacing: 16,
-         mainAxisSpacing: 16,
-       ),
-     );
+    // Return a sliver grid skeleton
+    return SliverGrid(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => _buildSkeletonItem(context),
+        childCount: itemCount,
+      ),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: gridCrossAxisCount,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+    );
   }
 
   Widget _buildSkeletonItem(BuildContext context) {
@@ -317,11 +325,14 @@ class LibraryGridSkeleton extends StatelessWidget {
           width: 100,
           height: 12,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.7).round()),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withAlpha((255 * 0.7).round()),
             borderRadius: BorderRadius.circular(2),
           ),
         ),
       ],
     );
   }
-} 
+}

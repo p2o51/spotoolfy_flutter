@@ -61,6 +61,7 @@ class SpotifyProvider extends ChangeNotifier {
 
   // 添加图片预加载缓存 - 持久化跨登录会话
   final Map<String, String> _imageCache = {};
+  final Map<String, Map<String, dynamic>> _albumCache = {};
 
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
   static const Duration _refreshTickInterval = Duration(seconds: 3);
@@ -1654,6 +1655,52 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> fetchAlbumDetails(String albumId,
+      {bool forceRefresh = false}) async {
+    if (!forceRefresh && _albumCache.containsKey(albumId)) {
+      return _albumCache[albumId]!;
+    }
+
+    final albumRaw = await _guard(() => _spotifyService.getAlbum(albumId));
+    final Map<String, dynamic> albumData = Map<String, dynamic>.from(albumRaw);
+
+    final Map<String, dynamic> tracksSection = Map<String, dynamic>.from(
+        (albumData['tracks'] as Map<String, dynamic>? ?? {}));
+    final initialItems = tracksSection['items'] as List? ?? const [];
+    final List<Map<String, dynamic>> allTracks = [
+      for (final item in initialItems)
+        if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
+    ];
+
+    final total = (tracksSection['total'] as int?) ?? allTracks.length;
+    var offset = allTracks.length;
+
+    while (offset < total) {
+      final page = await _guard(
+          () => _spotifyService.getAlbumTracks(albumId, offset: offset));
+      final pageItems = page['items'] as List? ?? const [];
+      final extracted = <Map<String, dynamic>>[
+        for (final item in pageItems)
+          if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
+      ];
+      if (extracted.isEmpty) {
+        break;
+      }
+      allTracks.addAll(extracted);
+      offset = allTracks.length;
+      if (page['next'] == null) {
+        break;
+      }
+    }
+
+    tracksSection['items'] = allTracks;
+    tracksSection['total'] = allTracks.length;
+    albumData['tracks'] = tracksSection;
+
+    _albumCache[albumId] = albumData;
+    return albumData;
+  }
+
   // 存储最近播放的播放列表和专辑
   final List<Map<String, dynamic>> _recentPlaylists = [];
   final List<Map<String, dynamic>> _recentAlbums = [];
@@ -1786,6 +1833,7 @@ class SpotifyProvider extends ChangeNotifier {
       // _imageCache.clear(); // OPTIMIZATION: Don't clear image cache on logout
       _recentAlbums.clear();
       _recentPlaylists.clear();
+      _albumCache.clear();
 
       if (!_isInitialized) _bootstrap();
       if (_isInitialized) {

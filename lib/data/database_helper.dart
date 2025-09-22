@@ -81,7 +81,8 @@ class DatabaseHelper {
     ''');
     // Add indexes
     await db.execute('CREATE INDEX idx_record_trackId ON records (trackId);');
-    await db.execute('CREATE INDEX idx_record_recordedAt ON records (recordedAt);');
+    await db
+        .execute('CREATE INDEX idx_record_recordedAt ON records (recordedAt);');
 
     // Create translations table
     await db.execute('''
@@ -97,10 +98,12 @@ class DatabaseHelper {
           ON DELETE CASCADE ON UPDATE CASCADE
       );
     ''');
-     // Index for foreign key is often useful
-    await db.execute('CREATE INDEX idx_translation_trackId ON translations (trackId);');
-     // Index for the unique constraint might also improve lookups if needed
-    await db.execute('CREATE INDEX idx_translation_unique ON translations (trackId, languageCode, style);');
+    // Index for foreign key is often useful
+    await db.execute(
+        'CREATE INDEX idx_translation_trackId ON translations (trackId);');
+    // Index for the unique constraint might also improve lookups if needed
+    await db.execute(
+        'CREATE INDEX idx_translation_unique ON translations (trackId, languageCode, style);');
 
     // Create play_contexts table
     await db.execute('''
@@ -113,8 +116,8 @@ class DatabaseHelper {
       );
     ''');
     // Add index for sorting by lastPlayedAt
-    await db.execute('CREATE INDEX idx_play_contexts_lastPlayedAt ON play_contexts (lastPlayedAt);');
-
+    await db.execute(
+        'CREATE INDEX idx_play_contexts_lastPlayedAt ON play_contexts (lastPlayedAt);');
   }
 
   // --- CRUD Methods ---
@@ -128,7 +131,7 @@ class DatabaseHelper {
     return await db.insert(
       'tracks',
       track.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.ignore, 
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
@@ -186,13 +189,15 @@ class DatabaseHelper {
     return await db.insert(
       'translations',
       translation.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace, // Replace existing entry on conflict
+      conflictAlgorithm:
+          ConflictAlgorithm.replace, // Replace existing entry on conflict
     );
   }
 
   /// Retrieves a specific translation from the database.
   /// Returns the Translation object if found, otherwise null.
-  Future<Translation?> getTranslation(String trackId, String languageCode, String style) async {
+  Future<Translation?> getTranslation(
+      String trackId, String languageCode, String style) async {
     final db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'translations',
@@ -218,9 +223,77 @@ class DatabaseHelper {
       whereArgs: [trackId],
     );
     if (rowsAffected == 0) {
-      debugPrint('Warning: updateTrackLastRecordedAt did not affect any rows for trackId: $trackId');
+      debugPrint(
+          'Warning: updateTrackLastRecordedAt did not affect any rows for trackId: $trackId');
       // This might happen if the trackId doesn't exist, though addRecord logic should prevent this call then.
     }
+  }
+
+  /// Returns the most recent rating for each track in [trackIds].
+  Future<Map<String, int?>> getLatestRatingsForTracks(
+      List<String> trackIds) async {
+    if (trackIds.isEmpty) {
+      return {};
+    }
+
+    final db = await instance.database;
+    final placeholders = List.filled(trackIds.length, '?').join(',');
+
+    final rows = await db.rawQuery('''
+      SELECT r.trackId, r.rating
+      FROM records r
+      INNER JOIN (
+        SELECT trackId, MAX(recordedAt) AS maxRecordedAt
+        FROM records
+        WHERE trackId IN ($placeholders)
+        GROUP BY trackId
+      ) latest ON latest.trackId = r.trackId AND latest.maxRecordedAt = r.recordedAt
+    ''', trackIds);
+
+    final result = <String, int?>{};
+    for (final row in rows) {
+      final trackId = row['trackId'] as String?;
+      if (trackId == null) {
+        continue;
+      }
+      result[trackId] = row['rating'] as int?;
+    }
+    return result;
+  }
+
+  /// Returns the most recent rating and timestamp for each track in [trackIds].
+  Future<Map<String, Map<String, dynamic>?>> getLatestRatingsWithTimestampForTracks(
+      List<String> trackIds) async {
+    if (trackIds.isEmpty) {
+      return {};
+    }
+
+    final db = await instance.database;
+    final placeholders = List.filled(trackIds.length, '?').join(',');
+
+    final rows = await db.rawQuery('''
+      SELECT r.trackId, r.rating, r.recordedAt
+      FROM records r
+      INNER JOIN (
+        SELECT trackId, MAX(recordedAt) AS maxRecordedAt
+        FROM records
+        WHERE trackId IN ($placeholders)
+        GROUP BY trackId
+      ) latest ON latest.trackId = r.trackId AND latest.maxRecordedAt = r.recordedAt
+    ''', trackIds);
+
+    final result = <String, Map<String, dynamic>?>{};
+    for (final row in rows) {
+      final trackId = row['trackId'] as String?;
+      if (trackId == null) {
+        continue;
+      }
+      result[trackId] = {
+        'rating': row['rating'] as int?,
+        'recordedAt': row['recordedAt'] as int?,
+      };
+    }
+    return result;
   }
 
   /// Updates the latestPlayedAt timestamp for a specific track.
@@ -244,9 +317,10 @@ class DatabaseHelper {
       whereArgs: [recordId],
     );
     if (rowsAffected == 1) {
-       logger.d('[DBHelper] Deleted record with id: $recordId');
+      logger.d('[DBHelper] Deleted record with id: $recordId');
     } else {
-       logger.w('[DBHelper] Attempted to delete record id: $recordId, but $rowsAffected rows were affected.');
+      logger.w(
+          '[DBHelper] Attempted to delete record id: $recordId, but $rowsAffected rows were affected.');
     }
     return rowsAffected;
   }
@@ -259,15 +333,16 @@ class DatabaseHelper {
     required int newRating,
   }) async {
     final db = await instance.database;
-    
+
     // Update only specified fields
     final updateData = {
       'noteContent': newNoteContent,
       'rating': newRating,
     };
-    
-    logger.d('[DBHelper] Updating record ID: $recordId with rating: $newRating');
-    
+
+    logger
+        .d('[DBHelper] Updating record ID: $recordId with rating: $newRating');
+
     try {
       final rowsAffected = await db.update(
         'records',
@@ -275,16 +350,18 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [recordId],
       );
-      
+
       if (rowsAffected == 1) {
         logger.d('[DBHelper] Record ID: $recordId updated successfully');
         return true;
       } else {
-        logger.w('[DBHelper] Attempted to update record ID: $recordId, but $rowsAffected rows were affected.');
+        logger.w(
+            '[DBHelper] Attempted to update record ID: $recordId, but $rowsAffected rows were affected.');
         return false;
       }
     } catch (e, s) {
-      logger.e('[DBHelper] Error updating record ID: $recordId', error: e, stackTrace: s);
+      logger.e('[DBHelper] Error updating record ID: $recordId',
+          error: e, stackTrace: s);
       return false;
     }
   }
@@ -293,11 +370,13 @@ class DatabaseHelper {
 
   /// Fetches a specified number of random records along with their associated track info.
   /// Returns a list of maps, where each map contains columns from both records and tracks tables.
-  Future<List<Map<String, dynamic>>> getRandomRecordsWithTrackInfo(int limit) async {
+  Future<List<Map<String, dynamic>>> getRandomRecordsWithTrackInfo(
+      int limit) async {
     if (limit <= 0) return [];
 
     final db = await instance.database;
-    final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM records');
+    final countResult =
+        await db.rawQuery('SELECT COUNT(*) as count FROM records');
     final totalRecords = Sqflite.firstIntValue(countResult) ?? 0;
     if (totalRecords == 0) {
       return [];
@@ -324,9 +403,7 @@ class DatabaseHelper {
   /// Fetches records associated with tracks that have the same name as the current track,
   /// excluding the current track itself. Includes track info for the fetched records.
   Future<List<Map<String, dynamic>>> fetchRelatedRecords(
-      String currentTrackId,
-      String trackName,
-      int limit) async {
+      String currentTrackId, String trackName, int limit) async {
     final db = await instance.database;
 
     // Find trackIds with the same name but different ID
@@ -353,10 +430,11 @@ class DatabaseHelper {
 
   /// Fetches all records along with their associated track info, ordered by recordedAt timestamp.
   /// Returns a list of maps, where each map contains columns from both records and tracks tables.
-  Future<List<Map<String, dynamic>>> getAllRecordsWithTrackInfoOrderedByTime({bool descending = true}) async {
+  Future<List<Map<String, dynamic>>> getAllRecordsWithTrackInfoOrderedByTime(
+      {bool descending = true}) async {
     final db = await instance.database;
     final orderBy = descending ? 'DESC' : 'ASC';
-    
+
     // Use a JOIN query to combine records and tracks
     // Order by recordedAt
     final List<Map<String, dynamic>> result = await db.rawQuery('''
@@ -407,8 +485,9 @@ class DatabaseHelper {
       // Use the existing toMap() which excludes the auto-generated id
       batch.insert(
         'tracks',
-        track.toMap(), 
-        conflictAlgorithm: ConflictAlgorithm.replace, // Replace based on trackId UNIQUE constraint
+        track.toMap(),
+        conflictAlgorithm: ConflictAlgorithm
+            .replace, // Replace based on trackId UNIQUE constraint
       );
     }
     await batch.commit(noResult: true);
@@ -416,7 +495,7 @@ class DatabaseHelper {
 
   /// Inserts multiple records in a batch.
   Future<void> batchInsertRecords(List<Record> records) async {
-     if (records.isEmpty) return;
+    if (records.isEmpty) return;
     final db = await instance.database;
     final batch = db.batch();
     for (final record in records) {
@@ -424,23 +503,25 @@ class DatabaseHelper {
       // Simple insert is appropriate as records don't have other unique constraints
       batch.insert(
         'records',
-        record.toMap(), 
+        record.toMap(),
       );
     }
     await batch.commit(noResult: true);
   }
 
   /// Inserts or replaces multiple translations in a batch.
-  Future<void> batchInsertOrReplaceTranslations(List<Translation> translations) async {
-     if (translations.isEmpty) return;
+  Future<void> batchInsertOrReplaceTranslations(
+      List<Translation> translations) async {
+    if (translations.isEmpty) return;
     final db = await instance.database;
     final batch = db.batch();
     for (final translation in translations) {
       // Use the existing toMap() which excludes the auto-generated id
       batch.insert(
         'translations',
-        translation.toMap(), 
-        conflictAlgorithm: ConflictAlgorithm.replace, // Replace based on UNIQUE constraint
+        translation.toMap(),
+        conflictAlgorithm:
+            ConflictAlgorithm.replace, // Replace based on UNIQUE constraint
       );
     }
     await batch.commit(noResult: true);
@@ -466,16 +547,20 @@ class DatabaseHelper {
       'imageUrl': imageUrl,
       'lastPlayedAt': lastPlayedAt,
     };
-    logger.d('[DBHelper] Attempting to insert/update play_context: ${json.encode(dataToInsert)}'); // Log: Data to insert
+    logger.d(
+        '[DBHelper] Attempting to insert/update play_context: ${json.encode(dataToInsert)}'); // Log: Data to insert
     try {
       await db.insert(
         'play_contexts',
         dataToInsert,
-        conflictAlgorithm: ConflictAlgorithm.replace, // Replace updates if PK exists
+        conflictAlgorithm:
+            ConflictAlgorithm.replace, // Replace updates if PK exists
       );
-      logger.d('[DBHelper] Successfully inserted/updated play_context for URI: $contextUri'); // Log: Success
+      logger.d(
+          '[DBHelper] Successfully inserted/updated play_context for URI: $contextUri'); // Log: Success
     } catch (e, s) {
-      logger.e('[DBHelper] Error inserting/updating play_context', error: e, stackTrace: s); // Log: Error
+      logger.e('[DBHelper] Error inserting/updating play_context',
+          error: e, stackTrace: s); // Log: Error
       rethrow; // Re-throw the error so the provider layer can potentially handle it
     }
   }
@@ -484,17 +569,20 @@ class DatabaseHelper {
   /// Limits the results to the specified number.
   Future<List<Map<String, dynamic>>> getRecentPlayContexts(int limit) async {
     final db = await instance.database;
-    logger.d('[DBHelper] Querying play_contexts, orderBy: lastPlayedAt DESC, limit: $limit'); // Log: Query details
+    logger.d(
+        '[DBHelper] Querying play_contexts, orderBy: lastPlayedAt DESC, limit: $limit'); // Log: Query details
     try {
       final List<Map<String, dynamic>> maps = await db.query(
         'play_contexts',
         orderBy: 'lastPlayedAt DESC',
         limit: limit,
       );
-      logger.d('[DBHelper] Query successful, returned ${maps.length} contexts.'); // Log: Query success
+      logger.d(
+          '[DBHelper] Query successful, returned ${maps.length} contexts.'); // Log: Query success
       return maps;
     } catch (e, s) {
-      logger.e('[DBHelper] Error querying play_contexts', error: e, stackTrace: s); // Log: Error
+      logger.e('[DBHelper] Error querying play_contexts',
+          error: e, stackTrace: s); // Log: Error
       rethrow; // Re-throw the error
     }
   }
@@ -505,27 +593,32 @@ class DatabaseHelper {
     logger.d('[DBHelper] Querying all play_contexts...');
     try {
       final List<Map<String, dynamic>> maps = await db.query('play_contexts');
-      logger.d('[DBHelper] getAllPlayContexts successful, returned ${maps.length} contexts.');
+      logger.d(
+          '[DBHelper] getAllPlayContexts successful, returned ${maps.length} contexts.');
       return maps;
     } catch (e, s) {
-      logger.e('[DBHelper] Error querying all play_contexts', error: e, stackTrace: s);
+      logger.e('[DBHelper] Error querying all play_contexts',
+          error: e, stackTrace: s);
       rethrow;
     }
   }
 
   /// Inserts or replaces multiple play contexts in a batch.
-  Future<void> batchInsertOrReplacePlayContexts(List<Map<String, dynamic>> contexts) async {
+  Future<void> batchInsertOrReplacePlayContexts(
+      List<Map<String, dynamic>> contexts) async {
     if (contexts.isEmpty) return;
     final db = await instance.database;
     final batch = db.batch();
-    logger.d('[DBHelper] Starting batch insert/replace for ${contexts.length} play contexts...');
+    logger.d(
+        '[DBHelper] Starting batch insert/replace for ${contexts.length} play contexts...');
     int count = 0;
     for (final context in contexts) {
       // Basic validation before adding to batch
       if (context['contextUri'] != null &&
           context['contextType'] != null &&
           context['contextName'] != null &&
-          context['lastPlayedAt'] is int) { // Ensure lastPlayedAt is int
+          context['lastPlayedAt'] is int) {
+        // Ensure lastPlayedAt is int
         batch.insert(
           'play_contexts',
           context, // Assuming the map structure matches the table columns
@@ -533,14 +626,16 @@ class DatabaseHelper {
         );
         count++;
       } else {
-        logger.w('[DBHelper] Skipping invalid play context data in batch: ${json.encode(context)}');
+        logger.w(
+            '[DBHelper] Skipping invalid play context data in batch: ${json.encode(context)}');
       }
     }
     if (count > 0) {
       await batch.commit(noResult: true);
-      logger.d('[DBHelper] Batch insert/replace for $count play contexts committed.');
+      logger.d(
+          '[DBHelper] Batch insert/replace for $count play contexts committed.');
     } else {
-       logger.w('[DBHelper] No valid play contexts found to commit in batch.');
+      logger.w('[DBHelper] No valid play contexts found to commit in batch.');
     }
   }
 
@@ -551,7 +646,8 @@ class DatabaseHelper {
     final db = await instance.database;
 
     // Check if tracks table is empty before inserting
-    final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM tracks');
+    final countResult =
+        await db.rawQuery('SELECT COUNT(*) as count FROM tracks');
     final count = Sqflite.firstIntValue(countResult);
 
     if (count == 0) {
@@ -567,12 +663,17 @@ class DatabaseHelper {
               artistName: 'Test Artist',
               albumName: 'Sample Album',
               albumCoverUrl: 'https://via.placeholder.com/150',
-              lastRecordedAt: DateTime.now().subtract(Duration(days: 1)).millisecondsSinceEpoch,
-              latestPlayedAt: DateTime.now().subtract(Duration(hours: 2)).millisecondsSinceEpoch,
+              lastRecordedAt: DateTime.now()
+                  .subtract(Duration(days: 1))
+                  .millisecondsSinceEpoch,
+              latestPlayedAt: DateTime.now()
+                  .subtract(Duration(hours: 2))
+                  .millisecondsSinceEpoch,
             ).toMap(),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
-          debugPrint('Inserted sample track 1 with DB ID: $track1Id'); // track1Id here is the DB row id
+          debugPrint(
+              'Inserted sample track 1 with DB ID: $track1Id'); // track1Id here is the DB row id
 
           // Sample Track 2
           await txn.insert(
@@ -584,7 +685,9 @@ class DatabaseHelper {
               albumName: 'Test Hits',
               // albumCoverUrl: null, // Optional
               lastRecordedAt: DateTime.now().millisecondsSinceEpoch,
-              latestPlayedAt: DateTime.now().subtract(Duration(minutes: 30)).millisecondsSinceEpoch,
+              latestPlayedAt: DateTime.now()
+                  .subtract(Duration(minutes: 30))
+                  .millisecondsSinceEpoch,
             ).toMap(),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
@@ -593,18 +696,21 @@ class DatabaseHelper {
           await txn.insert(
             'records',
             Record(
-              trackId: 'spotify:track:sample1', // Matches Track 1
-              noteContent: 'This is a test note for Sample Track One.',
-              rating: 3,
-              songTimestampMs: 30000,
-              recordedAt: DateTime.now().subtract(Duration(days: 1, hours: 1)).millisecondsSinceEpoch,
-              contextUri: 'spotify:playlist:testplaylist',
-              contextName: 'My Test Playlist',
-              lyricsSnapshot: 'Oh sample lyrics line one\nLine two goes here'
-            ).toMap(),
+                    trackId: 'spotify:track:sample1', // Matches Track 1
+                    noteContent: 'This is a test note for Sample Track One.',
+                    rating: 3,
+                    songTimestampMs: 30000,
+                    recordedAt: DateTime.now()
+                        .subtract(Duration(days: 1, hours: 1))
+                        .millisecondsSinceEpoch,
+                    contextUri: 'spotify:playlist:testplaylist',
+                    contextName: 'My Test Playlist',
+                    lyricsSnapshot:
+                        'Oh sample lyrics line one\nLine two goes here')
+                .toMap(),
           );
 
-           // Sample Record for Track 2
+          // Sample Record for Track 2
           await txn.insert(
             'records',
             Record(
@@ -615,7 +721,7 @@ class DatabaseHelper {
               // songTimestampMs, context, lyricsSnapshot are optional
             ).toMap(),
           );
-          
+
           // Sample Translation for Track 1
           await txn.insert(
             'translations',
@@ -624,9 +730,12 @@ class DatabaseHelper {
               languageCode: 'zh-CN',
               style: 'faithful',
               translatedLyrics: '哦 示例歌词第一行\n第二行在这里',
-              generatedAt: DateTime.now().subtract(Duration(hours: 5)).millisecondsSinceEpoch,
+              generatedAt: DateTime.now()
+                  .subtract(Duration(hours: 5))
+                  .millisecondsSinceEpoch,
             ).toMap(),
-             conflictAlgorithm: ConflictAlgorithm.replace, // Use replace as defined in insertTranslation
+            conflictAlgorithm: ConflictAlgorithm
+                .replace, // Use replace as defined in insertTranslation
           );
         });
         debugPrint('Sample data inserted successfully.');
@@ -634,7 +743,8 @@ class DatabaseHelper {
         debugPrint('Error inserting sample data: $e');
       }
     } else {
-      debugPrint('Database already contains data, skipping sample data insertion.');
+      debugPrint(
+          'Database already contains data, skipping sample data insertion.');
     }
   }
 
@@ -646,4 +756,4 @@ class DatabaseHelper {
     db.close();
     _database = null; // Reset the static variable
   }
-} 
+}
