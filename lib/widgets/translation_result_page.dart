@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard and HapticFeedback
 import 'package:logger/logger.dart';
 import '../services/settings_service.dart'; // Import TranslationStyle and SettingsService
-import 'package:provider/provider.dart';
-import '../providers/local_database_provider.dart';
 // import '../models/translation.dart'; // Unused import
 // 导入 AppLocalizations 类，用于访问本地化字符串
 import '../l10n/app_localizations.dart';
@@ -11,7 +9,8 @@ import '../l10n/app_localizations.dart';
 // --- 本地化辅助函数 ---
 
 // 使用 AppLocalizations 获取翻译风格的显示名称
-String _getTranslationStyleDisplayName(TranslationStyle style, AppLocalizations l10n) {
+String _getTranslationStyleDisplayName(
+    TranslationStyle style, AppLocalizations l10n) {
   switch (style) {
     case TranslationStyle.faithful:
       // 使用 l10n 获取本地化字符串
@@ -50,7 +49,8 @@ TranslationStyle _getNextTranslationStyle(TranslationStyle currentStyle) {
 }
 
 // 使用 AppLocalizations 获取翻译风格按钮的 Tooltip 文本
-String _getTranslationStyleTooltip(TranslationStyle style, AppLocalizations l10n) {
+String _getTranslationStyleTooltip(
+    TranslationStyle style, AppLocalizations l10n) {
   switch (style) {
     case TranslationStyle.faithful:
       // 使用 l10n 获取本地化字符串
@@ -68,21 +68,34 @@ String _getTranslationStyleTooltip(TranslationStyle style, AppLocalizations l10n
 
 final logger = Logger();
 
+class TranslationLoadResult {
+  final String translatedLyrics;
+  final TranslationStyle style;
+  final String languageCode;
+
+  TranslationLoadResult({
+    required this.translatedLyrics,
+    required this.style,
+    required this.languageCode,
+  });
+}
+
 // 将类名更改为 TranslationResultPage，以反映其新用途
 class TranslationResultPage extends StatefulWidget {
   final String originalLyrics;
-  final String translatedLyrics;
-  final Future<String?> Function() onReTranslate;
-  final TranslationStyle translationStyle;
-  final String trackId;
+  final TranslationStyle initialStyle;
+  final Future<TranslationLoadResult> Function({
+    bool forceRefresh,
+    TranslationStyle? style,
+  }) loadTranslation;
+  final Future<TranslationLoadResult>? initialData;
 
   const TranslationResultPage({
     super.key,
     required this.originalLyrics,
-    required this.translatedLyrics,
-    required this.onReTranslate,
-    required this.translationStyle,
-    required this.trackId,
+    required this.initialStyle,
+    required this.loadTranslation,
+    this.initialData,
   });
 
   @override
@@ -91,9 +104,12 @@ class TranslationResultPage extends StatefulWidget {
 
 class _TranslationResultPageState extends State<TranslationResultPage> {
   bool _isTranslating = false;
+  bool _isInitialLoading = true;
   String? _translationError;
-  late String _currentTranslatedLyrics;
+  String? _currentTranslatedLyrics;
   late TranslationStyle _currentStyle;
+  String? _currentLanguageCode;
+  Future<TranslationLoadResult>? _pendingInitialFuture;
   bool _showTranslated = true; // 默认显示翻译后的歌词 (窄屏模式下)
 
   final SettingsService _settingsService = SettingsService();
@@ -101,18 +117,44 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
   @override
   void initState() {
     super.initState();
-    _currentTranslatedLyrics = widget.translatedLyrics;
-    _currentStyle = widget.translationStyle;
+    _currentStyle = widget.initialStyle;
+    _pendingInitialFuture = widget.initialData;
+    _loadInitialTranslation();
+  }
+
+  Future<void> _loadInitialTranslation() async {
+    setState(() {
+      _isInitialLoading = true;
+      _translationError = null;
+    });
+
+    try {
+      final future =
+          _pendingInitialFuture ?? widget.loadTranslation(style: _currentStyle);
+      _pendingInitialFuture = null;
+      final result = await future;
+      if (!mounted) return;
+      setState(() {
+        _currentTranslatedLyrics = result.translatedLyrics;
+        _currentStyle = result.style;
+        _currentLanguageCode = result.languageCode;
+        _isInitialLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _translationError = e.toString();
+        _isInitialLoading = false;
+      });
+    }
   }
 
   // 切换翻译风格
   Future<void> _toggleTranslationStyle() async {
-    if (_isTranslating) return;
+    if (_isTranslating || _isInitialLoading) return;
 
-    // 获取 AppLocalizations 实例以用于错误消息
     final l10n = AppLocalizations.of(context)!;
     final nextStyle = _getNextTranslationStyle(_currentStyle);
-    final nextStyleString = translationStyleToString(nextStyle);
 
     setState(() {
       _isTranslating = true;
@@ -122,88 +164,53 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     try {
       HapticFeedback.lightImpact();
       await _settingsService.saveTranslationStyle(nextStyle);
-
-      setState(() {
-        _currentStyle = nextStyle;
-      });
-
-      final currentLanguage = await _settingsService.getTargetLanguage();
+      final result = await widget.loadTranslation(style: nextStyle);
       if (!mounted) return;
-      final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-      final cachedTranslation = await localDbProvider.fetchTranslation(
-        widget.trackId,
-        currentLanguage,
-        nextStyleString
-      );
-
-      if (cachedTranslation != null) {
-        if (mounted) {
-          setState(() {
-            _currentTranslatedLyrics = cachedTranslation.translatedLyrics;
-            _isTranslating = false;
-          });
-        }
-      } else {
-        final newTranslation = await widget.onReTranslate();
-        if (mounted) {
-          setState(() {
-            if (newTranslation != null) {
-              _currentTranslatedLyrics = newTranslation;
-              _translationError = null;
-            } else {
-              // 使用本地化的错误消息
-              _translationError = l10n.translationFailed(l10n.operationFailed); // 或者一个更具体的错误 key
-            }
-            _isTranslating = false;
-          });
-        }
-      }
+      setState(() {
+        _currentStyle = result.style;
+        _currentTranslatedLyrics = result.translatedLyrics;
+        _currentLanguageCode = result.languageCode;
+        _isTranslating = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          // 使用本地化的错误消息 (假设有一个通用的错误 key 或使用 translationFailed)
-          _translationError = l10n.translationFailed(e.toString());
-          _isTranslating = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _translationError = l10n.translationFailed(e.toString());
+        _isTranslating = false;
+      });
     }
   }
 
   // 重新翻译
   Future<void> _handleReTranslate() async {
-     if (_isTranslating) return;
+    if (_isTranslating) return;
 
-    // 获取 AppLocalizations 实例
     final l10n = AppLocalizations.of(context)!;
 
     setState(() {
-      _isTranslating = true; // 可以考虑显示本地化的 "Retranslating..." 状态
+      _isTranslating = true;
       _translationError = null;
     });
 
     try {
       HapticFeedback.lightImpact();
-      final newTranslation = await widget.onReTranslate();
-      if (mounted) {
-        setState(() {
-          if (newTranslation != null) {
-            _currentTranslatedLyrics = newTranslation;
-            _translationError = null;
-          } else {
-            // 使用本地化的错误消息
-             _translationError = l10n.translationFailed(l10n.operationFailed); // 同上
-          }
-          _isTranslating = false;
-        });
-      }
+      final result = await widget.loadTranslation(
+        forceRefresh: true,
+        style: _currentStyle,
+      );
+      if (!mounted) return;
+      setState(() {
+        _currentTranslatedLyrics = result.translatedLyrics;
+        _currentLanguageCode = result.languageCode;
+        _translationError = null;
+        _isTranslating = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          // 使用本地化的错误消息
-          _translationError = l10n.translationFailed(e.toString());
-          _isTranslating = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _translationError = l10n.translationFailed(e.toString());
+        _isTranslating = false;
+      });
     }
   }
 
@@ -220,9 +227,20 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       logger.d("Error reading copy setting: $e");
     }
 
-    final lyricsToCopy = isWideScreen
+    final String? lyricsToCopySource = isWideScreen
         ? _currentTranslatedLyrics
         : (_showTranslated ? _currentTranslatedLyrics : widget.originalLyrics);
+
+    if (lyricsToCopySource == null || lyricsToCopySource.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.translationFailed(l10n.operationFailed))),
+        );
+      }
+      return;
+    }
+
+    final lyricsToCopy = lyricsToCopySource;
 
     String textToCopy;
     String snackBarMessage; // 本地化的提示消息
@@ -235,7 +253,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     } else {
       textToCopy = lyricsToCopy.replaceAll(RegExp(r'\s+'), ' ').trim();
       // 假设 arb 文件中有 lyricsCopiedAsSingleLine 键
-      snackBarMessage = "${l10n.copiedToClipboard(l10n.lyricsTitle)} (${l10n.copyLyricsAsSingleLineTitle})"; // 组合消息
+      snackBarMessage =
+          "${l10n.copiedToClipboard(l10n.lyricsTitle)} (${l10n.copyLyricsAsSingleLineTitle})"; // 组合消息
       // 或者使用特定的 key: snackBarMessage = l10n.lyricsCopiedAsSingleLine;
     }
 
@@ -257,6 +276,15 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
+    final bool translationAvailable = _currentTranslatedLyrics != null;
+    final bool hasError = _translationError != null;
+    final bool isBusy = _isInitialLoading || _isTranslating;
+
+    final bool canCopy = isWideScreen
+        ? (!_isInitialLoading && translationAvailable && !hasError)
+        : (_showTranslated
+            ? (!_isInitialLoading && translationAvailable && !hasError)
+            : true);
 
     // titleLabel variable removed as unused
     // final titleLabel = _showTranslated ? l10n.translationTitle : l10n.originalTitle;
@@ -264,93 +292,91 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     // 使用 Scaffold 替换
     return Scaffold(
       appBar: AppBar(
-
-        title: Text(isWideScreen ? l10n.lyricsTitle : (_showTranslated ? l10n.translationTitle : l10n.originalTitle)),
-        leading: IconButton( // 添加返回按钮
+        title: Text(isWideScreen
+            ? l10n.lyricsTitle
+            : (_showTranslated ? l10n.translationTitle : l10n.originalTitle)),
+        leading: IconButton(
+          // 添加返回按钮
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           // 翻译风格按钮 - Tooltip 使用本地化字符串
-          IconButton( // 改为普通 IconButton 可能更合适在 AppBar
-            icon: Icon(_getTranslationStyleIcon(_currentStyle), size: 20),
-            // 调用辅助函数获取本地化的 Tooltip
-            tooltip: _getTranslationStyleTooltip(_currentStyle, l10n),
-            onPressed: _isTranslating ? null : _toggleTranslationStyle,
-            // style: IconButton.styleFrom( // 移除 filledTonal 样式
-            //   padding: const EdgeInsets.all(8),
-            // ),
-          ),
-          // 重新翻译按钮 - Tooltip 使用本地化字符串
-          _isTranslating
-            ? const Padding( // 保持加载指示器
-                padding: EdgeInsets.all(14.0), // 调整 padding
-                child: SizedBox(
-                  width: 20, // 调整大小
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                // 使用 l10n 获取 Tooltip
-                tooltip: l10n.retranslateButton,
-                onPressed: _handleReTranslate,
-                // style: IconButton.styleFrom( // 移除 filledTonal 样式
-                //   padding: const EdgeInsets.all(8),
-                // ),
+          if (isBusy)
+            const Padding(
+              // 保持加载指示器
+              padding: EdgeInsets.all(14.0), // 调整 padding
+              child: SizedBox(
+                width: 20, // 调整大小
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
+            )
+          else
+            IconButton(
+              // 改为普通 IconButton 可能更合适在 AppBar
+              icon: Icon(_getTranslationStyleIcon(_currentStyle), size: 20),
+              // 调用辅助函数获取本地化的 Tooltip
+              tooltip: _getTranslationStyleTooltip(_currentStyle, l10n),
+              onPressed: _toggleTranslationStyle,
+            ),
+          if (!isBusy)
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 20),
+              // 使用 l10n 获取 Tooltip
+              tooltip: l10n.retranslateButton,
+              onPressed: _handleReTranslate,
+            ),
           // 复制按钮 - Tooltip 使用本地化字符串
           IconButton(
             icon: const Icon(Icons.copy, size: 20),
             // 使用 l10n 获取 Tooltip
             tooltip: l10n.copyToClipboard, // copyToClipboard key 似乎更通用
-            onPressed: () => _copyToClipboard(isWideScreen),
-            // style: IconButton.styleFrom( // 移除 filledTonal 样式
-            //   padding: const EdgeInsets.all(8),
-            // ),
+            onPressed: canCopy ? () => _copyToClipboard(isWideScreen) : null,
           ),
           // 窄屏模式下的切换按钮 - Tooltip 使用本地化字符串
           if (!isWideScreen)
             _showTranslated
-              ? IconButton(
-                  key: const ValueKey('toggle_button_selected'),
-                  icon: const Icon(Icons.translate, size: 20),
-                  // 使用 l10n 获取 Tooltip
-                  tooltip: l10n.showOriginal,
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _showTranslated = !_showTranslated);
-                  },
-                  // style: IconButton.styleFrom( // 移除 filledTonal 样式
-                  //   padding: const EdgeInsets.all(8),
-                  //   // 保留视觉区分可能仍然有用，但可能不需要背景色
-                  //   // backgroundColor: theme.colorScheme.secondaryContainer,
-                  //   // foregroundColor: theme.colorScheme.onSecondaryContainer,
-                  //   color: theme.colorScheme.primary, // 突出显示选中的状态
-                  // ),
-                )
-              : IconButton(
-                  key: const ValueKey('toggle_button_unselected'),
-                  icon: const Icon(Icons.translate, size: 20),
-                  // 使用 l10n 获取 Tooltip
-                  tooltip: l10n.showTranslation,
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _showTranslated = !_showTranslated);
-                  },
-                  // style: IconButton.styleFrom( // 移除 filledTonal 样式
-                  //   padding: const EdgeInsets.all(8),
-                  //   foregroundColor: theme.colorScheme.onSurfaceVariant, // 使用 theme
-                  // ),
-                ),
+                ? IconButton(
+                    key: const ValueKey('toggle_button_selected'),
+                    icon: const Icon(Icons.translate, size: 20),
+                    // 使用 l10n 获取 Tooltip
+                    tooltip: l10n.showOriginal,
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _showTranslated = !_showTranslated);
+                    },
+                    // style: IconButton.styleFrom( // 移除 filledTonal 样式
+                    //   padding: const EdgeInsets.all(8),
+                    //   // 保留视觉区分可能仍然有用，但可能不需要背景色
+                    //   // backgroundColor: theme.colorScheme.secondaryContainer,
+                    //   // foregroundColor: theme.colorScheme.onSecondaryContainer,
+                    //   color: theme.colorScheme.primary, // 突出显示选中的状态
+                    // ),
+                  )
+                : IconButton(
+                    key: const ValueKey('toggle_button_unselected'),
+                    icon: const Icon(Icons.translate, size: 20),
+                    // 使用 l10n 获取 Tooltip
+                    tooltip: l10n.showTranslation,
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _showTranslated = !_showTranslated);
+                    },
+                    // style: IconButton.styleFrom( // 移除 filledTonal 样式
+                    //   padding: const EdgeInsets.all(8),
+                    //   foregroundColor: theme.colorScheme.onSurfaceVariant, // 使用 theme
+                    // ),
+                  ),
           const SizedBox(width: 8), // 添加一点右边距
         ],
       ),
       // Body 使用原有的布局逻辑，但不再需要 ScrollController
-      body: isWideScreen
-          ? _buildWideLayout(context, l10n, theme) // 移除 scrollController
-          : _buildNarrowLayout(context, l10n, theme), // 移除 scrollController
+      body: _isInitialLoading
+          ? const Center(child: CircularProgressIndicator())
+          : isWideScreen
+              ? _buildWideLayout(context, l10n, theme) // 移除 scrollController
+              : _buildNarrowLayout(context, l10n, theme), // 移除 scrollController
     );
   }
 
@@ -358,21 +384,26 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
 
   // 窄屏布局
   // 移除 scrollController 参数
-  Widget _buildNarrowLayout(BuildContext context, AppLocalizations l10n, ThemeData theme) {
-    final lyricsToShow = _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
+  Widget _buildNarrowLayout(
+      BuildContext context, AppLocalizations l10n, ThemeData theme) {
+    final lyricsToShow =
+        _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
     // 使用本地化的辅助函数获取风格名称
-    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle, l10n);
+    final styleDisplayName =
+        _getTranslationStyleDisplayName(_currentStyle, l10n);
     // 使用本地化的归因文本和风格标签
-    final attributionText = "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
+    final attributionText =
+        "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
 
-    return ListView( // 使用 ListView 保持可滚动性
+    return ListView(
+      // 使用 ListView 保持可滚动性
       // controller: scrollController, // 移除 controller
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       children: [
         Container(
           alignment: Alignment.topLeft,
           child: SelectableText(
-            _translationError ?? lyricsToShow,
+            _translationError ?? lyricsToShow ?? '',
             style: theme.textTheme.bodyLarge?.copyWith(
               height: 1.4,
               color: _translationError != null ? theme.colorScheme.error : null,
@@ -397,8 +428,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
                   // 显示本地化的归因文本
                   attributionText,
                   style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis, // 保持省略号
                 ),
               ),
@@ -411,11 +442,14 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
 
   // 宽屏布局
   // 移除 scrollController 参数
-  Widget _buildWideLayout(BuildContext context, AppLocalizations l10n, ThemeData theme) {
+  Widget _buildWideLayout(
+      BuildContext context, AppLocalizations l10n, ThemeData theme) {
     // 使用本地化的辅助函数获取风格名称
-    final styleDisplayName = _getTranslationStyleDisplayName(_currentStyle, l10n);
+    final styleDisplayName =
+        _getTranslationStyleDisplayName(_currentStyle, l10n);
     // 使用本地化的归因文本和风格标签
-    final attributionText = "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
+    final attributionText =
+        "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
 
     const edgeInsets = EdgeInsets.symmetric(horizontal: 24, vertical: 16);
     const bottomPadding = SizedBox(height: 40);
@@ -425,7 +459,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       children: [
         // 左侧: 翻译
         Expanded(
-          child: ListView( // 使用 ListView 保持可滚动性
+          child: ListView(
+            // 使用 ListView 保持可滚动性
             // controller: scrollController, // 移除 controller
             padding: edgeInsets,
             children: [
@@ -433,18 +468,19 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
                 // 使用本地化的标题
                 l10n.translationTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: theme.colorScheme.primary
-                ),
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
               SelectableText(
                 // 如果有错误，显示错误信息 (已经本地化)；否则显示翻译歌词
-                _translationError ?? _currentTranslatedLyrics,
+                _translationError ?? _currentTranslatedLyrics ?? '',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   height: 1.4,
                   // 如果是错误信息，使用错误颜色
-                  color: _translationError != null ? theme.colorScheme.error : null,
+                  color: _translationError != null
+                      ? theme.colorScheme.error
+                      : null,
                 ),
               ),
               const SizedBox(height: 16),
@@ -465,8 +501,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
                         // 显示本地化的归因文本
                         attributionText,
                         style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
@@ -477,27 +513,28 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
         ),
         // 右侧: 原文
         Expanded(
-          child: SingleChildScrollView( // 右侧保持 SingleChildScrollView
-             padding: edgeInsets.copyWith(left: 12),
-             child: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Text(
-                   // 使用本地化的标题
-                   l10n.originalTitle,
-                   style: theme.textTheme.titleMedium?.copyWith(
-                     fontWeight: FontWeight.w500,
+          child: SingleChildScrollView(
+            // 右侧保持 SingleChildScrollView
+            padding: edgeInsets.copyWith(left: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  // 使用本地化的标题
+                  l10n.originalTitle,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
                       color: theme.colorScheme.secondary // 使用次要颜色区分
-                   ),
-                 ),
-                 const SizedBox(height: 8),
-                 SelectableText(
-                   widget.originalLyrics,
-                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.4),
-                 ),
-                 bottomPadding,
-               ],
-             ),
+                      ),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  widget.originalLyrics,
+                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.4),
+                ),
+                bottomPadding,
+              ],
+            ),
           ),
         ),
       ],

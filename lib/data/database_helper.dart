@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -293,10 +294,19 @@ class DatabaseHelper {
   /// Fetches a specified number of random records along with their associated track info.
   /// Returns a list of maps, where each map contains columns from both records and tracks tables.
   Future<List<Map<String, dynamic>>> getRandomRecordsWithTrackInfo(int limit) async {
+    if (limit <= 0) return [];
+
     final db = await instance.database;
-    // Use a JOIN query to combine records and tracks
-    // Order by RANDOM() to get random records (may be slow on very large datasets)
-    // LIMIT the number of results
+    final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM records');
+    final totalRecords = Sqflite.firstIntValue(countResult) ?? 0;
+    if (totalRecords == 0) {
+      return [];
+    }
+
+    final effectiveLimit = min(limit, totalRecords);
+    final maxOffset = totalRecords - effectiveLimit;
+    final randomOffset = maxOffset > 0 ? Random().nextInt(maxOffset + 1) : 0;
+
     final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT
         r.id as recordId, r.trackId, r.noteContent, r.rating, r.songTimestampMs, r.recordedAt,
@@ -304,9 +314,9 @@ class DatabaseHelper {
         t.trackName, t.artistName, t.albumName, t.albumCoverUrl
       FROM records r
       JOIN tracks t ON r.trackId = t.trackId
-      ORDER BY RANDOM()
-      LIMIT ?
-    ''', [limit]);
+      ORDER BY r.recordedAt DESC
+      LIMIT ? OFFSET ?
+    ''', [effectiveLimit, randomOffset]);
 
     return result;
   }

@@ -9,20 +9,17 @@ import 'lyrics/netease_provider.dart';
 
 class LyricsService {
   final Logger _logger = Logger();
-  final List<LyricProvider> _providers = [];
-  final QQProvider _qqProvider = QQProvider();
-  final NetEaseProvider _neProvider = NetEaseProvider();
+  final List<LyricProvider> _providers;
+  SharedPreferences? _prefsCache;
 
   // 缓存键的前缀
   static const String _cacheKeyPrefix = 'lyrics_cache_';
   // 缓存有效期（30天）
   static const int _cacheTtlDays = 30;
 
-  LyricsService() {
-    // 按优先级顺序添加提供者
-    _providers.add(_qqProvider);
-    _providers.add(_neProvider);
-  }
+  LyricsService({List<LyricProvider>? providers, SharedPreferences? prefs})
+      : _providers = providers ?? [QQProvider(), NetEaseProvider()],
+        _prefsCache = prefs;
 
   Future<String?> getLyrics(String songName, String artistName, String trackId) async {
     try {
@@ -30,7 +27,7 @@ class LyricsService {
       final cacheKey = _cacheKeyPrefix + trackId;
 
       // 尝试从缓存获取
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final cachedLyricsJson = prefs.getString(cacheKey);
 
       if (cachedLyricsJson != null) {
@@ -121,7 +118,7 @@ class LyricsService {
   /// 清除缓存
   Future<void> clearCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final keys = prefs.getKeys();
 
       // 只清除歌词缓存的键
@@ -139,7 +136,7 @@ class LyricsService {
   /// 获取缓存大小
   Future<int> getCacheSize() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final keys = prefs.getKeys();
       int totalSize = 0;
       int qqCount = 0;
@@ -181,5 +178,15 @@ class LyricsService {
   /// 获取当前使用的提供者列表
   List<String> getProviderNames() {
     return _providers.map((provider) => provider.name).toList();
+  }
+
+  Future<SharedPreferences> _getPrefs() async {
+    final cached = _prefsCache;
+    if (cached != null) {
+      return cached;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    _prefsCache = prefs;
+    return prefs;
   }
 }

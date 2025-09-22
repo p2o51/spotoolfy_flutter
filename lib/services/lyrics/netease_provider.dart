@@ -10,6 +10,9 @@ class NetEaseProvider extends LyricProvider {
   static const String _baseUrl = 'https://neteasecloudmusicapi.vercel.app';
 
   final Logger _logger = Logger();
+  final http.Client _client;
+
+  NetEaseProvider({http.Client? httpClient}) : _client = httpClient ?? http.Client();
 
   @override
   String get name => 'netease';
@@ -26,7 +29,7 @@ class NetEaseProvider extends LyricProvider {
           'limit': '3',
         },
       );
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
         _logger.w('搜索请求失败: ${response.statusCode}');
         return null;
@@ -60,7 +63,7 @@ class NetEaseProvider extends LyricProvider {
       final uri = Uri.parse('$_baseUrl/lyric').replace(
         queryParameters: {'id': songId},
       );
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
         _logger.w('获取歌词失败: ${response.statusCode}');
         return null;

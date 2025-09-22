@@ -13,11 +13,14 @@ class QQProvider extends LyricProvider {
   
   final Logger _logger = Logger();
   bool _useBackupDomain = false;
+  final http.Client _client;
 
   final Map<String, String> _headers = {
     'referer': 'https://y.qq.com/',
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
   };
+
+  QQProvider({http.Client? httpClient}) : _client = httpClient ?? http.Client();
 
   @override
   String get name => 'qq';
@@ -33,7 +36,7 @@ class QQProvider extends LyricProvider {
         'format': 'json'
       });
       
-      final response = await http.get(url, headers: _headers).timeout(
+      final response = await _client.get(url, headers: _headers).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw TimeoutException('搜索请求超时');
@@ -76,7 +79,7 @@ class QQProvider extends LyricProvider {
         'nobase64': '1'
       });
       
-      final response = await http.get(url, headers: _headers).timeout(
+      final response = await _client.get(url, headers: _headers).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw TimeoutException('获取歌词请求超时');

@@ -26,7 +26,7 @@ class _LibraryState extends State<Library> {
   final FocusNode _searchFocusNode = FocusNode();
   bool _wasAuthenticated = false; // Track previous auth state
   VoidCallback? _refreshLibraryCallback;
-  
+
   // 缓存变量
   Size? _cachedScreenSize;
   bool? _cachedIsWideScreen;
@@ -44,29 +44,31 @@ class _LibraryState extends State<Library> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     final isAuthenticated = spotifyProvider.username != null;
-    
+
     if (isAuthenticated != _wasAuthenticated) {
       if (isAuthenticated) {
         // User logged in, refresh library
-        _refreshLibraryCallback?.call(); 
+        _refreshLibraryCallback?.call();
       } else {
         // User logged out, clear library (using LibraryProvider) and search
-        Provider.of<LibraryProvider>(context, listen: false).handleAuthStateChange(false);
+        Provider.of<LibraryProvider>(context, listen: false)
+            .handleAuthStateChange(false);
         Provider.of<SearchProvider>(context, listen: false).clearSearch();
         _searchController.clear();
       }
     }
-    
+
     _wasAuthenticated = isAuthenticated;
   }
-  
+
   void _onSearchChanged() {
     final searchProvider = Provider.of<SearchProvider>(context, listen: false);
     // Only update provider if text actually changed to avoid loops
     if (_searchController.text != searchProvider.searchQuery) {
-       searchProvider.updateSearchQuery(_searchController.text);
+      searchProvider.updateSearchQuery(_searchController.text);
     }
   }
 
@@ -93,14 +95,14 @@ class _LibraryState extends State<Library> {
     return Consumer<SearchProvider>(
       builder: (context, searchProvider, child) {
         final isSearchActive = searchProvider.isSearchActive;
-        
+
         // Sync controller if provider clears search
         if (!isSearchActive && _searchController.text.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-             _searchController.clear();
+            _searchController.clear();
           });
         }
-        
+
         return LayoutBuilder(
           builder: (context, constraints) {
             // 使用缓存的屏幕尺寸计算
@@ -119,88 +121,97 @@ class _LibraryState extends State<Library> {
                         padding: const EdgeInsets.all(16.0),
                         // 使用 TextField 替换 SearchBar
                         child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        decoration: InputDecoration(
-                          hintText: AppLocalizations.of(context)!.searchHint,
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  tooltip: AppLocalizations.of(context)!.clearSearch,
-                                  onPressed: () {
-                                    HapticFeedback.lightImpact();
-                                    // Clear controller and provider
-                                    _searchController.clear();
-                                    searchProvider.clearSearch();
-                                    _searchFocusNode.unfocus();
-                                  },
-                                )
-                              : null,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30.0),
-                            borderSide: BorderSide.none,
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          decoration: InputDecoration(
+                            hintText: AppLocalizations.of(context)!.searchHint,
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    tooltip: AppLocalizations.of(context)!
+                                        .clearSearch,
+                                    onPressed: () {
+                                      HapticFeedback.lightImpact();
+                                      // Clear controller and provider
+                                      _searchController.clear();
+                                      searchProvider.clearSearch();
+                                      _searchFocusNode.unfocus();
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30.0),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            // 使用与 lyrics 页面一致的颜色
+                            fillColor: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 0),
                           ),
-                          filled: true,
-                          // 使用与 lyrics 页面一致的颜色
-                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                        ),
-                        onChanged: (value) {
-                           // Update UI immediately when text changes
-                           setState(() {}); 
-                           // Listener already handles provider update
-                        },
-                        onSubmitted: (value) {
-                          searchProvider.submitSearch(value);
-                          _searchFocusNode.unfocus();
-                        },
-                        textInputAction: TextInputAction.search,
+                          onChanged: (value) {
+                            // Update UI immediately when text changes
+                            setState(() {});
+                            // Listener already handles provider update
+                          },
+                          onSubmitted: (value) {
+                            searchProvider.submitSearch(value);
+                            _searchFocusNode.unfocus();
+                          },
+                          textInputAction: TextInputAction.search,
                         ),
                       ),
                     ),
-                    
+
                     // Main content - either search results or library
                     Expanded(
-                      child: Stack( // Wrap content with Stack
+                      child: Stack(
+                        // Wrap content with Stack
                         children: [
                           // Original content with RepaintBoundary
                           RepaintBoundary(
                             child: isSearchActive
-                              ? SearchSection(
-                                  onBackPressed: () {
-                                    _searchController.clear();
-                                    searchProvider.clearSearch();
-                                    _searchFocusNode.unfocus();
-                                  },
-                                )
-                              : Consumer<LibraryProvider>(
-                                  builder: (context, libraryProvider, child) {
-                                    return LibrarySection(
-                                      // Register callbacks to allow LibrarySection to trigger actions
-                                      registerRefreshCallback: (callback) {
-                                        _refreshLibraryCallback = callback;
-                                      },
-                                    );
-                                  },
-                                ),
+                                ? SearchSection(
+                                    onBackPressed: () {
+                                      _searchController.clear();
+                                      searchProvider.clearSearch();
+                                      _searchFocusNode.unfocus();
+                                    },
+                                  )
+                                : Consumer<LibraryProvider>(
+                                    builder: (context, libraryProvider, child) {
+                                      return LibrarySection(
+                                        // Register callbacks to allow LibrarySection to trigger actions
+                                        registerRefreshCallback: (callback) {
+                                          _refreshLibraryCallback = callback;
+                                        },
+                                      );
+                                    },
+                                  ),
                           ),
-                          
+
                           // Gradient overlay
                           Positioned(
                             top: 0,
                             left: 0,
                             right: 0,
                             height: 24.0, // Adjust height as needed
-                            child: IgnorePointer( // Prevent gradient from intercepting gestures
+                            child: IgnorePointer(
+                              // Prevent gradient from intercepting gestures
                               child: Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                     colors: [
-                                      Theme.of(context).scaffoldBackgroundColor, // Match background
-                                      Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.0),
+                                      Theme.of(context)
+                                          .scaffoldBackgroundColor, // Match background
+                                      Theme.of(context)
+                                          .scaffoldBackgroundColor
+                                          .withValues(alpha: 0.0),
                                     ],
                                   ),
                                 ),
@@ -235,7 +246,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
   Map<String, dynamic>? _insightsResult;
   String? _insightsError;
   bool _isInsightsExpanded = false; // State for expansion
-  
+
   // 缓存变量
   Size? _cachedScreenSize;
   double? _cachedCarouselHeight;
@@ -247,8 +258,9 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     // Fetch initial data using LocalDatabaseProvider
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-         Provider.of<LocalDatabaseProvider>(context, listen: false).fetchRecentContexts();
-         _loadCachedInsights(); // 从缓存加载洞察数据
+        Provider.of<LocalDatabaseProvider>(context, listen: false)
+            .fetchRecentContexts();
+        _loadCachedInsights(); // 从缓存加载洞察数据
       }
     });
   }
@@ -258,7 +270,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     try {
       final insightsService = InsightsService();
       final cachedInsights = await insightsService.getCachedInsights();
-      
+
       if (cachedInsights != null && mounted) {
         setState(() {
           _insightsResult = cachedInsights;
@@ -275,14 +287,14 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     if (_cachedScreenSize != newSize) {
       _cachedScreenSize = newSize;
       final screenWidth = newSize.width;
-      
+
       _cachedCarouselHeight = screenWidth > 900 ? 300.0 : 190.0;
-      
+
       _cachedFlexWeights = screenWidth > 900
           ? [2, 7, 6, 5, 4, 3, 2]
           : screenWidth > 600
-          ? [2, 6, 5, 4, 3, 2]
-          : [3, 6, 3, 2];
+              ? [2, 6, 5, 4, 3, 2]
+              : [3, 6, 3, 2];
     }
   }
 
@@ -293,11 +305,12 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context)!.copiedToClipboard(messageType)),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+            content: Text(
+                AppLocalizations.of(context)!.copiedToClipboard(messageType)),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     });
   }
@@ -305,7 +318,8 @@ class _MyCarouselViewState extends State<MyCarouselView> {
   // onTap handler remains similar but takes contextUri
   void _playContext(BuildContext context, String contextUri) {
     HapticFeedback.lightImpact();
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     // Extract type and id from URI (this might need adjustment based on URI format)
     // Assuming URI format like spotify:album:xxxx or spotify:playlist:yyyy
     final parts = contextUri.split(':');
@@ -331,14 +345,16 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     });
 
     try {
-      final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
+      final localDbProvider =
+          Provider.of<LocalDatabaseProvider>(context, listen: false);
       final insightsService = InsightsService();
 
       if (localDbProvider.recentContexts.isEmpty) {
-         await localDbProvider.fetchRecentContexts(); 
+        await localDbProvider.fetchRecentContexts();
       }
-      
-      final result = await insightsService.generateMusicInsights(localDbProvider.recentContexts);
+
+      final result = await insightsService
+          .generateMusicInsights(localDbProvider.recentContexts);
 
       if (mounted) {
         setState(() {
@@ -350,7 +366,8 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _insightsError = AppLocalizations.of(context)!.failedToGenerateInsights(e.toString());
+          _insightsError = AppLocalizations.of(context)!
+              .failedToGenerateInsights(e.toString());
           _isLoadingInsights = false;
           _isInsightsExpanded = true; // Also expand to show the error
         });
@@ -366,11 +383,13 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     // Get recent contexts from the provider
     final recentContexts = localDbProvider.recentContexts;
 
-    // Use a simple loading check for carousel
-    final isCarouselLoading = recentContexts.isEmpty && !localDbProvider.isLoading;
+    // Show loading placeholder only while recent contexts are being fetched
+    final isCarouselLoading =
+        recentContexts.isEmpty && localDbProvider.isRecentContextsLoading;
 
     if (isCarouselLoading) {
-      return _buildLoadingCarousel(context); // Show loading placeholder for carousel
+      return _buildLoadingCarousel(
+          context); // Show loading placeholder for carousel
     }
 
     // Even if contexts load but are empty, show the button, but disable it?
@@ -381,7 +400,8 @@ class _MyCarouselViewState extends State<MyCarouselView> {
 
     // 获取音乐人格
     String? musicPersonality;
-    if (_insightsResult != null && _insightsResult!.containsKey('music_personality')) {
+    if (_insightsResult != null &&
+        _insightsResult!.containsKey('music_personality')) {
       musicPersonality = _insightsResult!['music_personality'] as String?;
     }
 
@@ -395,9 +415,11 @@ class _MyCarouselViewState extends State<MyCarouselView> {
 
         return RepaintBoundary(
           child: Center(
-            child: Column( // Wrap carousel, button, and results in a Column
+            child: Column(
+              // Wrap carousel, button, and results in a Column
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min, // Important for Column within potential scroll view
+              mainAxisSize: MainAxisSize
+                  .min, // Important for Column within potential scroll view
               children: [
                 // Only show carousel if there are contexts
                 if (recentContexts.isNotEmpty)
@@ -409,147 +431,178 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                         shrinkExtent: 0,
                         itemSnapping: true,
                         onTap: (index) {
-                      if (index >= 0 && index < recentContexts.length) {
-                        final contextUri = recentContexts[index]['contextUri'] as String?;
-                        if (contextUri != null) {
-                          _playContext(context, contextUri);
-                        }
-                      } else {
-                         logger.w('Error: Invalid index ($index) tapped in CarouselView.');
-                      }
-                    },
+                          if (index >= 0 && index < recentContexts.length) {
+                            final contextUri =
+                                recentContexts[index]['contextUri'] as String?;
+                            if (contextUri != null) {
+                              _playContext(context, contextUri);
+                            }
+                          } else {
+                            logger.w(
+                                'Error: Invalid index ($index) tapped in CarouselView.');
+                          }
+                        },
                         children: recentContexts.map((contextData) {
                           final imageUrl = contextData['imageUrl'] as String?;
-                          final fallbackColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+                          final fallbackColor = Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest;
                           return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 8),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(32),
                               child: imageUrl != null
-                                ? CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(
-                                    color: fallbackColor,
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                  ? CachedNetworkImage(
+                                      imageUrl: imageUrl,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => Container(
+                                        color: fallbackColor,
+                                        child: const Center(
+                                          child: SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2),
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) =>
+                                          Container(
+                                        color: fallbackColor,
+                                        child: Icon(
+                                          Icons.playlist_play,
+                                          size: 48,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      // Fallback if no image URL
+                                      color: fallbackColor,
+                                      child: Center(
+                                        child: Text(
+                                          contextData['contextName'] ??
+                                              '', // Show context name as fallback
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  errorWidget: (context, url, error) => Container(
-                                    color: fallbackColor,
-                                    child: Icon(
-                                      Icons.playlist_play,
-                                      size: 48,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
-                                  ),
-                                )
-                              : Container( // Fallback if no image URL
-                                  color: fallbackColor,
-                                  child: Center(
-                                    child: Text(
-                                      contextData['contextName'] ?? '', // Show context name as fallback
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      );
+                            ),
+                          );
                         }).toList(),
                       ),
                     ),
                   ),
-              
-              // Show message if no recent contexts but button should be visible
-              if (recentContexts.isEmpty && !isCarouselLoading)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    AppLocalizations.of(context)!.playToGenerateInsights,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
 
-              // 音乐人格、Generate Insights 按钮和展开/收起按钮在同一行
-              RepaintBoundary(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-                  child: Row(
-                  children: [
-                    // 音乐人格标签靠左
-                    if (musicPersonality != null)
-                      Expanded(
-                        child: GestureDetector(
-                          onLongPress: () => _copyToClipboard(musicPersonality!, AppLocalizations.of(context)!.musicPersonality),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.spatial_audio,
-                                color: Theme.of(context).colorScheme.primary,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  musicPersonality,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      const Spacer(),
-
-                    // Generate Insights按钮和展开/收起按钮靠右（改为仅图标的圆形按钮）
-                    IconButton.filled(
-                      onPressed: recentContexts.isNotEmpty && !_isLoadingInsights ? _generateInsights : null,
-                      icon: const Icon(Icons.auto_awesome),
-                      tooltip: _isLoadingInsights
-                          ? AppLocalizations.of(context)!.generating
-                          : AppLocalizations.of(context)!.generateInsights,
+                // Show message if no recent contexts but button should be visible
+                if (recentContexts.isEmpty && !isCarouselLoading)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      AppLocalizations.of(context)!.playToGenerateInsights,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    
-                    // 只有在有结果或错误时才显示展开/收起按钮
-                    if (_insightsResult != null || _insightsError != null)
-                      IconButton(
-                        icon: Icon(
-                          _isInsightsExpanded ? Icons.expand_less : Icons.expand_more,
-                        ),
-                        tooltip: _isInsightsExpanded ? AppLocalizations.of(context)!.collapse : AppLocalizations.of(context)!.expand,
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          setState(() {
-                            _isInsightsExpanded = !_isInsightsExpanded;
-                          });
-                        },
-                      ),
-                    ],
                   ),
-                ),
-              ),
 
-              // Loading Indicator or Results/Error Section
-              if (_isLoadingInsights || (_isInsightsExpanded && (_insightsError != null || _insightsResult != null)))
+                // 音乐人格、Generate Insights 按钮和展开/收起按钮在同一行
                 RepaintBoundary(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: _buildInsightsSection(context),
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                    child: Row(
+                      children: [
+                        // 音乐人格标签靠左
+                        if (musicPersonality != null)
+                          Expanded(
+                            child: GestureDetector(
+                              onLongPress: () => _copyToClipboard(
+                                  musicPersonality!,
+                                  AppLocalizations.of(context)!
+                                      .musicPersonality),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.spatial_audio,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      musicPersonality,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          const Spacer(),
+
+                        // Generate Insights按钮和展开/收起按钮靠右（改为仅图标的圆形按钮）
+                        IconButton.filled(
+                          onPressed:
+                              recentContexts.isNotEmpty && !_isLoadingInsights
+                                  ? _generateInsights
+                                  : null,
+                          icon: const Icon(Icons.auto_awesome),
+                          tooltip: _isLoadingInsights
+                              ? AppLocalizations.of(context)!.generating
+                              : AppLocalizations.of(context)!.generateInsights,
+                        ),
+
+                        // 只有在有结果或错误时才显示展开/收起按钮
+                        if (_insightsResult != null || _insightsError != null)
+                          IconButton(
+                            icon: Icon(
+                              _isInsightsExpanded
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                            ),
+                            tooltip: _isInsightsExpanded
+                                ? AppLocalizations.of(context)!.collapse
+                                : AppLocalizations.of(context)!.expand,
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                _isInsightsExpanded = !_isInsightsExpanded;
+                              });
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
+
+                // Loading Indicator or Results/Error Section
+                if (_isLoadingInsights ||
+                    (_isInsightsExpanded &&
+                        (_insightsError != null || _insightsResult != null)))
+                  RepaintBoundary(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 8.0),
+                      child: _buildInsightsSection(context),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -563,7 +616,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     if (_isLoadingInsights) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-    
+
     // 直接显示内容，不使用卡片
     if (_insightsError != null) {
       return Text(
@@ -572,14 +625,16 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       );
     } else if (_insightsResult != null) {
       final mood = _insightsResult!['mood_analysis'] as String?;
-      final recommendations = (_insightsResult!['recommendations'] as List<dynamic>?)
-          ?.map((rec) => rec as Map<String, dynamic>)
-          .toList();
+      final recommendations =
+          (_insightsResult!['recommendations'] as List<dynamic>?)
+              ?.map((rec) => rec as Map<String, dynamic>)
+              .toList();
 
       // 返回空如果没有有效数据
-      if (mood == null && (recommendations == null || recommendations.isEmpty)) {
-        return Text(AppLocalizations.of(context)!.noInsightsGenerated, 
-                   style: Theme.of(context).textTheme.bodyMedium);
+      if (mood == null &&
+          (recommendations == null || recommendations.isEmpty)) {
+        return Text(AppLocalizations.of(context)!.noInsightsGenerated,
+            style: Theme.of(context).textTheme.bodyMedium);
       }
 
       return Column(
@@ -589,15 +644,17 @@ class _MyCarouselViewState extends State<MyCarouselView> {
             Text(
               AppLocalizations.of(context)!.insightsTitle,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-              ),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
             ),
             const SizedBox(height: 4),
             // 将普通Text替换为支持长按复制的GestureDetector
             GestureDetector(
-              onLongPress: () => _copyToClipboard(mood, AppLocalizations.of(context)!.insightsContent),
+              onLongPress: () => _copyToClipboard(
+                  mood, AppLocalizations.of(context)!.insightsContent),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
                 child: Text(
                   mood,
                   style: Theme.of(context).textTheme.bodyMedium,
@@ -610,8 +667,8 @@ class _MyCarouselViewState extends State<MyCarouselView> {
             Text(
               AppLocalizations.of(context)!.inspirationsTitle,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-              ),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
             ),
             const SizedBox(height: 8),
             ListView.builder(
@@ -620,10 +677,12 @@ class _MyCarouselViewState extends State<MyCarouselView> {
               itemCount: recommendations.length,
               itemBuilder: (context, index) {
                 final rec = recommendations[index];
-                final artist = rec['artist'] as String? ?? AppLocalizations.of(context)!.unknownArtist;
-                final track = rec['track'] as String? ?? AppLocalizations.of(context)!.unknownTrack;
+                final artist = rec['artist'] as String? ??
+                    AppLocalizations.of(context)!.unknownArtist;
+                final track = rec['track'] as String? ??
+                    AppLocalizations.of(context)!.unknownTrack;
                 final recommendationText = '$artist - $track';
-                
+
                 return ListTile(
                   leading: Icon(
                     Icons.music_note_outlined,
@@ -636,28 +695,30 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                   subtitle: Text(
                     artist,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                   dense: true,
                   onTap: () {
                     HapticFeedback.lightImpact();
                     // 构建搜索查询字符串 "艺术家名 - 歌曲名"
                     final searchQuery = recommendationText;
-                    
+
                     // 获取SearchProvider并提交搜索
-                    final searchProvider = Provider.of<SearchProvider>(context, listen: false);
-                    
+                    final searchProvider =
+                        Provider.of<SearchProvider>(context, listen: false);
+
                     // 更新搜索查询并提交搜索（这会激活搜索界面）
                     searchProvider.updateSearchQuery(searchQuery);
                     searchProvider.submitSearch(searchQuery);
-                    
+
                     // 收起推荐面板
                     setState(() {
                       _isInsightsExpanded = false;
                     });
                   },
-                  onLongPress: () => _copyToClipboard(recommendationText, AppLocalizations.of(context)!.recommendedSong),
+                  onLongPress: () => _copyToClipboard(recommendationText,
+                      AppLocalizations.of(context)!.recommendedSong),
                 );
               },
             ),
@@ -676,7 +737,7 @@ class _MyCarouselViewState extends State<MyCarouselView> {
         final screenWidth = constraints.maxWidth;
         final carouselHeight = screenWidth > 900 ? 300.0 : 190.0;
         final itemExtent = screenWidth > 900 ? 300.0 : 190.0;
-        
+
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: carouselHeight),
@@ -690,9 +751,12 @@ class _MyCarouselViewState extends State<MyCarouselView> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: ColoredBox(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: Center(
-                        child: index == 1 ? const CircularProgressIndicator() : null,
+                        child: index == 1
+                            ? const CircularProgressIndicator()
+                            : null,
                       ),
                     ),
                   ),

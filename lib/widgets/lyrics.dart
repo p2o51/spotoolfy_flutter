@@ -40,7 +40,6 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
   final Map<int, double> _lineHeights = {};
   final GlobalKey _listViewKey = GlobalKey();
   bool _autoScroll = true;
-  bool _isTranslating = false;
   bool _isCopyLyricsMode = false;
   bool _isScrollRetryScheduled = false;
   int _scrollRetryCount = 0; // Track retry attempts
@@ -172,230 +171,148 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       return;
     }
 
-    setState(() {
-      _isTranslating = true;
-    });
-
-    // Get providers and services
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
     final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
 
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
-
     if (currentTrackId == null) {
       final l10n = AppLocalizations.of(context)!;
-      notificationService.showSnackBar(l10n.couldNotGetCurrentTrackId);
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar(l10n.couldNotGetCurrentTrackId);
       return;
     }
 
-    String? errorMsg;
+    final originalLyricsList = _lyrics.map((line) => line.text).toList();
+    final originalLyricsJoined = originalLyricsList.join('\n');
 
-    try {
-      // Combine lyric lines into a single string
-      final originalLyrics = _lyrics.map((line) => line.text).toList();
-      
-      // Get current settings
-      final currentStyle = await _settingsService.getTranslationStyle();
+    Future<TranslationLoadResult> loadTranslation({
+      bool forceRefresh = false,
+      TranslationStyle? style,
+    }) async {
+      final effectiveStyle = style ?? await _settingsService.getTranslationStyle();
       final currentLanguage = await _settingsService.getTargetLanguage();
-      final styleString = translationStyleToString(currentStyle);
+      final styleString = translationStyleToString(effectiveStyle);
 
-      // *** TRY LOADING FROM DATABASE FIRST ***
-      debugPrint('Attempting to load translation from DB: $currentTrackId, $currentLanguage, $styleString');
-      final cachedTranslation = await localDbProvider.fetchTranslation(currentTrackId, currentLanguage, styleString);
-
-      Map<String, String?>? translationData;
-      String? fetchedTranslatedText;
-
-      if (cachedTranslation != null && mounted) {
-        debugPrint('Translation found in DB.');
-        fetchedTranslatedText = cachedTranslation.translatedLyrics;
-        // Use the language and style stored in the DB record
-        translationData = {
-          'text': fetchedTranslatedText,
-          'languageCode': cachedTranslation.languageCode, // Use languageCode
-          'style': cachedTranslation.style, // Make sure style is included
-        };
-        debugPrint('Loaded translation from DB: Lang=${cachedTranslation.languageCode}, Style=${cachedTranslation.style}'); // Use languageCode
-      } else {
-        debugPrint('Translation not found in DB. Calling API...');
-        // *** FETCH FROM API IF NOT IN DB ***
-        // Store the result map
-        translationData = await _translationService.translateLyrics(
-          originalLyrics.join('\n'), 
-          currentTrackId, 
-          targetLanguage: currentLanguage, // Pass current target language
-        );
-        fetchedTranslatedText = translationData?['text']; // Extract text from map
-
-        // *** SAVE TO DB IF FETCHED FROM API ***
-        if (mounted && fetchedTranslatedText != null && translationData != null) {
-          // Use languageCode from the translation result
-          final languageCodeUsed = translationData['languageCode'];
-          final styleUsed = translationData['style']; // String name of the style
-
-          if (languageCodeUsed != null && styleUsed != null) {
-            try {
-              // Ensure track exists first (logic copied from previous step)
-              final existingTrack = await localDbProvider.getTrack(currentTrackId);
-              if (existingTrack == null) {
-                debugPrint('Track $currentTrackId not found in DB when saving API translation, adding it...');
-                final trackItem = spotifyProvider.currentTrack?['item'];
-                if (trackItem != null) {
-                   final trackToAdd = Track(
-                     trackId: currentTrackId,
-                     trackName: trackItem['name'] as String,
-                     artistName: (trackItem['artists'] as List).map((a) => a['name']).join(', '),
-                     albumName: trackItem['album']?['name'] as String? ?? 'Unknown Album',
-                     albumCoverUrl: (trackItem['album']?['images'] as List?)?.isNotEmpty == true
-                                  ? trackItem['album']['images'][0]['url']
-                                  : null,
-                   );
-                   await localDbProvider.addTrack(trackToAdd);
-                   debugPrint('Track $currentTrackId added to DB.');
-                } else {
-                   throw Exception('Could not fetch track details for $currentTrackId');
-                }
-              }
-              // Now save the translation using fetched details
-              final translationToSave = Translation(
-                trackId: currentTrackId,
-                languageCode: languageCodeUsed, // Use languageCode
-                style: styleUsed,             // Use style string from result
-                translatedLyrics: fetchedTranslatedText,
-                generatedAt: DateTime.now().millisecondsSinceEpoch,
-              );
-              await localDbProvider.saveTranslation(translationToSave);
-              debugPrint('Translation fetched from API and saved to local DB for track $currentTrackId');
-            } catch (dbOrTrackError) {
-              debugPrint('Error ensuring track/saving API translation to local DB: $dbOrTrackError');
-              errorMsg = 'Failed to save fetched translation: ${dbOrTrackError.toString()}';
-            }
-          } else {
-             debugPrint('Translation result map missing language or style after API fetch.');
-             errorMsg = 'Translation result incomplete.';
-          }
-        }
-      } // End else (fetch from API)
-
-      // *** SHOW BOTTOM SHEET IF TRANSLATION IS AVAILABLE ***
-      if (mounted && fetchedTranslatedText != null) {
-        final wasAutoScrolling = _autoScroll;
-        final displayLanguageCode = translationData?['languageCode'] ?? currentLanguage; // Use languageCode
-        final displayStyleString = translationData?['style'] ?? styleString;
-        final displayStyleEnum = TranslationStyle.values.firstWhere(
-          (e) => translationStyleToString(e) == displayStyleString,
-          orElse: () => currentStyle,
+      if (!forceRefresh) {
+        final cached = await localDbProvider.fetchTranslation(
+          currentTrackId,
+          currentLanguage,
+          styleString,
         );
 
-        // Temporarily disable auto-scroll while sheet is open
-        if (_autoScroll) {
-          setState(() { _autoScroll = false; });
+        if (cached != null) {
+          return TranslationLoadResult(
+            translatedLyrics: cached.translatedLyrics,
+            style: stringToTranslationStyle(cached.style),
+            languageCode: cached.languageCode,
+          );
         }
+      }
 
-        // 使用 Navigator.push 导航到新页面
-        final navigator = Navigator.of(context); // 捕获 navigator
-        navigator.push(
-          MaterialPageRoute(
-            builder: (context) => TranslationResultPage( // <-- 使用新名称 TranslationResultPage
-              originalLyrics: originalLyrics.join('\n'),
-              translatedLyrics: fetchedTranslatedText!,
-              translationStyle: displayStyleEnum,
+      final translationData = await _translationService.translateLyrics(
+        originalLyricsJoined,
+        currentTrackId,
+        targetLanguage: currentLanguage,
+        forceRefresh: forceRefresh,
+      );
+
+      if (translationData == null || translationData['text'] == null) {
+        throw Exception(AppLocalizations.of(context)!
+            .translationFailed(AppLocalizations.of(context)!.operationFailed));
+      }
+
+      final translatedText = translationData['text']!;
+      final languageCodeUsed = translationData['languageCode'] ?? currentLanguage;
+      final styleUsedString = translationData['style'] ?? styleString;
+      final resolvedStyle = stringToTranslationStyle(styleUsedString);
+
+      try {
+        final existingTrack = await localDbProvider.getTrack(currentTrackId);
+        if (existingTrack == null) {
+          final trackItem = spotifyProvider.currentTrack?['item'];
+          if (trackItem != null) {
+            final trackToAdd = Track(
               trackId: currentTrackId,
-              onReTranslate: () async {
-                // Re-translate logic fetches from API and saves to DB again
-                String? newTranslationText;
-                try {
-                    // Call service, get the map
-                    final retranslateResult = await _translationService.translateLyrics(
-                      originalLyrics.join('\n'),
-                      currentTrackId,
-                      forceRefresh: true,
-                      targetLanguage: displayLanguageCode, // Use the language code from this context
-                    );
-
-                    newTranslationText = retranslateResult?['text']; // Extract text
-
-                    // Save if successful and component is mounted
-                    if (mounted && newTranslationText != null && retranslateResult != null) {
-                       final langCode = retranslateResult['languageCode']; // Use languageCode
-                       final styleStr = retranslateResult['style'];
-
-                       if (langCode != null && styleStr != null) {
-                          try {
-                             final retranslatedToSave = Translation(
-                               trackId: currentTrackId,
-                               languageCode: langCode, // Use languageCode for the retranslated entry
-                               style: styleStr,
-                               translatedLyrics: newTranslationText,
-                               generatedAt: DateTime.now().millisecondsSinceEpoch,
-                             );
-                             await localDbProvider.saveTranslation(retranslatedToSave);
-                             debugPrint('Re-translation saved to local DB for track $currentTrackId');
-                          } catch (reSaveError) {
-                             debugPrint('Error saving re-translation to local DB: $reSaveError');
-                          }
-                       } else {
-                          debugPrint('Retranslate result map missing language or style.');
-                       }
-                    }
-                    // Return ONLY the text (String?) as expected by the sheet
-                    return newTranslationText;
-                  } catch (e) {
-                    debugPrint('Error during re-translation: $e');
-                    // Return null or rethrow depending on how sheet handles error
-                    return null;
-                  }
-              },
-            ),
-          ),
-        ).then((_) {
-          // 页面返回后的逻辑 (与之前 bottom sheet 关闭后的逻辑相同)
-          if (mounted && wasAutoScrolling) {
-            // If auto-scroll was active before, re-enable it
-            // and trigger a scroll to the current line after the frame renders
-            setState(() {
-              _autoScroll = true;
-            });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && _autoScroll) {
-                // Use the latest position from provider when scrolling
-                final currentProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                final currentProgressMs = currentProvider.currentTrack?['progress_ms'] ?? 0;
-                final currentPosition = Duration(milliseconds: currentProgressMs);
-                final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
-                if (latestCurrentIndex >= 0) {
-                    _scrollToCurrentLine(latestCurrentIndex);
-                    _previousLineIndex = latestCurrentIndex; // Update index after scroll
-                }
-              }
-            });
+              trackName: trackItem['name'] as String,
+              artistName:
+                  (trackItem['artists'] as List).map((a) => a['name']).join(', '),
+              albumName:
+                  trackItem['album']?['name'] as String? ?? 'Unknown Album',
+              albumCoverUrl:
+                  (trackItem['album']?['images'] as List?)?.isNotEmpty == true
+                      ? trackItem['album']['images'][0]['url']
+                      : null,
+            );
+            await localDbProvider.addTrack(trackToAdd);
           }
-        });
-      } else if (mounted) {
-          // Handle case where translation failed
-          if (errorMsg != null) {
-            notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsTranslationError(errorMsg));
-            debugPrint('Translation failed: $errorMsg');
-          } else {
-            notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsTranslationError('Failed to translate lyrics'));
-            debugPrint('Translation failed (generic).');
-          }
+        }
+
+        final translationToSave = Translation(
+          trackId: currentTrackId,
+          languageCode: languageCodeUsed,
+          style: styleUsedString,
+          translatedLyrics: translatedText,
+          generatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+        await localDbProvider.saveTranslation(translationToSave);
+      } catch (e) {
+        debugPrint('Error saving translation to DB: $e');
       }
 
-    } catch (e) {
-       debugPrint('Error in translation process: $e');
-       if (mounted) {
-          final l10n = AppLocalizations.of(context)!;
-          notificationService.showErrorSnackBar(l10n.lyricsTranslationError(e.toString()));
-       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTranslating = false;
-        });
-      }
+      return TranslationLoadResult(
+        translatedLyrics: translatedText,
+        style: resolvedStyle,
+        languageCode: languageCodeUsed,
+      );
     }
+
+    final wasAutoScrolling = _autoScroll;
+    if (_autoScroll) {
+      setState(() {
+        _autoScroll = false;
+      });
+    }
+
+    final currentStyle = await _settingsService.getTranslationStyle();
+    final initialFuture = loadTranslation(style: currentStyle);
+
+    Navigator.of(context)
+        .push(
+      MaterialPageRoute(
+        builder: (context) => TranslationResultPage(
+          originalLyrics: originalLyricsJoined,
+          initialStyle: currentStyle,
+          loadTranslation: ({bool forceRefresh = false, TranslationStyle? style}) {
+            return loadTranslation(
+              forceRefresh: forceRefresh,
+              style: style,
+            );
+          },
+          initialData: initialFuture,
+        ),
+      ),
+    )
+        .then((_) {
+      if (mounted && wasAutoScrolling) {
+        setState(() {
+          _autoScroll = true;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _autoScroll) {
+            final currentProvider =
+                Provider.of<SpotifyProvider>(context, listen: false);
+            final currentProgressMs =
+                currentProvider.currentTrack?['progress_ms'] ?? 0;
+            final currentPosition = Duration(milliseconds: currentProgressMs);
+            final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
+            if (latestCurrentIndex >= 0) {
+              _scrollToCurrentLine(latestCurrentIndex);
+              _previousLineIndex = latestCurrentIndex;
+            }
+          }
+        });
+      }
+    });
   }
 
   void _scrollToCurrentLine(int currentLineIndex) {
@@ -738,14 +655,8 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
 
                           // Translate Button
                           IconButton.filledTonal(
-                            icon: _isTranslating 
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.translate),
-                            onPressed: _isTranslating || _lyrics.isEmpty ? null : () { // Disable if translating or no lyrics
+                            icon: const Icon(Icons.translate),
+                            onPressed: _lyrics.isEmpty ? null : () {
                               HapticFeedback.lightImpact();
                               _translateAndShowLyrics();
                             },

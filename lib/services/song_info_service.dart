@@ -12,6 +12,7 @@ class SongInfoService {
       'https://generativelanguage.googleapis.com/v1beta/models/';
   static const String _geminiModel = 'gemini-2.5-flash-preview-05-20';
   static const String _songInfoCacheKeyPrefix = 'cached_song_info_'; // 缓存键前缀
+  SharedPreferences? _prefsCache;
 
   Future<Map<String, dynamic>?> generateSongInfo(
       Map<String, dynamic> trackData, {bool skipCache = false}) async {
@@ -134,7 +135,7 @@ class SongInfoService {
   // 从缓存获取歌曲信息
   Future<Map<String, dynamic>?> _getCachedSongInfo(String trackId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final cacheKey = '$_songInfoCacheKeyPrefix$trackId';
       final cachedInfoJson = prefs.getString(cacheKey);
       
@@ -151,7 +152,7 @@ class SongInfoService {
   // 将歌曲信息保存到本地缓存
   Future<void> _saveSongInfoToCache(String trackId, Map<String, dynamic> songInfo) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final cacheKey = '$_songInfoCacheKeyPrefix$trackId';
       await prefs.setString(cacheKey, jsonEncode(songInfo));
       logger.d('Song info saved to cache for track: $trackId');
@@ -163,7 +164,7 @@ class SongInfoService {
   // 清除缓存的歌曲信息
   Future<void> clearCachedSongInfo() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final keys = prefs.getKeys();
       final songInfoKeys = keys.where((key) => key.startsWith(_songInfoCacheKeyPrefix));
       
@@ -174,6 +175,16 @@ class SongInfoService {
     } catch (e) {
       logger.e('Error clearing cached song info: $e');
     }
+  }
+
+  Future<SharedPreferences> _getPrefs() async {
+    final cached = _prefsCache;
+    if (cached != null) {
+      return cached;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    _prefsCache = prefs;
+    return prefs;
   }
 
   String _buildPrompt(String trackName, String artistNames, String albumName, String releaseDate, String languageName) {

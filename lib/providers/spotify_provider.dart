@@ -56,11 +56,16 @@ class SpotifyProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isRefreshTickRunning = false;
   bool _isQueuePrefetchRunning = false;
+  DateTime? _lastDeviceRefresh;
+  DateTime? _lastQueueRefresh;
 
   // 添加图片预加载缓存 - 持久化跨登录会话
   final Map<String, String> _imageCache = {};
 
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
+  static const Duration _refreshTickInterval = Duration(seconds: 3);
+  static const Duration _deviceRefreshInterval = Duration(seconds: 15);
+  static const Duration _queueRefreshInterval = Duration(seconds: 9);
   static const int _progressNotifyIntervalMs = 500;
 
   // 添加图片缓存管理方法
@@ -563,6 +568,9 @@ class SpotifyProvider extends ChangeNotifier {
         await refreshCurrentTrack(); // 使用恢复后的 refreshCurrentTrack
         await refreshAvailableDevices();
         await refreshPlaybackQueue(); // 初始化时也刷新播放队列
+        final now = DateTime.now();
+        _lastDeviceRefresh = now;
+        _lastQueueRefresh = now;
         logger.i(
             'startTrackRefresh (microtask): Initial data fetched. Current progress: ${currentTrack?['progress_ms']}, isPlaying: ${currentTrack?['is_playing']}');
       } catch (e) {
@@ -578,7 +586,7 @@ class SpotifyProvider extends ChangeNotifier {
         }
 
         _refreshTimer?.cancel();
-        _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        _refreshTimer = Timer.periodic(_refreshTickInterval, (_) {
           if (_isSkipping) {
             logger.t('_refreshTimer tick: Skipped due to _isSkipping=true.');
             return;
@@ -594,8 +602,22 @@ class SpotifyProvider extends ChangeNotifier {
               logger.t(
                   '_refreshTimer tick. Refreshing current track, devices, and queue.');
               await refreshCurrentTrack();
-              await refreshAvailableDevices();
-              await refreshPlaybackQueue();
+
+              final now = DateTime.now();
+
+              final shouldRefreshDevices = _lastDeviceRefresh == null ||
+                  now.difference(_lastDeviceRefresh!) >= _deviceRefreshInterval;
+              if (shouldRefreshDevices) {
+                await refreshAvailableDevices();
+                _lastDeviceRefresh = now;
+              }
+
+              final shouldRefreshQueue = _lastQueueRefresh == null ||
+                  now.difference(_lastQueueRefresh!) >= _queueRefreshInterval;
+              if (shouldRefreshQueue) {
+                await refreshPlaybackQueue();
+                _lastQueueRefresh = now;
+              }
             } finally {
               _isRefreshTickRunning = false;
             }
@@ -714,8 +736,24 @@ class SpotifyProvider extends ChangeNotifier {
         }
 
         if (coreTrackInfoChanged || significantProgressJump) {
+          Map<String, dynamic>? previousContext;
+          if (currentTrack != null &&
+              currentTrack!['context'] is Map<String, dynamic>) {
+            previousContext = Map<String, dynamic>.from(
+                currentTrack!['context'] as Map<String, dynamic>);
+          }
+
           currentTrack = Map<String, dynamic>.from(track);
           currentTrack!['progress_ms'] = progressFromApi ?? oldProgressMs ?? 0;
+
+          if (newContextUri == null &&
+              previousContext != null &&
+              oldContextUri != null &&
+              newId == oldId) {
+            currentTrack!['context'] = previousContext;
+            logger.t(
+                'refreshCurrentTrack: Preserved previous context for track $newId because API response omitted context data.');
+          }
 
           if (newId != oldId ||
               (currentTrack!['is_playing'] == true &&
@@ -773,6 +811,49 @@ class SpotifyProvider extends ChangeNotifier {
               logger.e(
                   'refreshCurrentTrack: Failed to fetch save state or enrich context for new track $newId',
                   error: e);
+            }
+          } else if (newContextUri != null) {
+            Map<String, dynamic>? contextFromApi;
+            if (currentTrack!['context'] is Map<String, dynamic>) {
+              contextFromApi = Map<String, dynamic>.from(
+                  currentTrack!['context'] as Map<String, dynamic>);
+            }
+
+            final hasContextName = contextFromApi != null &&
+                (contextFromApi['name'] is String) &&
+                (contextFromApi['name'] as String).trim().isNotEmpty;
+
+            if (!hasContextName) {
+              Map<String, dynamic>? enrichedContext;
+              if (track['context'] is Map<String, dynamic>) {
+                try {
+                  enrichedContext = await _enrichPlayContext(
+                      Map<String, dynamic>.from(
+                          track['context'] as Map<String, dynamic>));
+                  currentTrack!['context'] = enrichedContext;
+                  logger.d(
+                      'refreshCurrentTrack: Enriched missing context metadata for $newContextUri.');
+                } catch (e) {
+                  logger.w(
+                      'refreshCurrentTrack: Failed to enrich missing context metadata for $newContextUri',
+                      error: e);
+                }
+              }
+
+              if ((currentTrack!['context']?['name'] as String?)?.isEmpty ??
+                  true) {
+                if (previousContext != null &&
+                    previousContext['uri'] == newContextUri &&
+                    (previousContext['name'] as String?)?.isNotEmpty == true) {
+                  currentTrack!['context'] = previousContext;
+                  logger.t(
+                      'refreshCurrentTrack: Reused cached context metadata for $newContextUri.');
+                } else if (contextFromApi != null) {
+                  currentTrack!['context'] = contextFromApi;
+                }
+              }
+            } else if (contextFromApi != null) {
+              currentTrack!['context'] = contextFromApi;
             }
           }
         } else if (currentTrack != null &&

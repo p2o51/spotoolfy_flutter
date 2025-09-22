@@ -32,6 +32,8 @@ class LibraryProvider extends ChangeNotifier {
   static const String _cacheTimestampKey = 'library_cache_timestamp';
   // Cache duration - 6小时缓存，平衡性能和数据新鲜度
   static const Duration _cacheDuration = Duration(hours: 6);
+  SharedPreferences? _cachedPrefs;
+  Completer<SharedPreferences>? _prefsCompleter;
   
   // Getters
   List<Map<String, dynamic>> get userPlaylists => _userPlaylists;
@@ -69,6 +71,28 @@ class LibraryProvider extends ChangeNotifier {
     // loadData will now check cache first
     if (_spotifyProvider.username != null) {
       loadData();
+    }
+  }
+
+  Future<SharedPreferences> _getPrefs() async {
+    if (_cachedPrefs != null) {
+      return _cachedPrefs!;
+    }
+    if (_prefsCompleter != null) {
+      return _prefsCompleter!.future;
+    }
+
+    _prefsCompleter = Completer<SharedPreferences>();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _cachedPrefs = prefs;
+      _prefsCompleter!.complete(prefs);
+      return prefs;
+    } catch (e, s) {
+      _prefsCompleter!.completeError(e, s);
+      rethrow;
+    } finally {
+      _prefsCompleter = null;
     }
   }
   
@@ -174,7 +198,7 @@ class LibraryProvider extends ChangeNotifier {
   // Helper to load from cache
   Future<bool> _loadFromCache({bool ignoreTimestamp = false}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final timestampString = prefs.getString(_cacheTimestampKey);
       
       // Check if cache exists and is still valid (or if ignoring timestamp)
@@ -220,7 +244,7 @@ class LibraryProvider extends ChangeNotifier {
   // 保存完整的库数据到缓存
   Future<void> _saveToCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       
       final playlistsJson = jsonEncode(_userPlaylists);
       final albumsJson = jsonEncode(_userSavedAlbums);
@@ -238,7 +262,7 @@ class LibraryProvider extends ChangeNotifier {
   // Helper to clear cache
   Future<void> _clearCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       await prefs.remove(_playlistsCacheKey);
       await prefs.remove(_albumsCacheKey);
       await prefs.remove(_cacheTimestampKey);
@@ -273,7 +297,7 @@ class LibraryProvider extends ChangeNotifier {
   // 检查缓存是否可用作为备用数据
   Future<bool> hasFallbackCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final timestampString = prefs.getString(_cacheTimestampKey);
       final playlistsJson = prefs.getString(_playlistsCacheKey);
       final albumsJson = prefs.getString(_albumsCacheKey);
