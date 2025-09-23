@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
@@ -155,44 +154,6 @@ class _AlbumPageState extends State<AlbumPage> {
         SnackBar(content: Text('播放歌曲失败：$e')),
       );
     }
-  }
-
-  Future<void> _handleOpenArtist(Map<String, dynamic> artist) async {
-    final spotifyUri = artist['uri'] as String?;
-    final externalUrls = artist['external_urls'];
-    final webUrl = externalUrls is Map<String, dynamic>
-        ? externalUrls['spotify'] as String?
-        : null;
-
-    Future<bool> _launchIfPossible(String? url) async {
-      if (url == null || url.isEmpty) {
-        return false;
-      }
-      try {
-        final launched = await launchUrl(
-          Uri.parse(url),
-          mode: LaunchMode.externalApplication,
-        );
-        return launched;
-      } catch (_) {
-        return false;
-      }
-    }
-
-    final launchedSpotify = await _launchIfPossible(spotifyUri);
-    if (launchedSpotify) {
-      return;
-    }
-
-    final launchedWeb = await _launchIfPossible(webUrl);
-    if (launchedWeb) {
-      return;
-    }
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('无法打开艺术家链接')),
-    );
   }
 
   Future<void> _loadCachedAlbumInsights() async {
@@ -607,17 +568,13 @@ class _AlbumPageState extends State<AlbumPage> {
                 children: [
                   Text(
                     albumName,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
+                    style: theme.textTheme.titleLarge,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 12),
-                  _buildArtistLinks(theme, artists),
-                  const SizedBox(height: 12),
                   Text(
-                    _buildMetaLine(releaseYear, trackCount),
+                    _buildMetaLine(artists, releaseYear, trackCount),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -760,11 +717,8 @@ class _AlbumPageState extends State<AlbumPage> {
                       Expanded(
                         child: GestureDetector(
                           onLongPress: () async {
-                            final title = insightsTitle;
-                            if (title == null) {
-                              return;
-                            }
-                            await Clipboard.setData(ClipboardData(text: title));
+                            await Clipboard.setData(
+                                ClipboardData(text: insightsTitle));
                             if (!mounted) {
                               return;
                             }
@@ -836,43 +790,6 @@ class _AlbumPageState extends State<AlbumPage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildArtistLinks(ThemeData theme, List artists) {
-    final artistEntries = [
-      for (final artist in artists)
-        if (artist is Map<String, dynamic>) artist
-    ];
-
-    if (artistEntries.isEmpty) {
-      return Text(
-        '未知艺术家',
-        style: theme.textTheme.bodyMedium,
-      );
-    }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        for (final artist in artistEntries)
-          TextButton(
-            onPressed: () => _handleOpenArtist(artist),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, 0),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              (artist['name'] as String?) ?? '未知艺术家',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
-      ],
     );
   }
 
@@ -969,12 +886,30 @@ class _AlbumPageState extends State<AlbumPage> {
     return '洞察刚刚生成';
   }
 
-  String _buildMetaLine(String? releaseYear, int trackCount) {
+  String _buildMetaLine(List artists, String? releaseYear, int trackCount) {
     final parts = <String>[];
+
+    // 添加艺术家名称
+    final artistEntries = [
+      for (final artist in artists)
+        if (artist is Map<String, dynamic>) artist
+    ];
+
+    if (artistEntries.isNotEmpty) {
+      final artistNames = artistEntries
+          .map((artist) => (artist['name'] as String?) ?? '未知艺术家')
+          .join(', ');
+      parts.add(artistNames);
+    }
+
+    // 添加年份
     if (releaseYear != null && releaseYear.isNotEmpty) {
       parts.add(releaseYear);
     }
-    parts.add('共 $trackCount 首曲目');
+
+    // 添加曲目数
+    parts.add('共$trackCount首曲目');
+
     return parts.join(' · ');
   }
 
