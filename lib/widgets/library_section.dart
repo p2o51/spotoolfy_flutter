@@ -80,7 +80,6 @@ class _LibrarySectionState extends State<LibrarySection> {
   }
 
   Future<void> _refreshData() async {
-    HapticFeedback.mediumImpact();
     // Refresh both library provider and carousel
     final libraryProvider =
         Provider.of<LibraryProvider>(context, listen: false);
@@ -158,6 +157,8 @@ class _LibrarySectionState extends State<LibrarySection> {
 
         return RefreshIndicator(
           onRefresh: _refreshData,
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
           child: CustomScrollView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),

@@ -9,6 +9,7 @@ import 'package:flutter/physics.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
+import '../pages/album_page.dart';
 import '../widgets/song_info_result_page.dart';
 import '../services/notification_service.dart';
 import '../l10n/app_localizations.dart';
@@ -26,6 +27,7 @@ class Player extends StatefulWidget {
   @override
   State<Player> createState() => _PlayerState();
 }
+
 class _PlayerState extends State<Player> with TickerProviderStateMixin {
   final _dragDistanceNotifier = ValueNotifier<double>(0.0);
   double? _dragStartX;
@@ -43,7 +45,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   late Animation<double> _playStateScaleAnimation;
   late Animation<double> _playStateOpacityAnimation;
   bool _isSeekOverlayVisible = false;
-  
+
   @override
   void initState() {
     super.initState();
@@ -51,38 +53,38 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 150),
       vsync: this,
     )..value = 0.0;
-    
+
     _transitionController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
     )..value = 0.0;
-    
+
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(
-      CurvedAnimation(parent: _transitionController, curve: Curves.easeOutCubic)
-    );
-    
+        CurvedAnimation(
+            parent: _transitionController, curve: Curves.easeOutCubic));
+
     _opacityAnimation = Tween<double>(begin: 1.0, end: 0.6).animate(
-      CurvedAnimation(parent: _transitionController, curve: Curves.easeOutCubic)
-    );
-    
+        CurvedAnimation(
+            parent: _transitionController, curve: Curves.easeOutCubic));
+
     _indicatorController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     )..value = 0.0;
-    
+
     _playStateController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _playStateScaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
-      CurvedAnimation(parent: _playStateController, curve: Curves.easeOutCubic)
-    );
-    
+        CurvedAnimation(
+            parent: _playStateController, curve: Curves.easeOutCubic));
+
     _playStateOpacityAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _playStateController, curve: Curves.easeOutCubic)
-    );
-    
+        CurvedAnimation(
+            parent: _playStateController, curve: Curves.easeOutCubic));
+
     if (_lastImageUrl != null) {
       _prefetchImage(_lastImageUrl!);
     }
@@ -105,7 +107,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     _playStateController.dispose();
     super.dispose();
   }
-  
+
   void _handleHorizontalDragStart(DragStartDetails details) {
     _fadeController.value = 1.0;
     _indicatorController.value = 0.0;
@@ -130,69 +132,73 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         _dragDistanceNotifier.value = 0.0;
         return;
       } else if (dx.abs() > 10.0) {
-         _isHorizontalDragConfirmed = true;
+        _isHorizontalDragConfirmed = true;
       }
     }
-    
+
     if (_isHorizontalDragConfirmed) {
       final dragDistance = widget.isLargeScreen ? dx / 2 : dx;
       _dragDistanceNotifier.value = dragDistance;
-      
-      final progress = (_dragDistanceNotifier.value.abs() / 100).clamp(0.0, 1.0);
+
+      final progress =
+          (_dragDistanceNotifier.value.abs() / 100).clamp(0.0, 1.0);
       _transitionController.value = progress;
     }
   }
 
-  void _handleHorizontalDragEnd(DragEndDetails details, SpotifyProvider spotify) async {
+  void _handleHorizontalDragEnd(
+      DragEndDetails details, SpotifyProvider spotify) async {
     if (_dragStartX == null || !_isHorizontalDragConfirmed) {
-       if (_fadeController.value > 0.0) _fadeController.reverse();
-       if (_transitionController.value > 0.0) _transitionController.reverse();
-       _dragDistanceNotifier.value = 0.0;
-       _dragStartX = null;
-       _dragStartY = null;
-       _isHorizontalDragConfirmed = false;
-       return;
+      if (_fadeController.value > 0.0) _fadeController.reverse();
+      if (_transitionController.value > 0.0) _transitionController.reverse();
+      _dragDistanceNotifier.value = 0.0;
+      _dragStartX = null;
+      _dragStartY = null;
+      _isHorizontalDragConfirmed = false;
+      return;
     }
-    
+
     final velocity = details.velocity.pixelsPerSecond.dx;
     final threshold = widget.isLargeScreen ? 400.0 : 800.0;
     final distance = _dragDistanceNotifier.value;
-    
+
     final triggerDistance = widget.isLargeScreen ? 40.0 : 80.0;
-    
+
     if (velocity.abs() > threshold || distance.abs() > triggerDistance) {
       _indicatorController.forward();
-      
+
       final spring = SpringDescription.withDampingRatio(
         mass: 1.0,
         stiffness: 500.0,
         ratio: 1.1,
       );
-      
-      final simulation = SpringSimulation(spring, _transitionController.value, 1.0, velocity / 1500);
+
+      final simulation = SpringSimulation(
+          spring, _transitionController.value, 1.0, velocity / 1500);
       await _transitionController.animateWith(simulation);
-      
+
       HapticFeedback.mediumImpact();
       if (distance > 0) {
         spotify.skipToPrevious();
       } else {
         spotify.skipToNext();
       }
-      
+
       await _transitionController.reverse();
     } else {
       _indicatorController.forward();
-      
+
       final spring = SpringDescription.withDampingRatio(
         mass: 1.0,
         stiffness: 500.0,
         ratio: 0.9,
       );
-      
-      final simulation = SpringSimulation(spring, _transitionController.value, 0.0, velocity / 1500);
+
+      final simulation = SpringSimulation(
+          spring, _transitionController.value, 0.0, velocity / 1500);
       await _transitionController.animateWith(simulation);
     }
-    
+
     _dragStartX = null;
     _dragStartY = null;
     _isHorizontalDragConfirmed = false;
@@ -204,15 +210,15 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final track = context.select<SpotifyProvider, Map<String, dynamic>?>(
-      (provider) => provider.currentTrack?['item']
-    );
-    
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    
+        (provider) => provider.currentTrack?['item']);
+
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+
     if (track != null) {
       _lastTrack = track;
     }
-    
+
     final displayTrack = track ?? _lastTrack;
 
     if (widget.isMiniPlayer) {
@@ -240,34 +246,41 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                   width: double.infinity,
                   child: Stack(
                     children: [
-                    _buildMainContent(displayTrack, spotifyProvider),
-                    Positioned(
-                      bottom: 64,
-                      right: MediaQuery.of(context).size.width < 350 ? 25 : 
-                             MediaQuery.of(context).size.width < 400 ? 20 : 15,
-                      child: PlayButton(
-                        isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          spotifyProvider.togglePlayPause();
-                        },
+                      _buildMainContent(displayTrack, spotifyProvider),
+                      Positioned(
+                        bottom: 64,
+                        right: MediaQuery.of(context).size.width < 350
+                            ? 25
+                            : MediaQuery.of(context).size.width < 400
+                                ? 20
+                                : 15,
+                        child: PlayButton(
+                          isPlaying: context
+                                  .watch<SpotifyProvider>()
+                                  .currentTrack?['is_playing'] ??
+                              false,
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            spotifyProvider.togglePlayPause();
+                          },
+                        ),
                       ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      left: 64,
-                      child: MyButton(
-                        width: 64,
-                        height: 64,
-                        radius: 20,
-                        icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          spotifyProvider.togglePlayMode();
-                        },
+                      Positioned(
+                        bottom: 0,
+                        left: 64,
+                        child: MyButton(
+                          width: 64,
+                          height: 64,
+                          radius: 20,
+                          icon: _getPlayModeIcon(
+                              context.watch<SpotifyProvider>().currentMode),
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            spotifyProvider.togglePlayMode();
+                          },
+                        ),
                       ),
-                    ),
-                    _buildDragIndicators(),
+                      _buildDragIndicators(),
                     ],
                   ),
                 ),
@@ -283,24 +296,28 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                           Expanded(
                             child: HeaderAndFooter(
                               header: displayTrack?['name'] ?? 'Godspeed',
-                              footer: displayTrack != null 
+                              footer: displayTrack != null
                                   ? (displayTrack['artists'] as List?)
-                                      ?.map((artist) => artist['name'] as String)
-                                      .join(', ') ?? 'Unknown Artist'
+                                          ?.map((artist) =>
+                                              artist['name'] as String)
+                                          .join(', ') ??
+                                      'Unknown Artist'
                                   : 'Camila Cabello',
                               track: displayTrack,
                             ),
                           ),
                           IconButton.filledTonal(
-                            onPressed: spotifyProvider.currentTrack != null && track != null
-                              ? () {
-                                  HapticFeedback.lightImpact();
-                                  spotifyProvider.toggleTrackSave();
-                                }
-                              : null,
+                            onPressed: spotifyProvider.currentTrack != null &&
+                                    track != null
+                                ? () {
+                                    HapticFeedback.lightImpact();
+                                    spotifyProvider.toggleTrackSave();
+                                  }
+                                : null,
                             icon: Icon(
-                              context.select<SpotifyProvider, bool>((provider) => 
-                                provider.isCurrentTrackSaved ?? false)
+                              context.select<SpotifyProvider, bool>(
+                                      (provider) =>
+                                          provider.isCurrentTrackSaved ?? false)
                                   ? Icons.favorite
                                   : Icons.favorite_outline_rounded,
                               color: Theme.of(context).colorScheme.primary,
@@ -319,11 +336,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
   }
 
-  Widget _buildMainContent(Map<String, dynamic>? track, SpotifyProvider spotify) {
+  Widget _buildMainContent(
+      Map<String, dynamic>? track, SpotifyProvider spotify) {
     final isPlaying = context.select<SpotifyProvider, bool>(
-      (provider) => provider.currentTrack?['is_playing'] ?? false
-    );
-    
+        (provider) => provider.currentTrack?['is_playing'] ?? false);
+
     if (isPlaying) {
       _playStateController.forward();
     } else {
@@ -331,7 +348,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_transitionController, _playStateController]),
+      animation:
+          Listenable.merge([_transitionController, _playStateController]),
       builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value * _playStateScaleAnimation.value,
@@ -344,7 +362,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       child: GestureDetector(
         onHorizontalDragStart: _handleHorizontalDragStart,
         onHorizontalDragUpdate: _handleHorizontalDragUpdate,
-        onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(details, spotify),
+        onHorizontalDragEnd: (details) =>
+            _handleHorizontalDragEnd(details, spotify),
         onTap: () {
           setState(() {
             _isSeekOverlayVisible = !_isSeekOverlayVisible;
@@ -376,17 +395,22 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             final spotifyUri = Uri.parse('spotify:');
             try {
               if (await canLaunchUrl(spotifyUri)) {
-                await launchUrl(spotifyUri, mode: LaunchMode.externalApplication);
+                await launchUrl(spotifyUri,
+                    mode: LaunchMode.externalApplication);
               } else {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify)),
+                  SnackBar(
+                      content: Text(
+                          AppLocalizations.of(context)!.cannotOpenSpotify)),
                 );
               }
             } catch (e) {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(''))),
+                SnackBar(
+                    content: Text(
+                        AppLocalizations.of(context)!.failedToOpenSpotify(''))),
               );
             }
           }
@@ -404,22 +428,24 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   Widget _buildAlbumArt(Map<String, dynamic>? track) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final displayTrack = track ?? _lastTrack;
-    final String? currentImageUrl = displayTrack?['album']?['images']?[0]?['url'];
+    final String? currentImageUrl =
+        displayTrack?['album']?['images']?[0]?['url'];
 
     if (currentImageUrl != null && currentImageUrl != _lastImageUrl) {
       _prefetchImage(currentImageUrl);
-      
+
       if (!_isThemeUpdating) {
         _isThemeUpdating = true;
         _lastImageUrl = currentImageUrl;
-        
+
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted && currentImageUrl == _lastImageUrl) {
             final imageProvider = CachedNetworkImageProvider(
               currentImageUrl,
               maxWidth: MediaQuery.sizeOf(context).width.toInt(),
             );
-            themeProvider.updateThemeFromImage(imageProvider, MediaQuery.platformBrightnessOf(context));
+            themeProvider.updateThemeFromImage(
+                imageProvider, MediaQuery.platformBrightnessOf(context));
           }
           _isThemeUpdating = false;
         });
@@ -435,17 +461,15 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           return FadeTransition(
             opacity: animation,
             child: ScaleTransition(
-              scale: animation.drive(
-                Tween<double>(begin: 0.95, end: 1.0)
-                  .chain(CurveTween(curve: Curves.easeOutCubic))
-              ),
+              scale: animation.drive(Tween<double>(begin: 0.95, end: 1.0)
+                  .chain(CurveTween(curve: Curves.easeOutCubic))),
               child: child,
             ),
           );
         },
-        child: displayTrack != null && 
-               displayTrack['album']?['images'] != null &&
-               (displayTrack['album']['images'] as List).isNotEmpty
+        child: displayTrack != null &&
+                displayTrack['album']?['images'] != null &&
+                (displayTrack['album']['images'] as List).isNotEmpty
             ? CachedNetworkImage(
                 key: ValueKey(currentImageUrl),
                 imageUrl: currentImageUrl!,
@@ -453,19 +477,22 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                 fadeInDuration: Duration.zero,
                 fadeOutDuration: Duration.zero,
                 placeholderFadeInDuration: Duration.zero,
-                memCacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
-                maxWidthDiskCache: (MediaQuery.of(context).size.width * 1.5).toInt(),
+                memCacheWidth:
+                    (MediaQuery.of(context).size.width * 1.5).toInt(),
+                maxWidthDiskCache:
+                    (MediaQuery.of(context).size.width * 1.5).toInt(),
                 placeholder: (context, url) => Container(
                   color: Theme.of(context).colorScheme.surface,
                   child: _lastTrack != null && _lastImageUrl != null
-                    ? Image(
-                        image: CachedNetworkImageProvider(_lastImageUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+                      ? Image(
+                          image: CachedNetworkImageProvider(_lastImageUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : Image.asset('assets/examples/CXOXO.png',
+                          fit: BoxFit.cover),
                 ),
-                errorWidget: (context, url, error) => 
-                  Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+                errorWidget: (context, url, error) =>
+                    Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
               )
             : Image.asset(
                 'assets/examples/CXOXO.png',
@@ -495,7 +522,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           child: IgnorePointer(
             ignoring: !_isSeekOverlayVisible,
             // 不需要 GestureDetector 了，因为外部 onTap 会处理
-            child: Center( // 确保按钮在 Stack 中心
+            child: Center(
+              // 确保按钮在 Stack 中心
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -504,11 +532,16 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     label: '-10s',
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                      final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
+                      final spotifyProvider =
+                          Provider.of<SpotifyProvider>(context, listen: false);
+                      final currentProgressMs =
+                          spotifyProvider.currentTrack?['progress_ms'] as int?;
                       if (currentProgressMs != null) {
-                        final targetPosition = max(0, currentProgressMs - 10000); // 减去 10 秒，但不小于 0
-                        spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition).inMilliseconds);
+                        final targetPosition =
+                            max(0, currentProgressMs - 10000); // 减去 10 秒，但不小于 0
+                        spotifyProvider.seekToPosition(
+                            Duration(milliseconds: targetPosition)
+                                .inMilliseconds);
                       }
                     },
                   ),
@@ -525,12 +558,19 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     label: '+10s',
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-                      final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] as int?;
-                      final trackDurationMs = spotifyProvider.currentTrack?['item']?['duration_ms'] as int?;
-                      if (currentProgressMs != null && trackDurationMs != null) {
-                        final targetPosition = min(trackDurationMs, currentProgressMs + 10000); // 加上 10 秒，但不超过总时长
-                        spotifyProvider.seekToPosition(Duration(milliseconds: targetPosition).inMilliseconds);
+                      final spotifyProvider =
+                          Provider.of<SpotifyProvider>(context, listen: false);
+                      final currentProgressMs =
+                          spotifyProvider.currentTrack?['progress_ms'] as int?;
+                      final trackDurationMs = spotifyProvider
+                          .currentTrack?['item']?['duration_ms'] as int?;
+                      if (currentProgressMs != null &&
+                          trackDurationMs != null) {
+                        final targetPosition = min(trackDurationMs,
+                            currentProgressMs + 10000); // 加上 10 秒，但不超过总时长
+                        spotifyProvider.seekToPosition(
+                            Duration(milliseconds: targetPosition)
+                                .inMilliseconds);
                       }
                     },
                   ),
@@ -553,7 +593,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          icon: Icon(icon, color: Theme.of(context).colorScheme.secondary, size: 48),
+          icon: Icon(icon,
+              color: Theme.of(context).colorScheme.secondary, size: 48),
           onPressed: onPressed,
         ),
       ],
@@ -562,17 +603,20 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   // 显示歌曲信息
   Future<void> _showSongInfo() async {
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     final currentTrack = spotifyProvider.currentTrack;
-    
+
     if (currentTrack == null || currentTrack['item'] == null) {
-      notificationService.showSnackBar(AppLocalizations.of(context)!.noCurrentTrackPlaying);
+      notificationService
+          .showSnackBar(AppLocalizations.of(context)!.noCurrentTrackPlaying);
       return;
     }
 
     final trackData = currentTrack['item'] as Map<String, dynamic>;
-    
+
     // 隐藏seek overlay
     setState(() {
       _isSeekOverlayVisible = false;
@@ -614,10 +658,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
   }
 
-  Widget _buildMiniPlayer(Map<String, dynamic>? track, SpotifyProvider spotify) {
+  Widget _buildMiniPlayer(
+      Map<String, dynamic>? track, SpotifyProvider spotify) {
     final isPlaying = context.select<SpotifyProvider, bool>(
-      (provider) => provider.currentTrack?['is_playing'] ?? false
-    );
+        (provider) => provider.currentTrack?['is_playing'] ?? false);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -649,21 +693,22 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                 Text(
                   track?['name'] ?? 'Godspeed',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  track != null 
-                    ? (track['artists'] as List?)
-                        ?.map((artist) => artist['name'] as String)
-                        .join(', ') ?? 'Unknown Artist'
-                    : 'Camila Cabello',
+                  track != null
+                      ? (track['artists'] as List?)
+                              ?.map((artist) => artist['name'] as String)
+                              .join(', ') ??
+                          'Unknown Artist'
+                      : 'Camila Cabello',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -678,11 +723,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   }
 
   /// 构建响应式控制按钮
-  Widget _buildResponsiveControlButtons(SpotifyProvider spotify, bool isPlaying) {
+  Widget _buildResponsiveControlButtons(
+      SpotifyProvider spotify, bool isPlaying) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenWidth = MediaQuery.of(context).size.width;
-        
+
         // 根据屏幕宽度调整按钮大小和行为
         if (screenWidth < 350) {
           // 极窄屏幕：只显示播放/暂停按钮
@@ -814,11 +860,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   Widget _buildMiniAlbumArt(Map<String, dynamic>? track) {
     final displayTrack = track ?? _lastTrack;
-    final String? currentImageUrl = displayTrack?['album']?['images']?[0]?['url'];
+    final String? currentImageUrl =
+        displayTrack?['album']?['images']?[0]?['url'];
 
-    return displayTrack != null && 
-           displayTrack['album']?['images'] != null &&
-           (displayTrack['album']['images'] as List).isNotEmpty
+    return displayTrack != null &&
+            displayTrack['album']?['images'] != null &&
+            (displayTrack['album']['images'] as List).isNotEmpty
         ? CachedNetworkImage(
             key: ValueKey(currentImageUrl),
             imageUrl: currentImageUrl!,
@@ -831,14 +878,14 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             placeholder: (context, url) => Container(
               color: Theme.of(context).colorScheme.surface,
               child: _lastTrack != null && _lastImageUrl != null
-                ? Image(
-                    image: CachedNetworkImageProvider(_lastImageUrl!),
-                    fit: BoxFit.cover,
-                  )
-                : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+                  ? Image(
+                      image: CachedNetworkImageProvider(_lastImageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
             ),
-            errorWidget: (context, url, error) => 
-              Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+            errorWidget: (context, url, error) =>
+                Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
           )
         : Image.asset(
             'assets/examples/CXOXO.png',
@@ -849,11 +896,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   void _launchSpotifyURL(BuildContext context, String? url) async {
     if (url == null) return;
-    
+
     // Capture context before async operations
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final localizations = AppLocalizations.of(context)!;
-    
+
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
@@ -872,7 +919,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _showArtistSelectionDialog(BuildContext context, List<Map<String, dynamic>> artists) async {
+  Future<void> _showArtistSelectionDialog(
+      BuildContext context, List<Map<String, dynamic>> artists) async {
     if (!context.mounted) return;
 
     final playerState = context.findAncestorStateOfType<_PlayerState>();
@@ -890,7 +938,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               itemCount: artists.length,
               itemBuilder: (context, index) {
                 final artist = artists[index];
-                final artistName = artist['name'] as String? ?? 'Unknown Artist';
+                final artistName =
+                    artist['name'] as String? ?? 'Unknown Artist';
                 final artistUrl = artist['url'] as String?;
                 final bool canLaunch = artistUrl != null;
 
@@ -920,7 +969,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildLargeScreenPlayerLayout(Map<String, dynamic>? displayTrack, SpotifyProvider spotifyProvider) {
+  Widget _buildLargeScreenPlayerLayout(
+      Map<String, dynamic>? displayTrack, SpotifyProvider spotifyProvider) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         const double textSectionFixedHeight = 70.0;
@@ -928,19 +978,20 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         const double artExternalPaddingHorizontal = 48.0 * 2;
         const double artExternalPaddingVertical = 32.0 * 2;
 
-        double artContentAvailableWidth = constraints.maxWidth - artExternalPaddingHorizontal;
+        double artContentAvailableWidth =
+            constraints.maxWidth - artExternalPaddingHorizontal;
         double artContentAvailableHeight = constraints.maxHeight -
-                                          textSectionFixedHeight -
-                                          spacingBelowArt -
-                                          artExternalPaddingVertical;
+            textSectionFixedHeight -
+            spacingBelowArt -
+            artExternalPaddingVertical;
         artContentAvailableWidth = max(0, artContentAvailableWidth);
         artContentAvailableHeight = max(0, artContentAvailableHeight);
-        double artDimension = min(artContentAvailableWidth, artContentAvailableHeight);
+        double artDimension =
+            min(artContentAvailableWidth, artContentAvailableHeight);
         artDimension = max(0, artDimension);
 
         final isPlaying = context.select<SpotifyProvider, bool>(
-          (provider) => provider.currentTrack?['is_playing'] ?? false
-        );
+            (provider) => provider.currentTrack?['is_playing'] ?? false);
 
         final double stackWidth = artDimension * 1.2;
         final double stackHeight = artDimension * 1.2;
@@ -959,14 +1010,18 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       displayTrack,
                       spotifyProvider,
                       isPlaying: isPlaying,
-                      artDimension: artDimension, // Actual album art content is still artDimension
+                      artDimension:
+                          artDimension, // Actual album art content is still artDimension
                     ),
                   ),
                   Positioned(
                     bottom: stackHeight * 0.10, // 距离底部 20% container 高度
                     right: max(stackWidth * 0.02, 10), // 确保至少10px边距，避免负值
                     child: PlayButton(
-                      isPlaying: context.watch<SpotifyProvider>().currentTrack?['is_playing'] ?? false,
+                      isPlaying: context
+                              .watch<SpotifyProvider>()
+                              .currentTrack?['is_playing'] ??
+                          false,
                       onPressed: () {
                         HapticFeedback.lightImpact();
                         spotifyProvider.togglePlayPause();
@@ -980,7 +1035,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       width: 64,
                       height: 64,
                       radius: 20,
-                      icon: _getPlayModeIcon(context.watch<SpotifyProvider>().currentMode),
+                      icon: _getPlayModeIcon(
+                          context.watch<SpotifyProvider>().currentMode),
                       onPressed: () {
                         HapticFeedback.lightImpact();
                         spotifyProvider.togglePlayMode();
@@ -1005,24 +1061,27 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                         Expanded(
                           child: HeaderAndFooter(
                             header: displayTrack?['name'] ?? 'Godspeed',
-                            footer: displayTrack != null 
+                            footer: displayTrack != null
                                 ? (displayTrack['artists'] as List?)
-                                    ?.map((artist) => artist['name'] as String)
-                                    .join(', ') ?? 'Unknown Artist'
+                                        ?.map((artist) =>
+                                            artist['name'] as String)
+                                        .join(', ') ??
+                                    'Unknown Artist'
                                 : 'Camila Cabello',
                             track: displayTrack,
                           ),
                         ),
                         IconButton.filledTonal(
-                          onPressed: spotifyProvider.currentTrack != null && displayTrack != null
-                            ? () {
-                                HapticFeedback.lightImpact();
-                                spotifyProvider.toggleTrackSave();
-                              }
-                            : null,
+                          onPressed: spotifyProvider.currentTrack != null &&
+                                  displayTrack != null
+                              ? () {
+                                  HapticFeedback.lightImpact();
+                                  spotifyProvider.toggleTrackSave();
+                                }
+                              : null,
                           icon: Icon(
-                            context.select<SpotifyProvider, bool>((provider) => 
-                              provider.isCurrentTrackSaved ?? false)
+                            context.select<SpotifyProvider, bool>((provider) =>
+                                    provider.isCurrentTrackSaved ?? false)
                                 ? Icons.favorite
                                 : Icons.favorite_outline_rounded,
                             color: Theme.of(context).colorScheme.primary,
@@ -1040,7 +1099,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildConfigurableMainContent(Map<String, dynamic>? track, SpotifyProvider spotify, {required bool isPlaying, double? artDimension}) {
+  Widget _buildConfigurableMainContent(
+      Map<String, dynamic>? track, SpotifyProvider spotify,
+      {required bool isPlaying, double? artDimension}) {
     if (isPlaying) {
       _playStateController.forward();
     } else {
@@ -1048,7 +1109,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_transitionController, _playStateController]),
+      animation:
+          Listenable.merge([_transitionController, _playStateController]),
       builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value * _playStateScaleAnimation.value,
@@ -1061,7 +1123,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       child: GestureDetector(
         onHorizontalDragStart: _handleHorizontalDragStart,
         onHorizontalDragUpdate: _handleHorizontalDragUpdate,
-        onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(details, spotify),
+        onHorizontalDragEnd: (details) =>
+            _handleHorizontalDragEnd(details, spotify),
         onTap: () {
           setState(() {
             _isSeekOverlayVisible = !_isSeekOverlayVisible;
@@ -1093,17 +1156,22 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             final spotifyUri = Uri.parse('spotify:');
             try {
               if (await canLaunchUrl(spotifyUri)) {
-                await launchUrl(spotifyUri, mode: LaunchMode.externalApplication);
+                await launchUrl(spotifyUri,
+                    mode: LaunchMode.externalApplication);
               } else {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)!.cannotOpenSpotify)),
+                  SnackBar(
+                      content: Text(
+                          AppLocalizations.of(context)!.cannotOpenSpotify)),
                 );
               }
             } catch (e) {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(AppLocalizations.of(context)!.failedToOpenSpotify(''))),
+                SnackBar(
+                    content: Text(
+                        AppLocalizations.of(context)!.failedToOpenSpotify(''))),
               );
             }
           }
@@ -1142,7 +1210,7 @@ class DragIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     const maxWidth = 80.0;
     final width = (dragDistance.abs() / 100.0).clamp(0.0, 1.0) * maxWidth;
-    
+
     if (isLargeScreen) {
       // 大屏幕模式：居中圆形指示器
       return Center(
@@ -1159,11 +1227,17 @@ class DragIndicator extends StatelessWidget {
                     width: width,
                     height: width,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer.withAlpha((0.9 * 255).round()),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withAlpha((0.9 * 255).round()),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Theme.of(context).colorScheme.primary.withAlpha((0.2 * 255).round()),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withAlpha((0.2 * 255).round()),
                           blurRadius: 16,
                           spreadRadius: 4,
                         ),
@@ -1173,8 +1247,11 @@ class DragIndicator extends StatelessWidget {
                       child: Opacity(
                         opacity: (width / maxWidth).clamp(0.0, 1.0),
                         child: Icon(
-                          isNext ? Icons.skip_next_rounded : Icons.skip_previous_rounded,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          isNext
+                              ? Icons.skip_next_rounded
+                              : Icons.skip_previous_rounded,
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
                           size: 32,
                         ),
                       ),
@@ -1190,11 +1267,11 @@ class DragIndicator extends StatelessWidget {
       // 小屏幕模式
       final availableHeight = MediaQuery.of(context).size.height - 64;
       // Ensure maxHeight is not negative
-      final maxHeight = max(0.0, availableHeight); 
+      final maxHeight = max(0.0, availableHeight);
       final minHeight = maxHeight * 0.8;
       final heightProgress = (width / maxWidth).clamp(0.0, 1.0);
       final height = minHeight + (maxHeight - minHeight) * heightProgress;
-      
+
       // Ensure top and bottom calculation doesn't result in negative values if availableHeight was initially negative.
       // This prevents issues if the widget is somehow rendered in a space smaller than 64 logical pixels high.
       final verticalPadding = max(0.0, (availableHeight - height) / 2);
@@ -1223,14 +1300,20 @@ class DragIndicator extends StatelessWidget {
                 width: width,
                 height: height, // height is now guaranteed >= 0
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withAlpha((0.9 * 255).round()),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withAlpha((0.9 * 255).round()),
                   borderRadius: BorderRadius.horizontal(
                     left: isNext ? const Radius.circular(16) : Radius.zero,
                     right: isNext ? Radius.zero : const Radius.circular(16),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withAlpha((0.2 * 255).round()),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withAlpha((0.2 * 255).round()),
                       blurRadius: 16,
                       spreadRadius: 4,
                     ),
@@ -1240,7 +1323,9 @@ class DragIndicator extends StatelessWidget {
                   child: Opacity(
                     opacity: (width / maxWidth).clamp(0.0, 1.0),
                     child: Icon(
-                      isNext ? Icons.skip_next_rounded : Icons.skip_previous_rounded,
+                      isNext
+                          ? Icons.skip_next_rounded
+                          : Icons.skip_previous_rounded,
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
                       size: 24,
                     ),
@@ -1269,7 +1354,8 @@ class PlayButton extends StatefulWidget {
   State<PlayButton> createState() => _PlayButtonState();
 }
 
-class _PlayButtonState extends State<PlayButton> with SingleTickerProviderStateMixin {
+class _PlayButtonState extends State<PlayButton>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
@@ -1325,8 +1411,10 @@ class _PlayButtonState extends State<PlayButton> with SingleTickerProviderStateM
         child: TextButton(
           onPressed: widget.onPressed,
           child: Container(
-            width: MediaQuery.of(context).size.width < 400 ? 80 : 96,  // 窄屏幕使用更小尺寸
-            height: MediaQuery.of(context).size.width < 400 ? 56 : 64,  // 窄屏幕使用更小尺寸
+            width:
+                MediaQuery.of(context).size.width < 400 ? 80 : 96, // 窄屏幕使用更小尺寸
+            height:
+                MediaQuery.of(context).size.width < 400 ? 56 : 64, // 窄屏幕使用更小尺寸
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.circular(32.0),
@@ -1347,7 +1435,9 @@ class _PlayButtonState extends State<PlayButton> with SingleTickerProviderStateM
                 );
               },
               child: Icon(
-                widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                widget.isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
                 key: ValueKey(widget.isPlaying),
                 color: Theme.of(context).colorScheme.onPrimary,
               ),
@@ -1373,7 +1463,8 @@ class ScrollingText extends StatefulWidget {
   State<ScrollingText> createState() => _ScrollingTextState();
 }
 
-class _ScrollingTextState extends State<ScrollingText> with SingleTickerProviderStateMixin {
+class _ScrollingTextState extends State<ScrollingText>
+    with SingleTickerProviderStateMixin {
   late ScrollController _scrollController;
   late AnimationController _animationController;
   bool _needsScroll = false;
@@ -1411,11 +1502,12 @@ class _ScrollingTextState extends State<ScrollingText> with SingleTickerProvider
   }
 
   void _checkIfNeedsScroll() {
-    if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
+    if (_scrollController.hasClients &&
+        _scrollController.position.maxScrollExtent > 0) {
       setState(() {
         _needsScroll = true;
       });
-      
+
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
           _animationController.forward();
@@ -1425,7 +1517,8 @@ class _ScrollingTextState extends State<ScrollingText> with SingleTickerProvider
       _animationController.addListener(() {
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(
-            _animationController.value * _scrollController.position.maxScrollExtent,
+            _animationController.value *
+                _scrollController.position.maxScrollExtent,
           );
         }
       });
@@ -1478,10 +1571,16 @@ class _ScrollingTextState extends State<ScrollingText> with SingleTickerProvider
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    Theme.of(context).colorScheme.surface.withAlpha((0.0 * 255).round()),
+                    Theme.of(context)
+                        .colorScheme
+                        .surface
+                        .withAlpha((0.0 * 255).round()),
                     Theme.of(context).colorScheme.surface,
                     Theme.of(context).colorScheme.surface,
-                    Theme.of(context).colorScheme.surface.withAlpha((0.0 * 255).round()),
+                    Theme.of(context)
+                        .colorScheme
+                        .surface
+                        .withAlpha((0.0 * 255).round()),
                   ],
                   stops: const [0.0, 0.05, 0.85, 1.0],
                 ).createShader(bounds);
@@ -1514,24 +1613,42 @@ class HeaderAndFooter extends StatelessWidget {
     final playerState = context.findAncestorStateOfType<_PlayerState>();
 
     final albumUrl = track?['album']?['external_urls']?['spotify'];
-    final artists = (track?['artists'] as List?)?.map((artist) => {
-      'name': artist['name'],
-      'url': artist['external_urls']?['spotify'],
-    }).toList();
+    final artists = (track?['artists'] as List?)
+        ?.map((artist) => {
+              'name': artist['name'],
+              'url': artist['external_urls']?['spotify'],
+            })
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onTap: albumUrl != null && playerState != null 
-            ? () => playerState._launchSpotifyURL(context, albumUrl) 
-            : null,
+          onTap: () {
+            final albumId = track?['album']?['id'] as String?;
+            if (albumId != null) {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AlbumPage(albumId: albumId),
+                ),
+              );
+              return;
+            }
+
+            if (albumUrl != null && playerState != null) {
+              playerState._launchSpotifyURL(context, albumUrl);
+            }
+          },
+          onLongPress: albumUrl != null && playerState != null
+              ? () => playerState._launchSpotifyURL(context, albumUrl)
+              : null,
           child: ScrollingText(
             text: header,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
           ),
         ),
         const SizedBox(height: 4),
@@ -1541,24 +1658,26 @@ class HeaderAndFooter extends StatelessWidget {
                 ? () {
                     if (artists.length > 1) {
                       playerState._showArtistSelectionDialog(context, artists);
-                    } else if (artists.length == 1 && artists[0]['url'] != null) {
+                    } else if (artists.length == 1 &&
+                        artists[0]['url'] != null) {
                       playerState._launchSpotifyURL(context, artists[0]['url']);
                     }
                   }
                 : null,
             child: ScrollingText(
-              text: artists.map((artist) => artist['name'] as String).join(', '),
+              text:
+                  artists.map((artist) => artist['name'] as String).join(', '),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.secondary,
-              ),
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
             ),
           )
         else
           ScrollingText(
             text: footer,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.secondary,
-            ),
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
           ),
       ],
     );

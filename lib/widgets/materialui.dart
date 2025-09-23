@@ -8,24 +8,30 @@ class MyButton extends StatelessWidget {
   final IconData icon;
   final void Function() onPressed;
 
-  const MyButton({super.key, required this.width, required this.height, required this.radius, required this.icon, required this.onPressed});
+  const MyButton(
+      {super.key,
+      required this.width,
+      required this.height,
+      required this.radius,
+      required this.icon,
+      required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return TextButton(
       onPressed: onPressed,
       child: Container(
-              width: width,
-              height: height,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(radius),
-              ),
-              child: Icon(
-                icon,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+        child: Icon(
+          icon,
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+        ),
+      ),
     );
   }
 }
@@ -41,20 +47,16 @@ class IconHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-            icon,
-            color: Theme.of(context).colorScheme.primary,
-            size: 16
-        ),
+        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 16),
         const SizedBox(width: 8),
-        Flexible(  // 添加 Flexible 来允许文本在需要时换行或收缩
+        Flexible(
+          // 添加 Flexible 来允许文本在需要时换行或收缩
           child: Text(
             text,
             style: TextStyle(
               color: Theme.of(context).colorScheme.primary,
               letterSpacing: 2.0,
             ),
-
           ),
         ),
       ],
@@ -65,16 +67,31 @@ class IconHeader extends StatelessWidget {
 class HeaderAndFooter extends StatelessWidget {
   final String header;
   final String footer;
-  const HeaderAndFooter({super.key, required this.header, required this.footer});
+  const HeaderAndFooter(
+      {super.key, required this.header, required this.footer});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(header, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 22, fontWeight: FontWeight.bold),),
-        const SizedBox(width: 8,),
-        Text(footer, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 22, fontWeight: FontWeight.normal),),
+        Text(
+          header,
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontSize: 22,
+              fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(
+          width: 8,
+        ),
+        Text(
+          footer,
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontSize: 22,
+              fontWeight: FontWeight.normal),
+        ),
       ],
     );
   }
@@ -95,17 +112,19 @@ class Ratings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Map the internal rating (0, 3, 5) to the segmented button values (0, 1, 2)
-    int selectedValue;
-    switch (initialRating) {
-      case 0:
-        selectedValue = 0;
-        break;
-      case 5:
-        selectedValue = 2;
-        break;
-      case 3:
-      default:
-        selectedValue = 1; // Default to neutral
+    final Set<int> selectedValues = <int>{};
+    if (initialRating != null) {
+      switch (initialRating) {
+        case 0:
+          selectedValues.add(0);
+          break;
+        case 5:
+          selectedValues.add(2);
+          break;
+        case 3:
+        default:
+          selectedValues.add(1);
+      }
     }
 
     return SegmentedButton<int>(
@@ -114,8 +133,12 @@ class Ratings extends StatelessWidget {
         ButtonSegment(value: 1, icon: Icon(Icons.sentiment_neutral_rounded)),
         ButtonSegment(value: 2, icon: Icon(Icons.whatshot_outlined)),
       ],
-      selected: {selectedValue}, // Use the mapped value
+      emptySelectionAllowed: true,
+      selected: selectedValues,
       onSelectionChanged: (Set<int> newSelection) {
+        if (newSelection.isEmpty) {
+          return;
+        }
         // Map the selected segment value (0, 1, 2) back to the rating (0, 3, 5)
         int newRating;
         switch (newSelection.first) {
@@ -153,8 +176,8 @@ class WavyDivider extends StatelessWidget {
   const WavyDivider({
     super.key,
     this.width = double.infinity, // Default to full width
-    this.height = 20.0,          // Default height for the paint area
-    this.color,                  // Default uses primary color
+    this.height = 20.0, // Default height for the paint area
+    this.color, // Default uses primary color
     this.strokeWidth = 2.0,
     this.waveHeight = 5.0,
     this.waveFrequency = 0.03,
@@ -220,7 +243,7 @@ class _AnimatedWavyDividerState extends State<AnimatedWavyDivider>
       duration: widget.animationDuration,
       vsync: this,
     );
-    
+
     _animation = Tween<double>(
       begin: 0.0,
       end: 1.0,
@@ -301,7 +324,8 @@ class WavyLinePainter extends CustomPainter {
 
     for (double x = 0; x <= size.width; x++) {
       // Calculate y using sine wave
-      final y = waveHeight * math.sin(waveFrequency * 2 * math.pi * x) + size.height / 2;
+      final y = waveHeight * math.sin(waveFrequency * 2 * math.pi * x) +
+          size.height / 2;
       path.lineTo(x, y);
     }
 
@@ -312,9 +336,9 @@ class WavyLinePainter extends CustomPainter {
   bool shouldRepaint(covariant WavyLinePainter oldDelegate) {
     // Repaint if any properties change
     return oldDelegate.color != color ||
-           oldDelegate.strokeWidth != strokeWidth ||
-           oldDelegate.waveHeight != waveHeight ||
-           oldDelegate.waveFrequency != waveFrequency;
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.waveHeight != waveHeight ||
+        oldDelegate.waveFrequency != waveFrequency;
   }
 }
 
@@ -349,7 +373,9 @@ class AnimatedWavyLinePainter extends CustomPainter {
 
     for (double x = 0; x <= size.width; x++) {
       // 添加相位偏移让波浪左右移动
-      final y = waveHeight * math.sin(waveFrequency * 2 * math.pi * x + phaseOffset) + size.height / 2;
+      final y =
+          waveHeight * math.sin(waveFrequency * 2 * math.pi * x + phaseOffset) +
+              size.height / 2;
       path.lineTo(x, y);
     }
 
@@ -359,9 +385,9 @@ class AnimatedWavyLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant AnimatedWavyLinePainter oldDelegate) {
     return oldDelegate.color != color ||
-           oldDelegate.strokeWidth != strokeWidth ||
-           oldDelegate.waveHeight != waveHeight ||
-           oldDelegate.waveFrequency != waveFrequency ||
-           oldDelegate.animationValue != animationValue;
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.waveHeight != waveHeight ||
+        oldDelegate.waveFrequency != waveFrequency ||
+        oldDelegate.animationValue != animationValue;
   }
 }

@@ -197,17 +197,10 @@ class _LibraryGridItem extends StatelessWidget {
                   imageUrl: item['images'][0]['url'],
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      ),
+                  placeholder: (context, url) => DecoratedBox(
+                    decoration: BoxDecoration(
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
