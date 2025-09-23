@@ -2,25 +2,23 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
 import '../services/spotify_service.dart';
 import '../widgets/materialui.dart';
-import '../services/album_insights_service.dart';
 
-class AlbumPage extends StatefulWidget {
-  final String albumId;
+class PlaylistPage extends StatefulWidget {
+  final String playlistId;
 
-  const AlbumPage({super.key, required this.albumId});
+  const PlaylistPage({super.key, required this.playlistId});
 
   @override
-  State<AlbumPage> createState() => _AlbumPageState();
+  State<PlaylistPage> createState() => _PlaylistPageState();
 }
 
-class _AlbumPageState extends State<AlbumPage> {
-  Map<String, dynamic>? _albumData;
+class _PlaylistPageState extends State<PlaylistPage> {
+  Map<String, dynamic>? _playlistData;
   List<Map<String, dynamic>> _tracks = [];
   Map<String, int?> _trackRatings = {};
   Map<String, int?> _trackRatingTimestamps = {};
@@ -28,22 +26,16 @@ class _AlbumPageState extends State<AlbumPage> {
   final Set<String> _updatingTracks = {};
   bool _isLoading = true;
   bool _showQuickSelectors = false;
-  String? _errorMessage;
-  final AlbumInsightsService _albumInsightsService = AlbumInsightsService();
-  Map<String, dynamic>? _albumInsights;
-  DateTime? _albumInsightsGeneratedAt;
-  String? _albumInsightsError;
-  bool _isGeneratingAlbumInsights = false;
-  bool _isAlbumInsightsExpanded = false;
   bool _isSavingPendingRatings = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadAlbum();
+    _loadPlaylist();
   }
 
-  Future<void> _loadAlbum({bool forceRefresh = false}) async {
+  Future<void> _loadPlaylist({bool forceRefresh = false}) async {
     if (!forceRefresh) {
       setState(() {
         _isLoading = true;
@@ -57,13 +49,13 @@ class _AlbumPageState extends State<AlbumPage> {
 
     try {
       final spotify = context.read<SpotifyProvider>();
-      final album = await spotify.fetchAlbumDetails(
-        widget.albumId,
+      final playlist = await spotify.fetchPlaylistDetails(
+        widget.playlistId,
         forceRefresh: forceRefresh,
       );
 
       final trackSection =
-          (album['tracks'] as Map<String, dynamic>? ?? const {});
+          (playlist['tracks'] as Map<String, dynamic>? ?? const {});
       final items = trackSection['items'] as List? ?? const [];
       final tracks = <Map<String, dynamic>>[
         for (final item in items)
@@ -89,14 +81,15 @@ class _AlbumPageState extends State<AlbumPage> {
 
       if (!mounted) return;
       setState(() {
-        _albumData = album;
+        _playlistData = playlist;
         _tracks = tracks;
         _trackRatings = normalizedRatings;
         _trackRatingTimestamps = normalizedTimestamps;
         _isLoading = false;
         _pendingTrackRatings.clear();
+        _updatingTracks.clear();
+        _showQuickSelectors = false;
       });
-      _loadCachedAlbumInsights();
     } catch (e) {
       if (!mounted) return;
       final message = e is SpotifyAuthException ? e.message : e.toString();
@@ -107,15 +100,15 @@ class _AlbumPageState extends State<AlbumPage> {
     }
   }
 
-  Future<void> _handlePlayAlbum() async {
-    final albumId = (_albumData?['id'] as String?) ?? widget.albumId;
+  Future<void> _handlePlayPlaylist() async {
+    final playlistId = (_playlistData?['id'] as String?) ?? widget.playlistId;
     try {
       final spotify = context.read<SpotifyProvider>();
-      await spotify.playContext(type: 'album', id: albumId);
+      await spotify.playContext(type: 'playlist', id: playlistId);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放专辑失败：$e')),
+        SnackBar(content: Text('播放播放列表失败：$e')),
       );
     }
   }
@@ -124,11 +117,11 @@ class _AlbumPageState extends State<AlbumPage> {
       Map<String, dynamic> track, int trackIndex) async {
     final trackUri = track['uri'] as String? ??
         (track['id'] is String ? 'spotify:track:${track['id']}' : null);
-    final albumUri = (_albumData?['uri'] as String?) ?? '';
-    final albumId = (_albumData?['id'] as String?) ?? widget.albumId;
-    final derivedContextUri = albumUri.isNotEmpty
-        ? albumUri
-        : (albumId.isNotEmpty ? 'spotify:album:$albumId' : null);
+    final playlistUri = (_playlistData?['uri'] as String?) ?? '';
+    final playlistId = (_playlistData?['id'] as String?) ?? widget.playlistId;
+    final derivedContextUri = playlistUri.isNotEmpty
+        ? playlistUri
+        : (playlistId.isNotEmpty ? 'spotify:playlist:$playlistId' : null);
 
     if (trackUri == null) {
       if (!mounted) return;
@@ -157,120 +150,6 @@ class _AlbumPageState extends State<AlbumPage> {
     }
   }
 
-  Future<void> _handleOpenArtist(Map<String, dynamic> artist) async {
-    final spotifyUri = artist['uri'] as String?;
-    final externalUrls = artist['external_urls'];
-    final webUrl = externalUrls is Map<String, dynamic>
-        ? externalUrls['spotify'] as String?
-        : null;
-
-    Future<bool> _launchIfPossible(String? url) async {
-      if (url == null || url.isEmpty) {
-        return false;
-      }
-      try {
-        final launched = await launchUrl(
-          Uri.parse(url),
-          mode: LaunchMode.externalApplication,
-        );
-        return launched;
-      } catch (_) {
-        return false;
-      }
-    }
-
-    final launchedSpotify = await _launchIfPossible(spotifyUri);
-    if (launchedSpotify) {
-      return;
-    }
-
-    final launchedWeb = await _launchIfPossible(webUrl);
-    if (launchedWeb) {
-      return;
-    }
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('无法打开艺术家链接')),
-    );
-  }
-
-  Future<void> _loadCachedAlbumInsights() async {
-    final albumId = _albumData?['id'] as String? ?? widget.albumId;
-    if (albumId.isEmpty) {
-      return;
-    }
-    try {
-      final ratingsSignature = _buildRatingsSignature();
-      final cached = await _albumInsightsService.getCachedAlbumInsights(
-        albumId: albumId,
-        ratingsSignature: ratingsSignature,
-      );
-      if (!mounted || cached == null) {
-        return;
-      }
-      final generatedAt =
-          DateTime.tryParse(cached['generatedAt'] as String? ?? '');
-      setState(() {
-        _albumInsights = cached['insights'] as Map<String, dynamic>?;
-        _albumInsightsGeneratedAt = generatedAt;
-        _albumInsightsError = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _albumInsightsError = '读取缓存失败：$e';
-      });
-    }
-  }
-
-  Future<void> _generateAlbumInsights() async {
-    final albumData = _albumData;
-    if (albumData == null || _tracks.isEmpty || _isGeneratingAlbumInsights) {
-      return;
-    }
-
-    HapticFeedback.lightImpact();
-
-    setState(() {
-      _isGeneratingAlbumInsights = true;
-      _albumInsightsError = null;
-    });
-
-    try {
-      final albumId = albumData['id'] as String? ?? widget.albumId;
-      final ratingsSignature = _buildRatingsSignature();
-      final result = await _albumInsightsService.generateAlbumInsights(
-        albumId: albumId,
-        albumData: albumData,
-        tracks: _tracks,
-        trackRatings: _trackRatings,
-        averageScore: _averageScore,
-        ratedTrackCount: _ratedTrackCount,
-        ratingsSignature: ratingsSignature,
-      );
-
-      if (!mounted) return;
-      final generatedAt =
-          DateTime.tryParse(result['generatedAt'] as String? ?? '');
-      setState(() {
-        _albumInsights = result['insights'] as Map<String, dynamic>?;
-        _albumInsightsGeneratedAt = generatedAt;
-        _albumInsightsError = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _albumInsightsError = '生成洞察失败：$e';
-      });
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGeneratingAlbumInsights = false;
-      });
-    }
-  }
-
   Future<void> _handleQuickRating(
     Map<String, dynamic> track,
     int rating,
@@ -280,11 +159,26 @@ class _AlbumPageState extends State<AlbumPage> {
       return;
     }
 
-    final albumName = _albumData?['name'] as String? ?? '';
-    final images = _albumData?['images'] as List? ?? const [];
-    final coverUrl = images.isNotEmpty
-        ? (images.first as Map<String, dynamic>)['url'] as String?
-        : null;
+    final playlistName = _playlistData?['name'] as String? ?? '';
+    final trackAlbum = track['album'];
+    var albumName = playlistName;
+    String? albumCoverUrl;
+    if (trackAlbum is Map<String, dynamic>) {
+      final candidateName = trackAlbum['name'] as String?;
+      if (candidateName != null && candidateName.isNotEmpty) {
+        albumName = candidateName;
+      }
+      final albumImages = trackAlbum['images'];
+      if (albumImages is List && albumImages.isNotEmpty) {
+        final first = albumImages.first;
+        if (first is Map<String, dynamic>) {
+          albumCoverUrl = first['url'] as String?;
+        }
+      }
+    }
+    albumName = albumName.isEmpty ? '歌单曲目' : albumName;
+    albumCoverUrl ??= _extractCoverUrl();
+
     final artistNames = _formatArtists(track['artists']);
     final trackName = track['name'] as String? ?? '';
 
@@ -299,7 +193,7 @@ class _AlbumPageState extends State<AlbumPage> {
         trackName: trackName,
         artistName: artistNames,
         albumName: albumName,
-        albumCoverUrl: coverUrl,
+        albumCoverUrl: albumCoverUrl,
         rating: rating,
       );
 
@@ -308,13 +202,10 @@ class _AlbumPageState extends State<AlbumPage> {
       setState(() {
         _trackRatings = Map<String, int?>.from(_trackRatings)
           ..[trackId] = rating;
-        _trackRatingTimestamps = Map<String, int?>.from(_trackRatingTimestamps)
-          ..[trackId] = timestamp;
+        _trackRatingTimestamps = Map<String, int?>.from(
+          _trackRatingTimestamps,
+        )..[trackId] = timestamp;
         _pendingTrackRatings.remove(trackId);
-        _albumInsights = null;
-        _albumInsightsGeneratedAt = null;
-        _albumInsightsError = null;
-        _isAlbumInsightsExpanded = false;
       });
     } catch (e) {
       if (!mounted) return;
@@ -339,45 +230,6 @@ class _AlbumPageState extends State<AlbumPage> {
         _pendingTrackRatings[trackId] = rating;
       });
     }
-  }
-
-  double? get _averageScore {
-    final values = <double>[];
-    for (final track in _tracks) {
-      final trackId = track['id'] as String?;
-      if (trackId == null) continue;
-      final rating = _trackRatings[trackId];
-      if (rating == null) continue;
-      values.add(_mapRatingToScore(rating));
-    }
-    if (values.isEmpty) {
-      return null;
-    }
-    final total = values.reduce((value, element) => value + element);
-    return total / values.length;
-  }
-
-  int get _ratedTrackCount {
-    var count = 0;
-    for (final track in _tracks) {
-      final trackId = track['id'] as String?;
-      if (trackId == null) continue;
-      if (_trackRatings[trackId] != null) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  String _buildRatingsSignature() {
-    final entries = <String>[];
-    for (final track in _tracks) {
-      final trackId = track['id'] as String?;
-      if (trackId == null) continue;
-      final rating = _trackRatings[trackId];
-      entries.add('$trackId:${rating ?? 'null'}');
-    }
-    return entries.join('|');
   }
 
   Map<String, dynamic>? _findTrackById(String trackId) {
@@ -412,13 +264,12 @@ class _AlbumPageState extends State<AlbumPage> {
         await _handleQuickRating(track, entry.value);
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSavingPendingRatings = false;
-          _pendingTrackRatings.clear();
-          _showQuickSelectors = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _isSavingPendingRatings = false;
+        _pendingTrackRatings.clear();
+        _showQuickSelectors = false;
+      });
     }
   }
 
@@ -428,12 +279,12 @@ class _AlbumPageState extends State<AlbumPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_albumData?['name'] as String? ?? '专辑详情'),
+        title: Text(_playlistData?['name'] as String? ?? '播放列表详情'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: '刷新专辑',
-            onPressed: () => _loadAlbum(forceRefresh: true),
+            tooltip: '刷新播放列表',
+            onPressed: () => _loadPlaylist(forceRefresh: true),
           ),
         ],
       ),
@@ -451,7 +302,7 @@ class _AlbumPageState extends State<AlbumPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => _loadAlbum(forceRefresh: true),
+      onRefresh: () => _loadPlaylist(forceRefresh: true),
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
@@ -516,7 +367,7 @@ class _AlbumPageState extends State<AlbumPage> {
                       trackId != null && _updatingTracks.contains(trackId);
                   return Column(
                     children: [
-                      _AlbumTrackTile(
+                      _PlaylistTrackTile(
                         index: index,
                         track: track,
                         rating: currentRating,
@@ -550,28 +401,10 @@ class _AlbumPageState extends State<AlbumPage> {
 
   Widget _buildHeader(ThemeData theme) {
     final coverUrl = _extractCoverUrl();
-    final albumName = _albumData?['name'] as String? ?? '';
-    final artists = _albumData?['artists'] as List? ?? const [];
-    final releaseYear = _extractReleaseYear();
+    final playlistName = _playlistData?['name'] as String? ?? '';
+    final ownerName = _extractOwnerName();
+    final description = _extractDescription();
     final trackCount = _tracks.length;
-    final averageScore = _averageScore;
-
-    final hasInsights = _albumInsights != null;
-    final hasError = _albumInsightsError != null;
-    final showExpandButton =
-        hasInsights || hasError || _isGeneratingAlbumInsights;
-    final generatedAtLabel = _formatGeneratedAt();
-    final statusText = _albumInsightsError != null
-        ? '生成专辑洞察失败'
-        : hasInsights
-            ? (generatedAtLabel ?? '专辑洞察已准备好')
-            : '点击右侧按钮生成这张专辑的洞察';
-    final insightsTitleRaw =
-        hasInsights ? (_albumInsights?['title'] as String?)?.trim() : null;
-    final String? insightsTitle =
-        (insightsTitleRaw != null && insightsTitleRaw.isNotEmpty)
-            ? insightsTitleRaw
-            : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -594,7 +427,7 @@ class _AlbumPageState extends State<AlbumPage> {
                       color: theme.colorScheme.surfaceVariant,
                       alignment: Alignment.center,
                       child: Icon(
-                        Icons.album_outlined,
+                        Icons.queue_music,
                         size: 64,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -606,7 +439,7 @@ class _AlbumPageState extends State<AlbumPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    albumName,
+                    playlistName,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -614,10 +447,16 @@ class _AlbumPageState extends State<AlbumPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 12),
-                  _buildArtistLinks(theme, artists),
+                  if (ownerName != null)
+                    Text(
+                      '由 $ownerName 创建',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   Text(
-                    _buildMetaLine(releaseYear, trackCount),
+                    _buildMetaLine(trackCount),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -626,13 +465,13 @@ class _AlbumPageState extends State<AlbumPage> {
                   Row(
                     children: [
                       FilledButton.icon(
-                        onPressed: _handlePlayAlbum,
+                        onPressed: _handlePlayPlaylist,
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('播放专辑'),
+                        label: const Text('播放播放列表'),
                       ),
                       const SizedBox(width: 12),
                       Container(
-                        height: 40, // 与 FilledButton 相同的高度
+                        height: 40,
                         width: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -670,141 +509,29 @@ class _AlbumPageState extends State<AlbumPage> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceVariant,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
+        if (description != null && description.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 16.0),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.insights_rounded,
-                      size: 28,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      averageScore == null
-                          ? '目前'
-                          : averageScore.toStringAsFixed(1),
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton.filled(
-                      onPressed: _isGeneratingAlbumInsights
-                          ? null
-                          : () {
-                              if (_albumData == null) {
-                                return;
-                              }
-                              _generateAlbumInsights();
-                            },
-                      icon: _isGeneratingAlbumInsights
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.auto_awesome),
-                      tooltip: _isGeneratingAlbumInsights ? '生成中…' : '生成专辑洞察',
-                    ),
-                    if (showExpandButton) ...[
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: Icon(
-                          _isAlbumInsightsExpanded
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                        ),
-                        tooltip: _isAlbumInsightsExpanded ? '收起洞察' : '展开洞察',
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          setState(() {
-                            _isAlbumInsightsExpanded =
-                                !_isAlbumInsightsExpanded;
-                          });
-                        },
-                      ),
-                    ],
-                  ],
+                Icon(
+                  Icons.notes_rounded,
+                  size: 24,
+                  color: theme.colorScheme.primary,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _ratedTrackCount == 0
-                      ? '还没有歌曲被评分'
-                      : '基于 $_ratedTrackCount/${_tracks.length} 首歌曲',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (insightsTitle != null) ...[
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.style,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: GestureDetector(
-                          onLongPress: () async {
-                            final title = insightsTitle;
-                            if (title == null) {
-                              return;
-                            }
-                            await Clipboard.setData(ClipboardData(text: title));
-                            if (!mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('标题已复制')),
-                            );
-                          },
-                          child: Text(
-                            insightsTitle,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else
-                  Text(
-                    statusText,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    description,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: _albumInsightsError != null
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.onSurfaceVariant,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                if ((_isAlbumInsightsExpanded || _isGeneratingAlbumInsights) &&
-                    (_albumInsights != null ||
-                        _albumInsightsError != null ||
-                        _isGeneratingAlbumInsights))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
-                    child: _buildAlbumInsightsContent(theme),
-                  ),
+                ),
               ],
             ),
           ),
-        ),
       ],
     );
   }
@@ -819,7 +546,7 @@ class _AlbumPageState extends State<AlbumPage> {
             const Icon(Icons.music_off, size: 64),
             const SizedBox(height: 16),
             Text(
-              '加载专辑失败',
+              '加载播放列表失败',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
@@ -830,7 +557,7 @@ class _AlbumPageState extends State<AlbumPage> {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => _loadAlbum(forceRefresh: true),
+              onPressed: () => _loadPlaylist(forceRefresh: true),
               child: const Text('重试'),
             ),
           ],
@@ -839,161 +566,28 @@ class _AlbumPageState extends State<AlbumPage> {
     );
   }
 
-  Widget _buildArtistLinks(ThemeData theme, List artists) {
-    final artistEntries = [
-      for (final artist in artists)
-        if (artist is Map<String, dynamic>) artist
-    ];
-
-    if (artistEntries.isEmpty) {
-      return Text(
-        '未知艺术家',
-        style: theme.textTheme.bodyMedium,
-      );
-    }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        for (final artist in artistEntries)
-          TextButton(
-            onPressed: () => _handleOpenArtist(artist),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, 0),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              (artist['name'] as String?) ?? '未知艺术家',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
-      ],
-    );
+  String _buildMetaLine(int trackCount) {
+    return '共 $trackCount 首曲目';
   }
 
-  Widget _buildAlbumInsightsContent(ThemeData theme) {
-    if (_isGeneratingAlbumInsights) {
-      return Row(
-        children: [
-          const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '正在生成专辑洞察…',
-            style: theme.textTheme.bodyMedium,
-          ),
-        ],
-      );
-    }
-
-    if (_albumInsightsError != null) {
-      return Text(
-        _albumInsightsError!,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.error,
-        ),
-      );
-    }
-
-    final insights = _albumInsights;
-    if (insights == null) {
-      return Text(
-        '暂无可用洞察。点击上方按钮生成一次吧。',
-        style: theme.textTheme.bodyMedium,
-      );
-    }
-
-    final generatedAtLabel = _formatGeneratedAt();
-    final summary = insights['summary'] as String?;
-
-    final children = <Widget>[];
-
-    if (generatedAtLabel != null) {
-      children.add(
-        Text(
-          generatedAtLabel,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-      children.add(const SizedBox(height: 8));
-    }
-
-    if (summary != null && summary.isNotEmpty) {
-      children.add(
-        Text(
-          summary,
-          style: theme.textTheme.bodyMedium,
-        ),
-      );
-    }
-
-    if (children.isEmpty) {
-      return Text(
-        '洞察结果空空如也，试着重新生成一次。',
-        style: theme.textTheme.bodyMedium,
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
-    );
-  }
-
-  String? _formatGeneratedAt() {
-    final generatedAt = _albumInsightsGeneratedAt;
-    if (generatedAt == null) {
-      return null;
-    }
-    final now = DateTime.now();
-    final difference = now.difference(generatedAt);
-    if (difference.inDays > 0) {
-      return '洞察生成于 ${difference.inDays} 天前';
-    }
-    if (difference.inHours > 0) {
-      return '洞察生成于 ${difference.inHours} 小时前';
-    }
-    if (difference.inMinutes > 0) {
-      return '洞察生成于 ${difference.inMinutes} 分钟前';
-    }
-    return '洞察刚刚生成';
-  }
-
-  String _buildMetaLine(String? releaseYear, int trackCount) {
-    final parts = <String>[];
-    if (releaseYear != null && releaseYear.isNotEmpty) {
-      parts.add(releaseYear);
-    }
-    parts.add('共 $trackCount 首曲目');
-    return parts.join(' · ');
-  }
-
-  String? _extractCoverUrl() {
-    final images = _albumData?['images'] as List? ?? const [];
-    if (images.isEmpty) return null;
-    final first = images.first;
-    if (first is Map<String, dynamic>) {
-      return first['url'] as String?;
+  String? _extractOwnerName() {
+    final owner = _playlistData?['owner'];
+    if (owner is Map<String, dynamic>) {
+      final displayName = owner['display_name'] as String?;
+      if (displayName != null && displayName.isNotEmpty) {
+        return displayName;
+      }
     }
     return null;
   }
 
-  String? _extractReleaseYear() {
-    final date = _albumData?['release_date'] as String?;
-    if (date == null || date.isEmpty) {
+  String? _extractDescription() {
+    final description = _playlistData?['description'] as String?;
+    if (description == null || description.isEmpty) {
       return null;
     }
-    return date.split('-').first;
+    final cleaned = description.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    return cleaned.isEmpty ? null : cleaned;
   }
 
   String _formatArtists(dynamic artists) {
@@ -1014,20 +608,18 @@ class _AlbumPageState extends State<AlbumPage> {
     return '未知艺术家';
   }
 
-  double _mapRatingToScore(int rating) {
-    switch (rating) {
-      case 0:
-        return 1;
-      case 5:
-        return 10;
-      case 3:
-      default:
-        return 5;
+  String? _extractCoverUrl() {
+    final images = _playlistData?['images'] as List? ?? const [];
+    if (images.isEmpty) return null;
+    final first = images.first;
+    if (first is Map<String, dynamic>) {
+      return first['url'] as String?;
     }
+    return null;
   }
 }
 
-class _AlbumTrackTile extends StatelessWidget {
+class _PlaylistTrackTile extends StatelessWidget {
   final int index;
   final Map<String, dynamic> track;
   final int? rating;
@@ -1038,7 +630,7 @@ class _AlbumTrackTile extends StatelessWidget {
   final VoidCallback onTap;
   final void Function(int rating) onRate;
 
-  const _AlbumTrackTile({
+  const _PlaylistTrackTile({
     required this.index,
     required this.track,
     required this.rating,
@@ -1101,8 +693,9 @@ class _AlbumTrackTile extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        _buildMeta(theme),
                         const SizedBox(height: 12),
-                        // 新的评分显示UI：图标 + 时间
                         _buildRatingRow(theme),
                       ],
                     ),
@@ -1164,8 +757,36 @@ class _AlbumTrackTile extends StatelessWidget {
     );
   }
 
+  Widget _buildMeta(ThemeData theme) {
+    final albumName = track['album']?['name'] as String?;
+    final durationMs = track['duration_ms'] as int?;
+
+    String extra = '';
+    if (albumName != null && albumName.isNotEmpty) {
+      extra = albumName;
+    }
+
+    if (durationMs != null) {
+      final minutes = durationMs ~/ 60000;
+      final seconds = (durationMs % 60000) ~/ 1000;
+      final formatted =
+          '${minutes.toString().padLeft(1, '0')}:${seconds.toString().padLeft(2, '0')}';
+      extra = extra.isEmpty ? formatted : '$extra · $formatted';
+    }
+
+    if (extra.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Text(
+      extra,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+
   Widget _buildRatingRow(ThemeData theme) {
-    // 获取评分对应的图标
     IconData ratingIcon;
     switch (rating) {
       case 0:
@@ -1182,10 +803,10 @@ class _AlbumTrackTile extends StatelessWidget {
         break;
     }
 
-    // 格式化时间戳
     String timeText = '未评分';
     if (ratingTimestamp != null) {
-      final dateTime = DateTime.fromMillisecondsSinceEpoch(ratingTimestamp!);
+      final dateTime =
+          DateTime.fromMillisecondsSinceEpoch(ratingTimestamp!, isUtc: false);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
 

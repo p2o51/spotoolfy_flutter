@@ -62,6 +62,7 @@ class SpotifyProvider extends ChangeNotifier {
   // 添加图片预加载缓存 - 持久化跨登录会话
   final Map<String, String> _imageCache = {};
   final Map<String, Map<String, dynamic>> _albumCache = {};
+  final Map<String, Map<String, dynamic>> _playlistCache = {};
 
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
   static const Duration _refreshTickInterval = Duration(seconds: 3);
@@ -1701,6 +1702,68 @@ class SpotifyProvider extends ChangeNotifier {
     return albumData;
   }
 
+  Future<Map<String, dynamic>> fetchPlaylistDetails(String playlistId,
+      {bool forceRefresh = false}) async {
+    if (!forceRefresh && _playlistCache.containsKey(playlistId)) {
+      return _playlistCache[playlistId]!;
+    }
+
+    final playlistRaw =
+        await _guard(() => _spotifyService.getPlaylist(playlistId));
+    final Map<String, dynamic> playlistData =
+        Map<String, dynamic>.from(playlistRaw);
+
+    final Map<String, dynamic> tracksSection = Map<String, dynamic>.from(
+        (playlistData['tracks'] as Map<String, dynamic>? ?? {}));
+
+    final allTracks = <Map<String, dynamic>>[];
+
+    void addTrackFromContainer(Map<String, dynamic> container) {
+      final track = container['track'];
+      if (track is Map<String, dynamic>) {
+        final trackMap = Map<String, dynamic>.from(track);
+        if (trackMap['id'] != null) {
+          allTracks.add(trackMap);
+        }
+      }
+    }
+
+    final initialItems = tracksSection['items'] as List? ?? const [];
+    for (final item in initialItems) {
+      if (item is Map<String, dynamic>) {
+        addTrackFromContainer(item);
+      }
+    }
+
+    final total = (tracksSection['total'] as int?) ?? allTracks.length;
+    var offset = initialItems.length;
+
+    while (offset < total) {
+      final page = await _guard(
+          () => _spotifyService.getPlaylistTracks(playlistId, offset: offset));
+      final pageItems = page['items'] as List? ?? const [];
+      if (pageItems.isEmpty) {
+        break;
+      }
+      for (final item in pageItems) {
+        if (item is Map<String, dynamic>) {
+          addTrackFromContainer(item);
+        }
+      }
+      offset += pageItems.length;
+      if (page['next'] == null) {
+        break;
+      }
+    }
+
+    tracksSection['items'] = allTracks;
+    tracksSection['total'] = allTracks.length;
+    playlistData['tracks'] = tracksSection;
+
+    _playlistCache[playlistId] = playlistData;
+    return playlistData;
+  }
+
   // 存储最近播放的播放列表和专辑
   final List<Map<String, dynamic>> _recentPlaylists = [];
   final List<Map<String, dynamic>> _recentAlbums = [];
@@ -1834,6 +1897,7 @@ class SpotifyProvider extends ChangeNotifier {
       _recentAlbums.clear();
       _recentPlaylists.clear();
       _albumCache.clear();
+      _playlistCache.clear();
 
       if (!_isInitialized) _bootstrap();
       if (_isInitialized) {
@@ -1923,6 +1987,7 @@ class SpotifyProvider extends ChangeNotifier {
     required String trackUri,
     String? deviceId, // deviceId is now less relevant for initial play
     String? contextUri,
+    int? offsetIndex,
   }) async {
     // Check for active device BEFORE attempting to play
     if (!await _ensureAuthenticatedAndReady()) {
@@ -1939,6 +2004,7 @@ class SpotifyProvider extends ChangeNotifier {
               contextUri: contextUri,
               trackUri: trackUri,
               deviceId: targetDeviceId,
+              offsetIndex: offsetIndex,
             ));
       } else {
         // Otherwise, play the track individually
@@ -1978,6 +2044,7 @@ class SpotifyProvider extends ChangeNotifier {
     required String contextUri,
     required String trackUri,
     String? deviceId, // deviceId is now less relevant for initial play
+    int? offsetIndex,
   }) async {
     // Check for active device BEFORE attempting to play
     if (!await _ensureAuthenticatedAndReady()) {
@@ -1993,6 +2060,7 @@ class SpotifyProvider extends ChangeNotifier {
             contextUri: contextUri,
             trackUri: trackUri,
             deviceId: targetDeviceId,
+            offsetIndex: offsetIndex,
           ));
 
       // Wait slightly to allow Spotify state to update

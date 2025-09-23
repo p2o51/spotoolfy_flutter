@@ -1087,6 +1087,28 @@ class SpotifyAuthService {
     }
   }
 
+  /// 获取播放列表曲目（分页）。
+  Future<Map<String, dynamic>> getPlaylistTracks(String playlistId,
+      {int offset = 0, int limit = 100}) async {
+    try {
+      final headers = await _authHeaders(hasBody: false);
+      final uri = Uri.parse(
+          'https://api.spotify.com/v1/playlists/$playlistId/tracks?offset=$offset&limit=$limit');
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取播放列表曲目失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      return json.decode(response.body);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// 获取专辑的曲目列表（分页）。
   Future<Map<String, dynamic>> getAlbumTracks(String albumId,
       {int offset = 0, int limit = 50}) async {
@@ -1225,6 +1247,7 @@ class SpotifyAuthService {
     required String contextUri,
     required String trackUri,
     String? deviceId,
+    int? offsetIndex,
   }) async {
     try {
       // Headers for initial device check and track info GET requests (no body)
@@ -1278,8 +1301,12 @@ class SpotifyAuthService {
         'context_uri': contextUri,
       };
 
-      // 尝试使用 URI 作为 offset
-      body['offset'] = {'uri': trackUri};
+      // Prefer explicit position when provided to disambiguate duplicates
+      if (offsetIndex != null) {
+        body['offset'] = {'position': offsetIndex};
+      } else {
+        body['offset'] = {'uri': trackUri};
+      }
 
       final queryParams = deviceId != null ? '?device_id=$deviceId' : '';
       final response = await http.put(
@@ -1289,27 +1316,53 @@ class SpotifyAuthService {
       );
 
       if (response.statusCode != 202 && response.statusCode != 204) {
-        // 如果使用 URI 失败，尝试使用 track_number
-        final trackNumber = trackInfo['track_number'];
-        if (response.statusCode == 404 &&
-            trackNumber is int &&
-            trackNumber > 0) {
-          body['offset'] = {'position': trackNumber - 1};
+        bool handled = false;
 
+        // If we started with URI offset and received 404, fall back to position
+        if (offsetIndex == null && response.statusCode == 404) {
+          final trackNumber = trackInfo['track_number'];
+          if (trackNumber is int && trackNumber > 0) {
+            body['offset'] = {'position': trackNumber - 1};
+            final retryResponse = await http.put(
+              Uri.parse(
+                  'https://api.spotify.com/v1/me/player/play$queryParams'),
+              headers: playHeaders,
+              body: json.encode(body),
+            );
+
+            if (retryResponse.statusCode == 202 ||
+                retryResponse.statusCode == 204) {
+              handled = true;
+            } else {
+              throw SpotifyAuthException(
+                '开始播放失败: ${retryResponse.body}',
+                code: retryResponse.statusCode.toString(),
+              );
+            }
+          }
+        }
+
+        // If we started with position offset and failed, try URI as a fallback
+        if (!handled && offsetIndex != null && response.statusCode == 404) {
+          body['offset'] = {'uri': trackUri};
           final retryResponse = await http.put(
             Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
-            headers: playHeaders, // Use playHeaders
+            headers: playHeaders,
             body: json.encode(body),
           );
 
-          if (retryResponse.statusCode != 202 &&
-              retryResponse.statusCode != 204) {
+          if (retryResponse.statusCode == 202 ||
+              retryResponse.statusCode == 204) {
+            handled = true;
+          } else {
             throw SpotifyAuthException(
               '开始播放失败: ${retryResponse.body}',
               code: retryResponse.statusCode.toString(),
             );
           }
-        } else {
+        }
+
+        if (!handled) {
           throw SpotifyAuthException(
             '开始播放失败: ${response.body}',
             code: response.statusCode.toString(),

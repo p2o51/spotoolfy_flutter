@@ -164,6 +164,11 @@ class AlbumInsightsService {
           throw Exception('Unexpected insights format.');
         }
 
+        final title = parsedInsights['title'];
+        if (title is! String || title.trim().isEmpty) {
+          throw Exception('Insights response missing title.');
+        }
+
         final summary = parsedInsights['summary'];
         if (summary is! String || summary.trim().isEmpty) {
           throw Exception('Insights response missing summary text.');
@@ -238,8 +243,12 @@ class AlbumInsightsService {
 $topTrackText
 
 请搜索并提供专辑的背景信息（创作历程、地点、创作者名单等）再输出一段短评，语气保持克制、富有画面感，并体现听众偏好对专辑的共鸣。
+
+请先给出一个 10 字以下的标题，像给乐评加的副标题那样，贴合专辑与听众偏好并具有独立乐评的创意（不能太油腻）。
+
 以 JSON 返回，格式如下：
 {
+  "title": "短标题",
   "summary": "段落"
 }
 ''';
@@ -274,7 +283,7 @@ $topTrackText
         return 10;
       case 3:
       default:
-        return 6;
+        return 5;
     }
   }
 

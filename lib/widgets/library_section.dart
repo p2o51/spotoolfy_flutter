@@ -7,6 +7,7 @@ import '../widgets/materialui.dart' as custom_ui;
 import '../widgets/materialui.dart'; // Import WavyDivider
 import '../pages/library.dart'; // Add import for MyCarouselView
 import '../pages/album_page.dart';
+import '../pages/playlist_page.dart';
 import 'package:flutter/services.dart'; // 新增导入
 import '../l10n/app_localizations.dart';
 
@@ -109,6 +110,15 @@ class _LibrarySectionState extends State<LibrarySection> {
       return;
     }
 
+    if (type == 'playlist' && id != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlaylistPage(playlistId: id),
+        ),
+      );
+      return;
+    }
+
     Provider.of<LibraryProvider>(context, listen: false).playItem(item);
   }
 
@@ -155,14 +165,9 @@ class _LibrarySectionState extends State<LibrarySection> {
           _ => 3,
         };
 
-        return RefreshIndicator(
-          onRefresh: _refreshData,
-          color: Colors.transparent,
-          backgroundColor: Colors.transparent,
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
+        return CustomScrollView(
+          controller: _scrollController,
+          slivers: [
               // Remove the SearchBar placeholder
               // SliverToBoxAdapter(child: SizedBox(height: 0)),
 
@@ -240,8 +245,7 @@ class _LibrarySectionState extends State<LibrarySection> {
                     context, libraryProvider, gridCrossAxisCount),
               ),
             ],
-          ),
-        );
+          );
       },
     );
   }

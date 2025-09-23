@@ -168,57 +168,25 @@ class _LibraryState extends State<Library> {
 
                     // Main content - either search results or library
                     Expanded(
-                      child: Stack(
-                        // Wrap content with Stack
-                        children: [
-                          // Original content with RepaintBoundary
-                          RepaintBoundary(
-                            child: isSearchActive
-                                ? SearchSection(
-                                    onBackPressed: () {
-                                      _searchController.clear();
-                                      searchProvider.clearSearch();
-                                      _searchFocusNode.unfocus();
+                      child: RepaintBoundary(
+                        child: isSearchActive
+                            ? SearchSection(
+                                onBackPressed: () {
+                                  _searchController.clear();
+                                  searchProvider.clearSearch();
+                                  _searchFocusNode.unfocus();
+                                },
+                              )
+                            : Consumer<LibraryProvider>(
+                                builder: (context, libraryProvider, child) {
+                                  return LibrarySection(
+                                    // Register callbacks to allow LibrarySection to trigger actions
+                                    registerRefreshCallback: (callback) {
+                                      _refreshLibraryCallback = callback;
                                     },
-                                  )
-                                : Consumer<LibraryProvider>(
-                                    builder: (context, libraryProvider, child) {
-                                      return LibrarySection(
-                                        // Register callbacks to allow LibrarySection to trigger actions
-                                        registerRefreshCallback: (callback) {
-                                          _refreshLibraryCallback = callback;
-                                        },
-                                      );
-                                    },
-                                  ),
-                          ),
-
-                          // Gradient overlay
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            height: 24.0, // Adjust height as needed
-                            child: IgnorePointer(
-                              // Prevent gradient from intercepting gestures
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Theme.of(context)
-                                          .scaffoldBackgroundColor, // Match background
-                                      Theme.of(context)
-                                          .scaffoldBackgroundColor
-                                          .withValues(alpha: 0.0),
-                                    ],
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ],
