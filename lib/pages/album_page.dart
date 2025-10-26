@@ -8,6 +8,7 @@ import '../providers/spotify_provider.dart';
 import '../services/spotify_service.dart';
 import '../widgets/materialui.dart';
 import '../services/album_insights_service.dart';
+import '../services/album_rating_poster_service.dart';
 
 class AlbumPage extends StatefulWidget {
   final String albumId;
@@ -29,12 +30,15 @@ class _AlbumPageState extends State<AlbumPage> {
   bool _showQuickSelectors = false;
   String? _errorMessage;
   final AlbumInsightsService _albumInsightsService = AlbumInsightsService();
+  final AlbumRatingPosterService _albumPosterService =
+      AlbumRatingPosterService();
   Map<String, dynamic>? _albumInsights;
   DateTime? _albumInsightsGeneratedAt;
   String? _albumInsightsError;
   bool _isGeneratingAlbumInsights = false;
   bool _isAlbumInsightsExpanded = false;
   bool _isSavingPendingRatings = false;
+  bool _isSharingAlbumPoster = false;
 
   @override
   void initState() {
@@ -116,6 +120,77 @@ class _AlbumPageState extends State<AlbumPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('播放专辑失败：$e')),
       );
+    }
+  }
+
+  Future<void> _handleShareAlbumPoster() async {
+    if (_isSharingAlbumPoster) {
+      return;
+    }
+
+    if (_ratedTrackCount == 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('至少先为一首歌曲打分才能生成海报')),
+      );
+      return;
+    }
+
+    final albumData = _albumData;
+    if (albumData == null) {
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+
+    setState(() {
+      _isSharingAlbumPoster = true;
+    });
+
+    try {
+      final theme = Theme.of(context);
+      final albumName = albumData['name'] as String? ?? '未知专辑';
+      final artistLine = _formatArtists(albumData['artists']);
+      final coverUrl = _extractCoverUrl();
+      final rawInsightsTitle = _albumInsights?['title'] as String?;
+      final normalizedInsightsTitle = rawInsightsTitle?.trim();
+      final insightsTitle = (normalizedInsightsTitle != null &&
+              normalizedInsightsTitle.isNotEmpty)
+          ? normalizedInsightsTitle
+          : null;
+      final shareText = _buildSharePosterMessage(
+        albumName: albumName,
+        artistLine: artistLine,
+        averageScore: _averageScore,
+        ratedTrackCount: _ratedTrackCount,
+        totalTrackCount: _tracks.length,
+      );
+
+      await _albumPosterService.shareAlbumPoster(
+        albumName: albumName,
+        artistLine: artistLine,
+        averageScore: _averageScore,
+        ratedTrackCount: _ratedTrackCount,
+        totalTrackCount: _tracks.length,
+        tracks: _tracks,
+        trackRatings: _trackRatings,
+        trackRatingTimestamps: _trackRatingTimestamps,
+        colorScheme: theme.colorScheme,
+        albumCoverUrl: coverUrl,
+        fontFamily: theme.textTheme.bodyMedium?.fontFamily,
+        insightsTitle: insightsTitle,
+        shareText: shareText,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('分享评分海报失败：$e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSharingAlbumPoster = false;
+      });
     }
   }
 
@@ -339,6 +414,19 @@ class _AlbumPageState extends State<AlbumPage> {
       entries.add('$trackId:${rating ?? 'null'}');
     }
     return entries.join('|');
+  }
+
+  String _buildSharePosterMessage({
+    required String albumName,
+    required String artistLine,
+    required double? averageScore,
+    required int ratedTrackCount,
+    required int totalTrackCount,
+  }) {
+    final normalizedArtist = artistLine.isNotEmpty ? artistLine : '未知艺术家';
+    final averageLabel =
+        averageScore != null ? averageScore.toStringAsFixed(1) : '暂无评分';
+    return '我在 Spotoolfy 给《$albumName》（$normalizedArtist）打出了 $averageLabel 分，已评分 $ratedTrackCount/$totalTrackCount 首歌曲。';
   }
 
   Map<String, dynamic>? _findTrackById(String trackId) {
@@ -585,7 +673,57 @@ class _AlbumPageState extends State<AlbumPage> {
                       FilledButton.icon(
                         onPressed: _handlePlayAlbum,
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('播放专辑'),
+                        label: const Text('播放'),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        height: 40,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: theme.colorScheme.surfaceVariant,
+                        ),
+                        child: IconButton(
+                          onPressed: _isSharingAlbumPoster
+                              ? null
+                              : () {
+                                  if (_ratedTrackCount == 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('至少先为一首歌曲打分才能生成海报'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  _handleShareAlbumPoster();
+                                },
+                          icon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: _isSharingAlbumPoster
+                                ? const SizedBox(
+                                    key: ValueKey('poster-loading'),
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.ios_share_rounded,
+                                    key: const ValueKey('poster-share-icon'),
+                                    color: _ratedTrackCount == 0
+                                        ? theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.38)
+                                        : theme.colorScheme.onSurfaceVariant,
+                                    size: 20,
+                                  ),
+                          ),
+                          tooltip: _ratedTrackCount == 0
+                              ? '先给几首歌打分后再分享海报'
+                              : '分享专辑评分海报',
+                          padding: EdgeInsets.zero,
+                          iconSize: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Container(
