@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'lyrics/lyric_provider.dart';
 import 'lyrics/qq_provider.dart';
 import 'lyrics/netease_provider.dart';
+import 'lyrics/lrclib_provider.dart';
 
 class LyricsService {
   final Logger _logger = Logger();
@@ -18,7 +19,7 @@ class LyricsService {
   static const int _cacheTtlDays = 30;
 
   LyricsService({List<LyricProvider>? providers, SharedPreferences? prefs})
-      : _providers = providers ?? [QQProvider(), NetEaseProvider()],
+      : _providers = providers ?? [QQProvider(), LRCLibProvider(), NetEaseProvider()],
         _prefsCache = prefs;
 
   Future<String?> getLyrics(String songName, String artistName, String trackId) async {
@@ -141,6 +142,7 @@ class LyricsService {
       int totalSize = 0;
       int qqCount = 0;
       int neCount = 0;
+      int lrclibCount = 0;
       int otherCount = 0;
 
       for (var key in keys) {
@@ -156,6 +158,8 @@ class LyricsService {
                 qqCount++;
               } else if (cacheData.provider == 'netease') {
                 neCount++;
+              } else if (cacheData.provider == 'lrclib') {
+                lrclibCount++;
               } else {
                 otherCount++;
               }
@@ -167,7 +171,8 @@ class LyricsService {
         }
       }
 
-      _logger.i('缓存统计 - 总数: ${qqCount + neCount + otherCount}, QQ音乐: $qqCount, 网易云: $neCount, 其他: $otherCount');
+      final totalCount = qqCount + neCount + lrclibCount + otherCount;
+      _logger.i('缓存统计 - 总数: $totalCount, QQ音乐: $qqCount, 网易云: $neCount, LRCLIB: $lrclibCount, 其他: $otherCount');
       return totalSize;
     } catch (e) {
       _logger.e('获取缓存大小失败: $e');

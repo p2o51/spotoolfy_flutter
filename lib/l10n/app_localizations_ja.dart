@@ -402,6 +402,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get translationStyleSubtitle => 'Gemini のスピリットを設定する';
 
   @override
+  String get autoTranslateLyricsTitle => '歌詞を自動翻訳';
+
+  @override
+  String get autoTranslateLyricsSubtitle => '翻訳がないときは自動で翻訳を実行します';
+
+  @override
   String get copyLyricsAsSingleLineTitle => '歌詞を１行でコピー';
 
   @override
@@ -941,4 +947,235 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get secsAgo => '秒前';
+
+  @override
+  String failedToPlayAlbum(String error) {
+    return 'アルバムの再生に失敗した: $error';
+  }
+
+  @override
+  String get rateAtLeastOneSongForPoster => 'ポスターを生成する前に少なくとも1曲を評価して';
+
+  @override
+  String failedToSharePoster(String error) {
+    return '評価ポスターの共有に失敗した: $error';
+  }
+
+  @override
+  String get cannotPlayMissingTrackLink => '再生できない: トラックリンクがない';
+
+  @override
+  String failedToPlaySong(String error) {
+    return '曲の再生に失敗した: $error';
+  }
+
+  @override
+  String failedToSaveRating(String error) {
+    return '評価の保存に失敗した: $error';
+  }
+
+  @override
+  String get albumDetails => 'アルバム詳細';
+
+  @override
+  String get titleCopied => 'タイトルがコピーされた';
+
+  @override
+  String get playAlbum => '再生';
+
+  @override
+  String get rateAtLeastOneSongFirst => 'ポスターを共有する前にいくつかの曲を評価して';
+
+  @override
+  String get shareAlbumRatingPoster => 'アルバム評価ポスターを共有';
+
+  @override
+  String get hideQuickRating => 'クイック評価を隠す';
+
+  @override
+  String get showQuickRating => 'クイック評価を表示';
+
+  @override
+  String get currently => '現在';
+
+  @override
+  String get savingChanges => '保存中…';
+
+  @override
+  String get saveAllChanges => 'すべての変更を保存';
+
+  @override
+  String get generatingTooltip => '生成中…';
+
+  @override
+  String get generateAlbumInsights => 'アルバムインサイトを生成';
+
+  @override
+  String get collapseInsights => 'インサイトを折りたたむ';
+
+  @override
+  String get expandInsights => 'インサイトを展開';
+
+  @override
+  String get noSongsRatedYet => 'まだ評価された曲がない';
+
+  @override
+  String basedOnRatedSongs(int rated, int total) {
+    return '$rated/$total 曲に基づく';
+  }
+
+  @override
+  String failedToGenerateAlbumInsights(String error) {
+    return 'インサイトの生成に失敗した: $error';
+  }
+
+  @override
+  String failedToLoadCache(String error) {
+    return 'キャッシュの読み込みに失敗した: $error';
+  }
+
+  @override
+  String get generatingAlbumInsights => 'アルバムインサイトを生成している…';
+
+  @override
+  String get noInsightsAvailableTapToGenerate =>
+      '利用可能なインサイトがない。上のボタンをタップして生成して。';
+
+  @override
+  String get insightsEmptyRetryGenerate => 'インサイトが空だ、再生成してみて。';
+
+  @override
+  String insightsGeneratedDaysAgo(int days) {
+    return '$days 日前にインサイトが生成された';
+  }
+
+  @override
+  String insightsGeneratedHoursAgo(int hours) {
+    return '$hours 時間前にインサイトが生成された';
+  }
+
+  @override
+  String insightsGeneratedMinutesAgo(int minutes) {
+    return '$minutes 分前にインサイトが生成された';
+  }
+
+  @override
+  String get insightsJustGenerated => 'インサイトがたった今生成された';
+
+  @override
+  String get refreshAlbum => 'アルバムを更新';
+
+  @override
+  String get failedToLoadAlbum => 'アルバムの読み込みに失敗した';
+
+  @override
+  String get unknownError => '不明なエラー';
+
+  @override
+  String get unratedStatus => '未評価';
+
+  @override
+  String get justNow => 'たった今';
+
+  @override
+  String minutesAgoShort(int minutes) {
+    return '$minutes分前';
+  }
+
+  @override
+  String hoursAgoShort(int hours) {
+    return '$hours時間前';
+  }
+
+  @override
+  String daysAgoShort(int days) {
+    return '$days日前';
+  }
+
+  @override
+  String totalTracksCount(int count) {
+    return '全$count曲';
+  }
+
+  @override
+  String failedToPlayPlaylist(String error) {
+    return 'プレイリストの再生に失敗した: $error';
+  }
+
+  @override
+  String get playPlaylist => 'プレイリストを再生';
+
+  @override
+  String get playlistDetails => 'プレイリスト詳細';
+
+  @override
+  String get refreshPlaylist => 'プレイリストを更新';
+
+  @override
+  String createdBy(String owner) {
+    return '$owner が作成';
+  }
+
+  @override
+  String playlistTrackCount(int count) {
+    return '全 $count 曲';
+  }
+
+  @override
+  String get failedToLoadPlaylist => 'プレイリストの読み込みに失敗した';
+
+  @override
+  String get playlistTracksLabel => 'プレイリスト曲';
+
+  @override
+  String get deviceOperationNotSupported =>
+      'このデバイスはこの操作をサポートしていないか制限されている。他のデバイスで音楽を再生してみるか、アカウントタイプを確認して。';
+
+  @override
+  String shareAlbumMessage(
+      String albumName, String artist, String score, int rated, int total) {
+    return 'Spotoolfy で《$albumName》（$artist）に $score を付けた、$rated/$total 曲を評価した。';
+  }
+
+  @override
+  String get noRating => '評価なし';
+
+  @override
+  String get retry => '再試行';
+
+  @override
+  String get unknownTrackName => '不明な曲';
+
+  @override
+  String get albumInsightReadyStatus => 'アルバムインサイトが準備できた';
+
+  @override
+  String get clickToGenerateAlbumInsights => '右のボタンをクリックしてこのアルバムのインサイトを生成';
+
+  @override
+  String get failedToGenerateAlbumInsightsStatus => 'アルバムインサイトの生成に失敗した';
+
+  @override
+  String get providerQQMusic => 'QQ音楽';
+
+  @override
+  String get providerLRCLIB => 'LRCLIB';
+
+  @override
+  String get providerNetease => '網易雲音楽';
+
+  @override
+  String get playingFrom => '再生元';
+
+  @override
+  String get playFromAlbum => 'アルバムから再生';
+
+  @override
+  String get playFromPlaylist => 'プレイリストから再生';
+
+  @override
+  String get sharingStatus => '共有中...';
+
+  @override
+  String get shareButton => '共有';
 }

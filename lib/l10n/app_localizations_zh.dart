@@ -401,6 +401,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get translationStyleSubtitle => '设置 Gemini 的灵魂';
 
   @override
+  String get autoTranslateLyricsTitle => '自动翻译歌词';
+
+  @override
+  String get autoTranslateLyricsSubtitle => '当歌词没有翻译时自动开始翻译';
+
+  @override
   String get copyLyricsAsSingleLineTitle => '将歌词复制为单行';
 
   @override
@@ -939,6 +945,236 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get secsAgo => '秒前';
+
+  @override
+  String failedToPlayAlbum(String error) {
+    return '播放专辑失败：$error';
+  }
+
+  @override
+  String get rateAtLeastOneSongForPoster => '至少先为一首歌曲打分才能生成海报';
+
+  @override
+  String failedToSharePoster(String error) {
+    return '分享评分海报失败：$error';
+  }
+
+  @override
+  String get cannotPlayMissingTrackLink => '无法播放：缺少歌曲链接';
+
+  @override
+  String failedToPlaySong(String error) {
+    return '播放歌曲失败：$error';
+  }
+
+  @override
+  String failedToSaveRating(String error) {
+    return '保存评分失败：$error';
+  }
+
+  @override
+  String get albumDetails => '专辑详情';
+
+  @override
+  String get titleCopied => '标题已复制';
+
+  @override
+  String get playAlbum => '播放';
+
+  @override
+  String get rateAtLeastOneSongFirst => '先给几首歌打分后再分享海报';
+
+  @override
+  String get shareAlbumRatingPoster => '分享专辑评分海报';
+
+  @override
+  String get hideQuickRating => '隐藏快捷评分';
+
+  @override
+  String get showQuickRating => '显示快捷评分';
+
+  @override
+  String get currently => '目前';
+
+  @override
+  String get savingChanges => '保存中…';
+
+  @override
+  String get saveAllChanges => '保存全部修改';
+
+  @override
+  String get generatingTooltip => '生成中…';
+
+  @override
+  String get generateAlbumInsights => '生成专辑洞察';
+
+  @override
+  String get collapseInsights => '收起洞察';
+
+  @override
+  String get expandInsights => '展开洞察';
+
+  @override
+  String get noSongsRatedYet => '还没有歌曲被评分';
+
+  @override
+  String basedOnRatedSongs(int rated, int total) {
+    return '基于 $rated/$total 首歌曲';
+  }
+
+  @override
+  String failedToGenerateAlbumInsights(String error) {
+    return '生成洞察失败：$error';
+  }
+
+  @override
+  String failedToLoadCache(String error) {
+    return '读取缓存失败：$error';
+  }
+
+  @override
+  String get generatingAlbumInsights => '正在生成专辑洞察…';
+
+  @override
+  String get noInsightsAvailableTapToGenerate => '暂无可用洞察。点击上方按钮生成一次吧。';
+
+  @override
+  String get insightsEmptyRetryGenerate => '洞察结果空空如也，试着重新生成一次。';
+
+  @override
+  String insightsGeneratedDaysAgo(int days) {
+    return '洞察生成于 $days 天前';
+  }
+
+  @override
+  String insightsGeneratedHoursAgo(int hours) {
+    return '洞察生成于 $hours 小时前';
+  }
+
+  @override
+  String insightsGeneratedMinutesAgo(int minutes) {
+    return '洞察生成于 $minutes 分钟前';
+  }
+
+  @override
+  String get insightsJustGenerated => '洞察刚刚生成';
+
+  @override
+  String get refreshAlbum => '刷新专辑';
+
+  @override
+  String get failedToLoadAlbum => '加载专辑失败';
+
+  @override
+  String get unknownError => '未知错误';
+
+  @override
+  String get unratedStatus => '未评分';
+
+  @override
+  String get justNow => '刚刚';
+
+  @override
+  String minutesAgoShort(int minutes) {
+    return '$minutes分钟前';
+  }
+
+  @override
+  String hoursAgoShort(int hours) {
+    return '$hours小时前';
+  }
+
+  @override
+  String daysAgoShort(int days) {
+    return '$days天前';
+  }
+
+  @override
+  String totalTracksCount(int count) {
+    return '共$count首曲目';
+  }
+
+  @override
+  String failedToPlayPlaylist(String error) {
+    return '播放播放列表失败：$error';
+  }
+
+  @override
+  String get playPlaylist => '播放播放列表';
+
+  @override
+  String get playlistDetails => '播放列表详情';
+
+  @override
+  String get refreshPlaylist => '刷新播放列表';
+
+  @override
+  String createdBy(String owner) {
+    return '由 $owner 创建';
+  }
+
+  @override
+  String playlistTrackCount(int count) {
+    return '共 $count 首曲目';
+  }
+
+  @override
+  String get failedToLoadPlaylist => '加载播放列表失败';
+
+  @override
+  String get playlistTracksLabel => '歌单曲目';
+
+  @override
+  String get deviceOperationNotSupported =>
+      '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
+
+  @override
+  String shareAlbumMessage(
+      String albumName, String artist, String score, int rated, int total) {
+    return '我在 Spotoolfy 给《$albumName》（$artist）打出了 $score 分，已评分 $rated/$total 首歌曲。';
+  }
+
+  @override
+  String get noRating => '暂无评分';
+
+  @override
+  String get retry => '重试';
+
+  @override
+  String get unknownTrackName => '未知曲目';
+
+  @override
+  String get albumInsightReadyStatus => '专辑洞察已准备好';
+
+  @override
+  String get clickToGenerateAlbumInsights => '点击右侧按钮生成这张专辑的洞察';
+
+  @override
+  String get failedToGenerateAlbumInsightsStatus => '生成专辑洞察失败';
+
+  @override
+  String get providerQQMusic => 'QQ音乐';
+
+  @override
+  String get providerLRCLIB => 'LRCLIB';
+
+  @override
+  String get providerNetease => '网易云音乐';
+
+  @override
+  String get playingFrom => '播放自';
+
+  @override
+  String get playFromAlbum => '播放自专辑';
+
+  @override
+  String get playFromPlaylist => '播放自播放列表';
+
+  @override
+  String get sharingStatus => '分享中...';
+
+  @override
+  String get shareButton => '分享';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1336,6 +1572,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get translationStyleSubtitle => '設定 Gemini 的風格';
+
+  @override
+  String get autoTranslateLyricsTitle => '自動翻譯歌詞';
+
+  @override
+  String get autoTranslateLyricsSubtitle => '當歌詞沒有翻譯時自動開始翻譯';
 
   @override
   String get copyLyricsAsSingleLineTitle => '將歌詞複製為單行';
@@ -1876,4 +2118,234 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get secsAgo => '秒前';
+
+  @override
+  String failedToPlayAlbum(String error) {
+    return '播放專輯失敗：$error';
+  }
+
+  @override
+  String get rateAtLeastOneSongForPoster => '至少先為一首歌曲評分才能生成海報';
+
+  @override
+  String failedToSharePoster(String error) {
+    return '分享評分海報失敗：$error';
+  }
+
+  @override
+  String get cannotPlayMissingTrackLink => '無法播放：缺少歌曲連結';
+
+  @override
+  String failedToPlaySong(String error) {
+    return '播放歌曲失敗：$error';
+  }
+
+  @override
+  String failedToSaveRating(String error) {
+    return '儲存評分失敗：$error';
+  }
+
+  @override
+  String get albumDetails => '專輯詳情';
+
+  @override
+  String get titleCopied => '標題已複製';
+
+  @override
+  String get playAlbum => '播放';
+
+  @override
+  String get rateAtLeastOneSongFirst => '先給幾首歌評分後再分享海報';
+
+  @override
+  String get shareAlbumRatingPoster => '分享專輯評分海報';
+
+  @override
+  String get hideQuickRating => '隱藏快速評分';
+
+  @override
+  String get showQuickRating => '顯示快速評分';
+
+  @override
+  String get currently => '目前';
+
+  @override
+  String get savingChanges => '儲存中…';
+
+  @override
+  String get saveAllChanges => '儲存全部變更';
+
+  @override
+  String get generatingTooltip => '生成中…';
+
+  @override
+  String get generateAlbumInsights => '生成專輯洞察';
+
+  @override
+  String get collapseInsights => '收合洞察';
+
+  @override
+  String get expandInsights => '展開洞察';
+
+  @override
+  String get noSongsRatedYet => '尚未評分任何歌曲';
+
+  @override
+  String basedOnRatedSongs(int rated, int total) {
+    return '基於 $rated/$total 首歌曲';
+  }
+
+  @override
+  String failedToGenerateAlbumInsights(String error) {
+    return '生成洞察失敗：$error';
+  }
+
+  @override
+  String failedToLoadCache(String error) {
+    return '讀取快取失敗：$error';
+  }
+
+  @override
+  String get generatingAlbumInsights => '正在生成專輯洞察…';
+
+  @override
+  String get noInsightsAvailableTapToGenerate => '暫無可用洞察。點選上方按鈕生成一次吧。';
+
+  @override
+  String get insightsEmptyRetryGenerate => '洞察結果空空如也，試著重新生成一次。';
+
+  @override
+  String insightsGeneratedDaysAgo(int days) {
+    return '洞察生成於 $days 天前';
+  }
+
+  @override
+  String insightsGeneratedHoursAgo(int hours) {
+    return '洞察生成於 $hours 小時前';
+  }
+
+  @override
+  String insightsGeneratedMinutesAgo(int minutes) {
+    return '洞察生成於 $minutes 分鐘前';
+  }
+
+  @override
+  String get insightsJustGenerated => '洞察剛剛生成';
+
+  @override
+  String get refreshAlbum => '重新整理專輯';
+
+  @override
+  String get failedToLoadAlbum => '載入專輯失敗';
+
+  @override
+  String get unknownError => '未知錯誤';
+
+  @override
+  String get unratedStatus => '未評分';
+
+  @override
+  String get justNow => '剛剛';
+
+  @override
+  String minutesAgoShort(int minutes) {
+    return '$minutes分鐘前';
+  }
+
+  @override
+  String hoursAgoShort(int hours) {
+    return '$hours小時前';
+  }
+
+  @override
+  String daysAgoShort(int days) {
+    return '$days天前';
+  }
+
+  @override
+  String totalTracksCount(int count) {
+    return '共$count首曲目';
+  }
+
+  @override
+  String failedToPlayPlaylist(String error) {
+    return '播放播放清單失敗：$error';
+  }
+
+  @override
+  String get playPlaylist => '播放播放清單';
+
+  @override
+  String get playlistDetails => '播放清單詳情';
+
+  @override
+  String get refreshPlaylist => '重新整理播放清單';
+
+  @override
+  String createdBy(String owner) {
+    return '由 $owner 建立';
+  }
+
+  @override
+  String playlistTrackCount(int count) {
+    return '共 $count 首曲目';
+  }
+
+  @override
+  String get failedToLoadPlaylist => '載入播放清單失敗';
+
+  @override
+  String get playlistTracksLabel => '播放清單曲目';
+
+  @override
+  String get deviceOperationNotSupported =>
+      '目前裝置不支援此操作或受限。請嘗試在其他裝置上播放音樂，或檢查您的帳戶類型。';
+
+  @override
+  String shareAlbumMessage(
+      String albumName, String artist, String score, int rated, int total) {
+    return '我在 Spotoolfy 給《$albumName》（$artist）打出了 $score 分，已評分 $rated/$total 首歌曲。';
+  }
+
+  @override
+  String get noRating => '暫無評分';
+
+  @override
+  String get retry => '重試';
+
+  @override
+  String get unknownTrackName => '未知曲目';
+
+  @override
+  String get albumInsightReadyStatus => '專輯洞察已準備好';
+
+  @override
+  String get clickToGenerateAlbumInsights => '點選右側按鈕生成這張專輯的洞察';
+
+  @override
+  String get failedToGenerateAlbumInsightsStatus => '生成專輯洞察失敗';
+
+  @override
+  String get providerQQMusic => 'QQ音樂';
+
+  @override
+  String get providerLRCLIB => 'LRCLIB';
+
+  @override
+  String get providerNetease => '網易雲音樂';
+
+  @override
+  String get playingFrom => '播放自';
+
+  @override
+  String get playFromAlbum => '播放自專輯';
+
+  @override
+  String get playFromPlaylist => '播放自播放清單';
+
+  @override
+  String get sharingStatus => '分享中...';
+
+  @override
+  String get shareButton => '分享';
 }

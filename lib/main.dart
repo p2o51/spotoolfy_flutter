@@ -149,7 +149,7 @@ class _MyThemedAppState extends State<MyThemedApp> {
       ],
       supportedLocales: LanguageService.supportedLocales,
       theme: ThemeData(
-        fontFamily: 'Montserrat',
+        fontFamily: 'Spotify Mix',
         colorScheme: themeProvider.colorScheme,
         useMaterial3: true,
         appBarTheme: AppBarTheme(
@@ -353,11 +353,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
                   // 检查是否正在播放且有上下文描述和类型
                   if (isPlaying && contextDescription != null && contextDescription.isNotEmpty && contextType != null) {
-                    String playFromText = 'PLAYING FROM'; // Default
+                    final l10n = AppLocalizations.of(context)!;
+                    String playFromText = l10n.playingFrom; // Default
                     if (contextType == 'album') {
-                      playFromText = 'PLAY FROM ALBUM';
+                      playFromText = l10n.playFromAlbum;
                     } else if (contextType == 'playlist') {
-                      playFromText = 'PLAY FROM PLAYLIST';
+                      playFromText = l10n.playFromPlaylist;
                     } // Add more types if needed (e.g., artist)
 
                     return Column(

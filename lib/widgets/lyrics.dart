@@ -4,23 +4,27 @@ import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/local_database_provider.dart';
 import '../services/lyrics_service.dart';
+import 'dart:async';
 import '../services/translation_service.dart';
 import '../models/translation.dart';
 import '../models/track.dart';
 import './translation_result_page.dart';
 import './lyrics_search_page.dart';
 import './lyrics_selection_page.dart';
-import 'dart:async';
 import '../services/settings_service.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
 import '../l10n/app_localizations.dart';
+import '../models/translation_load_result.dart';
+import '../utils/structured_translation.dart';
+import '../utils/lyric_timing_utils.dart';
 
 class LyricLine {
   final Duration timestamp;
   final String text;
+  String? translation;
 
-  LyricLine(this.timestamp, this.text);
+  LyricLine(this.timestamp, this.text, {this.translation});
 }
 
 class LyricsWidget extends StatefulWidget {
@@ -30,22 +34,38 @@ class LyricsWidget extends StatefulWidget {
   State<LyricsWidget> createState() => _LyricsWidgetState();
 }
 
-class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClientMixin<LyricsWidget> {
+class _LyricsWidgetState extends State<LyricsWidget>
+    with AutomaticKeepAliveClientMixin<LyricsWidget> {
   List<LyricLine> _lyrics = [];
   final LyricsService _lyricsService = LyricsService();
   final TranslationService _translationService = TranslationService();
   final SettingsService _settingsService = SettingsService();
   String? _lastTrackId;
   final ScrollController _scrollController = ScrollController();
-  final Map<int, double> _lineHeights = {};
   final GlobalKey _listViewKey = GlobalKey();
   bool _autoScroll = true;
   bool _isCopyLyricsMode = false;
-  bool _isScrollRetryScheduled = false;
-  int _scrollRetryCount = 0; // Track retry attempts
   PlayMode? _previousPlayMode;
   int _previousLineIndex = -1; // Track last scrolled line
-  double? _cachedAverageHeight; // Cache average height for performance
+  bool _isTranslationLoading = false;
+  bool _translationsVisible = false;
+  bool _autoTranslationRequestedForTrack = false;
+  final List<GlobalKey> _lineKeys = [];
+  int? _pendingScrollIndex;
+  TranslationStyle? _activeTranslationStyle;
+  int? _lastFallbackIndexAttempted;
+  int _fallbackAttemptsForCurrentIndex = 0;
+  int? _currentTrackDurationMs;
+  bool _temporarilyIgnoreUserScroll = false;
+  Timer? _userScrollSuppressionTimer;
+  Future<TranslationLoadResult>? _translationPreloadFuture;
+  TranslationLoadResult? _preloadedTranslationResult;
+  String? _preloadedTrackId;
+  String? _preloadingTrackId;
+  Future<void>? _nextTrackPreloadFuture;
+  String? _nextTrackPreloadedId;
+  String? _nextTrackPreloadingId;
+  bool _lyricsAreSynced = true;
 
   @override
   bool get wantKeepAlive => true;
@@ -59,35 +79,47 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     });
     // Load lyrics immediately if possible (will check provider context)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       if (mounted) {
-         _loadLyrics();
-       }
+      if (mounted) {
+        _loadLyrics();
+      }
     });
   }
 
   @override
   void dispose() {
+    _userScrollSuppressionTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _loadLyrics() async {
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     if (!mounted) return;
-    
+
     final provider = Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrack = provider.currentTrack;
     if (currentTrack == null) {
+      _autoTranslationRequestedForTrack = false;
+      _translationPreloadFuture = null;
+      _preloadedTranslationResult = null;
+      _preloadedTrackId = null;
+      _preloadingTrackId = null;
+      _nextTrackPreloadFuture = null;
+      _activeTranslationStyle = null;
       // If no track is playing, clear lyrics and reset state
       if (_lyrics.isNotEmpty || _lastTrackId != null) {
         setState(() {
           _lyrics = [];
           _lastTrackId = null;
-          _lineHeights.clear();
-          _cachedAverageHeight = null; // Reset cached average height
-          _scrollRetryCount = 0; // Reset retry count
           _autoScroll = true; // Default to auto-scroll when lyrics clear/load
           _previousLineIndex = -1;
+          _translationsVisible = false;
+          _isTranslationLoading = false;
+          _syncLineKeys(0);
+          _currentTrackDurationMs = null;
+          _activeTranslationStyle = null;
+          _lyricsAreSynced = true;
         });
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0);
@@ -97,48 +129,105 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     }
 
     final trackId = currentTrack['item']?['id'];
+    final durationValue = currentTrack['item']?['duration_ms'];
+    final trackDurationMs = durationValue is int
+        ? durationValue
+        : durationValue is String
+            ? int.tryParse(durationValue)
+            : null;
     // Only load if trackId is valid and different from the last loaded one
     if (trackId == null || trackId == _lastTrackId) return;
-    
+
+    _autoTranslationRequestedForTrack = false;
     _lastTrackId = trackId;
     final songName = currentTrack['item']?['name'] ?? '';
     final artistName = currentTrack['item']?['artists']?[0]?['name'] ?? '';
-    
+
     // Reset state for the new track
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
     setState(() {
       _lyrics = [];
-      _lineHeights.clear();
-      _cachedAverageHeight = null; // Reset cached average height
-      _scrollRetryCount = 0; // Reset retry count for new track
       _autoScroll = true; // Default to auto-scroll when new lyrics load
       _previousLineIndex = -1;
+      _translationsVisible = false;
+      _isTranslationLoading = false;
+      _syncLineKeys(0);
+      _currentTrackDurationMs = trackDurationMs;
+      _preloadedTrackId = null;
+      _preloadedTranslationResult = null;
+      _translationPreloadFuture = null;
+      _preloadingTrackId = null;
+      _activeTranslationStyle = null;
+      _lyricsAreSynced = true;
     });
 
-    final rawLyrics = await _lyricsService.getLyrics(songName, artistName, trackId);
-    
+    final rawLyrics =
+        await _lyricsService.getLyrics(songName, artistName, trackId);
+
     // Check mounted *before* accessing context again after await
     if (!mounted) return;
-    
-    final latestTrackId = Provider.of<SpotifyProvider>(context, listen: false).currentTrack?['item']?['id'];
+
+    final latestTrackId = Provider.of<SpotifyProvider>(context, listen: false)
+        .currentTrack?['item']?['id'];
     // Ensure the lyrics are still for the *current* track before updating state
     if (latestTrackId != trackId) {
       return;
     }
 
     if (rawLyrics != null) {
-      setState(() {
-        _lyrics = _parseLyrics(rawLyrics);
-        // Keep _autoScroll = true here
-        _previousLineIndex = -1; // Ensure index is reset for the new track
-      });
+      final summary = LyricTimingUtils.summarize(rawLyrics);
+      final parsedLyrics = _parseLyrics(rawLyrics);
+
+      if (summary.hasTimestamps && parsedLyrics.isNotEmpty) {
+        setState(() {
+          _lyricsAreSynced = true;
+          _lyrics = parsedLyrics;
+          _autoScroll = true;
+          _previousLineIndex = -1;
+          _translationsVisible = false;
+          _isTranslationLoading = false;
+          _syncLineKeys(_lyrics.length);
+          _currentTrackDurationMs = trackDurationMs;
+          _pendingScrollIndex = null;
+          _lastFallbackIndexAttempted = null;
+          _fallbackAttemptsForCurrentIndex = 0;
+        });
+        unawaited(_maybeTriggerAutoTranslate());
+      } else {
+        final unsyncedLines = _buildUnsyncedLyrics(rawLyrics);
+        if (unsyncedLines.isNotEmpty) {
+          setState(() {
+            _lyricsAreSynced = false;
+            _lyrics = unsyncedLines;
+            _autoScroll = false;
+            _previousLineIndex = -1;
+            _translationsVisible = false;
+            _isTranslationLoading = false;
+            _syncLineKeys(_lyrics.length);
+            _currentTrackDurationMs = trackDurationMs;
+            _pendingScrollIndex = null;
+            _lastFallbackIndexAttempted = null;
+            _fallbackAttemptsForCurrentIndex = 0;
+          });
+          unawaited(_maybeTriggerAutoTranslate());
+        } else {
+          setState(() {
+            _lyricsAreSynced = true;
+            _lyrics = [];
+            _autoScroll = true;
+            _syncLineKeys(0);
+          });
+        }
+      }
     } else {
       // Lyrics fetch failed, keep lyrics list empty
       setState(() {
         _lyrics = [];
         // Keep _autoScroll = true
+        _syncLineKeys(0);
+        _lyricsAreSynced = true;
       });
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
@@ -146,24 +235,506 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       }
     }
   }
-  
-  // Helper to estimate line heights if they are not fully measured
-  void _ensureLineHeightsAvailable() {
-     if (!mounted || _lyrics.isEmpty) return;
-     final measuredHeightsCount = _lineHeights.length;
-     if (measuredHeightsCount < _lyrics.length) {
-        // Use cached average height if available, otherwise calculate
-        if (_cachedAverageHeight == null && measuredHeightsCount > 0) {
-          _cachedAverageHeight = _lineHeights.values.fold(0.0, (sum, h) => sum + h) / measuredHeightsCount;
-        }
-        final avgHeight = _cachedAverageHeight ?? 40.0; // Default fallback height
-        for (int i = 0; i < _lyrics.length; i++) {
-           _lineHeights.putIfAbsent(i, () => avgHeight);
-        }
-     }
+
+  void _syncLineKeys(int targetLength) {
+    if (_lineKeys.length == targetLength) return;
+    if (_lineKeys.length < targetLength) {
+      final difference = targetLength - _lineKeys.length;
+      for (int i = 0; i < difference; i++) {
+        _lineKeys.add(GlobalKey());
+      }
+    } else {
+      _lineKeys.removeRange(targetLength, _lineKeys.length);
+    }
   }
 
-  Future<void> _translateAndShowLyrics() async {
+  String _extractArtistNames(Map<String, dynamic> trackItem) {
+    final artists = trackItem['artists'];
+    if (artists is List) {
+      final names = artists
+          .map((artist) {
+            if (artist is Map && artist['name'] != null) {
+              final value = artist['name'].toString().trim();
+              if (value.isNotEmpty) {
+                return value;
+              }
+            }
+            return '';
+          })
+          .where((name) => name.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) {
+        return names.join(', ');
+      }
+    }
+    return 'Unknown Artist';
+  }
+
+  String? _extractAlbumCover(Map<String, dynamic> trackItem) {
+    final album = trackItem['album'];
+    if (album is Map) {
+      final images = album['images'];
+      if (images is List && images.isNotEmpty) {
+        final first = images.first;
+        if (first is Map && first['url'] != null) {
+          final url = first['url'].toString();
+          if (url.isNotEmpty) {
+            return url;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  String _extractAlbumName(Map<String, dynamic> trackItem) {
+    final album = trackItem['album'];
+    if (album is Map && album['name'] != null) {
+      final value = album['name'].toString().trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return 'Unknown Album';
+  }
+
+  String _getPrimaryArtistName(Map<String, dynamic> trackItem) {
+    final artists = trackItem['artists'];
+    if (artists is List && artists.isNotEmpty) {
+      final first = artists.first;
+      if (first is Map && first['name'] != null) {
+        final value = first['name'].toString().trim();
+        if (value.isNotEmpty) {
+          return value;
+        }
+      }
+    }
+    return _extractArtistNames(trackItem);
+  }
+
+  Future<TranslationLoadResult> _loadTranslationForTrack({
+    required String trackId,
+    required List<String> originalLines,
+    Map<String, dynamic>? trackItem,
+    bool forceRefresh = false,
+    TranslationStyle? style,
+  }) async {
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final localDbProvider =
+        Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
+
+    final effectiveStyle =
+        style ?? await _settingsService.getTranslationStyle();
+    final currentLanguage = await _settingsService.getTargetLanguage();
+    final styleString = translationStyleToString(effectiveStyle);
+
+    if (!forceRefresh) {
+      final cached = await localDbProvider.fetchTranslation(
+        trackId,
+        currentLanguage,
+        styleString,
+      );
+
+      if (cached != null) {
+        final parsed = parseStructuredTranslation(
+          cached.translatedLyrics,
+          originalLines: originalLines,
+        );
+
+        return TranslationLoadResult(
+          rawTranslatedLyrics: cached.translatedLyrics,
+          cleanedTranslatedLyrics: parsed.cleanedText,
+          perLineTranslations: parsed.translations,
+          style: stringToTranslationStyle(cached.style),
+          languageCode: cached.languageCode,
+        );
+      }
+    }
+
+    final structuredLyrics = buildStructuredLyrics(originalLines);
+
+    final translationData = await _translationService.translateLyrics(
+      structuredLyrics,
+      trackId,
+      targetLanguage: currentLanguage,
+      forceRefresh: forceRefresh,
+      originalLines: originalLines,
+    );
+
+    if (translationData == null || translationData['text'] == null) {
+      throw Exception(
+        l10n.translationFailed(l10n.operationFailed),
+      );
+    }
+
+    final rawText = (translationData['text'] as String).trim();
+    final cleanedText =
+        (translationData['cleanedText'] as String?)?.trim() ?? rawText;
+    final languageCodeUsed =
+        (translationData['languageCode'] as String?) ?? currentLanguage;
+    final styleUsedString =
+        (translationData['style'] as String?) ?? styleString;
+    final resolvedStyle = stringToTranslationStyle(styleUsedString);
+
+    final perLineTranslations = <int, String>{};
+    final lineTranslationsMap =
+        translationData['lineTranslations'] as Map<String, dynamic>?;
+    if (lineTranslationsMap != null) {
+      for (final entry in lineTranslationsMap.entries) {
+        final index = int.tryParse(entry.key);
+        final value = (entry.value ?? '').toString().trim();
+        if (index != null && value.isNotEmpty) {
+          perLineTranslations[index] = value;
+        }
+      }
+    }
+
+    if (perLineTranslations.isEmpty) {
+      final parsed = parseStructuredTranslation(
+        rawText,
+        originalLines: originalLines,
+      );
+      perLineTranslations.addAll(parsed.translations);
+    }
+
+    try {
+      final existingTrack = await localDbProvider.getTrack(trackId);
+      if (existingTrack == null) {
+        final item = trackItem ?? spotifyProvider.currentTrack?['item'];
+        if (item is Map<String, dynamic>) {
+          final trackToAdd = Track(
+            trackId: trackId,
+            trackName: item['name']?.toString() ?? '',
+            artistName: _extractArtistNames(item),
+            albumName: _extractAlbumName(item),
+            albumCoverUrl: _extractAlbumCover(item),
+          );
+          await localDbProvider.addTrack(trackToAdd);
+        }
+      }
+
+      final translationToSave = Translation(
+        trackId: trackId,
+        languageCode: languageCodeUsed,
+        style: styleUsedString,
+        translatedLyrics: rawText,
+        generatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      await localDbProvider.saveTranslation(translationToSave);
+    } catch (e) {
+      debugPrint('Error saving translation to DB: $e');
+    }
+
+    return TranslationLoadResult(
+      rawTranslatedLyrics: rawText,
+      cleanedTranslatedLyrics: cleanedText,
+      perLineTranslations: perLineTranslations,
+      style: resolvedStyle,
+      languageCode: languageCodeUsed,
+    );
+  }
+
+  Future<TranslationLoadResult> _loadTranslationData({
+    bool forceRefresh = false,
+    TranslationStyle? style,
+    List<String>? overrideOriginalLines,
+  }) async {
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
+    final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
+
+    if (currentTrackId == null) {
+      throw Exception(l10n.couldNotGetCurrentTrackId);
+    }
+
+    final originalLines =
+        overrideOriginalLines ?? _lyrics.map((line) => line.text).toList();
+    final trackItem = spotifyProvider.currentTrack?['item'];
+    return _loadTranslationForTrack(
+      trackId: currentTrackId,
+      originalLines: originalLines,
+      trackItem: trackItem is Map<String, dynamic> ? trackItem : null,
+      forceRefresh: forceRefresh,
+      style: style,
+    );
+  }
+
+  bool get _hasTranslationsLoaded {
+    return _lyrics.any(
+      (line) => line.translation != null && line.translation!.trim().isNotEmpty,
+    );
+  }
+
+  void _applyTranslationToLyrics(
+    Map<int, String> translations,
+  ) {
+    for (var i = 0; i < _lyrics.length; i++) {
+      final translated = translations[i];
+      if (translated != null && translated.trim().isNotEmpty) {
+        _lyrics[i].translation = translated.trim();
+      } else {
+        _lyrics[i].translation = null;
+      }
+    }
+  }
+
+  Future<void> _startTranslationPreload({
+    required bool triggerDisplayWhenReady,
+    bool forceRefresh = false,
+  }) async {
+    if (!mounted || _lyrics.isEmpty) {
+      return;
+    }
+
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+    final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
+
+    if (currentTrackId == null) {
+      return;
+    }
+
+    if (!forceRefresh &&
+        _preloadedTrackId == currentTrackId &&
+        _preloadedTranslationResult != null) {
+      if (triggerDisplayWhenReady && !_translationsVisible) {
+        setState(() {
+          _applyTranslationToLyrics(
+              _preloadedTranslationResult!.perLineTranslations);
+          _translationsVisible = true;
+          _isTranslationLoading = false;
+          _activeTranslationStyle = _preloadedTranslationResult!.style;
+        });
+        _scheduleRealignScroll();
+      }
+      return;
+    }
+
+    if (!forceRefresh &&
+        _translationPreloadFuture != null &&
+        _preloadingTrackId == currentTrackId) {
+      if (triggerDisplayWhenReady && !_isTranslationLoading) {
+        setState(() {
+          _isTranslationLoading = true;
+        });
+      }
+      try {
+        final result = await _translationPreloadFuture!;
+        if (!mounted) return;
+        _preloadedTrackId = currentTrackId;
+        _preloadedTranslationResult = result;
+        if (triggerDisplayWhenReady && !_translationsVisible) {
+          setState(() {
+            _applyTranslationToLyrics(result.perLineTranslations);
+            _translationsVisible = true;
+            _isTranslationLoading = false;
+            _activeTranslationStyle = result.style;
+          });
+          _scheduleRealignScroll();
+        } else if (triggerDisplayWhenReady) {
+          setState(() {
+            _isTranslationLoading = false;
+            _activeTranslationStyle = result.style;
+          });
+        }
+      } catch (e) {
+        if (!mounted) return;
+        if (triggerDisplayWhenReady) {
+          setState(() {
+            _isTranslationLoading = false;
+          });
+          final l10n = AppLocalizations.of(context)!;
+          notificationService.showSnackBar(
+            l10n.translationFailed(e.toString()),
+          );
+        } else {
+          debugPrint('Translation preload failed: $e');
+        }
+      }
+      return;
+    }
+
+    if (triggerDisplayWhenReady && !_isTranslationLoading) {
+      setState(() {
+        _isTranslationLoading = true;
+      });
+    }
+
+    _preloadingTrackId = currentTrackId;
+    final future = _loadTranslationData(
+      forceRefresh: forceRefresh,
+    );
+    _translationPreloadFuture = future;
+
+    try {
+      final result = await future;
+      if (!mounted) return;
+      _preloadedTrackId = currentTrackId;
+      _preloadedTranslationResult = result;
+      _translationPreloadFuture = null;
+      _preloadingTrackId = null;
+
+      if (triggerDisplayWhenReady) {
+        setState(() {
+          _applyTranslationToLyrics(result.perLineTranslations);
+          _translationsVisible = true;
+          _isTranslationLoading = false;
+          _activeTranslationStyle = result.style;
+        });
+        _scheduleRealignScroll();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _translationPreloadFuture = null;
+      _preloadingTrackId = null;
+      if (triggerDisplayWhenReady) {
+        setState(() {
+          _isTranslationLoading = false;
+        });
+        final l10n = AppLocalizations.of(context)!;
+        notificationService.showSnackBar(
+          l10n.translationFailed(e.toString()),
+        );
+      } else {
+        debugPrint('Translation preload failed: $e');
+      }
+    }
+  }
+
+  Future<void> _preloadNextTrackResources() async {
+    if (!mounted) {
+      return;
+    }
+    if (!_lyricsAreSynced) {
+      setState(() {
+        _autoScroll = false;
+        _temporarilyIgnoreUserScroll = false;
+      });
+      return;
+    }
+
+    final provider = Provider.of<SpotifyProvider>(context, listen: false);
+    final dynamic nextTrackRaw = provider.nextTrack ??
+        (provider.upcomingTracks.isNotEmpty
+            ? provider.upcomingTracks.first
+            : null);
+
+    if (nextTrackRaw == null) {
+      return;
+    }
+
+    final nextTrack =
+        nextTrackRaw is Map<String, dynamic> ? nextTrackRaw : null;
+    if (nextTrack == null) {
+      return;
+    }
+
+    final trackId = nextTrack['id']?.toString();
+    if (trackId == null ||
+        trackId.isEmpty ||
+        trackId == _lastTrackId ||
+        _nextTrackPreloadedId == trackId) {
+      return;
+    }
+
+    if (_nextTrackPreloadFuture != null && _nextTrackPreloadingId == trackId) {
+      return;
+    }
+
+    _nextTrackPreloadingId = trackId;
+    _nextTrackPreloadFuture = Future(() async {
+      try {
+        final songName = nextTrack['name']?.toString() ?? '';
+        final artistName = _getPrimaryArtistName(nextTrack);
+
+        final rawLyrics =
+            await _lyricsService.getLyrics(songName, artistName, trackId);
+        if (rawLyrics == null || !mounted) {
+          return;
+        }
+
+        var lyricLines = _parseLyrics(rawLyrics);
+        List<String> originalLines =
+            lyricLines.map((line) => line.text).toList(growable: false);
+
+        if (originalLines.isEmpty) {
+          originalLines = rawLyrics
+              .split('\n')
+              .map((line) => line.trim())
+              .where((line) => line.isNotEmpty)
+              .toList();
+        }
+
+        if (originalLines.isEmpty) {
+          return;
+        }
+
+        await _loadTranslationForTrack(
+          trackId: trackId,
+          originalLines: originalLines,
+          trackItem: nextTrack,
+        );
+
+        if (!mounted) return;
+        _nextTrackPreloadedId = trackId;
+      } catch (e) {
+        debugPrint('Failed to preload next track resources: $e');
+      } finally {
+        if (_nextTrackPreloadingId == trackId) {
+          _nextTrackPreloadingId = null;
+        }
+        _nextTrackPreloadFuture = null;
+      }
+    });
+  }
+
+  Future<void> _maybeTriggerAutoTranslate() async {
+    if (!mounted ||
+        _autoTranslationRequestedForTrack ||
+        _lyrics.isEmpty ||
+        _hasTranslationsLoaded) {
+      return;
+    }
+
+    final autoTranslateEnabled =
+        await _settingsService.getAutoTranslateLyricsEnabled();
+
+    if (!mounted ||
+        _autoTranslationRequestedForTrack ||
+        !autoTranslateEnabled ||
+        _lyrics.isEmpty ||
+        _hasTranslationsLoaded) {
+      return;
+    }
+
+    _autoTranslationRequestedForTrack = true;
+    unawaited(_startTranslationPreload(triggerDisplayWhenReady: true));
+    unawaited(_preloadNextTrackResources());
+  }
+
+  void _scheduleRealignScroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_autoScroll) return;
+      WidgetsBinding.instance.addPostFrameCallback((__) {
+        if (!mounted || !_autoScroll) return;
+        final provider = Provider.of<SpotifyProvider>(context, listen: false);
+        final currentProgressMs = provider.currentTrack?['progress_ms'] ?? 0;
+        final currentPosition = Duration(milliseconds: currentProgressMs);
+        final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
+        if (latestCurrentIndex >= 0) {
+          _scrollToCurrentLine(latestCurrentIndex);
+          _previousLineIndex = latestCurrentIndex;
+        }
+      });
+    });
+  }
+
+  Future<void> _handleTranslateButtonTap() async {
     if (_lyrics.isEmpty) {
       final l10n = AppLocalizations.of(context)!;
       Provider.of<NotificationService>(context, listen: false)
@@ -171,249 +742,319 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       return;
     }
 
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-    final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
-
-    if (currentTrackId == null) {
-      final l10n = AppLocalizations.of(context)!;
-      Provider.of<NotificationService>(context, listen: false)
-          .showSnackBar(l10n.couldNotGetCurrentTrackId);
+    if (_isTranslationLoading) {
       return;
     }
 
-    final originalLyricsList = _lyrics.map((line) => line.text).toList();
-    final originalLyricsJoined = originalLyricsList.join('\n');
-
-    Future<TranslationLoadResult> loadTranslation({
-      bool forceRefresh = false,
-      TranslationStyle? style,
-    }) async {
-      final effectiveStyle = style ?? await _settingsService.getTranslationStyle();
-      final currentLanguage = await _settingsService.getTargetLanguage();
-      final styleString = translationStyleToString(effectiveStyle);
-
-      if (!forceRefresh) {
-        final cached = await localDbProvider.fetchTranslation(
-          currentTrackId,
-          currentLanguage,
-          styleString,
-        );
-
-        if (cached != null) {
-          return TranslationLoadResult(
-            translatedLyrics: cached.translatedLyrics,
-            style: stringToTranslationStyle(cached.style),
-            languageCode: cached.languageCode,
-          );
-        }
-      }
-
-      final translationData = await _translationService.translateLyrics(
-        originalLyricsJoined,
-        currentTrackId,
-        targetLanguage: currentLanguage,
-        forceRefresh: forceRefresh,
-      );
-
-      if (translationData == null || translationData['text'] == null) {
-        throw Exception(AppLocalizations.of(context)!
-            .translationFailed(AppLocalizations.of(context)!.operationFailed));
-      }
-
-      final translatedText = translationData['text']!;
-      final languageCodeUsed = translationData['languageCode'] ?? currentLanguage;
-      final styleUsedString = translationData['style'] ?? styleString;
-      final resolvedStyle = stringToTranslationStyle(styleUsedString);
-
-      try {
-        final existingTrack = await localDbProvider.getTrack(currentTrackId);
-        if (existingTrack == null) {
-          final trackItem = spotifyProvider.currentTrack?['item'];
-          if (trackItem != null) {
-            final trackToAdd = Track(
-              trackId: currentTrackId,
-              trackName: trackItem['name'] as String,
-              artistName:
-                  (trackItem['artists'] as List).map((a) => a['name']).join(', '),
-              albumName:
-                  trackItem['album']?['name'] as String? ?? 'Unknown Album',
-              albumCoverUrl:
-                  (trackItem['album']?['images'] as List?)?.isNotEmpty == true
-                      ? trackItem['album']['images'][0]['url']
-                      : null,
-            );
-            await localDbProvider.addTrack(trackToAdd);
-          }
-        }
-
-        final translationToSave = Translation(
-          trackId: currentTrackId,
-          languageCode: languageCodeUsed,
-          style: styleUsedString,
-          translatedLyrics: translatedText,
-          generatedAt: DateTime.now().millisecondsSinceEpoch,
-        );
-        await localDbProvider.saveTranslation(translationToSave);
-      } catch (e) {
-        debugPrint('Error saving translation to DB: $e');
-      }
-
-      return TranslationLoadResult(
-        translatedLyrics: translatedText,
-        style: resolvedStyle,
-        languageCode: languageCodeUsed,
-      );
+    if (_hasTranslationsLoaded) {
+      setState(() {
+        _translationsVisible = !_translationsVisible;
+      });
+      _scheduleRealignScroll();
+      return;
     }
 
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
+
+    if (currentTrackId != null &&
+        _preloadedTrackId == currentTrackId &&
+        _preloadedTranslationResult != null) {
+      setState(() {
+        _applyTranslationToLyrics(
+            _preloadedTranslationResult!.perLineTranslations);
+        _translationsVisible = true;
+        _isTranslationLoading = false;
+        _activeTranslationStyle = _preloadedTranslationResult!.style;
+      });
+      _scheduleRealignScroll();
+      return;
+    }
+
+    await _startTranslationPreload(triggerDisplayWhenReady: true);
+  }
+
+  Future<void> _openTranslationResultPage() async {
+    if (_lyrics.isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar(l10n.noLyricsToTranslate);
+      return;
+    }
+
+    final originalLines = _lyrics.map((line) => line.text).toList();
+    final originalLyricsJoined = originalLines.join('\n');
+    final currentStyle = await _settingsService.getTranslationStyle();
     final wasAutoScrolling = _autoScroll;
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
+
     if (_autoScroll) {
       setState(() {
         _autoScroll = false;
+        _temporarilyIgnoreUserScroll = false;
+        _userScrollSuppressionTimer?.cancel();
       });
     }
 
-    final currentStyle = await _settingsService.getTranslationStyle();
-    final initialFuture = loadTranslation(style: currentStyle);
+    late Future<TranslationLoadResult> initialFuture;
+    if (currentTrackId != null) {
+      if (_translationPreloadFuture != null &&
+          _preloadingTrackId == currentTrackId) {
+        initialFuture = _translationPreloadFuture!;
+      } else if (_preloadedTrackId == currentTrackId &&
+          _preloadedTranslationResult != null) {
+        initialFuture = Future.value(_preloadedTranslationResult!);
+      } else {
+        initialFuture = _loadTranslationData(
+          style: currentStyle,
+          overrideOriginalLines: originalLines,
+        );
+      }
+    } else {
+      initialFuture = _loadTranslationData(
+        style: currentStyle,
+        overrideOriginalLines: originalLines,
+      );
+    }
 
-    Navigator.of(context)
-        .push(
+    initialFuture.then((result) {
+      if (!mounted) return;
+      setState(() {
+        _applyTranslationToLyrics(result.perLineTranslations);
+        _activeTranslationStyle = result.style;
+      });
+      if (_translationsVisible) {
+        _scheduleRealignScroll();
+      }
+    }).catchError((_) {});
+
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => TranslationResultPage(
           originalLyrics: originalLyricsJoined,
           initialStyle: currentStyle,
-          loadTranslation: ({bool forceRefresh = false, TranslationStyle? style}) {
-            return loadTranslation(
+          loadTranslation: ({
+            bool forceRefresh = false,
+            TranslationStyle? style,
+          }) {
+            return _loadTranslationData(
               forceRefresh: forceRefresh,
               style: style,
+              overrideOriginalLines: originalLines,
             );
           },
           initialData: initialFuture,
         ),
       ),
-    )
-        .then((_) {
-      if (mounted && wasAutoScrolling) {
-        setState(() {
-          _autoScroll = true;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _autoScroll) {
-            final currentProvider =
-                Provider.of<SpotifyProvider>(context, listen: false);
-            final currentProgressMs =
-                currentProvider.currentTrack?['progress_ms'] ?? 0;
-            final currentPosition = Duration(milliseconds: currentProgressMs);
-            final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
-            if (latestCurrentIndex >= 0) {
-              _scrollToCurrentLine(latestCurrentIndex);
-              _previousLineIndex = latestCurrentIndex;
-            }
+    );
+
+    if (!mounted) return;
+
+    if (wasAutoScrolling) {
+      _enableAutoScrollWithSuppression();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _autoScroll) {
+          final currentProvider =
+              Provider.of<SpotifyProvider>(context, listen: false);
+          final currentProgressMs =
+              currentProvider.currentTrack?['progress_ms'] ?? 0;
+          final currentPosition = Duration(milliseconds: currentProgressMs);
+          final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
+          if (latestCurrentIndex >= 0) {
+            _scrollToCurrentLine(latestCurrentIndex);
+            _previousLineIndex = latestCurrentIndex;
           }
-        });
-      }
-    });
+        }
+      });
+    }
+  }
+
+  double _computeEffectiveAlignment() {
+    if (!_scrollController.hasClients) return 0.5;
+
+    final mediaQuery = MediaQuery.of(context);
+    final double viewport = _scrollController.position.viewportDimension;
+    if (viewport <= 0) return 0.5;
+
+    final double topOverlay = 40.0 + mediaQuery.padding.top;
+
+    final bool bottomBarVisible =
+        !_autoScroll || _lyrics.isEmpty || _isCopyLyricsMode;
+    final double bottomOverlay =
+        bottomBarVisible ? (24.0 + mediaQuery.padding.bottom + 48.0) : 0.0;
+
+    final double delta = ((topOverlay - bottomOverlay) / 2.0) / viewport;
+    final double alignment = (0.5 + delta).clamp(0.0, 1.0);
+    return alignment;
+  }
+
+  double _tailSpace() {
+    if (!_scrollController.hasClients) return 400.0;
+
+    final mediaQuery = MediaQuery.of(context);
+    final position = _scrollController.position;
+    if (!position.hasPixels || position.viewportDimension <= 0) {
+      return 400.0;
+    }
+    final double viewport = position.viewportDimension;
+
+    final double topOverlay = 40.0 + mediaQuery.padding.top;
+
+    final bool bottomBarVisible =
+        !_autoScroll || _lyrics.isEmpty || _isCopyLyricsMode;
+    final double bottomOverlay =
+        bottomBarVisible ? (24.0 + mediaQuery.padding.bottom + 48.0) : 0.0;
+
+    final double visibleHeight =
+        (viewport - topOverlay - bottomOverlay).clamp(0.0, viewport);
+    return (visibleHeight / 2.0) + bottomOverlay + 8.0;
   }
 
   void _scrollToCurrentLine(int currentLineIndex) {
     if (!mounted ||
-        currentLineIndex < 0 ||
+        !_autoScroll ||
+        !_lyricsAreSynced ||
         !_scrollController.hasClients ||
-        _lyrics.isEmpty ||
-        !_autoScroll) { // Keep autoScroll check
-      _isScrollRetryScheduled = false;
+        currentLineIndex < 0 ||
+        currentLineIndex >= _lineKeys.length) {
       return;
     }
 
+    final key = _lineKeys[currentLineIndex];
+    final context = key.currentContext;
+    if (context == null) {
+      if (_lastFallbackIndexAttempted != currentLineIndex) {
+        _fallbackAttemptsForCurrentIndex = 0;
+      }
+      _pendingScrollIndex = currentLineIndex;
+      _lastFallbackIndexAttempted = currentLineIndex;
+      _fallbackAttemptsForCurrentIndex++;
+
+      final position = _scrollController.position;
+      if (position.hasPixels &&
+          position.hasContentDimensions &&
+          position.viewportDimension > 0 &&
+          _lyrics.isNotEmpty) {
+        final line = _lyrics[currentLineIndex];
+        double ratio;
+        if (_currentTrackDurationMs != null &&
+            _currentTrackDurationMs! > 0 &&
+            line.timestamp.inMilliseconds >= 0) {
+          final double totalMs = _currentTrackDurationMs!.toDouble();
+          ratio = line.timestamp.inMilliseconds / totalMs;
+        } else if (_lyrics.length <= 1) {
+          ratio = 0.0;
+        } else {
+          ratio = currentLineIndex / (_lyrics.length - 1);
+        }
+
+        if (!ratio.isFinite) {
+          ratio = 0.0;
+        } else if (ratio < 0.0) {
+          ratio = 0.0;
+        } else if (ratio > 1.0) {
+          ratio = 1.0;
+        }
+
+        final double alignment = _computeEffectiveAlignment();
+        final double viewportDim = position.viewportDimension;
+        final double viewportHalf = viewportDim * 0.5;
+        double targetOffset =
+            (ratio * position.maxScrollExtent) - (viewportDim * alignment);
+
+        if (_fallbackAttemptsForCurrentIndex > 1) {
+          final double direction =
+              (targetOffset >= position.pixels) ? 1.0 : -1.0;
+          final double fallbackMagnitude =
+              (_fallbackAttemptsForCurrentIndex - 1).clamp(1, 4).toDouble();
+          final double extraOffset = viewportHalf * 0.6 * fallbackMagnitude;
+          targetOffset += direction * extraOffset;
+        }
+
+        if (targetOffset < position.minScrollExtent) {
+          targetOffset = position.minScrollExtent;
+        } else if (targetOffset > position.maxScrollExtent) {
+          targetOffset = position.maxScrollExtent;
+        }
+
+        try {
+          if ((position.pixels - targetOffset).abs() > 1.0) {
+            _scrollController.jumpTo(targetOffset);
+          }
+        } catch (_) {
+          // Ignore jump errors; we'll retry on the next frame if needed.
+        }
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _autoScroll && _pendingScrollIndex == currentLineIndex) {
+          _scrollToCurrentLine(currentLineIndex);
+        }
+      });
+      return;
+    }
+
+    _pendingScrollIndex = null;
+    _lastFallbackIndexAttempted = null;
+    _fallbackAttemptsForCurrentIndex = 0;
+
     try {
-      final RenderBox? renderBox = _listViewKey.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox == null) {
-         _isScrollRetryScheduled = false;
-         return;
-      }
-      
-      // Check if all required line heights are available
-      bool heightsAvailable = true;
-      for (int i = 0; i <= currentLineIndex; i++) {
-        if (!_lineHeights.containsKey(i)) {
-          heightsAvailable = false;
-          break;
-        }
-      }
+      final renderObject = context.findRenderObject();
+      if (renderObject == null) return;
 
-      if (!heightsAvailable) {
-        if (!_isScrollRetryScheduled && _scrollRetryCount < 3) { // Limit retries to 3
-          _isScrollRetryScheduled = true;
-          _scrollRetryCount++;
-          Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted && _autoScroll) { // Check autoScroll again
-               _isScrollRetryScheduled = false;
-               // Get latest index based on provider's progress
-               final currentProvider = Provider.of<SpotifyProvider>(context, listen: false);
-               final currentProgressMs = currentProvider.currentTrack?['progress_ms'] ?? 0;
-               final currentPosition = Duration(milliseconds: currentProgressMs);
-               final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
-               
-               if (latestCurrentIndex >= 0 && latestCurrentIndex < _lyrics.length) {
-                 _scrollToCurrentLine(latestCurrentIndex);
-               }
-            } else {
-               _isScrollRetryScheduled = false;
-            }
-          });
-        }
-        return;
-      }
+      final viewport = RenderAbstractViewport.of(renderObject);
+      final double alignment = _computeEffectiveAlignment();
+      final reveal = viewport.getOffsetToReveal(renderObject, alignment);
+      final position = _scrollController.position;
+      final targetOffset = reveal.offset;
+      final clampedOffset = targetOffset.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
 
-      _isScrollRetryScheduled = false; // Reset retry flag if heights are available
-      _scrollRetryCount = 0; // Reset retry count on successful scroll
-      
-      final viewportHeight = _scrollController.position.viewportDimension;
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      
-      // Calculate total height before the current line
-      double totalOffset = 0;
-      for (int i = 0; i < currentLineIndex; i++) {
-        totalOffset += _lineHeights[i]!;
-      }
-      
-      // Add half the height of the current line
-      final currentLineHeight = _lineHeights[currentLineIndex]!;
-      totalOffset += currentLineHeight / 2;
-      
-      // Calculate the target offset to center the line
-      final topPadding = 80 + MediaQuery.of(context).padding.top;
-      final targetOffset = totalOffset - (viewportHeight / 2) + topPadding;
-      
-      // Clamp the offset within the valid scroll range [0, maxScroll]
-      final clampedOffset = targetOffset.clamp(0.0, maxScroll);
-      
-      // --- Calculate optimized dynamic duration based on scroll distance ---
-      final currentOffset = _scrollController.offset;
-      final scrollDistance = (clampedOffset - currentOffset).abs();
-      
-      // Improved duration calculation for smoother scrolling
-      const double baseDurationMs = 250.0; // Reduced base duration for snappier feel
-      const double extraMsPer1000Pixels = 150.0; // Reduced scaling for faster long scrolls
-      const double maxDurationMs = 700.0; // Reduced max duration
-      const double minDurationMs = 150.0; // Added minimum duration for very short scrolls
+      final distance = (position.pixels - clampedOffset).abs();
+      final durationMs =
+          distance < 60 ? 160 : (220 + distance * 0.2).clamp(200, 600).toInt();
 
-      final dynamicDurationMs = (baseDurationMs + (scrollDistance / 1000.0) * extraMsPer1000Pixels)
-          .clamp(minDurationMs, maxDurationMs)
-          .toInt();
-      final duration = Duration(milliseconds: dynamicDurationMs);
-      // --- End of optimized dynamic duration calculation ---
-
-      // Animate the scroll with improved curve
       _scrollController.animateTo(
         clampedOffset,
-        duration: duration, // Use optimized dynamic duration
-        curve: Curves.easeInOutCubic, // More natural easing curve
+        duration: Duration(milliseconds: durationMs),
+        curve: Curves.easeInOutCubic,
       );
-    } catch (e) {
-      // Log scroll errors if necessary
-      // debugPrint('Error scrolling lyrics: $e');
-      _isScrollRetryScheduled = false; // Reset retry on error too
+    } catch (_) {
+      // Ignore scroll errors; they'll be retried on the next tick if needed.
+    }
+  }
+
+  void _enableAutoScrollWithSuppression(
+      {Duration duration = const Duration(milliseconds: 350)}) {
+    if (!mounted) {
+      return;
+    }
+    if (!_lyricsAreSynced) {
+      setState(() {
+        _autoScroll = false;
+        _temporarilyIgnoreUserScroll = false;
+      });
+      return;
+    }
+    setState(() {
+      _autoScroll = true;
+      _temporarilyIgnoreUserScroll = duration > Duration.zero;
+    });
+    _userScrollSuppressionTimer?.cancel();
+    if (duration > Duration.zero) {
+      _userScrollSuppressionTimer = Timer(duration, () {
+        if (!mounted) return;
+        setState(() {
+          _temporarilyIgnoreUserScroll = false;
+        });
+      });
     }
   }
 
@@ -427,7 +1068,8 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     return Consumer<SpotifyProvider>(
       builder: (context, provider, child) {
         // debugPrint('[LyricsBuilder] Build Start - PrevIdx: $_previousLineIndex'); // Log builder start
-        final currentTrackData = provider.currentTrack; // Get current track data
+        final currentTrackData =
+            provider.currentTrack; // Get current track data
         final currentTrackId = currentTrackData?['item']?['id'];
         final bool trackJustChanged = (currentTrackId != _lastTrackId);
 
@@ -435,43 +1077,40 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
         if (trackJustChanged) {
           // Reset copy mode if active when track changes
           if (_isCopyLyricsMode && mounted) {
-             Future.microtask(() => _toggleCopyLyricsMode());
+            Future.microtask(() => _toggleCopyLyricsMode());
           }
           // Load lyrics for the new track (handles null track internally)
           Future.microtask(() async {
-             await _loadLyrics();
+            await _loadLyrics();
           });
         }
-        
+
+        _syncLineKeys(_lyrics.length);
+
         // 2. Calculate latest position and index based on provider state
         final currentProgressMs = currentTrackData?['progress_ms'] ?? 0;
         final latestPosition = Duration(milliseconds: currentProgressMs);
         final currentLineIndex = _getCurrentLineIndex(latestPosition);
         // debugPrint('[LyricsBuilder] Calculated Idx: $currentLineIndex (from ${currentProgressMs}ms)'); // Log calculated index
 
-        // 3. Trigger scroll if needed (immediately within build if possible)
-        if (_autoScroll && 
-            _lyrics.isNotEmpty && 
-            mounted && 
-            currentLineIndex != _previousLineIndex) {
-
-           // debugPrint('[LyricsScroll] Line change detected! New: $currentLineIndex, Old: $_previousLineIndex'); // Log line change detection
-
-           // Update the index *before* attempting to scroll
-           final int indexToScroll = currentLineIndex; // Capture current index
-           // debugPrint('[LyricsScroll] Updating _previousLineIndex to $indexToScroll'); // Log index update
-           _previousLineIndex = indexToScroll; // Update state *immediately* for next build
-
-           // Ensure estimated heights so scroll can proceed without delay
-           // debugPrint('[LyricsScroll] Calling _ensureLineHeightsAvailable()'); // Log height estimation call
-           _ensureLineHeightsAvailable();
-           // Check if scroll controller is attached to the view and attempt scroll
-           if (_scrollController.hasClients) {
-              // debugPrint('[LyricsScroll] Calling _scrollToCurrentLine($indexToScroll)'); // Log scroll function call
-              _scrollToCurrentLine(indexToScroll); // Use the captured index
-           } 
+        if (_autoScroll &&
+            _lyrics.isNotEmpty &&
+            mounted &&
+            currentLineIndex >= 0) {
+          if (_previousLineIndex != currentLineIndex ||
+              _pendingScrollIndex != null) {
+            _previousLineIndex = currentLineIndex;
+            _pendingScrollIndex = currentLineIndex;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  _autoScroll &&
+                  _pendingScrollIndex == currentLineIndex) {
+                _scrollToCurrentLine(currentLineIndex);
+              }
+            });
+          }
         }
-        
+
         // REMOVED: Internal _currentPosition state update logic
         // REMOVED: Logic to start/stop internal _progressTimer based on isPlaying
 
@@ -480,13 +1119,18 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
           child: NotificationListener<ScrollNotification>(
             onNotification: (scrollNotification) {
               if (!mounted) return true;
-              
+
               // Disable auto-scroll on user interaction
-              if (scrollNotification is UserScrollNotification &&
-                  scrollNotification.direction != ScrollDirection.idle) {
-                if (_autoScroll) {
+              if (scrollNotification is UserScrollNotification) {
+                if (_temporarilyIgnoreUserScroll) {
+                  return true;
+                }
+                if (scrollNotification.direction != ScrollDirection.idle &&
+                    _autoScroll) {
                   setState(() {
                     _autoScroll = false;
+                    _temporarilyIgnoreUserScroll = false;
+                    _userScrollSuppressionTimer?.cancel();
                   });
                 }
               }
@@ -498,99 +1142,141 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                   key: _listViewKey,
                   controller: _scrollController,
                   physics: const BouncingScrollPhysics(),
+                  cacheExtent:
+                      1000.0, // Prebuild nearby items to reduce fallback jumps
                   padding: EdgeInsets.only(
                     top: 80 + MediaQuery.of(context).padding.top,
-                    bottom: 40 + MediaQuery.of(context).padding.bottom, // Reverted bottom padding
+                    bottom: 40 +
+                        MediaQuery.of(context)
+                            .padding
+                            .bottom, // Reverted bottom padding
                   ),
-                  itemCount: _lyrics.length + 10, // Add padding at the end
+                  itemCount: _lyrics.length + 1,
                   itemBuilder: (context, index) {
-                    if (index >= _lyrics.length) {
-                      // Render empty space at the end for overscroll/padding
-                      return const SizedBox(height: 50.0);
+                    if (index == _lyrics.length) {
+                      return SizedBox(
+                          height:
+                              _tailSpace()); // Spacer keeps final line centerable
                     }
-                    
-                    // Measure the size of each lyric line
-                    return MeasureSize(
-                      onChange: (size) {
-                        // Update height map directly without causing a rebuild
-                        if (mounted && _lineHeights[index] != size.height) {
-                          _lineHeights[index] = size.height;
-                          // Invalidate cached average height when new measurements come in
-                          if (_cachedAverageHeight != null && _lineHeights.length > 5) {
-                            _cachedAverageHeight = null; // Force recalculation on next use
+                    final theme = Theme.of(context);
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final bool isWideLyricLayout = screenWidth > 600;
+                    final line = _lyrics[index];
+                    final bool showTranslationLine = _translationsVisible &&
+                        line.translation != null &&
+                        line.translation!.trim().isNotEmpty;
+                    final bool lyricsSynced = _lyricsAreSynced;
+                    final bool isCurrentLine =
+                        lyricsSynced && index == currentLineIndex;
+                    final bool isPastLine =
+                        lyricsSynced && index < currentLineIndex;
+                    final Color baseTextColor;
+                    if (!lyricsSynced) {
+                      baseTextColor = theme.colorScheme.primary;
+                    } else if (isPastLine) {
+                      baseTextColor = theme.colorScheme.secondaryContainer;
+                    } else if (isCurrentLine) {
+                      baseTextColor = theme.colorScheme.primary;
+                    } else {
+                      baseTextColor = theme.colorScheme.primary
+                          .withAlpha((0.5 * 255).round());
+                    }
+                    final Color translationColor = baseTextColor;
+                    final double translationFontSize =
+                        isWideLyricLayout ? 18.0 : 16.0;
+
+                    return GestureDetector(
+                      key: _lineKeys[index],
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        if (!mounted) return;
+
+                        // Seek Spotify to the tapped line's timestamp
+                        final tappedTimestamp = _lyrics[index].timestamp;
+                        provider.seekToPosition(tappedTimestamp.inMilliseconds);
+
+                        // If in copy mode, exit it. Otherwise, ensure auto-scroll is enabled.
+                        bool needsScrollTrigger = false;
+                        if (_isCopyLyricsMode) {
+                          _toggleCopyLyricsMode(); // Exits copy mode, enables autoScroll
+                          needsScrollTrigger = true; // Scroll after exiting
+                        } else {
+                          if (!_autoScroll) {
+                            needsScrollTrigger = true; // Scroll after enabling
+                            _enableAutoScrollWithSuppression(
+                              duration: const Duration(milliseconds: 250),
+                            );
+                          } else {
+                            // If already auto-scrolling, just seeking might be enough,
+                            // but explicitly trigger scroll for immediate feedback.
+                            needsScrollTrigger = true;
                           }
                         }
-                      },
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          if (!mounted) return;
-                          
-                          // Seek Spotify to the tapped line's timestamp
-                          final tappedTimestamp = _lyrics[index].timestamp;
-                          provider.seekToPosition(tappedTimestamp.inMilliseconds);
 
-                          // If in copy mode, exit it. Otherwise, ensure auto-scroll is enabled.
-                          bool needsScrollTrigger = false;
-                          if (_isCopyLyricsMode) {
-                            _toggleCopyLyricsMode(); // Exits copy mode, enables autoScroll
-                            needsScrollTrigger = true; // Scroll after exiting
-                          } else {
-                            if (!_autoScroll) {
-                              needsScrollTrigger = true; // Scroll after enabling
-                              setState(() {
-                                _autoScroll = true; 
-                              });
-                            } else {
-                              // If already auto-scrolling, just seeking might be enough,
-                              // but explicitly trigger scroll for immediate feedback.
-                              needsScrollTrigger = true;
+                        // Trigger scroll immediately after state change/seek
+                        if (needsScrollTrigger) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted && _autoScroll) {
+                              // Scroll to the *tapped* index immediately
+                              _scrollToCurrentLine(index);
+                              _previousLineIndex =
+                                  index; // Update index after tap scroll
                             }
-                          }
-
-                          // Trigger scroll immediately after state change/seek
-                          if (needsScrollTrigger) {
-                             WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted && _autoScroll) {
-                                   // Scroll to the *tapped* index immediately
-                                   _scrollToCurrentLine(index);
-                                   _previousLineIndex = index; // Update index after tap scroll
-                                }
-                             });
-                          }
-                        },
-                        child: AnimatedPadding(
+                          });
+                        }
+                      },
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.symmetric(
+                          vertical: isCurrentLine ? 12.0 : 8.0,
+                          // Responsive horizontal padding
+                          horizontal: isWideLyricLayout
+                              ? 24.0
+                              : 40.0, // Reverted padding
+                        ),
+                        child: AnimatedDefaultTextStyle(
                           duration: const Duration(milliseconds: 400),
                           curve: Curves.easeOutCubic,
-                          padding: EdgeInsets.symmetric(
-                            vertical: index == currentLineIndex ? 12.0 : 8.0,
-                            // Responsive horizontal padding
-                            horizontal: MediaQuery.of(context).size.width > 600 ? 24.0 : 40.0, // Reverted padding
+                          style: TextStyle(
+                            fontFamily: 'Spotify Mix',
+                            fontSize: isWideLyricLayout ? 24 : 22,
+                            fontWeight: isCurrentLine
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            color: baseTextColor,
+                            height:
+                                1.1, // Line height for readability - Reverted height
                           ),
-                          child: AnimatedDefaultTextStyle(
+                          child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 400),
                             curve: Curves.easeOutCubic,
-                            style: TextStyle(
-                              fontFamily: 'Montserrat', // Consider making this configurable
-                              fontSize: MediaQuery.of(context).size.width > 600 ? 24 : 22,
-                              fontWeight: index == currentLineIndex 
-                                ? FontWeight.w700 
-                                : FontWeight.w600,
-                              color: index < currentLineIndex
-                                ? Theme.of(context).colorScheme.secondaryContainer // Past lines color
-                                : index == currentLineIndex
-                                  ? Theme.of(context).colorScheme.primary // Current line color
-                                  : Theme.of(context).colorScheme.primary.withAlpha((0.5 * 255).round()), // Future lines color - Reverted alpha
-                              height: 1.1, // Line height for readability - Reverted height
-                            ),
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 400),
-                              curve: Curves.easeOutCubic,
-                              opacity: index == currentLineIndex ? 1.0 : 0.8, // Reverted opacity logic
-                              child: Text(
-                                _lyrics[index].text,
-                                textAlign: TextAlign.left, // Align text left
-                              ),
+                            opacity: lyricsSynced
+                                ? (isCurrentLine ? 1.0 : 0.8)
+                                : 1.0,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  line.text,
+                                  textAlign: TextAlign.left, // Align text left
+                                ),
+                                if (showTranslationLine)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6.0),
+                                    child: Text(
+                                      line.translation!,
+                                      textAlign: TextAlign.left,
+                                      style: TextStyle(
+                                        fontFamily: 'Spotify Mix',
+                                        fontSize: translationFontSize,
+                                        fontWeight: FontWeight.w500,
+                                        color: translationColor,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
@@ -603,8 +1289,10 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: 40 + MediaQuery.of(context).padding.top, // Reverted height
-                  child: IgnorePointer( // Makes gradient non-interactive
+                  height: 40 +
+                      MediaQuery.of(context).padding.top, // Reverted height
+                  child: IgnorePointer(
+                    // Makes gradient non-interactive
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -612,9 +1300,14 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                           end: Alignment.bottomCenter,
                           colors: [
                             Theme.of(context).scaffoldBackgroundColor,
-                            Theme.of(context).scaffoldBackgroundColor, // Reverted: Original had 2 solid colors
-                            Theme.of(context).scaffoldBackgroundColor.withAlpha((0.8 * 255).round()),
-                            Theme.of(context).scaffoldBackgroundColor.withAlpha((0.0 * 255).round()),
+                            Theme.of(context)
+                                .scaffoldBackgroundColor, // Reverted: Original had 2 solid colors
+                            Theme.of(context)
+                                .scaffoldBackgroundColor
+                                .withAlpha((0.8 * 255).round()),
+                            Theme.of(context)
+                                .scaffoldBackgroundColor
+                                .withAlpha((0.0 * 255).round()),
                           ],
                           stops: const [0.0, 0.3, 0.6, 1.0], // Reverted stops
                         ),
@@ -623,71 +1316,142 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                   ),
                 ),
                 // Buttons overlay at the bottom
-                if (!_autoScroll || _lyrics.isEmpty || _isCopyLyricsMode) // Show buttons if not auto-scrolling, lyrics empty, or in copy mode
+                if (!_autoScroll ||
+                    _lyrics.isEmpty ||
+                    _isCopyLyricsMode) // Show buttons if not auto-scrolling, lyrics empty, or in copy mode
                   Positioned(
-                    left: MediaQuery.of(context).size.width > 600 ? 24 : 16, // Reverted left positioning
-                    bottom: 24 + MediaQuery.of(context).padding.bottom, // Reverted bottom positioning
+                    left: MediaQuery.of(context).size.width > 600
+                        ? 24
+                        : 16, // Reverted left positioning
+                    bottom: 24 +
+                        MediaQuery.of(context)
+                            .padding
+                            .bottom, // Reverted bottom positioning
                     child: Padding(
-                      padding: EdgeInsets.zero, // Removed horizontal padding wrapper
+                      padding:
+                          EdgeInsets.zero, // Removed horizontal padding wrapper
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.start, // Reverted alignment to start
+                        mainAxisAlignment: MainAxisAlignment
+                            .start, // Reverted alignment to start
                         children: [
                           // Center/Resume Scroll Button
-                          if (!_autoScroll && _lyrics.isNotEmpty) // Show only if not auto-scrolling and lyrics exist
+                          if (!_autoScroll &&
+                              _lyrics.isNotEmpty &&
+                              _lyricsAreSynced) // Show only if synced lyrics exist
                             IconButton.filledTonal(
                               icon: const Icon(Icons.vertical_align_center),
                               onPressed: () {
                                 HapticFeedback.lightImpact();
                                 if (!mounted) return;
-                                // Enable auto-scroll and trigger scroll immediately
-                                setState(() { _autoScroll = true; });
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                   if (mounted && _autoScroll) {
-                                      final latestCurrentIndex = _getCurrentLineIndex(latestPosition);
-                                      _scrollToCurrentLine(latestCurrentIndex);
-                                      _previousLineIndex = latestCurrentIndex;
-                                   }
+                                _enableAutoScrollWithSuppression();
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  if (mounted && _autoScroll) {
+                                    final currentProvider =
+                                        Provider.of<SpotifyProvider>(context,
+                                            listen: false);
+                                    final currentProgressMs = currentProvider
+                                            .currentTrack?['progress_ms'] ??
+                                        0;
+                                    final latestPosition = Duration(
+                                        milliseconds: currentProgressMs);
+                                    final latestCurrentIndex =
+                                        _getCurrentLineIndex(latestPosition);
+                                    _scrollToCurrentLine(latestCurrentIndex);
+                                    _previousLineIndex = latestCurrentIndex;
+                                  }
                                 });
                               },
-                              tooltip: l10n.centerCurrentLine, // "Center Current Line"
+                              tooltip: l10n
+                                  .centerCurrentLine, // "Center Current Line"
                             ),
-                          if (!_autoScroll && _lyrics.isNotEmpty) const SizedBox(width: 8), // Spacer
+                          if (!_autoScroll &&
+                              _lyrics.isNotEmpty &&
+                              _lyricsAreSynced)
+                            const SizedBox(width: 8), // Spacer
 
-                          // Translate Button
-                          IconButton.filledTonal(
-                            icon: const Icon(Icons.translate),
-                            onPressed: _lyrics.isEmpty ? null : () {
-                              HapticFeedback.lightImpact();
-                              _translateAndShowLyrics();
-                            },
-                            tooltip: l10n.translateLyrics, // "Translate Lyrics"
+                          // Translate Button (tap for inline, long-press for full view)
+                          GestureDetector(
+                            onLongPress:
+                                (_lyrics.isEmpty || _isTranslationLoading)
+                                    ? null
+                                    : () {
+                                        HapticFeedback.mediumImpact();
+                                        _openTranslationResultPage();
+                                      },
+                            child: IconButton.filledTonal(
+                              icon: _isTranslationLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _translationsVisible &&
+                                              _hasTranslationsLoaded
+                                          ? Icons.g_translate
+                                          : Icons.translate,
+                                    ),
+                              onPressed:
+                                  (_lyrics.isEmpty || _isTranslationLoading)
+                                      ? null
+                                      : () {
+                                          HapticFeedback.lightImpact();
+                                          _handleTranslateButtonTap();
+                                        },
+                              tooltip:
+                                  l10n.translateLyrics, // "Translate Lyrics"
+                              style: (_translationsVisible &&
+                                      _hasTranslationsLoaded)
+                                  ? ButtonStyle(
+                                      backgroundColor: WidgetStateProperty.all(
+                                        Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withAlpha((0.18 * 255).round()),
+                                      ),
+                                      foregroundColor: WidgetStateProperty.all(
+                                        Theme.of(context).colorScheme.primary,
+                                      ),
+                                    )
+                                  : null,
+                            ),
                           ),
                           const SizedBox(width: 8),
 
                           // Copy/Edit Mode Button
                           IconButton.filledTonal(
                             icon: Icon(
-                              _isCopyLyricsMode 
-                                ? Icons.playlist_play_rounded // Exit icon
-                                : Icons.edit_note_rounded, // Enter icon
+                              _isCopyLyricsMode
+                                  ? Icons.playlist_play_rounded // Exit icon
+                                  : Icons.edit_note_rounded, // Enter icon
                             ),
-                            onPressed: _lyrics.isEmpty ? null : () { // Disable if no lyrics
-                              HapticFeedback.lightImpact();
-                              _toggleCopyLyricsMode();
-                            }, 
-                            tooltip: _isCopyLyricsMode 
-                                ? l10n.exitCopyModeResumeScroll // "Exit Copy Mode & Resume Scroll"
-                                : l10n.enterCopyLyricsMode, // "Enter Copy Lyrics Mode"
+                            onPressed: _lyrics.isEmpty
+                                ? null
+                                : () {
+                                    // Disable if no lyrics
+                                    HapticFeedback.lightImpact();
+                                    _toggleCopyLyricsMode();
+                                  },
+                            tooltip: _isCopyLyricsMode
+                                ? l10n
+                                    .exitCopyModeResumeScroll // "Exit Copy Mode & Resume Scroll"
+                                : l10n
+                                    .enterCopyLyricsMode, // "Enter Copy Lyrics Mode"
                             style: ButtonStyle(
                               // Visual feedback when in copy mode
-                              backgroundColor: _isCopyLyricsMode 
-                                ? WidgetStateProperty.all(
-                                    Theme.of(context).colorScheme.primary.withAlpha((0.3 * 255).round())
-                                  ) 
-                                : null,
+                              backgroundColor: _isCopyLyricsMode
+                                  ? WidgetStateProperty.all(Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withAlpha((0.3 * 255).round()))
+                                  : null,
                               foregroundColor: _isCopyLyricsMode
-                                ? WidgetStateProperty.all(Theme.of(context).colorScheme.onPrimary)
-                                : null,
+                                  ? WidgetStateProperty.all(
+                                      Theme.of(context).colorScheme.onPrimary)
+                                  : null,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -703,7 +1467,9 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
                           // Select Lyrics Button
                           IconButton.filledTonal(
                             icon: const Icon(Icons.checklist),
-                            onPressed: _lyrics.isEmpty ? null : _showLyricsSelectionPage,
+                            onPressed: _lyrics.isEmpty
+                                ? null
+                                : _showLyricsSelectionPage,
                             tooltip: l10n.selectLyricsTooltip,
                           ),
                         ],
@@ -720,30 +1486,45 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
 
   int _getCurrentLineIndex(Duration currentPosition) {
     if (_lyrics.isEmpty) return -1; // No lyrics, no index
-    
+    if (!_lyricsAreSynced) return -1;
+
     // If position is before the first timestamp, highlight nothing (-1) or first line (0)?
     // Let's choose -1 for consistency (no line is "current" yet)
     if (currentPosition < _lyrics[0].timestamp) {
       return -1; // Before the first line starts
     }
-    
+
     // Find the last line whose timestamp is less than or equal to the current position
     for (int i = _lyrics.length - 1; i >= 0; i--) {
       if (_lyrics[i].timestamp <= currentPosition) {
         return i;
       }
     }
-    
+
     // Should not happen if the first check passed, but as a fallback
-    return -1; 
+    return -1;
+  }
+
+  List<LyricLine> _buildUnsyncedLyrics(String rawLyrics) {
+    final lines = rawLyrics
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    final List<LyricLine> result = [];
+    for (var i = 0; i < lines.length; i++) {
+      result.add(LyricLine(Duration(milliseconds: i), lines[i]));
+    }
+    return result;
   }
 
   List<LyricLine> _parseLyrics(String rawLyrics) {
     final lines = rawLyrics.split('\n');
     final List<LyricLine> result = [];
-    
+
     final RegExp timeTagRegex = RegExp(r'^\[(\d{2,}):(\d{2})\.?(\d{2,3})?\]');
-    
+
     for (var line in lines) {
       final match = timeTagRegex.firstMatch(line);
       if (match != null) {
@@ -754,11 +1535,13 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
           final millisecondsStr = match.group(3);
           int milliseconds = 0;
           if (millisecondsStr != null) {
-              if (millisecondsStr.length == 2) {
-                  milliseconds = int.parse(millisecondsStr) * 10; // 2 digits -> centiseconds to milliseconds
-              } else {
-                  milliseconds = int.parse(millisecondsStr); // 3 digits -> milliseconds
-              }
+            if (millisecondsStr.length == 2) {
+              milliseconds = int.parse(millisecondsStr) *
+                  10; // 2 digits -> centiseconds to milliseconds
+            } else {
+              milliseconds =
+                  int.parse(millisecondsStr); // 3 digits -> milliseconds
+            }
           }
 
           final timestamp = Duration(
@@ -769,14 +1552,15 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
 
           var text = line.substring(match.end).trim();
           // Decode common HTML entities
-          text = text.replaceAll('&apos;', "'")
-                    .replaceAll('&quot;', '"')
-                    .replaceAll('&amp;', '&')
-                    .replaceAll('&lt;', '<')
-                    .replaceAll('&gt;', '>');
-                    
+          text = text
+              .replaceAll('&apos;', "'")
+              .replaceAll('&quot;', '"')
+              .replaceAll('&amp;', '&')
+              .replaceAll('&lt;', '<')
+              .replaceAll('&gt;', '>');
+
           // Add line only if the text part is not empty
-          if (text.isNotEmpty) { 
+          if (text.isNotEmpty) {
             result.add(LyricLine(timestamp, text));
           }
         } catch (e) {
@@ -784,21 +1568,21 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
           // debugPrint('Failed to parse lyric line: $line, Error: $e');
         }
       } else if (line.trim().isNotEmpty && !line.trim().startsWith('[')) {
-          // Handle lines without timestamps (e.g., for unsynced lyrics)
-          // Assign a zero timestamp or handle differently? For now, assign zero.
-          // Or maybe filter them out if only synced lyrics are desired.
-          // Let's add them with a zero timestamp for now.
-          // result.add(LyricLine(Duration.zero, line.trim()));
-          // --> Let's actually SKIP lines without valid timestamps for synced lyrics.
+        // Handle lines without timestamps (e.g., for unsynced lyrics)
+        // Assign a zero timestamp or handle differently? For now, assign zero.
+        // Or maybe filter them out if only synced lyrics are desired.
+        // Let's add them with a zero timestamp for now.
+        // result.add(LyricLine(Duration.zero, line.trim()));
+        // --> Let's actually SKIP lines without valid timestamps for synced lyrics.
       }
     }
-    
+
     // Sort lines by timestamp just in case they weren't ordered
     result.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    
+
     // Optional: Merge consecutive lines with the same timestamp?
     // For now, keep them separate.
-    
+
     return result;
   }
 
@@ -806,27 +1590,31 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
     if (!mounted) return;
 
     final provider = Provider.of<SpotifyProvider>(context, listen: false);
+    final wasCopyMode = _isCopyLyricsMode;
 
     setState(() {
       if (_isCopyLyricsMode) {
         // --- Exiting copy mode ---
         _isCopyLyricsMode = false;
-        _autoScroll = true; // Resume auto-scroll implicitly
+        _autoScroll = _lyricsAreSynced; // Resume auto-scroll only when synced
+        _temporarilyIgnoreUserScroll = true;
         // Restore previous play mode if it was saved
         if (_previousPlayMode != null) {
-          provider.setPlayMode(_previousPlayMode!); 
+          provider.setPlayMode(_previousPlayMode!);
           _previousPlayMode = null; // Clear saved mode
         }
         // Trigger scroll after exiting copy mode and enabling autoScroll
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _autoScroll) {
             // Get latest index based on provider's progress
-            final currentProgressMs = provider.currentTrack?['progress_ms'] ?? 0;
+            final currentProgressMs =
+                provider.currentTrack?['progress_ms'] ?? 0;
             final currentPosition = Duration(milliseconds: currentProgressMs);
             final latestCurrentIndex = _getCurrentLineIndex(currentPosition);
             if (latestCurrentIndex >= 0) {
-                _scrollToCurrentLine(latestCurrentIndex);
-                _previousLineIndex = latestCurrentIndex; // Update index after scroll
+              _scrollToCurrentLine(latestCurrentIndex);
+              _previousLineIndex =
+                  latestCurrentIndex; // Update index after scroll
             }
           }
         });
@@ -834,10 +1622,12 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
         // --- Entering copy mode ---
         _isCopyLyricsMode = true;
         _autoScroll = false; // Disable auto-scroll explicitly
+        _temporarilyIgnoreUserScroll = false;
+        _userScrollSuppressionTimer?.cancel();
         // Store current mode and set to single repeat
         _previousPlayMode = provider.currentMode;
         provider.setPlayMode(PlayMode.singleRepeat);
-        
+
         // Show snackbar hint using NotificationService
         if (mounted) {
           final l10n = AppLocalizations.of(context)!;
@@ -848,41 +1638,62 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
         }
       }
     });
+
+    if (wasCopyMode) {
+      _userScrollSuppressionTimer?.cancel();
+      _userScrollSuppressionTimer = Timer(
+        const Duration(milliseconds: 350),
+        () {
+          if (!mounted) return;
+          setState(() {
+            _temporarilyIgnoreUserScroll = false;
+          });
+        },
+      );
+    }
   }
 
   // Method to navigate to the lyrics search page
   void _showSearchLyricsPage() {
     if (!mounted) return;
-    
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrack = spotifyProvider.currentTrack?['item'];
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     final l10n = AppLocalizations.of(context)!;
 
     if (currentTrack == null) {
       notificationService.showSnackBar(l10n.noCurrentTrackPlaying);
       return;
     }
-    
+
     final trackId = currentTrack['id'];
     final trackName = currentTrack['name'] ?? '';
     final artistName = (currentTrack['artists'] as List?)
-                          ?.map((artist) => artist['name'] as String)
-                          .join(', ') ?? ''; // Join multiple artists
-    
+            ?.map((artist) => artist['name'] as String)
+            .join(', ') ??
+        ''; // Join multiple artists
+
     if (trackId == null || trackName.isEmpty) {
       notificationService.showSnackBar(l10n.cannotGetTrackInfo);
       return;
     }
-    
+
     // Pause current auto-scrolling before pushing the new page
     final wasAutoScrollEnabled = _autoScroll;
     if (_autoScroll) {
-      setState(() { _autoScroll = false; });
+      setState(() {
+        _autoScroll = false;
+        _temporarilyIgnoreUserScroll = false;
+        _userScrollSuppressionTimer?.cancel();
+      });
     }
-    
+
     // Navigate to the search page
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       MaterialPageRoute(
         builder: (context) => LyricsSearchPage(
           initialTrackTitle: trackName,
@@ -890,72 +1701,104 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
           trackId: trackId,
         ),
       ),
-    ).then((result) {
+    )
+        .then((result) {
       // This block executes when the search page is popped
       if (!mounted) return; // Check if widget is still mounted
 
       // If lyrics were returned from the search page
       if (result != null && result is String && result.isNotEmpty) {
-        final newLyrics = _parseLyrics(result);
+        final summary = LyricTimingUtils.summarize(result);
+        final parsed = _parseLyrics(result);
+        final bool synced = summary.hasTimestamps && parsed.isNotEmpty;
+        final newLyrics = synced ? parsed : _buildUnsyncedLyrics(result);
         setState(() {
           _lyrics = newLyrics;
-          _lastTrackId = trackId; // Update last track ID as we applied lyrics for it
-          _lineHeights.clear(); // Clear old heights
+          _lyricsAreSynced = synced;
+          _lastTrackId =
+              trackId; // Update last track ID as we applied lyrics for it
           _previousLineIndex = -1; // Reset previous index
+          _translationsVisible = false;
+          _isTranslationLoading = false;
+          _syncLineKeys(_lyrics.length);
 
           // Restore auto-scroll if it was enabled before searching
-          if (wasAutoScrollEnabled) {
+          if (wasAutoScrollEnabled && synced) {
             _autoScroll = true;
-            
+            _temporarilyIgnoreUserScroll = true;
+
             // Trigger scroll to the current position after lyrics update
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted && _autoScroll) {
-                final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] ?? 0;
-                final currentPosition = Duration(milliseconds: currentProgressMs);
+                final currentProgressMs =
+                    spotifyProvider.currentTrack?['progress_ms'] ?? 0;
+                final currentPosition =
+                    Duration(milliseconds: currentProgressMs);
                 final currentIndex = _getCurrentLineIndex(currentPosition);
                 if (currentIndex >= 0) {
-                  _ensureLineHeightsAvailable(); // Ensure heights estimated
                   _scrollToCurrentLine(currentIndex);
                   _previousLineIndex = currentIndex;
                 }
               }
             });
           } else {
-             _autoScroll = false; // Keep it disabled if it was disabled before
+            _autoScroll = false; // Keep it disabled if it was disabled before
+            _temporarilyIgnoreUserScroll = false;
+            _userScrollSuppressionTimer?.cancel();
           }
         });
-        
+
+        if (_lyrics.isNotEmpty) {
+          unawaited(_maybeTriggerAutoTranslate());
+        }
+
+        if (wasAutoScrollEnabled && _lyricsAreSynced && _autoScroll) {
+          _userScrollSuppressionTimer?.cancel();
+          _userScrollSuppressionTimer = Timer(
+            const Duration(milliseconds: 350),
+            () {
+              if (!mounted) return;
+              setState(() {
+                _temporarilyIgnoreUserScroll = false;
+              });
+            },
+          );
+        }
+
         // Show success message
         notificationService.showSnackBar(l10n.lyricsSearchAppliedSuccess);
       } else {
-         // If no lyrics were returned or user cancelled,
-         // restore auto-scroll state if it was previously enabled
-         if (wasAutoScrollEnabled && !_autoScroll) {
-            setState(() { _autoScroll = true; });
-            // Optionally trigger scroll again if needed upon returning
-            WidgetsBinding.instance.addPostFrameCallback((_){
-               if(mounted && _autoScroll) {
-                  final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] ?? 0;
-                  final currentPosition = Duration(milliseconds: currentProgressMs);
-                  final currentIndex = _getCurrentLineIndex(currentPosition);
-                   if (currentIndex >= 0) {
-                       _scrollToCurrentLine(currentIndex);
-                       _previousLineIndex = currentIndex;
-                   }
-               }
-            });
-         }
+        // If no lyrics were returned or user cancelled,
+        // restore auto-scroll state if it was previously enabled
+        if (wasAutoScrollEnabled && !_autoScroll) {
+          _enableAutoScrollWithSuppression();
+          // Optionally trigger scroll again if needed upon returning
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _autoScroll) {
+              final currentProgressMs =
+                  spotifyProvider.currentTrack?['progress_ms'] ?? 0;
+              final currentPosition = Duration(milliseconds: currentProgressMs);
+              final currentIndex = _getCurrentLineIndex(currentPosition);
+              if (currentIndex >= 0) {
+                _scrollToCurrentLine(currentIndex);
+                _previousLineIndex = currentIndex;
+              }
+            }
+          });
+        }
       }
     });
   }
 
   // Method to navigate to the lyrics selection page
-  void _showLyricsSelectionPage() {
+  Future<void> _showLyricsSelectionPage() async {
     if (!mounted) return;
-    
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrack = spotifyProvider.currentTrack?['item'];
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     final l10n = AppLocalizations.of(context)!;
 
     if (currentTrack == null) {
@@ -967,125 +1810,100 @@ class _LyricsWidgetState extends State<LyricsWidget> with AutomaticKeepAliveClie
       notificationService.showSnackBar(l10n.noLyricsToSelect);
       return;
     }
-    
+
     final trackName = currentTrack['name'] ?? '';
     final artistName = (currentTrack['artists'] as List?)
-                          ?.map((artist) => artist['name'] as String)
-                          .join(', ') ?? '';
-    final albumCoverUrl = (currentTrack['album']?['images'] as List?)?.isNotEmpty == true
-                        ? currentTrack['album']['images'][0]['url']
-                        : null;
-    
+            ?.map((artist) => artist['name'] as String)
+            .join(', ') ??
+        '';
+    final albumCoverUrl =
+        (currentTrack['album']?['images'] as List?)?.isNotEmpty == true
+            ? currentTrack['album']['images'][0]['url']
+            : null;
+
     // 暂停当前的自动滚动
     final wasAutoScrollEnabled = _autoScroll;
     if (_autoScroll) {
-      setState(() { _autoScroll = false; });
+      setState(() {
+        _autoScroll = false;
+        _temporarilyIgnoreUserScroll = false;
+        _userScrollSuppressionTimer?.cancel();
+      });
     }
-    
-    // 准备歌词数据，包含时间戳和文本
-    final List<Map<String, dynamic>> lyricsData = _lyrics.map((line) => {
-      'timestamp': line.timestamp,
-      'text': line.text,
-    }).toList();
-    
-    // 导航到选择页面
-    Navigator.of(context).push(
+
+    final originalLines = _lyrics.map((line) => line.text).toList();
+    final originalLyricsJoined = originalLines.join('\n');
+    final currentStyle =
+        _activeTranslationStyle ?? await _settingsService.getTranslationStyle();
+
+    if (!mounted) return;
+
+    final List<Map<String, dynamic>> lyricsData = _lyrics
+        .map((line) => {
+              'timestamp': line.timestamp,
+              'text': line.text,
+              'translation': line.translation,
+            })
+        .toList();
+
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => LyricsSelectionPage(
-          lyrics: lyricsData, //传递包含时间戳和文本的列表
+          lyrics: lyricsData,
           trackTitle: trackName,
           artistName: artistName,
           albumCoverUrl: albumCoverUrl,
+          initialShowTranslation: _translationsVisible,
+          initialStyle: currentStyle,
+          loadTranslation: ({
+            bool forceRefresh = false,
+            TranslationStyle? style,
+          }) {
+            return _loadTranslationData(
+              forceRefresh: forceRefresh,
+              style: style,
+              overrideOriginalLines: originalLines,
+            );
+          },
+          originalLyrics: originalLyricsJoined,
         ),
       ),
-    ).then((_) {
-      // 页面返回后恢复自动滚动状态
-      if (!mounted) return;
-      
-      if (wasAutoScrollEnabled && !_autoScroll) {
-        setState(() { _autoScroll = true; });
-        // 触发滚动到当前位置
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _autoScroll) {
-            final currentProgressMs = spotifyProvider.currentTrack?['progress_ms'] ?? 0;
-            final currentPosition = Duration(milliseconds: currentProgressMs);
-            final currentIndex = _getCurrentLineIndex(currentPosition);
-            if (currentIndex >= 0) {
-              _scrollToCurrentLine(currentIndex);
-              _previousLineIndex = currentIndex;
-            }
-          }
-        });
-      }
-    });
-  }
-}
-
-class MeasureSize extends StatefulWidget {
-  final Widget child;
-  final Function(Size) onChange;
-
-  const MeasureSize({
-    super.key, // Use super parameter
-    required this.onChange,
-    required this.child,
-  });
-
-  @override
-  // ignore: library_private_types_in_public_api
-  _MeasureSizeState createState() => _MeasureSizeState();
-}
-
-class _MeasureSizeState extends State<MeasureSize> {
-  final widgetKey = GlobalKey();
-  Size? oldSize;
-
-  @override
-  void initState() {
-    super.initState();
-    // 初始构建后立即测量尺寸
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _measureSize();
-    });
-  }
-  
-  @override
-  void didUpdateWidget(MeasureSize oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 组件更新后检查尺寸变化
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _measureSize();
-    });
-  }
-
-  void _measureSize() {
-    if (!mounted) return;
-    
-    final context = widgetKey.currentContext;
-    if (context == null) return;
-    
-    final RenderBox box = context.findRenderObject() as RenderBox;
-    if (!box.hasSize) {
-      // 如果尺寸还不可用，在下一帧再次尝试
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _measureSize();
-      });
-      return;
-    }
-    
-    final size = box.size;
-    
-    if (oldSize != size) {
-      oldSize = size;
-      widget.onChange(size);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: widgetKey,
-      child: widget.child,
     );
+
+    if (!mounted) return;
+
+    if (_translationsVisible) {
+      try {
+        final result = await _loadTranslationData(
+          overrideOriginalLines: originalLines,
+          style: _activeTranslationStyle,
+        );
+        if (mounted) {
+          setState(() {
+            _applyTranslationToLyrics(result.perLineTranslations);
+            _activeTranslationStyle = result.style;
+          });
+          _scheduleRealignScroll();
+        }
+      } catch (_) {
+        // Ignore refresh errors; UI will keep existing translations.
+      }
+    }
+
+    if (wasAutoScrollEnabled && !_autoScroll) {
+      _enableAutoScrollWithSuppression();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _autoScroll) {
+          final currentProgressMs =
+              spotifyProvider.currentTrack?['progress_ms'] ?? 0;
+          final currentPosition = Duration(milliseconds: currentProgressMs);
+          final currentIndex = _getCurrentLineIndex(currentPosition);
+          if (currentIndex >= 0) {
+            _scrollToCurrentLine(currentIndex);
+            _previousLineIndex = currentIndex;
+          }
+        }
+      });
+    }
   }
 }

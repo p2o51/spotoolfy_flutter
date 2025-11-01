@@ -14,6 +14,9 @@ class LibraryProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _userPlaylists = [];
   List<Map<String, dynamic>> _userSavedAlbums = [];
 
+  String? _activeUsername;
+  String? _refreshWarningMessage;
+
   // Filters
   bool _showPlaylists = true;
   bool _showAlbums = true;
@@ -40,6 +43,8 @@ class LibraryProvider extends ChangeNotifier {
   bool get isLoadingMore => _isLoadingMore;
   bool get isFirstLoad => _isFirstLoad;
   String? get errorMessage => _errorMessage;
+  bool get hasData => _userPlaylists.isNotEmpty || _userSavedAlbums.isNotEmpty;
+  String? get refreshWarningMessage => _refreshWarningMessage;
 
   // Combined items based on filters
   List<Map<String, dynamic>> get filteredItems {
@@ -66,13 +71,42 @@ class LibraryProvider extends ChangeNotifier {
     return items;
   }
 
+  void _handleSpotifyProviderChange() {
+    _syncActiveUser();
+  }
+
+  void _syncActiveUser() {
+    final username = _spotifyProvider.username;
+    if (username == _activeUsername) {
+      return;
+    }
+
+    _activeUsername = username;
+    _cacheService.setActiveUser(username);
+
+    if (username == null) {
+      _userPlaylists = [];
+      _userSavedAlbums = [];
+      _refreshWarningMessage = null;
+      _errorMessage = null;
+      _isFirstLoad = true;
+      notifyListeners();
+      return;
+    }
+
+    _userPlaylists = [];
+    _userSavedAlbums = [];
+    _refreshWarningMessage = null;
+    _errorMessage = null;
+    _isFirstLoad = true;
+    notifyListeners();
+    loadData();
+  }
+
   LibraryProvider(this._spotifyProvider, {LibraryCacheService? cacheService})
       : _cacheService = cacheService ?? LibraryCacheService() {
-    // Only load data initially if the user is already authenticated
-    // loadData will now check cache first
-    if (_spotifyProvider.username != null) {
-      loadData();
-    }
+    _spotifyProvider.addListener(_handleSpotifyProviderChange);
+    _syncActiveUser();
   }
 
   // Update filter settings
@@ -96,21 +130,32 @@ class LibraryProvider extends ChangeNotifier {
 
   // Main data loading method with cache logic
   Future<void> loadData({bool forceRefresh = false}) async {
-    if (_isLoading) return;
-
-    // Check authentication first
-    if (_spotifyProvider.username == null) {
-      logger.d("Cannot load library data: User not authenticated");
-      _errorMessage = 'Please log in to Spotify to view your library';
-      _isLoading = false;
-      notifyListeners();
+    if (_isLoading) {
       return;
     }
 
-    _errorMessage = null;
+    final username = _spotifyProvider.username;
+    _cacheService.setActiveUser(username);
+    _activeUsername = username;
 
-    var hasExistingData =
-        _userPlaylists.isNotEmpty || _userSavedAlbums.isNotEmpty;
+    if (username == null) {
+      logger.d("Cannot load library data: User not authenticated");
+      if (hasData || _errorMessage != null || _refreshWarningMessage != null) {
+        _userPlaylists = [];
+        _userSavedAlbums = [];
+        _errorMessage = null;
+        _refreshWarningMessage = null;
+        _isFirstLoad = true;
+        notifyListeners();
+      }
+      return;
+    }
+
+    if (!forceRefresh) {
+      _errorMessage = null;
+    }
+
+    var hasExistingData = hasData;
 
     if (!forceRefresh) {
       final stopwatch = Stopwatch()..start();
@@ -119,8 +164,7 @@ class LibraryProvider extends ChangeNotifier {
       logger.d("Cache load attempt took ${stopwatch.elapsedMilliseconds}ms");
 
       if (cacheLoaded) {
-        hasExistingData =
-            _userPlaylists.isNotEmpty || _userSavedAlbums.isNotEmpty;
+        hasExistingData = hasData;
         _isFirstLoad = false;
         notifyListeners();
         await _fetchFromApi(showLoadingIndicator: !hasExistingData);
@@ -133,6 +177,8 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> _fetchFromApi({required bool showLoadingIndicator}) async {
     if (_isLoading) return;
+
+    final hadDataBeforeFetch = hasData;
 
     if (showLoadingIndicator) {
       _isLoading = true;
@@ -158,18 +204,28 @@ class LibraryProvider extends ChangeNotifier {
           "Loaded ${_userPlaylists.length} playlists and ${_userSavedAlbums.length} albums");
 
       _isFirstLoad = false;
+      _errorMessage = null;
+      _refreshWarningMessage = null;
       await _saveToCache();
     } catch (e) {
-      _errorMessage = 'Failed to load library data: $e';
-      logger.w(_errorMessage);
+      final failureMessage = 'Failed to refresh library data: $e';
+      logger.w(failureMessage);
 
-      if (_userPlaylists.isEmpty && _userSavedAlbums.isEmpty) {
+      if (hadDataBeforeFetch) {
+        _refreshWarningMessage = failureMessage;
+      } else {
+        _errorMessage = failureMessage;
+      }
+
+      if (!hadDataBeforeFetch) {
         logger.i("API failed, attempting to load expired cache as fallback...");
         final cacheLoaded = await _loadFromCache(ignoreTimestamp: true);
         if (cacheLoaded) {
           logger.i("Successfully loaded expired cache as fallback");
-          _errorMessage =
+          _errorMessage = null;
+          _refreshWarningMessage =
               'Using cached data - please refresh when connection improves';
+          _isFirstLoad = false;
         }
       }
     } finally {
@@ -245,6 +301,8 @@ class LibraryProvider extends ChangeNotifier {
     // Also clear in-memory data
     _userPlaylists = [];
     _userSavedAlbums = [];
+    _refreshWarningMessage = null;
+    _errorMessage = null;
     _isFirstLoad = true;
     notifyListeners();
   }
@@ -257,6 +315,7 @@ class LibraryProvider extends ChangeNotifier {
     _userSavedAlbums = [];
     _isFirstLoad = true;
     _errorMessage = null;
+    _refreshWarningMessage = null;
     notifyListeners();
     // 不清除磁盘缓存，以便重新登录后快速加载
   }
@@ -302,7 +361,7 @@ class LibraryProvider extends ChangeNotifier {
       _isLoadingMore = false;
       notifyListeners();
     } catch (e) {
-      _errorMessage = 'Failed to load more data: $e';
+      _refreshWarningMessage = 'Failed to load more data: $e';
       _isLoadingMore = false;
       notifyListeners();
     }
@@ -311,15 +370,17 @@ class LibraryProvider extends ChangeNotifier {
   // Handle login state changes
   void handleAuthStateChange(bool isAuthenticated) {
     if (isAuthenticated) {
-      // Try loading data (which will check cache first)
-      // Don't check _isFirstLoad here, always try loading on login
-      loadData();
+      _syncActiveUser();
+      loadData(forceRefresh: true);
     } else {
       // 仅清除内存数据，保留缓存以便下次登录时快速加载
       _userPlaylists = [];
       _userSavedAlbums = [];
       _isFirstLoad = true;
       _errorMessage = null; // 清除错误信息
+      _refreshWarningMessage = null;
+      _cacheService.setActiveUser(null);
+      _activeUsername = null;
       logger.i(
           "Auth state changed to logged out - keeping cache for faster re-login");
       // OPTIMIZATION: Keep cache across login sessions to improve re-login experience
@@ -327,6 +388,12 @@ class LibraryProvider extends ChangeNotifier {
       // _clearCache(); // Don't clear cache on logout by default
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _spotifyProvider.removeListener(_handleSpotifyProviderChange);
+    super.dispose();
   }
 
   // Play a library item

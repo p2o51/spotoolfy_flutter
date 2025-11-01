@@ -168,84 +168,84 @@ class _LibrarySectionState extends State<LibrarySection> {
         return CustomScrollView(
           controller: _scrollController,
           slivers: [
-              // Remove the SearchBar placeholder
-              // SliverToBoxAdapter(child: SizedBox(height: 0)),
+            // Remove the SearchBar placeholder
+            // SliverToBoxAdapter(child: SizedBox(height: 0)),
 
-              // Carousel section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: const MyCarouselView(),
+            // Carousel section
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: const MyCarouselView(),
+              ),
+            ),
+
+            // Insert WavyDivider here
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0), // Added horizontal padding
+                child: WavyDivider(
+                  height: 10,
+                  waveHeight: 3,
+                  waveFrequency: 0.03,
+                  // Color will default to theme primary color
                 ),
               ),
+            ),
 
-              // Insert WavyDivider here
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0), // Added horizontal padding
-                  child: WavyDivider(
-                    height: 10,
-                    waveHeight: 3,
-                    waveFrequency: 0.03,
-                    // Color will default to theme primary color
+            // "YOUR LIBRARY" header
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: custom_ui.IconHeader(
+                    icon: Icons.library_music,
+                    text: AppLocalizations.of(context)!.yourLibrary,
                   ),
                 ),
               ),
-
-              // "YOUR LIBRARY" header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: custom_ui.IconHeader(
-                      icon: Icons.library_music,
-                      text: AppLocalizations.of(context)!.yourLibrary,
-                    ),
-                  ),
-                ),
-              ),
-              // Filter chips
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      FilterChip(
-                        selected: libraryProvider.showPlaylists,
-                        label: Text(AppLocalizations.of(context)!.playlistsTab),
-                        onSelected: (bool selected) {
-                          HapticFeedback.lightImpact();
-                          libraryProvider.setFilters(showPlaylists: selected);
-                        },
-                      ),
-                      FilterChip(
-                        selected: libraryProvider.showAlbums,
-                        label: Text(AppLocalizations.of(context)!.albumsTab),
-                        onSelected: (bool selected) {
-                          HapticFeedback.lightImpact();
-                          libraryProvider.setFilters(showAlbums: selected);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Add SizedBox for spacing below filter chips
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 10.0), // Adjust height as needed
-              ),
-
-              // Add SliverPadding around the grid and loading states
-              SliverPadding(
+            ),
+            // Filter chips
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: _buildContentSliver(
-                    context, libraryProvider, gridCrossAxisCount),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    FilterChip(
+                      selected: libraryProvider.showPlaylists,
+                      label: Text(AppLocalizations.of(context)!.playlistsTab),
+                      onSelected: (bool selected) {
+                        HapticFeedback.lightImpact();
+                        libraryProvider.setFilters(showPlaylists: selected);
+                      },
+                    ),
+                    FilterChip(
+                      selected: libraryProvider.showAlbums,
+                      label: Text(AppLocalizations.of(context)!.albumsTab),
+                      onSelected: (bool selected) {
+                        HapticFeedback.lightImpact();
+                        libraryProvider.setFilters(showAlbums: selected);
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ],
-          );
+            ),
+
+            // Add SizedBox for spacing below filter chips
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 10.0), // Adjust height as needed
+            ),
+
+            // Add SliverPadding around the grid and loading states
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: _buildContentSliver(
+                  context, libraryProvider, gridCrossAxisCount),
+            ),
+          ],
+        );
       },
     );
   }
@@ -253,10 +253,16 @@ class _LibrarySectionState extends State<LibrarySection> {
   // Helper method to build the main content sliver
   Widget _buildContentSliver(BuildContext context,
       LibraryProvider libraryProvider, int gridCrossAxisCount) {
-    if (libraryProvider.isLoading && libraryProvider.isFirstLoad) {
+    final hasItems = libraryProvider.filteredItems.isNotEmpty;
+    if (libraryProvider.isLoading && libraryProvider.isFirstLoad && !hasItems) {
       // Show skeleton grid during first load
       return LibraryGridSkeleton(gridCrossAxisCount: gridCrossAxisCount);
-    } else if (libraryProvider.errorMessage != null) {
+    }
+
+    final bool hasFatalError =
+        !libraryProvider.hasData && libraryProvider.errorMessage != null;
+
+    if (hasFatalError) {
       // Show error message
       return SliverFillRemaining(
         hasScrollBody: false,
@@ -292,34 +298,76 @@ class _LibrarySectionState extends State<LibrarySection> {
           ),
         ),
       );
-    } else {
-      // Show the actual grid
-      return SliverMainAxisGroup(
-        slivers: [
-          LibraryGrid(
-            items: libraryProvider.filteredItems,
-            gridCrossAxisCount: gridCrossAxisCount,
-            onItemTap: (item) => _handleLibraryItemTap(context, item),
-          ),
-          // Show loading indicator for loading more at the bottom
-          if (libraryProvider.isLoadingMore)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.0),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-          // Show overlay loading indicator for non-first load
-          // This might need rethinking, overlaying on a sliver is tricky
-          // if (libraryProvider.isLoading && !libraryProvider.isFirstLoad)
-          //   SliverFillRemaining(
-          //     child: Container(
-          //       color: Colors.black.withOpacity(0.1),
-          //       child: const Center(child: RefreshProgressIndicator()),
-          //     ),
-          //   ),
-        ],
-      );
     }
+
+    final String? warningMessage = libraryProvider.refreshWarningMessage ??
+        (libraryProvider.hasData ? libraryProvider.errorMessage : null);
+
+    // Show the actual grid with optional warning banners
+    return SliverMainAxisGroup(
+      slivers: [
+        if (warningMessage != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: _buildWarningBanner(context, warningMessage),
+            ),
+          ),
+        LibraryGrid(
+          items: libraryProvider.filteredItems,
+          gridCrossAxisCount: gridCrossAxisCount,
+          onItemTap: (item) => _handleLibraryItemTap(context, item),
+        ),
+        if (libraryProvider.isLoading && !libraryProvider.isFirstLoad)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+        // Show loading indicator for loading more at the bottom
+        if (libraryProvider.isLoadingMore)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildWarningBanner(BuildContext context, String message) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final background =
+        colorScheme.errorContainer.withAlpha((0.85 * 255).round());
+    final foreground = colorScheme.onErrorContainer;
+
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(
+          color: colorScheme.error.withAlpha((0.6 * 255).round()),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: colorScheme.error, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: foreground),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

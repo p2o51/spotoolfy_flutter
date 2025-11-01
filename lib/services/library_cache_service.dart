@@ -26,16 +26,46 @@ class LibraryCacheService {
   final Logger _logger;
   static const String _fileName = 'library_cache.json';
 
+  String? _activeUserId;
+
+  /// Select the Spotify user whose library should be cached.
+  void setActiveUser(String? userId) {
+    final trimmed = userId?.trim();
+    final nextId = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+    if (_activeUserId == nextId) return;
+    _activeUserId = nextId;
+  }
+
+  String get _resolvedFileName {
+    final userId = _activeUserId;
+    if (userId == null) return _fileName;
+    return 'library_cache_${_sanitizeUserId(userId)}.json';
+  }
+
   Future<File> _getCacheFile() async {
     final directory = await getApplicationSupportDirectory();
-    return File('${directory.path}/$_fileName');
+    return File('${directory.path}/$_resolvedFileName');
+  }
+
+  Future<File?> _getLegacyCacheFileIfPresent() async {
+    if (_activeUserId == null) return null;
+    final directory = await getApplicationSupportDirectory();
+    final file = File('${directory.path}/$_fileName');
+    if (await file.exists()) {
+      return file;
+    }
+    return null;
   }
 
   Future<LibraryCacheResult?> loadCache() async {
     try {
-      final file = await _getCacheFile();
+      var file = await _getCacheFile();
       if (!await file.exists()) {
-        return null;
+        final legacyFile = await _getLegacyCacheFileIfPresent();
+        if (legacyFile == null || !await legacyFile.exists()) {
+          return null;
+        }
+        file = legacyFile;
       }
 
       final raw = await file.readAsString();
@@ -87,6 +117,11 @@ class LibraryCacheService {
     required List<Map<String, dynamic>> playlists,
     required List<Map<String, dynamic>> albums,
   }) async {
+    if (_activeUserId == null) {
+      _logger.w(
+          'Attempted to save library cache without active user context - skipping.');
+      return;
+    }
     try {
       final file = await _getCacheFile();
       final payload = <String, dynamic>{
@@ -116,9 +151,20 @@ class LibraryCacheService {
   Future<bool> hasCache() async {
     try {
       final file = await _getCacheFile();
-      return file.exists();
+      if (await file.exists()) {
+        return true;
+      }
+      final legacyFile = await _getLegacyCacheFileIfPresent();
+      if (legacyFile != null && await legacyFile.exists()) {
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
+  }
+
+  String _sanitizeUserId(String userId) {
+    return userId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
   }
 }

@@ -264,10 +264,10 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
                   // 显示语言名称
                   switch (snapshot.data) {
-                    case 'en': languageDisplay = "English"; break;
-                    case 'zh-CN': languageDisplay = "简体中文"; break;
-                    case 'zh-TW': languageDisplay = "繁體中文"; break;
-                    case 'ja': languageDisplay = "日本語"; break;
+                    case 'en': languageDisplay = l10n.languageEnglish; break;
+                    case 'zh-CN': languageDisplay = l10n.languageSimplifiedChinese; break;
+                    case 'zh-TW': languageDisplay = l10n.languageTraditionalChinese; break;
+                    case 'ja': languageDisplay = l10n.languageJapanese; break;
                     default: languageDisplay = snapshot.data ?? "";
                   }
                 }
@@ -291,9 +291,9 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
                   // 显示翻译样式名称
                   switch (snapshot.data) {
-                    case TranslationStyle.faithful: styleDisplay = "Faithful"; break;
-                    case TranslationStyle.melodramaticPoet: styleDisplay = "Melodramatic Poet"; break;
-                    case TranslationStyle.machineClassic: styleDisplay = "Machine Classic"; break;
+                    case TranslationStyle.faithful: styleDisplay = l10n.translationStyleFaithful; break;
+                    case TranslationStyle.melodramaticPoet: styleDisplay = l10n.translationStyleMelodramaticPoet; break;
+                    case TranslationStyle.machineClassic: styleDisplay = l10n.translationStyleMachineClassic; break;
                     default: styleDisplay = "";
                   }
                 }
@@ -307,6 +307,13 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                   }),
                 );
               },
+            ),
+            const SizedBox(height: kElementSpacing),
+            _buildAutoTranslateSwitchMenuItem(
+              context,
+              icon: Icons.auto_mode,
+              title: l10n.autoTranslateLyricsTitle,
+              subtitle: l10n.autoTranslateLyricsSubtitle,
             ),
             const SizedBox(height: kElementSpacing),
             _buildSwitchMenuItem(
@@ -427,6 +434,87 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAutoTranslateSwitchMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final settingsService = Provider.of<SettingsService>(context, listen: false);
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return FutureBuilder<bool>(
+          future: settingsService.getAutoTranslateLyricsEnabled(),
+          builder: (context, snapshot) {
+            bool autoTranslateEnabled = false;
+            if (snapshot.hasData) {
+              autoTranslateEnabled = snapshot.data!;
+            }
+
+            return InkWell(
+              onTap: () {
+                if (snapshot.hasData) {
+                  HapticFeedback.lightImpact();
+                  final newValue = !autoTranslateEnabled;
+                  settingsService.saveAutoTranslateLyricsEnabled(newValue);
+                  setState(() {});
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(kSmallSpacing),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: kElementSpacing),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: autoTranslateEnabled,
+                      onChanged: (bool value) {
+                        HapticFeedback.lightImpact();
+                        settingsService.saveAutoTranslateLyricsEnabled(value);
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -696,7 +784,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                   onPressed: () {
                     launchUrl(Uri.parse('https://spotoolfy.gojyuplus.one/config'));
                   },
-                  child: Text('Tutorial'),
+                  child: Text(l10n.tutorialButtonText),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -758,7 +846,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     RadioListTile<String>(
-                      title: const Text('English'),
+                      title: Text(l10n.languageEnglish),
                       value: 'en',
                       groupValue: currentLanguage,
                       onChanged: (value) async {
@@ -777,7 +865,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       },
                     ),
                     RadioListTile<String>(
-                      title: const Text('简体中文 (Simplified Chinese)'),
+                      title: Text(l10n.languageSimplifiedChinese),
                       value: 'zh-CN',
                       groupValue: currentLanguage,
                       onChanged: (value) async {
@@ -796,7 +884,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       },
                     ),
                     RadioListTile<String>(
-                      title: const Text('繁體中文 (Traditional Chinese)'),
+                      title: Text(l10n.languageTraditionalChinese),
                       value: 'zh-TW',
                       groupValue: currentLanguage,
                       onChanged: (value) async {
@@ -815,7 +903,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       },
                     ),
                     RadioListTile<String>(
-                      title: const Text('日本語 (Japanese)'),
+                      title: Text(l10n.languageJapanese),
                       value: 'ja',
                       groupValue: currentLanguage,
                       onChanged: (value) async {
@@ -871,7 +959,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     RadioListTile<TranslationStyle>(
-                      title: const Text("Faithful"), // Use enum name
+                      title: Text(l10n.translationStyleFaithful),
                       value: TranslationStyle.faithful, 
                       groupValue: currentStyle,
                       onChanged: (TranslationStyle? value) async {
@@ -890,7 +978,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       },
                     ),
                     RadioListTile<TranslationStyle>(
-                      title: const Text("Melodramatic Poet"), // Use formatted enum name
+                      title: Text(l10n.translationStyleMelodramaticPoet),
                       value: TranslationStyle.melodramaticPoet, 
                       groupValue: currentStyle,
                       onChanged: (TranslationStyle? value) async {
@@ -909,7 +997,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       },
                     ),
                     RadioListTile<TranslationStyle>(
-                      title: const Text("Machine Classic"), // Use formatted enum name
+                      title: Text(l10n.translationStyleMachineClassic),
                       value: TranslationStyle.machineClassic, 
                       groupValue: currentStyle,
                       onChanged: (TranslationStyle? value) async {

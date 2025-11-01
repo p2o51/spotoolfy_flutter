@@ -413,6 +413,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get translationStyleSubtitle => 'Set Gemini\'s Spirit';
 
   @override
+  String get autoTranslateLyricsTitle => 'Auto-translate lyrics';
+
+  @override
+  String get autoTranslateLyricsSubtitle =>
+      'Translate lyrics automatically when translations are missing';
+
+  @override
   String get copyLyricsAsSingleLineTitle => 'Copy lyrics as single line';
 
   @override
@@ -969,4 +976,240 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get secsAgo => 'Secs Ago';
+
+  @override
+  String failedToPlayAlbum(String error) {
+    return 'Failed to play album: $error';
+  }
+
+  @override
+  String get rateAtLeastOneSongForPoster =>
+      'Rate at least one song before generating poster';
+
+  @override
+  String failedToSharePoster(String error) {
+    return 'Failed to share rating poster: $error';
+  }
+
+  @override
+  String get cannotPlayMissingTrackLink => 'Cannot play: missing track link';
+
+  @override
+  String failedToPlaySong(String error) {
+    return 'Failed to play song: $error';
+  }
+
+  @override
+  String failedToSaveRating(String error) {
+    return 'Failed to save rating: $error';
+  }
+
+  @override
+  String get albumDetails => 'Album Details';
+
+  @override
+  String get titleCopied => 'Title copied';
+
+  @override
+  String get playAlbum => 'Play';
+
+  @override
+  String get rateAtLeastOneSongFirst =>
+      'Rate a few songs before sharing poster';
+
+  @override
+  String get shareAlbumRatingPoster => 'Share album rating poster';
+
+  @override
+  String get hideQuickRating => 'Hide quick rating';
+
+  @override
+  String get showQuickRating => 'Show quick rating';
+
+  @override
+  String get currently => 'Currently';
+
+  @override
+  String get savingChanges => 'Saving...';
+
+  @override
+  String get saveAllChanges => 'Save All Changes';
+
+  @override
+  String get generatingTooltip => 'Generating...';
+
+  @override
+  String get generateAlbumInsights => 'Generate Album Insights';
+
+  @override
+  String get collapseInsights => 'Collapse insights';
+
+  @override
+  String get expandInsights => 'Expand insights';
+
+  @override
+  String get noSongsRatedYet => 'No songs rated yet';
+
+  @override
+  String basedOnRatedSongs(int rated, int total) {
+    return 'Based on $rated/$total songs';
+  }
+
+  @override
+  String failedToGenerateAlbumInsights(String error) {
+    return 'Failed to generate insights: $error';
+  }
+
+  @override
+  String failedToLoadCache(String error) {
+    return 'Failed to load cache: $error';
+  }
+
+  @override
+  String get generatingAlbumInsights => 'Generating album insights...';
+
+  @override
+  String get noInsightsAvailableTapToGenerate =>
+      'No insights available. Tap the button above to generate.';
+
+  @override
+  String get insightsEmptyRetryGenerate =>
+      'Insights are empty, try regenerating.';
+
+  @override
+  String insightsGeneratedDaysAgo(int days) {
+    return 'Insights generated $days days ago';
+  }
+
+  @override
+  String insightsGeneratedHoursAgo(int hours) {
+    return 'Insights generated $hours hours ago';
+  }
+
+  @override
+  String insightsGeneratedMinutesAgo(int minutes) {
+    return 'Insights generated $minutes minutes ago';
+  }
+
+  @override
+  String get insightsJustGenerated => 'Insights just generated';
+
+  @override
+  String get refreshAlbum => 'Refresh album';
+
+  @override
+  String get failedToLoadAlbum => 'Failed to load album';
+
+  @override
+  String get unknownError => 'Unknown error';
+
+  @override
+  String get unratedStatus => 'Not rated';
+
+  @override
+  String get justNow => 'Just now';
+
+  @override
+  String minutesAgoShort(int minutes) {
+    return '${minutes}m ago';
+  }
+
+  @override
+  String hoursAgoShort(int hours) {
+    return '${hours}h ago';
+  }
+
+  @override
+  String daysAgoShort(int days) {
+    return '${days}d ago';
+  }
+
+  @override
+  String totalTracksCount(int count) {
+    return '$count tracks total';
+  }
+
+  @override
+  String failedToPlayPlaylist(String error) {
+    return 'Failed to play playlist: $error';
+  }
+
+  @override
+  String get playPlaylist => 'Play Playlist';
+
+  @override
+  String get playlistDetails => 'Playlist Details';
+
+  @override
+  String get refreshPlaylist => 'Refresh playlist';
+
+  @override
+  String createdBy(String owner) {
+    return 'Created by $owner';
+  }
+
+  @override
+  String playlistTrackCount(int count) {
+    return '$count tracks total';
+  }
+
+  @override
+  String get failedToLoadPlaylist => 'Failed to load playlist';
+
+  @override
+  String get playlistTracksLabel => 'Playlist tracks';
+
+  @override
+  String get deviceOperationNotSupported =>
+      'This device does not support this operation or is restricted. Please try playing music on other devices, or check your account type.';
+
+  @override
+  String shareAlbumMessage(
+      String albumName, String artist, String score, int rated, int total) {
+    return 'I rated $albumName by $artist $score on Spotoolfy, rated $rated/$total songs.';
+  }
+
+  @override
+  String get noRating => 'No rating';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get unknownTrackName => 'Unknown Track';
+
+  @override
+  String get albumInsightReadyStatus => 'Album insights ready';
+
+  @override
+  String get clickToGenerateAlbumInsights =>
+      'Click the button on the right to generate insights for this album';
+
+  @override
+  String get failedToGenerateAlbumInsightsStatus =>
+      'Failed to generate album insights';
+
+  @override
+  String get providerQQMusic => 'QQ Music';
+
+  @override
+  String get providerLRCLIB => 'LRCLIB';
+
+  @override
+  String get providerNetease => 'NetEase Cloud Music';
+
+  @override
+  String get playingFrom => 'PLAYING FROM';
+
+  @override
+  String get playFromAlbum => 'PLAY FROM ALBUM';
+
+  @override
+  String get playFromPlaylist => 'PLAY FROM PLAYLIST';
+
+  @override
+  String get sharingStatus => 'Sharing...';
+
+  @override
+  String get shareButton => 'Share';
 }

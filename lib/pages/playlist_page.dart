@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/local_database_provider.dart';
@@ -107,8 +108,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
       await spotify.playContext(type: 'playlist', id: playlistId);
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放播放列表失败：$e')),
+        SnackBar(content: Text(l10n.failedToPlayPlaylist(e.toString()))),
       );
     }
   }
@@ -125,8 +127,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
 
     if (trackUri == null) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法播放：缺少歌曲链接')),
+        SnackBar(content: Text(l10n.cannotPlayMissingTrackLink)),
       );
       return;
     }
@@ -144,8 +147,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
       }
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放歌曲失败：$e')),
+        SnackBar(content: Text(l10n.failedToPlaySong(e.toString()))),
       );
     }
   }
@@ -176,7 +180,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
         }
       }
     }
-    albumName = albumName.isEmpty ? '歌单曲目' : albumName;
+    final l10n = AppLocalizations.of(context)!;
+    albumName = albumName.isEmpty ? l10n.playlistTracksLabel : albumName;
     albumCoverUrl ??= _extractCoverUrl();
 
     final artistNames = _formatArtists(track['artists']);
@@ -209,8 +214,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
       });
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存评分失败：$e')),
+        SnackBar(content: Text(l10n.failedToSaveRating(e.toString()))),
       );
     } finally {
       if (!mounted) return;
@@ -277,13 +283,15 @@ class _PlaylistPageState extends State<PlaylistPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_playlistData?['name'] as String? ?? '播放列表详情'),
+        title: Text(_playlistData?['name'] as String? ?? l10n.playlistDetails),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: '刷新播放列表',
+            tooltip: l10n.refreshPlaylist,
             onPressed: () => _loadPlaylist(forceRefresh: true),
           ),
         ],
@@ -343,7 +351,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
                                 )
                               : const Icon(Icons.save_rounded),
                           label: Text(
-                            _isSavingPendingRatings ? '保存中…' : '保存全部修改',
+                            _isSavingPendingRatings
+                                ? AppLocalizations.of(context)!.savingChanges
+                                : AppLocalizations.of(context)!.saveAllChanges,
                           ),
                         ),
                       ),
@@ -400,6 +410,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
   }
 
   Widget _buildHeader(ThemeData theme) {
+    final l10n = AppLocalizations.of(context)!;
     final coverUrl = _extractCoverUrl();
     final playlistName = _playlistData?['name'] as String? ?? '';
     final ownerName = _extractOwnerName();
@@ -449,7 +460,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   const SizedBox(height: 12),
                   if (ownerName != null)
                     Text(
-                      '由 $ownerName 创建',
+                      l10n.createdBy(ownerName),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -467,7 +478,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                       FilledButton.icon(
                         onPressed: _handlePlayPlaylist,
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('播放播放列表'),
+                        label: Text(l10n.playPlaylist),
                       ),
                       const SizedBox(width: 12),
                       Container(
@@ -497,7 +508,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
                                 ? theme.colorScheme.onSurface.withOpacity(0.38)
                                 : theme.colorScheme.onSurfaceVariant,
                           ),
-                          tooltip: _showQuickSelectors ? '隐藏快捷评分' : '显示快捷评分',
+                          tooltip: _showQuickSelectors
+                              ? l10n.hideQuickRating
+                              : l10n.showQuickRating,
                           padding: EdgeInsets.zero,
                           iconSize: 20,
                         ),
@@ -537,6 +550,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
   }
 
   Widget _buildErrorState() {
+    final l10n = AppLocalizations.of(context)!;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -546,19 +560,19 @@ class _PlaylistPageState extends State<PlaylistPage> {
             const Icon(Icons.music_off, size: 64),
             const SizedBox(height: 16),
             Text(
-              '加载播放列表失败',
+              l10n.failedToLoadPlaylist,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              _errorMessage ?? '未知错误',
+              _errorMessage ?? l10n.unknownError,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => _loadPlaylist(forceRefresh: true),
-              child: const Text('重试'),
+              child: Text(l10n.retry),
             ),
           ],
         ),
@@ -567,7 +581,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
   }
 
   String _buildMetaLine(int trackCount) {
-    return '共 $trackCount 首曲目';
+    final l10n = AppLocalizations.of(context)!;
+    return l10n.playlistTrackCount(trackCount);
   }
 
   String? _extractOwnerName() {
@@ -605,7 +620,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
         return names.join(', ');
       }
     }
-    return '未知艺术家';
+    final l10n = AppLocalizations.of(context)!;
+    return l10n.unknownArtist;
   }
 
   String? _extractCoverUrl() {
@@ -645,8 +661,9 @@ class _PlaylistTrackTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final trackName = track['name'] as String? ?? '未知曲目';
-    final artistNames = _formatArtists(track['artists']);
+    final l10n = AppLocalizations.of(context)!;
+    final trackName = track['name'] as String? ?? l10n.unknownTrackName;
+    final artistNames = _formatArtists(track['artists'], context);
     final borderRadius = BorderRadius.circular(24);
 
     return Material(
@@ -696,7 +713,7 @@ class _PlaylistTrackTile extends StatelessWidget {
                         const SizedBox(height: 6),
                         _buildMeta(theme),
                         const SizedBox(height: 12),
-                        _buildRatingRow(theme),
+                        _buildRatingRow(theme, context),
                       ],
                     ),
                   ),
@@ -786,7 +803,8 @@ class _PlaylistTrackTile extends StatelessWidget {
     );
   }
 
-  Widget _buildRatingRow(ThemeData theme) {
+  Widget _buildRatingRow(ThemeData theme, BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     IconData ratingIcon;
     switch (rating) {
       case 0:
@@ -803,7 +821,7 @@ class _PlaylistTrackTile extends StatelessWidget {
         break;
     }
 
-    String timeText = '未评分';
+    String timeText = l10n.unratedStatus;
     if (ratingTimestamp != null) {
       final dateTime =
           DateTime.fromMillisecondsSinceEpoch(ratingTimestamp!, isUtc: false);
@@ -811,13 +829,13 @@ class _PlaylistTrackTile extends StatelessWidget {
       final difference = now.difference(dateTime);
 
       if (difference.inDays > 0) {
-        timeText = '${difference.inDays}天前';
+        timeText = l10n.daysAgoShort(difference.inDays);
       } else if (difference.inHours > 0) {
-        timeText = '${difference.inHours}小时前';
+        timeText = l10n.hoursAgoShort(difference.inHours);
       } else if (difference.inMinutes > 0) {
-        timeText = '${difference.inMinutes}分钟前';
+        timeText = l10n.minutesAgoShort(difference.inMinutes);
       } else {
-        timeText = '刚刚';
+        timeText = l10n.justNow;
       }
     }
 
@@ -842,7 +860,7 @@ class _PlaylistTrackTile extends StatelessWidget {
     );
   }
 
-  static String _formatArtists(dynamic artists) {
+  static String _formatArtists(dynamic artists, BuildContext context) {
     if (artists is List) {
       final names = <String>[];
       for (final artist in artists) {
@@ -857,6 +875,7 @@ class _PlaylistTrackTile extends StatelessWidget {
         return names.join(', ');
       }
     }
-    return '未知艺术家';
+    final l10n = AppLocalizations.of(context)!;
+    return l10n.unknownArtist;
   }
 }

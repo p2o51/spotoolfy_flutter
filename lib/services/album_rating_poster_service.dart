@@ -146,7 +146,7 @@ class AlbumRatingPosterService {
       );
     }
 
-    currentY = coverRect.bottom + 56;
+    currentY = coverRect.bottom + 64;
 
     _paintText(
       canvas,
@@ -163,7 +163,43 @@ class AlbumRatingPosterService {
       align: TextAlign.center,
       center: true,
     );
-    currentY += 96;
+    currentY += 104;
+
+    _paintText(
+      canvas,
+      text: artistLine,
+      maxWidth: width - horizontalPadding * 2,
+      offset: Offset(width / 2, currentY),
+      style: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 36,
+        fontWeight: FontWeight.w400,
+        color: onSurfaceVariant.withValues(alpha: 0.8),
+        letterSpacing: 0.15,
+      ),
+      align: TextAlign.center,
+      center: true,
+    );
+    currentY += 120;
+
+    final averageLabel =
+        averageScore != null ? averageScore.toStringAsFixed(1) : '--';
+    _paintText(
+      canvas,
+      text: averageLabel,
+      maxWidth: width - horizontalPadding * 2,
+      offset: Offset(width / 2, currentY),
+      style: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 180,
+        fontWeight: FontWeight.w700,
+        color: primary,
+        letterSpacing: -2.0,
+      ),
+      align: TextAlign.center,
+      center: true,
+    );
+    currentY += 260;
 
     if (insightsTitle != null && insightsTitle.trim().isNotEmpty) {
       // 为 insights 添加突出的背景标签
@@ -208,78 +244,8 @@ class AlbumRatingPosterService {
         align: TextAlign.center,
         center: true,
       );
-      currentY += 68;
+      currentY += 120;
     }
-
-    _paintText(
-      canvas,
-      text: artistLine,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, currentY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 36,
-        fontWeight: FontWeight.w400,
-        color: onSurfaceVariant.withValues(alpha: 0.8),
-        letterSpacing: 0.15,
-      ),
-      align: TextAlign.center,
-      center: true,
-    );
-    currentY += 96;
-
-    // 为评分数字添加 Primary Container 背景
-    final scoreContainerRect = Rect.fromCenter(
-      center: Offset(width / 2, currentY + 90),
-      width: 400,
-      height: 240,
-    );
-    final scoreContainerPaint = Paint()
-      ..color = primaryContainer.withValues(alpha: 0.3);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(scoreContainerRect, const Radius.circular(32)),
-      scoreContainerPaint,
-    );
-
-    final averageLabel =
-        averageScore != null ? averageScore.toStringAsFixed(1) : '--';
-    _paintText(
-      canvas,
-      text: averageLabel,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, currentY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 180,
-        fontWeight: FontWeight.w700,
-        color: primary,
-        letterSpacing: -2.0,
-      ),
-      align: TextAlign.center,
-      center: true,
-    );
-    currentY += 200;
-
-    final ratedSummary = ratedTrackCount == 0
-        ? '还没有歌曲被评分'
-        : '已评分 $ratedTrackCount/$totalTrackCount 首曲目';
-    _paintText(
-      canvas,
-      text: ratedSummary,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, currentY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 32,
-        fontWeight: FontWeight.w500,
-        color: onSurfaceVariant.withValues(alpha: 0.75),
-        letterSpacing: 0.25,
-      ),
-      align: TextAlign.center,
-      center: true,
-    );
-
-    currentY += 100;
 
     final topTracks = _buildTopTracks(
       tracks: tracks,
@@ -291,40 +257,6 @@ class AlbumRatingPosterService {
     final listStartX = horizontalPadding;
     double rowY = currentY;
 
-    // 添加列表区域背景容器
-    final listContainerPadding = 48.0;
-    final listBgRect = Rect.fromLTWH(
-      listStartX - listContainerPadding,
-      rowY - 32,
-      listWidth + listContainerPadding * 2,
-      0, // 高度将在后面动态计算
-    );
-
-    _paintText(
-      canvas,
-      text: '曲目评分列表',
-      maxWidth: listWidth,
-      offset: Offset(listStartX, rowY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 42,
-        fontWeight: FontWeight.w600,
-        color: onSurface,
-        letterSpacing: 0.25,
-      ),
-    );
-    rowY += 56;
-
-    // 使用 Primary 颜色作为分隔线
-    canvas.drawLine(
-      Offset(listStartX, rowY),
-      Offset(listStartX + listWidth, rowY),
-      Paint()
-        ..color = primary.withValues(alpha: 0.3)
-        ..strokeWidth = 3,
-    );
-    rowY += 44;
-
     if (topTracks.isNotEmpty) {
       for (int i = 0; i < topTracks.length; i++) {
         final entry = topTracks[i];
@@ -335,9 +267,9 @@ class AlbumRatingPosterService {
         if (i % 2 == 0) {
           final itemBgRect = Rect.fromLTWH(
             listStartX - 24,
-            rowY - 12,
+            rowY - 16,
             listWidth + 48,
-            76,
+            100,
           );
           final itemBgPaint = Paint()
             ..color = surfaceContainerHighest.withValues(alpha: 0.25);
@@ -361,38 +293,111 @@ class AlbumRatingPosterService {
           ),
         );
 
-        final ratingLabel = entry.rating != null
-            ? '${_ratingEmoji(entry.rating!)} ${entry.rating} · ${_formatDate(entry.recordedAt)}'
-            : '未评分';
+        // 绘制评分图标和信息
+        final ratingStartX = listStartX + titleMaxWidth + 24;
+        final ratingY = rowY + 48;
 
-        // 根据评分显示不同的颜色
-        Color ratingColor;
-        if (entry.rating == null) {
-          ratingColor = onSurfaceVariant.withValues(alpha: 0.6);
-        } else if (entry.rating == 5) {
-          ratingColor = primary; // 使用 primary 颜色突出高分
-        } else if (entry.rating == 3) {
-          ratingColor = onSurfaceVariant.withValues(alpha: 0.9);
+        if (entry.rating != null) {
+          // 根据评分选择图标和颜色
+          String iconText;
+          Color iconColor;
+          Color bgColor;
+
+          switch (entry.rating!) {
+            case 5:
+              iconText = String.fromCharCode(0xe23a); // whatshot icon
+              iconColor = primary;
+              bgColor = primaryContainer.withValues(alpha: 0.4);
+              break;
+            case 3:
+              iconText = String.fromCharCode(0xe7f3); // sentiment_neutral icon
+              iconColor = onSurfaceVariant;
+              bgColor = surfaceContainerHighest.withValues(alpha: 0.6);
+              break;
+            case 0:
+            default:
+              iconText = String.fromCharCode(0xe8db); // thumb_down icon
+              iconColor = onSurfaceVariant.withValues(alpha: 0.7);
+              bgColor = surfaceContainerHighest.withValues(alpha: 0.5);
+              break;
+          }
+
+          // 绘制带背景的评分信息
+          final ratingLabel = _formatDate(entry.recordedAt);
+          final ratingPainter = TextPainter(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: iconText,
+                  style: TextStyle(
+                    fontFamily: 'MaterialIcons',
+                    fontSize: 32,
+                    color: iconColor,
+                  ),
+                ),
+                TextSpan(
+                  text: '  $ratingLabel',
+                  style: TextStyle(
+                    fontFamily: fontFamily,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w400,
+                    color: onSurfaceVariant.withValues(alpha: 0.8),
+                    letterSpacing: 0.25,
+                  ),
+                ),
+              ],
+            ),
+            textDirection: TextDirection.ltr,
+          );
+          ratingPainter.layout(maxWidth: listWidth - titleMaxWidth - 32);
+
+          final ratingBgRect = Rect.fromLTWH(
+            ratingStartX - 12,
+            ratingY - 8,
+            ratingPainter.width + 24,
+            ratingPainter.height + 16,
+          );
+          final ratingBgPaint = Paint()..color = bgColor;
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(ratingBgRect, const Radius.circular(12)),
+            ratingBgPaint,
+          );
+
+          ratingPainter.paint(canvas, Offset(ratingStartX, ratingY));
         } else {
-          ratingColor = onSurfaceVariant.withValues(alpha: 0.7);
+          // 未评分显示 N/A
+          final naPainter = TextPainter(
+            text: TextSpan(
+              text: 'N/A',
+              style: TextStyle(
+                fontFamily: fontFamily,
+                fontSize: 30,
+                fontWeight: FontWeight.w400,
+                color: onSurfaceVariant.withValues(alpha: 0.5),
+                letterSpacing: 0.25,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          );
+          naPainter.layout();
+
+          final naBgRect = Rect.fromLTWH(
+            ratingStartX - 12,
+            ratingY - 8,
+            naPainter.width + 24,
+            naPainter.height + 16,
+          );
+          final naBgPaint = Paint()
+            ..color = surfaceContainerHighest.withValues(alpha: 0.3);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(naBgRect, const Radius.circular(12)),
+            naBgPaint,
+          );
+
+          naPainter.paint(canvas, Offset(ratingStartX, ratingY));
         }
 
-        _paintText(
-          canvas,
-          text: ratingLabel,
-          maxWidth: listWidth - titleMaxWidth - 32,
-          offset: Offset(listStartX + titleMaxWidth + 24,
-              rowY + (entry.rating != null ? 2 : 0)),
-          style: TextStyle(
-            fontFamily: fontFamily,
-            fontSize: 32,
-            fontWeight: entry.rating == 5 ? FontWeight.w500 : FontWeight.w400,
-            color: ratingColor,
-            letterSpacing: 0.25,
-          ),
-        );
-
-        rowY += 80;
+        rowY += 104;
       }
     } else {
       _paintText(
@@ -410,34 +415,6 @@ class AlbumRatingPosterService {
       );
       rowY += 76;
     }
-
-    // 添加底部装饰线
-    final decorLineY = height - 200;
-    canvas.drawLine(
-      Offset(width / 2 - 100, decorLineY),
-      Offset(width / 2 + 100, decorLineY),
-      Paint()
-        ..color = primary.withValues(alpha: 0.25)
-        ..strokeWidth = 4
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final watermarkText = 'Spotoolfy · Album Ratings';
-    _paintText(
-      canvas,
-      text: watermarkText,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, height - 160),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 28,
-        fontWeight: FontWeight.w400,
-        color: primary.withValues(alpha: 0.5),
-        letterSpacing: 0.5,
-      ),
-      align: TextAlign.center,
-      center: true,
-    );
 
     final picture = recorder.endRecording();
     final rendered = await picture.toImage(width.toInt(), height.toInt());
@@ -522,46 +499,8 @@ class AlbumRatingPosterService {
       );
     }
 
-    entries.sort((a, b) {
-      final weightCompare = _ratingWeight(b.rating) - _ratingWeight(a.rating);
-      if (weightCompare != 0) {
-        return weightCompare;
-      }
-      final timeCompare = (b.recordedAt ?? 0).compareTo(a.recordedAt ?? 0);
-      if (timeCompare != 0) {
-        return timeCompare;
-      }
-      return a.position.compareTo(b.position);
-    });
-
+    // 按原始曲目顺序排序，不再按评分排序
     return entries.take(6).toList();
-  }
-
-  int _ratingWeight(int? rating) {
-    if (rating == null) {
-      return 0;
-    }
-    switch (rating) {
-      case 5:
-        return 3;
-      case 3:
-        return 2;
-      case 0:
-      default:
-        return 1;
-    }
-  }
-
-  String _ratingEmoji(int rating) {
-    switch (rating) {
-      case 5:
-        return '🔥';
-      case 3:
-        return '🙂';
-      case 0:
-      default:
-        return '👎';
-    }
   }
 
   String _formatDate(int? timestamp) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard and HapticFeedback
 import 'package:logger/logger.dart';
 import '../services/settings_service.dart'; // Import TranslationStyle and SettingsService
+import '../models/translation_load_result.dart';
 // import '../models/translation.dart'; // Unused import
 // 导入 AppLocalizations 类，用于访问本地化字符串
 import '../l10n/app_localizations.dart';
@@ -68,18 +69,6 @@ String _getTranslationStyleTooltip(
 
 final logger = Logger();
 
-class TranslationLoadResult {
-  final String translatedLyrics;
-  final TranslationStyle style;
-  final String languageCode;
-
-  TranslationLoadResult({
-    required this.translatedLyrics,
-    required this.style,
-    required this.languageCode,
-  });
-}
-
 // 将类名更改为 TranslationResultPage，以反映其新用途
 class TranslationResultPage extends StatefulWidget {
   final String originalLyrics;
@@ -106,9 +95,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
   bool _isTranslating = false;
   bool _isInitialLoading = true;
   String? _translationError;
-  String? _currentTranslatedLyrics;
+  String? _currentCleanTranslatedLyrics;
   late TranslationStyle _currentStyle;
-  String? _currentLanguageCode;
   Future<TranslationLoadResult>? _pendingInitialFuture;
   bool _showTranslated = true; // 默认显示翻译后的歌词 (窄屏模式下)
 
@@ -135,9 +123,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       final result = await future;
       if (!mounted) return;
       setState(() {
-        _currentTranslatedLyrics = result.translatedLyrics;
+        _currentCleanTranslatedLyrics = result.cleanedTranslatedLyrics;
         _currentStyle = result.style;
-        _currentLanguageCode = result.languageCode;
         _isInitialLoading = false;
       });
     } catch (e) {
@@ -168,8 +155,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       if (!mounted) return;
       setState(() {
         _currentStyle = result.style;
-        _currentTranslatedLyrics = result.translatedLyrics;
-        _currentLanguageCode = result.languageCode;
+        _currentCleanTranslatedLyrics = result.cleanedTranslatedLyrics;
         _isTranslating = false;
       });
     } catch (e) {
@@ -200,8 +186,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       );
       if (!mounted) return;
       setState(() {
-        _currentTranslatedLyrics = result.translatedLyrics;
-        _currentLanguageCode = result.languageCode;
+        _currentCleanTranslatedLyrics = result.cleanedTranslatedLyrics;
         _translationError = null;
         _isTranslating = false;
       });
@@ -228,8 +213,10 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     }
 
     final String? lyricsToCopySource = isWideScreen
-        ? _currentTranslatedLyrics
-        : (_showTranslated ? _currentTranslatedLyrics : widget.originalLyrics);
+        ? _currentCleanTranslatedLyrics
+        : (_showTranslated
+            ? _currentCleanTranslatedLyrics
+            : widget.originalLyrics);
 
     if (lyricsToCopySource == null || lyricsToCopySource.isEmpty) {
       if (mounted) {
@@ -276,7 +263,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
-    final bool translationAvailable = _currentTranslatedLyrics != null;
+    final bool translationAvailable = _currentCleanTranslatedLyrics != null;
     final bool hasError = _translationError != null;
     final bool isBusy = _isInitialLoading || _isTranslating;
 
@@ -387,7 +374,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
   Widget _buildNarrowLayout(
       BuildContext context, AppLocalizations l10n, ThemeData theme) {
     final lyricsToShow =
-        _showTranslated ? _currentTranslatedLyrics : widget.originalLyrics;
+        _showTranslated ? _currentCleanTranslatedLyrics : widget.originalLyrics;
     // 使用本地化的辅助函数获取风格名称
     final styleDisplayName =
         _getTranslationStyleDisplayName(_currentStyle, l10n);
@@ -474,7 +461,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
               const SizedBox(height: 8),
               SelectableText(
                 // 如果有错误，显示错误信息 (已经本地化)；否则显示翻译歌词
-                _translationError ?? _currentTranslatedLyrics ?? '',
+                _translationError ?? _currentCleanTranslatedLyrics ?? '',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   height: 1.4,
                   // 如果是错误信息，使用错误颜色

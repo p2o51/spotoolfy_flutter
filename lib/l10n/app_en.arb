@@ -242,6 +242,8 @@
   "translationLanguageSubtitle": "Choose the target language for translations and insights",
   "translationStyleTitle": "Translation Style",
   "translationStyleSubtitle": "Set Gemini's Spirit",
+  "autoTranslateLyricsTitle": "Auto-translate lyrics",
+  "autoTranslateLyricsSubtitle": "Translate lyrics automatically when translations are missing",
   "copyLyricsAsSingleLineTitle": "Copy lyrics as single line",
   "copyLyricsAsSingleLineSubtitle": "Replaces line breaks with spaces when copying",
   "deepTranslationTitle": "Deep Translation",
@@ -538,5 +540,210 @@
   "minsAgo": "Mins Ago",
   "secsAgo": "Secs Ago",
   "today": "Today",
-  "yesterday": "Yesterday"
+  "yesterday": "Yesterday",
+  "failedToPlayAlbum": "Failed to play album: {error}",
+  "@failedToPlayAlbum": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "rateAtLeastOneSongForPoster": "Rate at least one song before generating poster",
+  "failedToSharePoster": "Failed to share rating poster: {error}",
+  "@failedToSharePoster": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cannotPlayMissingTrackLink": "Cannot play: missing track link",
+  "failedToPlaySong": "Failed to play song: {error}",
+  "@failedToPlaySong": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "failedToSaveRating": "Failed to save rating: {error}",
+  "@failedToSaveRating": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "albumDetails": "Album Details",
+  "titleCopied": "Title copied",
+  "playAlbum": "Play",
+  "rateAtLeastOneSongFirst": "Rate a few songs before sharing poster",
+  "shareAlbumRatingPoster": "Share album rating poster",
+  "hideQuickRating": "Hide quick rating",
+  "showQuickRating": "Show quick rating",
+  "currently": "Currently",
+  "savingChanges": "Saving...",
+  "saveAllChanges": "Save All Changes",
+  "generatingTooltip": "Generating...",
+  "generateAlbumInsights": "Generate Album Insights",
+  "collapseInsights": "Collapse insights",
+  "expandInsights": "Expand insights",
+  "noSongsRatedYet": "No songs rated yet",
+  "basedOnRatedSongs": "Based on {rated}/{total} songs",
+  "@basedOnRatedSongs": {
+    "placeholders": {
+      "rated": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "failedToGenerateAlbumInsights": "Failed to generate insights: {error}",
+  "@failedToGenerateAlbumInsights": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "failedToLoadCache": "Failed to load cache: {error}",
+  "@failedToLoadCache": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "generatingAlbumInsights": "Generating album insights...",
+  "noInsightsAvailableTapToGenerate": "No insights available. Tap the button above to generate.",
+  "insightsEmptyRetryGenerate": "Insights are empty, try regenerating.",
+  "insightsGeneratedDaysAgo": "Insights generated {days} days ago",
+  "@insightsGeneratedDaysAgo": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "insightsGeneratedHoursAgo": "Insights generated {hours} hours ago",
+  "@insightsGeneratedHoursAgo": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "insightsGeneratedMinutesAgo": "Insights generated {minutes} minutes ago",
+  "@insightsGeneratedMinutesAgo": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "insightsJustGenerated": "Insights just generated",
+  "refreshAlbum": "Refresh album",
+  "failedToLoadAlbum": "Failed to load album",
+  "unknownError": "Unknown error",
+  "unratedStatus": "Not rated",
+  "justNow": "Just now",
+  "minutesAgoShort": "{minutes}m ago",
+  "@minutesAgoShort": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "hoursAgoShort": "{hours}h ago",
+  "@hoursAgoShort": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "daysAgoShort": "{days}d ago",
+  "@daysAgoShort": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "totalTracksCount": "{count} tracks total",
+  "@totalTracksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "failedToPlayPlaylist": "Failed to play playlist: {error}",
+  "@failedToPlayPlaylist": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "playPlaylist": "Play Playlist",
+  "playlistDetails": "Playlist Details",
+  "refreshPlaylist": "Refresh playlist",
+  "createdBy": "Created by {owner}",
+  "@createdBy": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistTrackCount": "{count} tracks total",
+  "@playlistTrackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "failedToLoadPlaylist": "Failed to load playlist",
+  "playlistTracksLabel": "Playlist tracks",
+  "deviceOperationNotSupported": "This device does not support this operation or is restricted. Please try playing music on other devices, or check your account type.",
+  "shareAlbumMessage": "I rated {albumName} by {artist} {score} on Spotoolfy, rated {rated}/{total} songs.",
+  "@shareAlbumMessage": {
+    "placeholders": {
+      "albumName": {
+        "type": "String"
+      },
+      "artist": {
+        "type": "String"
+      },
+      "score": {
+        "type": "String"
+      },
+      "rated": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "noRating": "No rating",
+  "retry": "Retry",
+  "unknownTrackName": "Unknown Track",
+  "albumInsightReadyStatus": "Album insights ready",
+  "clickToGenerateAlbumInsights": "Click the button on the right to generate insights for this album",
+  "failedToGenerateAlbumInsightsStatus": "Failed to generate album insights",
+  "providerQQMusic": "QQ Music",
+  "providerLRCLIB": "LRCLIB",
+  "providerNetease": "NetEase Cloud Music",
+  "playingFrom": "PLAYING FROM",
+  "playFromAlbum": "PLAY FROM ALBUM",
+  "playFromPlaylist": "PLAY FROM PLAYLIST",
+  "sharingStatus": "Sharing...",
+  "shareButton": "Share"
 }

@@ -44,8 +44,7 @@ class _LibraryState extends State<Library> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final spotifyProvider =
-        Provider.of<SpotifyProvider>(context, listen: false);
+    final spotifyProvider = Provider.of<SpotifyProvider>(context);
     final isAuthenticated = spotifyProvider.username != null;
 
     if (isAuthenticated != _wasAuthenticated) {

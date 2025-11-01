@@ -28,7 +28,11 @@ abstract class LyricProvider {
       final rawLyric = await fetchLyric(songMatch.songId);
       if (rawLyric == null) return null;
       
-      return normalizeLyric(rawLyric);
+      final normalized = normalizeLyric(rawLyric);
+      if (normalized.isEmpty) {
+        return null;
+      }
+      return normalized;
     } catch (e) {
       return null;
     }

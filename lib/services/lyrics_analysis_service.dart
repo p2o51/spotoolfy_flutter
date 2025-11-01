@@ -9,7 +9,7 @@ class LyricsAnalysisService {
   final SettingsService _settingsService = SettingsService();
   static const String _geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiModel = 'gemini-2.5-flash-preview-05-20';
+  static const String _geminiModel = 'gemini-2.5-flash';
 
   Future<Map<String, dynamic>?> analyzeLyrics(
     String lyrics,

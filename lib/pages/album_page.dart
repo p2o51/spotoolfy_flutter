@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../l10n/app_localizations.dart';
 
 import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
@@ -60,6 +65,8 @@ class _AlbumPageState extends State<AlbumPage> {
 
     try {
       final spotify = context.read<SpotifyProvider>();
+      final localDb = context.read<LocalDatabaseProvider>();
+
       final album = await spotify.fetchAlbumDetails(
         widget.albumId,
         forceRefresh: forceRefresh,
@@ -78,7 +85,6 @@ class _AlbumPageState extends State<AlbumPage> {
           .whereType<String>()
           .toList(growable: false);
 
-      final localDb = context.read<LocalDatabaseProvider>();
       final latestRatingsWithTimestamp =
           await localDb.getLatestRatingsWithTimestampForTracks(trackIds);
       final normalizedRatings = <String, int?>{};
@@ -117,8 +123,9 @@ class _AlbumPageState extends State<AlbumPage> {
       await spotify.playContext(type: 'album', id: albumId);
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放专辑失败：$e')),
+        SnackBar(content: Text(l10n.failedToPlayAlbum(e.toString()))),
       );
     }
   }
@@ -130,8 +137,9 @@ class _AlbumPageState extends State<AlbumPage> {
 
     if (_ratedTrackCount == 0) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('至少先为一首歌曲打分才能生成海报')),
+        SnackBar(content: Text(l10n.rateAtLeastOneSongForPoster)),
       );
       return;
     }
@@ -149,8 +157,9 @@ class _AlbumPageState extends State<AlbumPage> {
 
     try {
       final theme = Theme.of(context);
-      final albumName = albumData['name'] as String? ?? '未知专辑';
-      final artistLine = _formatArtists(albumData['artists']);
+      final l10n = AppLocalizations.of(context)!;
+      final albumName = albumData['name'] as String? ?? l10n.unknownAlbum;
+      final artistLine = _formatArtists(context, albumData['artists']);
       final coverUrl = _extractCoverUrl();
       final rawInsightsTitle = _albumInsights?['title'] as String?;
       final normalizedInsightsTitle = rawInsightsTitle?.trim();
@@ -166,7 +175,8 @@ class _AlbumPageState extends State<AlbumPage> {
         totalTrackCount: _tracks.length,
       );
 
-      await _albumPosterService.shareAlbumPoster(
+      // 生成海报图片数据
+      final posterBytes = await _albumPosterService.generatePosterData(
         albumName: albumName,
         artistLine: artistLine,
         averageScore: _averageScore,
@@ -179,15 +189,30 @@ class _AlbumPageState extends State<AlbumPage> {
         albumCoverUrl: coverUrl,
         fontFamily: theme.textTheme.bodyMedium?.fontFamily,
         insightsTitle: insightsTitle,
-        shareText: shareText,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isSharingAlbumPoster = false;
+      });
+
+      // 显示 bottom sheet 预览海报
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => _AlbumPosterPreviewSheet(
+          posterBytes: posterBytes,
+          shareText: shareText,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('分享评分海报失败：$e')),
+        SnackBar(content: Text(l10n.failedToSharePoster(e.toString()))),
       );
-    } finally {
-      if (!mounted) return;
       setState(() {
         _isSharingAlbumPoster = false;
       });
@@ -206,8 +231,9 @@ class _AlbumPageState extends State<AlbumPage> {
 
     if (trackUri == null) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法播放：缺少歌曲链接')),
+        SnackBar(content: Text(l10n.cannotPlayMissingTrackLink)),
       );
       return;
     }
@@ -225,8 +251,9 @@ class _AlbumPageState extends State<AlbumPage> {
       }
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放歌曲失败：$e')),
+        SnackBar(content: Text(l10n.failedToPlaySong(e.toString()))),
       );
     }
   }
@@ -254,8 +281,9 @@ class _AlbumPageState extends State<AlbumPage> {
       });
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
-        _albumInsightsError = '读取缓存失败：$e';
+        _albumInsightsError = l10n.failedToLoadCache(e.toString());
       });
     }
   }
@@ -296,14 +324,16 @@ class _AlbumPageState extends State<AlbumPage> {
       });
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
-        _albumInsightsError = '生成洞察失败：$e';
+        _albumInsightsError = l10n.failedToGenerateAlbumInsights(e.toString());
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGeneratingAlbumInsights = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGeneratingAlbumInsights = false;
+        });
+      }
     }
   }
 
@@ -321,7 +351,7 @@ class _AlbumPageState extends State<AlbumPage> {
     final coverUrl = images.isNotEmpty
         ? (images.first as Map<String, dynamic>)['url'] as String?
         : null;
-    final artistNames = _formatArtists(track['artists']);
+    final artistNames = _formatArtists(context, track['artists']);
     final trackName = track['name'] as String? ?? '';
 
     setState(() {
@@ -354,14 +384,16 @@ class _AlbumPageState extends State<AlbumPage> {
       });
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存评分失败：$e')),
+        SnackBar(content: Text(l10n.failedToSaveRating(e.toString()))),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _updatingTracks.remove(trackId);
-      });
+      if (mounted) {
+        setState(() {
+          _updatingTracks.remove(trackId);
+        });
+      }
     }
   }
 
@@ -423,10 +455,18 @@ class _AlbumPageState extends State<AlbumPage> {
     required int ratedTrackCount,
     required int totalTrackCount,
   }) {
-    final normalizedArtist = artistLine.isNotEmpty ? artistLine : '未知艺术家';
+    final l10n = AppLocalizations.of(context)!;
+    final normalizedArtist =
+        artistLine.isNotEmpty ? artistLine : l10n.unknownArtist;
     final averageLabel =
-        averageScore != null ? averageScore.toStringAsFixed(1) : '暂无评分';
-    return '我在 Spotoolfy 给《$albumName》（$normalizedArtist）打出了 $averageLabel 分，已评分 $ratedTrackCount/$totalTrackCount 首歌曲。';
+        averageScore != null ? averageScore.toStringAsFixed(1) : l10n.noRating;
+    return l10n.shareAlbumMessage(
+      albumName,
+      normalizedArtist,
+      averageLabel,
+      ratedTrackCount,
+      totalTrackCount,
+    );
   }
 
   Map<String, dynamic>? _findTrackById(String trackId) {
@@ -474,14 +514,15 @@ class _AlbumPageState extends State<AlbumPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_albumData?['name'] as String? ?? '专辑详情'),
+        title: Text(_albumData?['name'] as String? ?? l10n.albumDetails),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: '刷新专辑',
+            tooltip: l10n.refreshAlbum,
             onPressed: () => _loadAlbum(forceRefresh: true),
           ),
         ],
@@ -541,12 +582,17 @@ class _AlbumPageState extends State<AlbumPage> {
                                 )
                               : const Icon(Icons.save_rounded),
                           label: Text(
-                            _isSavingPendingRatings ? '保存中…' : '保存全部修改',
+                            _isSavingPendingRatings
+                                ? AppLocalizations.of(context)!.savingChanges
+                                : AppLocalizations.of(context)!.saveAllChanges,
                           ),
                         ),
                       ),
                     ),
             ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildInsightsTitle(theme),
           ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -609,18 +655,13 @@ class _AlbumPageState extends State<AlbumPage> {
     final hasError = _albumInsightsError != null;
     final showExpandButton =
         hasInsights || hasError || _isGeneratingAlbumInsights;
+    final l10n = AppLocalizations.of(context)!;
     final generatedAtLabel = _formatGeneratedAt();
     final statusText = _albumInsightsError != null
-        ? '生成专辑洞察失败'
+        ? l10n.failedToGenerateAlbumInsightsStatus
         : hasInsights
-            ? (generatedAtLabel ?? '专辑洞察已准备好')
-            : '点击右侧按钮生成这张专辑的洞察';
-    final insightsTitleRaw =
-        hasInsights ? (_albumInsights?['title'] as String?)?.trim() : null;
-    final String? insightsTitle =
-        (insightsTitleRaw != null && insightsTitleRaw.isNotEmpty)
-            ? insightsTitleRaw
-            : null;
+            ? (generatedAtLabel ?? l10n.albumInsightReadyStatus)
+            : l10n.clickToGenerateAlbumInsights;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,7 +681,7 @@ class _AlbumPageState extends State<AlbumPage> {
                   : Container(
                       width: 160,
                       height: 160,
-                      color: theme.colorScheme.surfaceVariant,
+                      color: theme.colorScheme.surfaceContainerHighest,
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.album_outlined,
@@ -673,7 +714,7 @@ class _AlbumPageState extends State<AlbumPage> {
                       FilledButton.icon(
                         onPressed: _handlePlayAlbum,
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('播放'),
+                        label: Text(l10n.playAlbum),
                       ),
                       const SizedBox(width: 12),
                       Container(
@@ -681,16 +722,18 @@ class _AlbumPageState extends State<AlbumPage> {
                         width: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: theme.colorScheme.surfaceVariant,
+                          color: theme.colorScheme.surfaceContainerHighest,
                         ),
                         child: IconButton(
                           onPressed: _isSharingAlbumPoster
                               ? null
                               : () {
                                   if (_ratedTrackCount == 0) {
+                                    final l10n = AppLocalizations.of(context)!;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('至少先为一首歌曲打分才能生成海报'),
+                                      SnackBar(
+                                        content: Text(
+                                            l10n.rateAtLeastOneSongForPoster),
                                       ),
                                     );
                                     return;
@@ -719,8 +762,8 @@ class _AlbumPageState extends State<AlbumPage> {
                                   ),
                           ),
                           tooltip: _ratedTrackCount == 0
-                              ? '先给几首歌打分后再分享海报'
-                              : '分享专辑评分海报',
+                              ? l10n.rateAtLeastOneSongFirst
+                              : l10n.shareAlbumRatingPoster,
                           padding: EdgeInsets.zero,
                           iconSize: 20,
                         ),
@@ -731,7 +774,7 @@ class _AlbumPageState extends State<AlbumPage> {
                         width: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: theme.colorScheme.surfaceVariant,
+                          color: theme.colorScheme.surfaceContainerHighest,
                         ),
                         child: IconButton(
                           onPressed: _tracks.isEmpty
@@ -750,10 +793,12 @@ class _AlbumPageState extends State<AlbumPage> {
                           icon: Icon(
                             _showQuickSelectors ? Icons.close : Icons.edit,
                             color: _tracks.isEmpty
-                                ? theme.colorScheme.onSurface.withOpacity(0.38)
+                                ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
                                 : theme.colorScheme.onSurfaceVariant,
                           ),
-                          tooltip: _showQuickSelectors ? '隐藏快捷评分' : '显示快捷评分',
+                          tooltip: _showQuickSelectors
+                              ? l10n.hideQuickRating
+                              : l10n.showQuickRating,
                           padding: EdgeInsets.zero,
                           iconSize: 20,
                         ),
@@ -768,7 +813,7 @@ class _AlbumPageState extends State<AlbumPage> {
         const SizedBox(height: 12),
         Card(
           elevation: 0,
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -788,7 +833,7 @@ class _AlbumPageState extends State<AlbumPage> {
                     const SizedBox(width: 12),
                     Text(
                       averageScore == null
-                          ? '目前'
+                          ? l10n.currently
                           : averageScore.toStringAsFixed(1),
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,
@@ -811,7 +856,9 @@ class _AlbumPageState extends State<AlbumPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.auto_awesome),
-                      tooltip: _isGeneratingAlbumInsights ? '生成中…' : '生成专辑洞察',
+                      tooltip: _isGeneratingAlbumInsights
+                          ? l10n.generatingTooltip
+                          : l10n.generateAlbumInsights,
                     ),
                     if (showExpandButton) ...[
                       const SizedBox(width: 8),
@@ -821,7 +868,9 @@ class _AlbumPageState extends State<AlbumPage> {
                               ? Icons.expand_less
                               : Icons.expand_more,
                         ),
-                        tooltip: _isAlbumInsightsExpanded ? '收起洞察' : '展开洞察',
+                        tooltip: _isAlbumInsightsExpanded
+                            ? l10n.collapseInsights
+                            : l10n.expandInsights,
                         onPressed: () {
                           HapticFeedback.lightImpact();
                           setState(() {
@@ -836,55 +885,22 @@ class _AlbumPageState extends State<AlbumPage> {
                 const SizedBox(height: 6),
                 Text(
                   _ratedTrackCount == 0
-                      ? '还没有歌曲被评分'
-                      : '基于 $_ratedTrackCount/${_tracks.length} 首歌曲',
+                      ? l10n.noSongsRatedYet
+                      : l10n.basedOnRatedSongs(
+                          _ratedTrackCount, _tracks.length),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (insightsTitle != null) ...[
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.style,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: GestureDetector(
-                          onLongPress: () async {
-                            await Clipboard.setData(
-                                ClipboardData(text: insightsTitle));
-                            if (!mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('标题已复制')),
-                            );
-                          },
-                          child: Text(
-                            insightsTitle,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
+                Text(
+                  statusText,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: _albumInsightsError != null
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
-                ] else
-                  Text(
-                    statusText,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: _albumInsightsError != null
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                ),
                 if ((_isAlbumInsightsExpanded || _isGeneratingAlbumInsights) &&
                     (_albumInsights != null ||
                         _albumInsightsError != null ||
@@ -901,7 +917,60 @@ class _AlbumPageState extends State<AlbumPage> {
     );
   }
 
+  Widget _buildInsightsTitle(ThemeData theme) {
+    final hasInsights = _albumInsights != null;
+    final insightsTitleRaw =
+        hasInsights ? (_albumInsights?['title'] as String?)?.trim() : null;
+    final String? insightsTitle =
+        (insightsTitleRaw != null && insightsTitleRaw.isNotEmpty)
+            ? insightsTitleRaw
+            : null;
+
+    if (insightsTitle == null) {
+      return const SizedBox.shrink();
+    }
+
+    final l10n = AppLocalizations.of(context)!;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 16.0),
+      child: Row(
+        children: [
+          Icon(
+            Icons.style,
+            size: 24,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onLongPress: () async {
+                await Clipboard.setData(ClipboardData(text: insightsTitle));
+                if (!mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.titleCopied)),
+                );
+              },
+              child: Text(
+                insightsTitle,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildErrorState() {
+    final l10n = AppLocalizations.of(context)!;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -911,19 +980,19 @@ class _AlbumPageState extends State<AlbumPage> {
             const Icon(Icons.music_off, size: 64),
             const SizedBox(height: 16),
             Text(
-              '加载专辑失败',
+              l10n.failedToLoadAlbum,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              _errorMessage ?? '未知错误',
+              _errorMessage ?? l10n.unknownError,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => _loadAlbum(forceRefresh: true),
-              child: const Text('重试'),
+              child: Text(l10n.retry),
             ),
           ],
         ),
@@ -932,6 +1001,7 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 
   Widget _buildAlbumInsightsContent(ThemeData theme) {
+    final l10n = AppLocalizations.of(context)!;
     if (_isGeneratingAlbumInsights) {
       return Row(
         children: [
@@ -942,7 +1012,7 @@ class _AlbumPageState extends State<AlbumPage> {
           ),
           const SizedBox(width: 12),
           Text(
-            '正在生成专辑洞察…',
+            l10n.generatingAlbumInsights,
             style: theme.textTheme.bodyMedium,
           ),
         ],
@@ -961,7 +1031,7 @@ class _AlbumPageState extends State<AlbumPage> {
     final insights = _albumInsights;
     if (insights == null) {
       return Text(
-        '暂无可用洞察。点击上方按钮生成一次吧。',
+        l10n.noInsightsAvailableTapToGenerate,
         style: theme.textTheme.bodyMedium,
       );
     }
@@ -994,7 +1064,7 @@ class _AlbumPageState extends State<AlbumPage> {
 
     if (children.isEmpty) {
       return Text(
-        '洞察结果空空如也，试着重新生成一次。',
+        l10n.insightsEmptyRetryGenerate,
         style: theme.textTheme.bodyMedium,
       );
     }
@@ -1010,21 +1080,23 @@ class _AlbumPageState extends State<AlbumPage> {
     if (generatedAt == null) {
       return null;
     }
+    final l10n = AppLocalizations.of(context)!;
     final now = DateTime.now();
     final difference = now.difference(generatedAt);
     if (difference.inDays > 0) {
-      return '洞察生成于 ${difference.inDays} 天前';
+      return l10n.insightsGeneratedDaysAgo(difference.inDays);
     }
     if (difference.inHours > 0) {
-      return '洞察生成于 ${difference.inHours} 小时前';
+      return l10n.insightsGeneratedHoursAgo(difference.inHours);
     }
     if (difference.inMinutes > 0) {
-      return '洞察生成于 ${difference.inMinutes} 分钟前';
+      return l10n.insightsGeneratedMinutesAgo(difference.inMinutes);
     }
-    return '洞察刚刚生成';
+    return l10n.insightsJustGenerated;
   }
 
   String _buildMetaLine(List artists, String? releaseYear, int trackCount) {
+    final l10n = AppLocalizations.of(context)!;
     final parts = <String>[];
 
     // 添加艺术家名称
@@ -1035,7 +1107,7 @@ class _AlbumPageState extends State<AlbumPage> {
 
     if (artistEntries.isNotEmpty) {
       final artistNames = artistEntries
-          .map((artist) => (artist['name'] as String?) ?? '未知艺术家')
+          .map((artist) => (artist['name'] as String?) ?? l10n.unknownArtist)
           .join(', ');
       parts.add(artistNames);
     }
@@ -1046,7 +1118,7 @@ class _AlbumPageState extends State<AlbumPage> {
     }
 
     // 添加曲目数
-    parts.add('共$trackCount首曲目');
+    parts.add(l10n.totalTracksCount(trackCount));
 
     return parts.join(' · ');
   }
@@ -1069,7 +1141,7 @@ class _AlbumPageState extends State<AlbumPage> {
     return date.split('-').first;
   }
 
-  String _formatArtists(dynamic artists) {
+  String _formatArtists(BuildContext context, dynamic artists) {
     if (artists is List) {
       final names = <String>[];
       for (final artist in artists) {
@@ -1084,7 +1156,8 @@ class _AlbumPageState extends State<AlbumPage> {
         return names.join(', ');
       }
     }
-    return '未知艺术家';
+    final l10n = AppLocalizations.of(context)!;
+    return l10n.unknownArtist;
   }
 
   double _mapRatingToScore(int rating) {
@@ -1126,8 +1199,9 @@ class _AlbumTrackTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final trackName = track['name'] as String? ?? '未知曲目';
-    final artistNames = _formatArtists(track['artists']);
+    final l10n = AppLocalizations.of(context)!;
+    final trackName = track['name'] as String? ?? l10n.unknownTrackName;
+    final artistNames = _formatArtists(context, track['artists']);
     final borderRadius = BorderRadius.circular(24);
 
     return Material(
@@ -1176,7 +1250,7 @@ class _AlbumTrackTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         // 新的评分显示UI：图标 + 时间
-                        _buildRatingRow(theme),
+                        _buildRatingRow(context, theme),
                       ],
                     ),
                   ),
@@ -1237,7 +1311,8 @@ class _AlbumTrackTile extends StatelessWidget {
     );
   }
 
-  Widget _buildRatingRow(ThemeData theme) {
+  Widget _buildRatingRow(BuildContext context, ThemeData theme) {
+    final l10n = AppLocalizations.of(context)!;
     // 获取评分对应的图标
     IconData ratingIcon;
     switch (rating) {
@@ -1256,20 +1331,20 @@ class _AlbumTrackTile extends StatelessWidget {
     }
 
     // 格式化时间戳
-    String timeText = '未评分';
+    String timeText = l10n.unratedStatus;
     if (ratingTimestamp != null) {
       final dateTime = DateTime.fromMillisecondsSinceEpoch(ratingTimestamp!);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
 
       if (difference.inDays > 0) {
-        timeText = '${difference.inDays}天前';
+        timeText = l10n.daysAgoShort(difference.inDays);
       } else if (difference.inHours > 0) {
-        timeText = '${difference.inHours}小时前';
+        timeText = l10n.hoursAgoShort(difference.inHours);
       } else if (difference.inMinutes > 0) {
-        timeText = '${difference.inMinutes}分钟前';
+        timeText = l10n.minutesAgoShort(difference.inMinutes);
       } else {
-        timeText = '刚刚';
+        timeText = l10n.justNow;
       }
     }
 
@@ -1294,7 +1369,7 @@ class _AlbumTrackTile extends StatelessWidget {
     );
   }
 
-  static String _formatArtists(dynamic artists) {
+  String _formatArtists(BuildContext context, dynamic artists) {
     if (artists is List) {
       final names = <String>[];
       for (final artist in artists) {
@@ -1309,6 +1384,147 @@ class _AlbumTrackTile extends StatelessWidget {
         return names.join(', ');
       }
     }
-    return '未知艺术家';
+    final l10n = AppLocalizations.of(context)!;
+    return l10n.unknownArtist;
+  }
+}
+
+class _AlbumPosterPreviewSheet extends StatefulWidget {
+  final Uint8List posterBytes;
+  final String? shareText;
+
+  const _AlbumPosterPreviewSheet({
+    required this.posterBytes,
+    this.shareText,
+  });
+
+  @override
+  State<_AlbumPosterPreviewSheet> createState() =>
+      _AlbumPosterPreviewSheetState();
+}
+
+class _AlbumPosterPreviewSheetState extends State<_AlbumPosterPreviewSheet> {
+  bool _isSharing = false;
+
+  Future<void> _handleShare() async {
+    if (_isSharing) return;
+
+    setState(() {
+      _isSharing = true;
+    });
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final fileName =
+          'album_rating_${DateTime.now().millisecondsSinceEpoch}.png';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(widget.posterBytes);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: widget.shareText,
+      );
+    } catch (e) {
+      if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.failedToSharePoster(e.toString()))),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSharing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final l10n = AppLocalizations.of(context)!;
+
+    return Container(
+      height: screenHeight * 0.9,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+      ),
+      child: Column(
+        children: [
+          // 拖动条
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 32,
+            height: 4,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // 图片预览区域
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 3.0,
+                  child: Image.memory(
+                    widget.posterBytes,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 分享按钮
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _isSharing ? null : _handleShare,
+                  icon: _isSharing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.ios_share_rounded),
+                  label: Text(
+                    _isSharing ? l10n.sharingStatus : l10n.shareButton,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/lyrics/lyric_provider.dart'; 
 import '../services/lyrics/qq_provider.dart'; 
-import '../services/lyrics/netease_provider.dart'; 
+import '../services/lyrics/lrclib_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
 
@@ -97,7 +97,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       // 手动创建提供者实例 (与LyricsService中相同的提供者)
       final providers = [
         QQProvider(),
-        NetEaseProvider(),
+        LRCLibProvider(),
       ];
       
       // 从每个提供者获取搜索结果
@@ -157,19 +157,22 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
 
        if (!mounted) return;
 
-       if (rawLyric != null && rawLyric.isNotEmpty) {
+       if (rawLyric != null) {
          final normalizedLyric = result.provider.normalizeLyric(rawLyric);
 
-         // 保存到缓存
-         await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
-         debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
+         if (normalizedLyric.isNotEmpty) {
+           // 保存到缓存
+           await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
+           debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
 
-         // 返回获取的歌词
-         navigator.pop(normalizedLyric); // 使用捕获的 navigator
-       } else {
-         if (mounted) {
-            _notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsNotFoundForTrack);
+           // 返回获取的歌词
+           navigator.pop(normalizedLyric); // 使用捕获的 navigator
+           return;
          }
+       }
+
+       if (mounted) {
+          _notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsNotFoundForTrack);
        }
      } catch (e) {
         if (mounted) {
@@ -288,21 +291,17 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
               itemCount: _searchResults.length,
               itemBuilder: (context, index) {
                 final result = _searchResults[index];
-                final providerDisplayName = result.provider.name == 'qq'
-                    ? 'Provider 1'
-                    : result.provider.name == 'netease'
-                      ? 'Provider 2'
-                      : result.provider.name;
+                final providerDisplayName = _providerDisplayName(context, result.provider.name);
 
                 return ListTile(
-                   leading: Chip(
-                     label: Text(providerDisplayName),
-                     backgroundColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha((0.7 * 255).round()),
-                     labelStyle: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                     padding: EdgeInsets.zero,
-                     visualDensity: VisualDensity.compact,
-                     labelPadding: const EdgeInsets.symmetric(horizontal: 6.0),
-                   ),
+                  leading: Chip(
+                    label: Text(providerDisplayName),
+                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha((0.7 * 255).round()),
+                    labelStyle: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 6.0),
+                  ),
                   title: Text(result.match.title),
                   subtitle: Text(result.match.artist),
                   onTap: () => _selectResult(result),
@@ -338,4 +337,18 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       ),
     );
   }
-} 
+
+  String _providerDisplayName(BuildContext context, String providerName) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (providerName) {
+      case 'qq':
+        return l10n.providerQQMusic;
+      case 'lrclib':
+        return l10n.providerLRCLIB;
+      case 'netease':
+        return l10n.providerNetease;
+      default:
+        return providerName;
+    }
+  }
+}

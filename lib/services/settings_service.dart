@@ -48,6 +48,7 @@ class SettingsService {
   static const _copyLyricsAsSingleLineKey = 'copy_lyrics_single_line'; // Key for new setting
   static const _enableThinkingForTranslationKey = 'enable_thinking_for_translation'; // Key for thinking mode
   static const _enableThinkingForInsightsKey = 'enable_thinking_for_insights';
+  static const _autoTranslateLyricsKey = 'auto_translate_lyrics';
 
   static const _defaultLanguage = 'en'; // Default to English
   static const _defaultStyle = TranslationStyle.faithful; // Default style
@@ -115,6 +116,15 @@ class SettingsService {
     return valueString?.toLowerCase() == 'true';
   }
 
+  Future<void> saveAutoTranslateLyricsEnabled(bool value) async {
+    await _secureStorage.write(key: _autoTranslateLyricsKey, value: value.toString());
+  }
+
+  Future<bool> getAutoTranslateLyricsEnabled() async {
+    final valueString = await _secureStorage.read(key: _autoTranslateLyricsKey);
+    return valueString?.toLowerCase() == 'true';
+  }
+
   // Method to save Spotify Client ID
   Future<void> saveSpotifyClientId(String clientId) async {
     await _secureStorage.write(key: _spotifyClientIdKey, value: clientId);
@@ -126,7 +136,7 @@ class SettingsService {
   }
 
   // Method to save both settings at once, potentially useful in the UI
-  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForTranslation, bool? enableThinkingForInsights}) async {
+  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForTranslation, bool? enableThinkingForInsights, bool? autoTranslateLyrics}) async {
     if (apiKey != null) {
       await saveGeminiApiKey(apiKey);
     }
@@ -145,6 +155,9 @@ class SettingsService {
     if (enableThinkingForInsights != null) {
       await saveEnableThinkingForInsights(enableThinkingForInsights);
     }
+    if (autoTranslateLyrics != null) {
+      await saveAutoTranslateLyricsEnabled(autoTranslateLyrics);
+    }
   }
 
   // Method to get all settings, useful for initialization
@@ -156,6 +169,7 @@ class SettingsService {
       'copyLyricsAsSingleLine': await getCopyLyricsAsSingleLine(),
       'enableThinkingForTranslation': await getEnableThinkingForTranslation(),
       'enableThinkingForInsights': await getEnableThinkingForInsights(),
+      'autoTranslateLyrics': await getAutoTranslateLyricsEnabled(),
     };
   }
 
@@ -167,5 +181,6 @@ class SettingsService {
     await _secureStorage.delete(key: _copyLyricsAsSingleLineKey);
     await _secureStorage.delete(key: _enableThinkingForTranslationKey);
     await _secureStorage.delete(key: _enableThinkingForInsightsKey);
+    await _secureStorage.delete(key: _autoTranslateLyricsKey);
   }
-} 
+}

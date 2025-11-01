@@ -827,6 +827,18 @@ abstract class AppLocalizations {
   /// **'Set Gemini\'s Spirit'**
   String get translationStyleSubtitle;
 
+  /// No description provided for @autoTranslateLyricsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-translate lyrics'**
+  String get autoTranslateLyricsTitle;
+
+  /// No description provided for @autoTranslateLyricsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Translate lyrics automatically when translations are missing'**
+  String get autoTranslateLyricsSubtitle;
+
   /// No description provided for @copyLyricsAsSingleLineTitle.
   ///
   /// In en, this message translates to:
@@ -1852,6 +1864,391 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Secs Ago'**
   String get secsAgo;
+
+  /// No description provided for @failedToPlayAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to play album: {error}'**
+  String failedToPlayAlbum(String error);
+
+  /// No description provided for @rateAtLeastOneSongForPoster.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate at least one song before generating poster'**
+  String get rateAtLeastOneSongForPoster;
+
+  /// No description provided for @failedToSharePoster.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to share rating poster: {error}'**
+  String failedToSharePoster(String error);
+
+  /// No description provided for @cannotPlayMissingTrackLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot play: missing track link'**
+  String get cannotPlayMissingTrackLink;
+
+  /// No description provided for @failedToPlaySong.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to play song: {error}'**
+  String failedToPlaySong(String error);
+
+  /// No description provided for @failedToSaveRating.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save rating: {error}'**
+  String failedToSaveRating(String error);
+
+  /// No description provided for @albumDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Album Details'**
+  String get albumDetails;
+
+  /// No description provided for @titleCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Title copied'**
+  String get titleCopied;
+
+  /// No description provided for @playAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get playAlbum;
+
+  /// No description provided for @rateAtLeastOneSongFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate a few songs before sharing poster'**
+  String get rateAtLeastOneSongFirst;
+
+  /// No description provided for @shareAlbumRatingPoster.
+  ///
+  /// In en, this message translates to:
+  /// **'Share album rating poster'**
+  String get shareAlbumRatingPoster;
+
+  /// No description provided for @hideQuickRating.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide quick rating'**
+  String get hideQuickRating;
+
+  /// No description provided for @showQuickRating.
+  ///
+  /// In en, this message translates to:
+  /// **'Show quick rating'**
+  String get showQuickRating;
+
+  /// No description provided for @currently.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently'**
+  String get currently;
+
+  /// No description provided for @savingChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving...'**
+  String get savingChanges;
+
+  /// No description provided for @saveAllChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save All Changes'**
+  String get saveAllChanges;
+
+  /// No description provided for @generatingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating...'**
+  String get generatingTooltip;
+
+  /// No description provided for @generateAlbumInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate Album Insights'**
+  String get generateAlbumInsights;
+
+  /// No description provided for @collapseInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse insights'**
+  String get collapseInsights;
+
+  /// No description provided for @expandInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand insights'**
+  String get expandInsights;
+
+  /// No description provided for @noSongsRatedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No songs rated yet'**
+  String get noSongsRatedYet;
+
+  /// No description provided for @basedOnRatedSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Based on {rated}/{total} songs'**
+  String basedOnRatedSongs(int rated, int total);
+
+  /// No description provided for @failedToGenerateAlbumInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to generate insights: {error}'**
+  String failedToGenerateAlbumInsights(String error);
+
+  /// No description provided for @failedToLoadCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load cache: {error}'**
+  String failedToLoadCache(String error);
+
+  /// No description provided for @generatingAlbumInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating album insights...'**
+  String get generatingAlbumInsights;
+
+  /// No description provided for @noInsightsAvailableTapToGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'No insights available. Tap the button above to generate.'**
+  String get noInsightsAvailableTapToGenerate;
+
+  /// No description provided for @insightsEmptyRetryGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Insights are empty, try regenerating.'**
+  String get insightsEmptyRetryGenerate;
+
+  /// No description provided for @insightsGeneratedDaysAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'Insights generated {days} days ago'**
+  String insightsGeneratedDaysAgo(int days);
+
+  /// No description provided for @insightsGeneratedHoursAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'Insights generated {hours} hours ago'**
+  String insightsGeneratedHoursAgo(int hours);
+
+  /// No description provided for @insightsGeneratedMinutesAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'Insights generated {minutes} minutes ago'**
+  String insightsGeneratedMinutesAgo(int minutes);
+
+  /// No description provided for @insightsJustGenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'Insights just generated'**
+  String get insightsJustGenerated;
+
+  /// No description provided for @refreshAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh album'**
+  String get refreshAlbum;
+
+  /// No description provided for @failedToLoadAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load album'**
+  String get failedToLoadAlbum;
+
+  /// No description provided for @unknownError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown error'**
+  String get unknownError;
+
+  /// No description provided for @unratedStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Not rated'**
+  String get unratedStatus;
+
+  /// No description provided for @justNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Just now'**
+  String get justNow;
+
+  /// No description provided for @minutesAgoShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes}m ago'**
+  String minutesAgoShort(int minutes);
+
+  /// No description provided for @hoursAgoShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours}h ago'**
+  String hoursAgoShort(int hours);
+
+  /// No description provided for @daysAgoShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{days}d ago'**
+  String daysAgoShort(int days);
+
+  /// No description provided for @totalTracksCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} tracks total'**
+  String totalTracksCount(int count);
+
+  /// No description provided for @failedToPlayPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to play playlist: {error}'**
+  String failedToPlayPlaylist(String error);
+
+  /// No description provided for @playPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Play Playlist'**
+  String get playPlaylist;
+
+  /// No description provided for @playlistDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist Details'**
+  String get playlistDetails;
+
+  /// No description provided for @refreshPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh playlist'**
+  String get refreshPlaylist;
+
+  /// No description provided for @createdBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Created by {owner}'**
+  String createdBy(String owner);
+
+  /// No description provided for @playlistTrackCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} tracks total'**
+  String playlistTrackCount(int count);
+
+  /// No description provided for @failedToLoadPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load playlist'**
+  String get failedToLoadPlaylist;
+
+  /// No description provided for @playlistTracksLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist tracks'**
+  String get playlistTracksLabel;
+
+  /// No description provided for @deviceOperationNotSupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This device does not support this operation or is restricted. Please try playing music on other devices, or check your account type.'**
+  String get deviceOperationNotSupported;
+
+  /// No description provided for @shareAlbumMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'I rated {albumName} by {artist} {score} on Spotoolfy, rated {rated}/{total} songs.'**
+  String shareAlbumMessage(
+      String albumName, String artist, String score, int rated, int total);
+
+  /// No description provided for @noRating.
+  ///
+  /// In en, this message translates to:
+  /// **'No rating'**
+  String get noRating;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @unknownTrackName.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown Track'**
+  String get unknownTrackName;
+
+  /// No description provided for @albumInsightReadyStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Album insights ready'**
+  String get albumInsightReadyStatus;
+
+  /// No description provided for @clickToGenerateAlbumInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Click the button on the right to generate insights for this album'**
+  String get clickToGenerateAlbumInsights;
+
+  /// No description provided for @failedToGenerateAlbumInsightsStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to generate album insights'**
+  String get failedToGenerateAlbumInsightsStatus;
+
+  /// No description provided for @providerQQMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'QQ Music'**
+  String get providerQQMusic;
+
+  /// No description provided for @providerLRCLIB.
+  ///
+  /// In en, this message translates to:
+  /// **'LRCLIB'**
+  String get providerLRCLIB;
+
+  /// No description provided for @providerNetease.
+  ///
+  /// In en, this message translates to:
+  /// **'NetEase Cloud Music'**
+  String get providerNetease;
+
+  /// No description provided for @playingFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'PLAYING FROM'**
+  String get playingFrom;
+
+  /// No description provided for @playFromAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'PLAY FROM ALBUM'**
+  String get playFromAlbum;
+
+  /// No description provided for @playFromPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'PLAY FROM PLAYLIST'**
+  String get playFromPlaylist;
+
+  /// No description provided for @sharingStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing...'**
+  String get sharingStatus;
+
+  /// No description provided for @shareButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareButton;
 }
 
 class _AppLocalizationsDelegate

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1248,8 +1249,9 @@ class SpotifyProvider extends ChangeNotifier {
         // 可以在这里抛出异常或向用户显示消息
         final context = navigatorKey.currentContext;
         if (context != null && context.mounted) {
+          final l10n = AppLocalizations.of(context)!;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('设备 \'$deviceName\' 受限，无法通过API控制。')),
+            SnackBar(content: Text(l10n.deviceRestrictedMessage(deviceName))),
           );
         }
         logger.d('===== SPOTIFY PROVIDER DEBUG END =====');
@@ -2631,10 +2633,11 @@ class SpotifyProvider extends ChangeNotifier {
           logger.w('检测到 insufficient_client_scope 错误，触发重新登录: ${e.message}');
 
           if (context != null && context.mounted) {
+            final l10n = AppLocalizations.of(context)!;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('权限范围不足，正在重新获取完整授权...'),
-                duration: Duration(seconds: 2),
+              SnackBar(
+                content: Text(l10n.insufficientPermissionsReauth),
+                duration: const Duration(seconds: 2),
               ),
             );
           }
@@ -2647,10 +2650,11 @@ class SpotifyProvider extends ChangeNotifier {
           } catch (loginError) {
             logger.e('insufficient_client_scope: 重新登录失败: $loginError');
             if (context != null && context.mounted) {
+              final l10n = AppLocalizations.of(context)!;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('重新获取授权失败，请手动重新登录'),
-                  duration: Duration(seconds: 3),
+                SnackBar(
+                  content: Text(l10n.reauthFailedManualLogin),
+                  duration: const Duration(seconds: 3),
                 ),
               );
             }
@@ -2670,7 +2674,8 @@ class SpotifyProvider extends ChangeNotifier {
             isHandledKnown403 = true;
           } else if (lowerCaseMessage.contains('restricted') ||
               lowerCaseMessage.contains('restriction violated')) {
-            displayMessage = '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
+            final l10n = context != null ? AppLocalizations.of(context)! : null;
+            displayMessage = l10n?.deviceOperationNotSupported ?? '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
             isHandledKnown403 = true;
           } else {
             displayMessage = '权限不足 (403): ${e.message}';
@@ -2689,8 +2694,9 @@ class SpotifyProvider extends ChangeNotifier {
       } else {
         // 415 或其他错误码
         if (context != null && context.mounted) {
+          final l10n = AppLocalizations.of(context)!;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('请求格式错误 (${e.code})，请稍后重试或联系开发者。')),
+            SnackBar(content: Text(l10n.badRequestError(e.code ?? 'UNKNOWN'))),
           );
         }
       }

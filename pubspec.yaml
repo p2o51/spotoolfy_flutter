@@ -99,6 +99,27 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   fonts:
+    - family: Spotify Mix
+      fonts:
+        # Light - FontWeight.w300
+        - asset: assets/fonts/SpotifyMix-Light.ttf
+          weight: 300
+        # Regular - FontWeight.w400 或 FontWeight.normal
+        - asset: assets/fonts/SpotifyMix-Regular.ttf
+          weight: 400
+        # Medium - FontWeight.w500
+        - asset: assets/fonts/SpotifyMix-Medium.ttf
+          weight: 500
+        # Bold - FontWeight.w700 或 FontWeight.bold
+        - asset: assets/fonts/SpotifyMix-Bold.ttf
+          weight: 700
+        # Extrabold - FontWeight.w800
+        - asset: assets/fonts/SpotifyMix-Extrabold.ttf
+          weight: 800
+        # Italic - 常规斜体
+        - asset: assets/fonts/SpotifyMix-RegularItalic.ttf
+          weight: 400
+          style: italic
     - family: Montserrat
       fonts:
         # 常规 (Regular) - 对应 FontWeight.w400 或 FontWeight.normal
