@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logger/logger.dart';
+import '../models/lyrics_translation_error.dart';
 import '../services/settings_service.dart';
 import '../utils/structured_translation.dart';
 
@@ -17,7 +19,7 @@ class TranslationService {
   static const String _cacheKeyPrefix =
       'translation_cache_'; // Cache key prefix
 
-  Future<Map<String, dynamic>?> translateLyrics(
+  Future<Map<String, dynamic>> translateLyrics(
     String lyricsText,
     String trackId, {
     String? targetLanguage,
@@ -26,7 +28,10 @@ class TranslationService {
   }) async {
     final apiKey = await _settingsService.getGeminiApiKey();
     if (apiKey == null || apiKey.isEmpty) {
-      throw Exception('Gemini API Key not configured.');
+      throw const LyricsTranslationException(
+        code: LyricsTranslationErrorCode.missingApiKey,
+        message: 'Gemini API Key not configured.',
+      );
     }
 
     final languageCodeUsed = targetLanguage ??
@@ -48,7 +53,16 @@ class TranslationService {
         enableThinking ? '_thinking$_thinkingBudget' : '_noThinking';
     final cacheKey =
         '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed$thinkingSuffix';
-    final prefs = await SharedPreferences.getInstance();
+    final SharedPreferences prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (e) {
+      throw LyricsTranslationException(
+        code: LyricsTranslationErrorCode.cacheFailure,
+        message: 'Unable to access translation cache.',
+        cause: e,
+      );
+    }
 
     if (!forceRefresh) {
       final cachedTranslation = prefs.getString(cacheKey);
@@ -102,14 +116,16 @@ class TranslationService {
     });
 
     try {
-      final response = await http
-          .post(url, headers: headers, body: body)
-          .timeout(
-            const Duration(
-                seconds:
-                    30), // Increased timeout for potential long translations
-            onTimeout: () => throw Exception('Translation request timed out.'),
-          );
+      final response =
+          await http.post(url, headers: headers, body: body).timeout(
+                const Duration(
+                    seconds:
+                        30), // Increased timeout for potential long translations
+                onTimeout: () => throw const LyricsTranslationException(
+                  code: LyricsTranslationErrorCode.requestTimeout,
+                  message: 'Translation request timed out.',
+                ),
+              );
 
       if (response.statusCode == 200) {
         final decodedResponse = jsonDecode(response.body);
@@ -149,11 +165,14 @@ class TranslationService {
           }
         }
         // Handle cases where the expected structure isn't found
-        throw Exception('Failed to parse translation response.');
+        throw const LyricsTranslationException(
+          code: LyricsTranslationErrorCode.invalidResponse,
+          message: 'Failed to parse translation response.',
+        );
       } else {
         // Try to parse error message from response
         String errorMessage =
-            'Translation failed (Code: ${response.statusCode}).';
+            'Translation failed (HTTP ${response.statusCode}).';
         try {
           final errorJson = jsonDecode(response.body);
           if (errorJson['error'] != null &&
@@ -163,12 +182,34 @@ class TranslationService {
         } catch (_) {
           // Ignore parsing error, use default message
         }
-        throw Exception(errorMessage);
+        throw LyricsTranslationException(
+          code: LyricsTranslationErrorCode.apiError,
+          message: errorMessage,
+        );
       }
+    } on LyricsTranslationException {
+      rethrow;
+    } on SocketException catch (e) {
+      logger.d('Gemini API unreachable: $e');
+      throw LyricsTranslationException(
+        code: LyricsTranslationErrorCode.apiUnreachable,
+        message: 'Unable to reach Gemini API endpoint.',
+        cause: e,
+      );
+    } on http.ClientException catch (e) {
+      logger.d('HTTP client error when calling Gemini API: $e');
+      throw LyricsTranslationException(
+        code: LyricsTranslationErrorCode.apiUnreachable,
+        message: 'Gemini API request could not be completed.',
+        cause: e,
+      );
     } catch (e) {
       logger.d('Error during translation API call or processing: $e');
-      // Return null if translation fails
-      return null;
+      throw LyricsTranslationException(
+        code: LyricsTranslationErrorCode.unknown,
+        message: 'Unexpected error during translation.',
+        cause: e,
+      );
     }
   }
 

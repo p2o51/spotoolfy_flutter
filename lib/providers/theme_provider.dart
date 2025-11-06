@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
@@ -7,27 +9,46 @@ final logger = Logger();
 
 class ThemeProvider extends ChangeNotifier {
   ColorScheme _colorScheme = ColorScheme.fromSeed(seedColor: Colors.blue);
+  final LinkedHashMap<String, ColorScheme> _paletteCache =
+      LinkedHashMap<String, ColorScheme>();
+  static const int _maxCacheEntries = 8;
+  int _paletteRequestId = 0;
 
   ColorScheme get colorScheme => _colorScheme;
 
   void updateThemeFromSystem(BuildContext context) {
     final brightness = MediaQuery.platformBrightnessOf(context);
-    _updateColorScheme(brightness);
+    final newScheme = ColorScheme.fromSeed(
+      seedColor: _colorScheme.primary,
+      brightness: brightness,
+    );
+    _applyColorScheme(newScheme);
+  }
+
+  void _applyColorScheme(ColorScheme newScheme) {
+    if (_colorScheme == newScheme) {
+      return;
+    }
+    _colorScheme = newScheme;
     notifyListeners();
   }
 
-  void _updateColorScheme(Brightness brightness) {
-    final seedColor = _colorScheme.primary;
-    _colorScheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: brightness,
-    );
-  }
+  Future<void> updateThemeFromImage({
+    required ImageProvider imageProvider,
+    required Brightness brightness,
+    String? cacheKey,
+  }) async {
+    final normalizedCacheKey =
+        cacheKey != null ? '${cacheKey}_${brightness.name}' : null;
 
-  Future<void> updateThemeFromImage(
-    ImageProvider imageProvider, [
-    Brightness? brightness,
-  ]) async {
+    if (normalizedCacheKey != null &&
+        _paletteCache.containsKey(normalizedCacheKey)) {
+      _applyColorScheme(_paletteCache[normalizedCacheKey]!);
+      return;
+    }
+
+    final int requestId = ++_paletteRequestId;
+
     try {
       final PaletteGenerator generator =
           await PaletteGenerator.fromImageProvider(
@@ -38,15 +59,31 @@ class ThemeProvider extends ChangeNotifier {
 
       final Color dominantColor = _selectBestSeedColor(generator);
 
-      final effectiveBrightness = brightness ?? Brightness.light;
-      _colorScheme = ColorScheme.fromSeed(
+      if (requestId != _paletteRequestId) {
+        // A newer request has superseded this one.
+        return;
+      }
+
+      final ColorScheme nextScheme = ColorScheme.fromSeed(
         seedColor: dominantColor,
-        brightness: effectiveBrightness,
+        brightness: brightness,
       );
 
-      notifyListeners();
+      if (normalizedCacheKey != null) {
+        _cacheColorScheme(normalizedCacheKey, nextScheme);
+      }
+
+      _applyColorScheme(nextScheme);
     } catch (e) {
       logger.e('更新主题颜色失败: $e');
+    }
+  }
+
+  void _cacheColorScheme(String cacheKey, ColorScheme scheme) {
+    _paletteCache[cacheKey] = scheme;
+    if (_paletteCache.length > _maxCacheEntries) {
+      final firstKey = _paletteCache.keys.first;
+      _paletteCache.remove(firstKey);
     }
   }
 

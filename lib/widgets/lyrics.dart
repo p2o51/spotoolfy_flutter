@@ -7,6 +7,7 @@ import '../services/lyrics_service.dart';
 import 'dart:async';
 import '../services/translation_service.dart';
 import '../models/translation.dart';
+import '../models/lyrics_translation_error.dart';
 import '../models/track.dart';
 import './translation_result_page.dart';
 import './lyrics_search_page.dart';
@@ -58,6 +59,10 @@ class _LyricsWidgetState extends State<LyricsWidget>
   int? _currentTrackDurationMs;
   bool _temporarilyIgnoreUserScroll = false;
   Timer? _userScrollSuppressionTimer;
+  Timer? _quickActionsHideTimer;
+  bool _manualQuickActionsVisible = false;
+  bool _lyricsContentScrollable = true;
+  bool _scrollabilityCheckScheduled = false;
   Future<TranslationLoadResult>? _translationPreloadFuture;
   TranslationLoadResult? _preloadedTranslationResult;
   String? _preloadedTrackId;
@@ -88,6 +93,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
   @override
   void dispose() {
     _userScrollSuppressionTimer?.cancel();
+    _quickActionsHideTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -109,6 +115,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _activeTranslationStyle = null;
       // If no track is playing, clear lyrics and reset state
       if (_lyrics.isNotEmpty || _lastTrackId != null) {
+        _quickActionsHideTimer?.cancel();
         setState(() {
           _lyrics = [];
           _lastTrackId = null;
@@ -120,6 +127,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _currentTrackDurationMs = null;
           _activeTranslationStyle = null;
           _lyricsAreSynced = true;
+          _manualQuickActionsVisible = false;
         });
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0);
@@ -147,6 +155,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
+    _quickActionsHideTimer?.cancel();
     setState(() {
       _lyrics = [];
       _autoScroll = true; // Default to auto-scroll when new lyrics load
@@ -161,6 +170,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _preloadingTrackId = null;
       _activeTranslationStyle = null;
       _lyricsAreSynced = true;
+      _manualQuickActionsVisible = false;
     });
 
     final rawLyrics =
@@ -181,6 +191,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       final parsedLyrics = _parseLyrics(rawLyrics);
 
       if (summary.hasTimestamps && parsedLyrics.isNotEmpty) {
+        _quickActionsHideTimer?.cancel();
         setState(() {
           _lyricsAreSynced = true;
           _lyrics = parsedLyrics;
@@ -193,11 +204,13 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _pendingScrollIndex = null;
           _lastFallbackIndexAttempted = null;
           _fallbackAttemptsForCurrentIndex = 0;
+          _manualQuickActionsVisible = false;
         });
         unawaited(_maybeTriggerAutoTranslate());
       } else {
         final unsyncedLines = _buildUnsyncedLyrics(rawLyrics);
         if (unsyncedLines.isNotEmpty) {
+          _quickActionsHideTimer?.cancel();
           setState(() {
             _lyricsAreSynced = false;
             _lyrics = unsyncedLines;
@@ -210,24 +223,29 @@ class _LyricsWidgetState extends State<LyricsWidget>
             _pendingScrollIndex = null;
             _lastFallbackIndexAttempted = null;
             _fallbackAttemptsForCurrentIndex = 0;
+            _manualQuickActionsVisible = false;
           });
           unawaited(_maybeTriggerAutoTranslate());
         } else {
+          _quickActionsHideTimer?.cancel();
           setState(() {
             _lyricsAreSynced = true;
             _lyrics = [];
             _autoScroll = true;
             _syncLineKeys(0);
+            _manualQuickActionsVisible = false;
           });
         }
       }
     } else {
       // Lyrics fetch failed, keep lyrics list empty
+      _quickActionsHideTimer?.cancel();
       setState(() {
         _lyrics = [];
         // Keep _autoScroll = true
         _syncLineKeys(0);
         _lyricsAreSynced = true;
+        _manualQuickActionsVisible = false;
       });
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
@@ -323,7 +341,6 @@ class _LyricsWidgetState extends State<LyricsWidget>
         Provider.of<SpotifyProvider>(context, listen: false);
     final localDbProvider =
         Provider.of<LocalDatabaseProvider>(context, listen: false);
-    final l10n = AppLocalizations.of(context)!;
 
     final effectiveStyle =
         style ?? await _settingsService.getTranslationStyle();
@@ -363,13 +380,15 @@ class _LyricsWidgetState extends State<LyricsWidget>
       originalLines: originalLines,
     );
 
-    if (translationData == null || translationData['text'] == null) {
-      throw Exception(
-        l10n.translationFailed(l10n.operationFailed),
+    final textPayload = translationData['text'];
+    if (textPayload is! String || textPayload.trim().isEmpty) {
+      throw const LyricsTranslationException(
+        code: LyricsTranslationErrorCode.invalidResponse,
+        message: 'Missing translated text in response.',
       );
     }
 
-    final rawText = (translationData['text'] as String).trim();
+    final rawText = textPayload.trim();
     final cleanedText =
         (translationData['cleanedText'] as String?)?.trim() ?? rawText;
     final languageCodeUsed =
@@ -717,6 +736,80 @@ class _LyricsWidgetState extends State<LyricsWidget>
     unawaited(_preloadNextTrackResources());
   }
 
+  bool get _requiresManualQuickActions =>
+      _lyrics.isNotEmpty && (!_lyricsAreSynced || !_lyricsContentScrollable);
+
+  bool get _shouldShowQuickActionsBar {
+    if (_isCopyLyricsMode || _lyrics.isEmpty) {
+      return true;
+    }
+    if (_lyricsAreSynced && _lyricsContentScrollable) {
+      return !_autoScroll;
+    }
+    return _requiresManualQuickActions && _manualQuickActionsVisible;
+  }
+
+  void _scheduleScrollabilityCheck() {
+    if (_scrollabilityCheckScheduled) {
+      return;
+    }
+    _scrollabilityCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollabilityCheckScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      if (!_scrollController.hasClients) {
+        _scheduleScrollabilityCheck();
+        return;
+      }
+      final position = _scrollController.position;
+      final bool canScroll =
+          (position.maxScrollExtent - position.minScrollExtent).abs() > 1.0;
+      final bool nextRequiresManual =
+          _lyrics.isNotEmpty && (!_lyricsAreSynced || !canScroll);
+      final bool manualRequirementChanged =
+          _requiresManualQuickActions != nextRequiresManual;
+      if (_lyricsContentScrollable != canScroll || manualRequirementChanged) {
+        setState(() {
+          _lyricsContentScrollable = canScroll;
+          if (!nextRequiresManual) {
+            _manualQuickActionsVisible = false;
+            _quickActionsHideTimer?.cancel();
+          }
+        });
+      }
+    });
+  }
+
+  void _showManualQuickActionsTemporarily() {
+    if (!mounted ||
+        !_requiresManualQuickActions ||
+        _isCopyLyricsMode ||
+        _lyrics.isEmpty) {
+      return;
+    }
+    if (!_manualQuickActionsVisible) {
+      setState(() {
+        _manualQuickActionsVisible = true;
+      });
+    }
+    _quickActionsHideTimer?.cancel();
+    _quickActionsHideTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted ||
+          !_requiresManualQuickActions ||
+          _isCopyLyricsMode ||
+          _lyrics.isEmpty) {
+        return;
+      }
+      if (_manualQuickActionsVisible) {
+        setState(() {
+          _manualQuickActionsVisible = false;
+        });
+      }
+    });
+  }
+
   void _scheduleRealignScroll() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_autoScroll) return;
@@ -883,8 +976,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     final double topOverlay = 40.0 + mediaQuery.padding.top;
 
-    final bool bottomBarVisible =
-        !_autoScroll || _lyrics.isEmpty || _isCopyLyricsMode;
+    final bool bottomBarVisible = _shouldShowQuickActionsBar;
     final double bottomOverlay =
         bottomBarVisible ? (24.0 + mediaQuery.padding.bottom + 48.0) : 0.0;
 
@@ -905,8 +997,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     final double topOverlay = 40.0 + mediaQuery.padding.top;
 
-    final bool bottomBarVisible =
-        !_autoScroll || _lyrics.isEmpty || _isCopyLyricsMode;
+    final bool bottomBarVisible = _shouldShowQuickActionsBar;
     final double bottomOverlay =
         bottomBarVisible ? (24.0 + mediaQuery.padding.bottom + 48.0) : 0.0;
 
@@ -1086,6 +1177,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
         }
 
         _syncLineKeys(_lyrics.length);
+        _scheduleScrollabilityCheck();
 
         // 2. Calculate latest position and index based on provider state
         final currentProgressMs = currentTrackData?['progress_ms'] ?? 0;
@@ -1111,6 +1203,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
           }
         }
 
+        final bool shouldShowQuickActions = _shouldShowQuickActionsBar;
+
         // REMOVED: Internal _currentPosition state update logic
         // REMOVED: Logic to start/stop internal _progressTimer based on isPlaying
 
@@ -1120,6 +1214,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
             onNotification: (scrollNotification) {
               if (!mounted) return true;
 
+              bool userInitiatedScroll = false;
               // Disable auto-scroll on user interaction
               if (scrollNotification is UserScrollNotification) {
                 if (_temporarilyIgnoreUserScroll) {
@@ -1133,6 +1228,19 @@ class _LyricsWidgetState extends State<LyricsWidget>
                     _userScrollSuppressionTimer?.cancel();
                   });
                 }
+                if (scrollNotification.direction != ScrollDirection.idle) {
+                  userInitiatedScroll = true;
+                }
+              } else if (scrollNotification is ScrollStartNotification) {
+                userInitiatedScroll = scrollNotification.dragDetails != null;
+              } else if (scrollNotification is ScrollUpdateNotification) {
+                userInitiatedScroll = scrollNotification.dragDetails != null;
+              } else if (scrollNotification is OverscrollNotification) {
+                userInitiatedScroll = scrollNotification.dragDetails != null;
+              }
+
+              if (_requiresManualQuickActions && userInitiatedScroll) {
+                _showManualQuickActionsTemporarily();
               }
               return true; // Allow notification to bubble up
             },
@@ -1316,9 +1424,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                   ),
                 ),
                 // Buttons overlay at the bottom
-                if (!_autoScroll ||
-                    _lyrics.isEmpty ||
-                    _isCopyLyricsMode) // Show buttons if not auto-scrolling, lyrics empty, or in copy mode
+                if (shouldShowQuickActions)
                   Positioned(
                     left: MediaQuery.of(context).size.width > 600
                         ? 24
@@ -1598,6 +1704,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
         _isCopyLyricsMode = false;
         _autoScroll = _lyricsAreSynced; // Resume auto-scroll only when synced
         _temporarilyIgnoreUserScroll = true;
+        _quickActionsHideTimer?.cancel();
+        _manualQuickActionsVisible = false;
         // Restore previous play mode if it was saved
         if (_previousPlayMode != null) {
           provider.setPlayMode(_previousPlayMode!);
@@ -1624,6 +1732,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
         _autoScroll = false; // Disable auto-scroll explicitly
         _temporarilyIgnoreUserScroll = false;
         _userScrollSuppressionTimer?.cancel();
+        _quickActionsHideTimer?.cancel();
         // Store current mode and set to single repeat
         _previousPlayMode = provider.currentMode;
         provider.setPlayMode(PlayMode.singleRepeat);
@@ -1712,6 +1821,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final parsed = _parseLyrics(result);
         final bool synced = summary.hasTimestamps && parsed.isNotEmpty;
         final newLyrics = synced ? parsed : _buildUnsyncedLyrics(result);
+        _quickActionsHideTimer?.cancel();
         setState(() {
           _lyrics = newLyrics;
           _lyricsAreSynced = synced;
@@ -1721,6 +1831,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _translationsVisible = false;
           _isTranslationLoading = false;
           _syncLineKeys(_lyrics.length);
+          _manualQuickActionsVisible = false;
 
           // Restore auto-scroll if it was enabled before searching
           if (wasAutoScrollEnabled && synced) {

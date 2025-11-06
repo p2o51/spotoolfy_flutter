@@ -426,7 +426,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   }
 
   Widget _buildAlbumArt(Map<String, dynamic>? track) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+    final themeProvider = context.read<ThemeProvider>();
     final displayTrack = track ?? _lastTrack;
     final String? currentImageUrl =
         displayTrack?['album']?['images']?[0]?['url'];
@@ -445,7 +445,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               maxWidth: MediaQuery.sizeOf(context).width.toInt(),
             );
             themeProvider.updateThemeFromImage(
-                imageProvider, MediaQuery.platformBrightnessOf(context));
+              imageProvider: imageProvider,
+              brightness: MediaQuery.platformBrightnessOf(context),
+              cacheKey: currentImageUrl,
+            );
           }
           _isThemeUpdating = false;
         });

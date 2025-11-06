@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart'; // 确保导入
 import '../services/notification_service.dart';
 import '../services/lyrics_poster_service.dart';
 import '../l10n/app_localizations.dart';
+import '../models/poster_lyric_line.dart';
 
 // 海报样式枚举
 enum PosterStyle {
@@ -35,7 +36,8 @@ class PosterColorConfig {
   });
 
   // 根据样式和主题获取颜色配置
-  static PosterColorConfig getConfig(PosterStyle style, ColorScheme colorScheme) {
+  static PosterColorConfig getConfig(
+      PosterStyle style, ColorScheme colorScheme) {
     switch (style) {
       case PosterStyle.style1:
         // 样式1: 歌词正文，脚注与标题：Primary Container, 歌手：Primary, 背景：On Primary Container
@@ -86,6 +88,7 @@ class LyricsPosterPreviewPage extends StatefulWidget {
   final String trackTitle;
   final String artistName;
   final String? albumCoverUrl;
+  final List<PosterLyricLine>? posterLyricLines;
 
   const LyricsPosterPreviewPage({
     super.key,
@@ -93,10 +96,12 @@ class LyricsPosterPreviewPage extends StatefulWidget {
     required this.trackTitle,
     required this.artistName,
     this.albumCoverUrl,
+    this.posterLyricLines,
   });
 
   @override
-  State<LyricsPosterPreviewPage> createState() => _LyricsPosterPreviewPageState();
+  State<LyricsPosterPreviewPage> createState() =>
+      _LyricsPosterPreviewPageState();
 }
 
 class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
@@ -106,6 +111,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
   String? _tempFilePath; // Store temporary file path for sharing
   String? _errorMessage;
   PosterStyle _currentStyle = PosterStyle.style1; // 当前选择的样式
+  bool get _isBusy => _isLoading || _isOperating;
 
   @override
   void initState() {
@@ -123,7 +129,8 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     HapticFeedback.lightImpact();
     final theme = Theme.of(context);
     // 获取主题字体或指定默认字体
-    final String uiFontFamily = theme.textTheme.bodyMedium?.fontFamily ?? 'Montserrat'; // Default to Montserrat if not found
+    final String uiFontFamily = theme.textTheme.bodyMedium?.fontFamily ??
+        'Montserrat'; // Default to Montserrat if not found
 
     setState(() {
       _isLoading = true;
@@ -134,10 +141,12 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
 
     try {
       final posterService = LyricsPosterService();
-      final colorConfig = PosterColorConfig.getConfig(_currentStyle, theme.colorScheme);
-      
+      final colorConfig =
+          PosterColorConfig.getConfig(_currentStyle, theme.colorScheme);
+
       final bytes = await posterService.generatePosterData(
         lyrics: widget.lyrics,
+        posterLyricLines: widget.posterLyricLines,
         trackTitle: widget.trackTitle,
         artistName: widget.artistName,
         albumCoverUrl: widget.albumCoverUrl,
@@ -152,7 +161,8 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
       );
 
       final tempDir = await getTemporaryDirectory();
-      final fileName = 'lyrics_poster_preview_${DateTime.now().millisecondsSinceEpoch}.png';
+      final fileName =
+          'lyrics_poster_preview_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsBytes(bytes);
 
@@ -178,34 +188,40 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
 
     HapticFeedback.mediumImpact();
     // final l10n = AppLocalizations.of(context); // Kept for context if needed later
-    setState(() { _isOperating = true; });
+    setState(() {
+      _isOperating = true;
+    });
 
     try {
       final posterService = LyricsPosterService();
       await posterService.savePosterFromBytes(_posterBytes!, widget.trackTitle);
-      
+
       if (mounted) {
         Provider.of<NotificationService>(context, listen: false)
             .showSnackBar(AppLocalizations.of(context)!.exportSuccess);
       }
     } catch (e) {
       if (mounted) {
-        Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
+        Provider.of<NotificationService>(context, listen: false).showErrorSnackBar(
+            '${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
       }
     } finally {
       if (mounted) {
-        setState(() { _isOperating = false; });
+        setState(() {
+          _isOperating = false;
+        });
       }
     }
   }
 
   Future<void> _sharePoster() async {
     if (_tempFilePath == null || _isOperating) return;
-    
+
     HapticFeedback.mediumImpact();
     // final l10n = AppLocalizations.of(context); // Kept for context if needed later
-    setState(() { _isOperating = true; });
+    setState(() {
+      _isOperating = true;
+    });
 
     try {
       final posterService = LyricsPosterService();
@@ -215,12 +231,14 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
       );
     } catch (e) {
       if (mounted) {
-        Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
+        Provider.of<NotificationService>(context, listen: false).showErrorSnackBar(
+            '${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
       }
     } finally {
       if (mounted) {
-        setState(() { _isOperating = false; });
+        setState(() {
+          _isOperating = false;
+        });
       }
     }
   }
@@ -228,12 +246,12 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
   // 切换海报样式并重新生成
   void _changeStyle(PosterStyle newStyle) {
     if (_currentStyle == newStyle || _isLoading || _isOperating) return;
-    
+
     HapticFeedback.selectionClick();
     setState(() {
       _currentStyle = newStyle;
     });
-    
+
     _generatePoster();
   }
 
@@ -242,25 +260,26 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     final isSelected = _currentStyle == style;
     final theme = Theme.of(context);
     final colorConfig = PosterColorConfig.getConfig(style, theme.colorScheme);
-    
+
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
         child: AspectRatio(
           aspectRatio: 1,
           child: Material(
-            color: isSelected 
+            color: isSelected
                 ? theme.colorScheme.primary.withValues(alpha: 0.2)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: _isLoading || _isOperating ? null : () => _changeStyle(style),
+              onTap:
+                  _isLoading || _isOperating ? null : () => _changeStyle(style),
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: isSelected 
-                        ? theme.colorScheme.primary 
+                    color: isSelected
+                        ? theme.colorScheme.primary
                         : theme.colorScheme.outline.withValues(alpha: 0.5),
                     width: isSelected ? 2 : 1,
                   ),
@@ -315,18 +334,20 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
                       bottom: 6,
                       right: 6,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isSelected 
-                              ? theme.colorScheme.primary 
-                              : theme.colorScheme.outline.withValues(alpha: 0.7),
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.outline
+                                  .withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           label,
                           style: TextStyle(
-                            color: isSelected 
-                                ? theme.colorScheme.onPrimary 
+                            color: isSelected
+                                ? theme.colorScheme.onPrimary
                                 : theme.colorScheme.surface,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -346,81 +367,89 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context); // Keep for parts that work in _buildPosterContent
+    final l10n = AppLocalizations.of(
+        context); // Keep for parts that work in _buildPosterContent
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.sharePoster),
+    return PopScope(
+      canPop: !_isBusy,
+      onPopInvoked: (didPop) {
+        if (!didPop && _isBusy) {
+          HapticFeedback.mediumImpact();
+        }
+      },
+      child: Scaffold(
         backgroundColor: theme.colorScheme.surface,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: _buildPosterContent(theme, l10n), // Pass l10n
-              ),
-            ),
-          ),
-          
-          if (!_isLoading && _posterBytes != null)
-            Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: 16 + MediaQuery.of(context).padding.bottom,
-              ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                  ),
+        appBar: AppBar(
+          title: Text(AppLocalizations.of(context)!.sharePoster),
+          backgroundColor: theme.colorScheme.surface,
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: _buildPosterContent(theme, l10n), // Pass l10n
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 第一行：样式选择按钮
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStyleButton(PosterStyle.style1, '1'),
-                      _buildStyleButton(PosterStyle.style2, '2'),
-                      _buildStyleButton(PosterStyle.style3, '3'),
-                      _buildStyleButton(PosterStyle.style4, '4'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // 第二行：保存和分享按钮
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Expanded(
-                        child: IconButton.filledTonal(
-                          onPressed: _isOperating ? null : _savePoster,
-                          icon: const Icon(Icons.download),
-                          tooltip: AppLocalizations.of(context)!.saveChanges,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: IconButton.filled(
-                          onPressed: _isOperating ? null : _sharePoster,
-                          icon: const Icon(Icons.share),
-                          tooltip: AppLocalizations.of(context)!.sharePoster,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
             ),
-        ],
+            if (!_isLoading && _posterBytes != null)
+              Container(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: 16 + MediaQuery.of(context).padding.bottom,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  border: Border(
+                    top: BorderSide(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 第一行：样式选择按钮
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildStyleButton(PosterStyle.style1, '1'),
+                        _buildStyleButton(PosterStyle.style2, '2'),
+                        _buildStyleButton(PosterStyle.style3, '3'),
+                        _buildStyleButton(PosterStyle.style4, '4'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 第二行：保存和分享按钮
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: IconButton.filledTonal(
+                            onPressed: _isOperating ? null : _savePoster,
+                            icon: const Icon(Icons.download),
+                            tooltip: AppLocalizations.of(context)!.saveChanges,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: IconButton.filled(
+                            onPressed: _isOperating ? null : _sharePoster,
+                            icon: const Icon(Icons.share),
+                            tooltip: AppLocalizations.of(context)!.sharePoster,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -451,7 +480,8 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            AppLocalizations.of(context)!.posterGenerationFailed(_errorMessage!),
+            AppLocalizations.of(context)!
+                .posterGenerationFailed(_errorMessage!),
             style: theme.textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
@@ -490,4 +520,4 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     }
     return const SizedBox.shrink();
   }
-} 
+}

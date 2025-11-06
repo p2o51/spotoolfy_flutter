@@ -129,8 +129,9 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       });
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
-        _translationError = e.toString();
+        _translationError = l10n.translationFailed(e.toString());
         _isInitialLoading = false;
       });
     }

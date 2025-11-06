@@ -652,6 +652,8 @@ class _AlbumPageState extends State<AlbumPage> {
     final averageScore = _averageScore;
 
     final hasInsights = _albumInsights != null;
+    final insightsTitleRaw = (_albumInsights?['title'] as String?)?.trim() ?? '';
+    final hasInsightsTitle = insightsTitleRaw.isNotEmpty;
     final hasError = _albumInsightsError != null;
     final showExpandButton =
         hasInsights || hasError || _isGeneratingAlbumInsights;
@@ -825,21 +827,35 @@ class _AlbumPageState extends State<AlbumPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.insights_rounded,
-                      size: 28,
-                      color: theme.colorScheme.primary,
+                    Expanded(
+                      child: hasInsightsTitle
+                          ? GestureDetector(
+                              onLongPress: () async {
+                                if (insightsTitleRaw.isNotEmpty) {
+                                  await Clipboard.setData(
+                                      ClipboardData(text: insightsTitleRaw));
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(l10n.titleCopied)),
+                                  );
+                                }
+                              },
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  insightsTitleRaw,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      averageScore == null
-                          ? l10n.currently
-                          : averageScore.toStringAsFixed(1),
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
+                    if (hasInsightsTitle) const SizedBox(width: 12),
                     IconButton.filled(
                       onPressed: _isGeneratingAlbumInsights
                           ? null
@@ -884,6 +900,15 @@ class _AlbumPageState extends State<AlbumPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
+                  averageScore == null
+                      ? l10n.currently
+                      : averageScore.toStringAsFixed(1),
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
                   _ratedTrackCount == 0
                       ? l10n.noSongsRatedYet
                       : l10n.basedOnRatedSongs(
@@ -918,55 +943,8 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 
   Widget _buildInsightsTitle(ThemeData theme) {
-    final hasInsights = _albumInsights != null;
-    final insightsTitleRaw =
-        hasInsights ? (_albumInsights?['title'] as String?)?.trim() : null;
-    final String? insightsTitle =
-        (insightsTitleRaw != null && insightsTitleRaw.isNotEmpty)
-            ? insightsTitleRaw
-            : null;
-
-    if (insightsTitle == null) {
-      return const SizedBox.shrink();
-    }
-
-    final l10n = AppLocalizations.of(context)!;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 16.0),
-      child: Row(
-        children: [
-          Icon(
-            Icons.style,
-            size: 24,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onLongPress: () async {
-                await Clipboard.setData(ClipboardData(text: insightsTitle));
-                if (!mounted) {
-                  return;
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.titleCopied)),
-                );
-              },
-              child: Text(
-                insightsTitle,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    // 标题现在显示在专辑标题下方，所以这里返回空
+    return const SizedBox.shrink();
   }
 
   Widget _buildErrorState() {
@@ -1036,22 +1014,9 @@ class _AlbumPageState extends State<AlbumPage> {
       );
     }
 
-    final generatedAtLabel = _formatGeneratedAt();
     final summary = insights['summary'] as String?;
 
     final children = <Widget>[];
-
-    if (generatedAtLabel != null) {
-      children.add(
-        Text(
-          generatedAtLabel,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-      children.add(const SizedBox(height: 8));
-    }
 
     if (summary != null && summary.isNotEmpty) {
       children.add(

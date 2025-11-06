@@ -123,20 +123,6 @@ class _MyThemedAppState extends State<MyThemedApp> {
   
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-    final brightness = themeProvider.colorScheme.brightness;
-    
-    // Determine status bar icon brightness based on theme brightness
-    final systemUiOverlayStyle = SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
-      // Android: Use light icons on dark background, dark icons on light background
-      statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
-      // iOS: Use dark status bar for dark theme, light status bar for light theme
-      statusBarBrightness: brightness == Brightness.dark ? Brightness.dark : Brightness.light, 
-    );
-
     return MaterialApp(
       scaffoldMessengerKey: scaffoldMessengerKey,
       navigatorKey: navigatorKey,
@@ -150,17 +136,48 @@ class _MyThemedAppState extends State<MyThemedApp> {
       supportedLocales: LanguageService.supportedLocales,
       theme: ThemeData(
         fontFamily: 'Spotify Mix',
-        colorScheme: themeProvider.colorScheme,
         useMaterial3: true,
-        appBarTheme: AppBarTheme(
-          systemOverlayStyle: systemUiOverlayStyle, // Use the dynamic style
-        ),
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: <TargetPlatform, PageTransitionsBuilder>{
-            TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
-          },
-        ),
       ),
+      builder: (context, child) {
+        return Selector<ThemeProvider, ColorScheme>(
+          selector: (context, provider) => provider.colorScheme,
+          builder: (context, colorScheme, _) {
+            final brightness = colorScheme.brightness;
+            final systemUiOverlayStyle = SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: Colors.transparent,
+              systemNavigationBarDividerColor: Colors.transparent,
+              statusBarIconBrightness:
+                  brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+              statusBarBrightness:
+                  brightness == Brightness.dark ? Brightness.dark : Brightness.light,
+            );
+
+            final themedData = ThemeData(
+              fontFamily: 'Spotify Mix',
+              colorScheme: colorScheme,
+              useMaterial3: true,
+              appBarTheme: AppBarTheme(systemOverlayStyle: systemUiOverlayStyle),
+              pageTransitionsTheme: const PageTransitionsTheme(
+                builders: <TargetPlatform, PageTransitionsBuilder>{
+                  TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+                },
+              ),
+            );
+
+            final themedChild = child ?? const SizedBox.shrink();
+
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: systemUiOverlayStyle,
+              child: Theme(
+                data: themedData,
+                child: themedChild,
+              ),
+            );
+          },
+          child: child,
+        );
+      },
       home: const MyApp(),
     );
   }

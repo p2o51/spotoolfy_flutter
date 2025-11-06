@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/notification_service.dart';
 // import '../services/lyrics_poster_service.dart'; // Unused import
 import '../services/settings_service.dart';
+import '../models/poster_lyric_line.dart';
 import '../models/translation_load_result.dart';
 // import '../providers/local_database_provider.dart'; // Unused import
 import '../providers/spotify_provider.dart';
@@ -315,6 +316,31 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
         .toList();
   }
 
+  List<PosterLyricLine> _getPosterLyricLines() {
+    final includeTranslations = _showTranslation && _hasTranslationsLoaded();
+    final posterLines = <PosterLyricLine>[];
+
+    for (final line in _lyricLines) {
+      if (!line.isSelected) continue;
+
+      posterLines.add(PosterLyricLine(text: line.text));
+
+      if (includeTranslations) {
+        final translation = line.translation?.trim();
+        if (translation != null && translation.isNotEmpty) {
+          posterLines.add(
+            PosterLyricLine(
+              text: translation,
+              isTranslation: true,
+            ),
+          );
+        }
+      }
+    }
+
+    return posterLines;
+  }
+
   bool _hasSelectedLyrics() => _selectedCount > 0;
 
   Future<void> _askGemini() async {
@@ -392,12 +418,20 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return;
     }
 
+    final posterLyricLines = _getPosterLyricLines();
+    if (posterLyricLines.isEmpty) {
+      Provider.of<NotificationService>(context, listen: false)
+          .showSnackBar(l10n.noLyricsSelected);
+      return;
+    }
+
     // 导航到海报预览页面
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => LyricsPosterPreviewPage(
-          lyrics: selectedLyrics.join('\n'),
+          lyrics: posterLyricLines.map((line) => line.text).join('\n'),
+          posterLyricLines: posterLyricLines,
           trackTitle: widget.trackTitle,
           artistName: widget.artistName,
           albumCoverUrl: widget.albumCoverUrl,
