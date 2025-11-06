@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:io';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import '../services/spotify_service.dart'
     show SpotifyAuthService, SpotifyAuthException;
 import '../models/spotify_device.dart';
@@ -15,6 +16,7 @@ import '../l10n/app_localizations.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../env.dart';
 
 final logger = Logger();
 
@@ -198,9 +200,9 @@ class SpotifyProvider extends ChangeNotifier {
 
       // 安全的ClientID获取 - 提供默认值
       const String envClientId = String.fromEnvironment('SPOTIFY_CLIENT_ID');
-      const String defaultClientId = '64103961829a42328a6634fb80574191';
+      const String defaultClientId = Env.clientId;
       const String redirectUrl = String.fromEnvironment('SPOTIFY_REDIRECT_URL',
-          defaultValue: 'spotoolfy://callback');
+          defaultValue: Env.redirectUriMobile);
 
       final clientId = storedClientId ??
           (envClientId.isNotEmpty ? envClientId : defaultClientId);
@@ -1137,7 +1139,9 @@ class SpotifyProvider extends ChangeNotifier {
     } finally {
       // 注意：对于iOS，isLoading会在handleCallbackToken()的finally中重置
       // 对于Android/其他平台，在这里重置
-      if (!Platform.isIOS) {
+      final isIOSPlatform =
+          !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+      if (!isIOSPlatform) {
         isLoading = false;
         notifyListeners();
         logger.d('登录流程结束，isLoading已重置为false');
@@ -1918,7 +1922,7 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> updateWidget() async {
-    if (Platform.isAndroid) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       const platform = MethodChannel('com.gojyuplusone.spotoolfy/widget');
       try {
         await platform.invokeMethod('updateWidget', {
@@ -2675,7 +2679,8 @@ class SpotifyProvider extends ChangeNotifier {
           } else if (lowerCaseMessage.contains('restricted') ||
               lowerCaseMessage.contains('restriction violated')) {
             final l10n = context != null ? AppLocalizations.of(context)! : null;
-            displayMessage = l10n?.deviceOperationNotSupported ?? '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
+            displayMessage = l10n?.deviceOperationNotSupported ??
+                '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
             isHandledKnown403 = true;
           } else {
             displayMessage = '权限不足 (403): ${e.message}';

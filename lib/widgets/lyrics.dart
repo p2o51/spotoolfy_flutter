@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
@@ -1269,6 +1270,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                     final theme = Theme.of(context);
                     final screenWidth = MediaQuery.of(context).size.width;
                     final bool isWideLyricLayout = screenWidth > 600;
+                    final bool isWeb = kIsWeb;
                     final line = _lyrics[index];
                     final bool showTranslationLine = _translationsVisible &&
                         line.translation != null &&
@@ -1290,8 +1292,12 @@ class _LyricsWidgetState extends State<LyricsWidget>
                           .withAlpha((0.5 * 255).round());
                     }
                     final Color translationColor = baseTextColor;
-                    final double translationFontSize =
-                        isWideLyricLayout ? 18.0 : 16.0;
+                    final double lyricFontSize = isWideLyricLayout
+                        ? (isWeb ? 30.0 : 24.0)
+                        : (isWeb ? 26.0 : 22.0);
+                    final double translationFontSize = isWideLyricLayout
+                        ? (isWeb ? 22.0 : 18.0)
+                        : (isWeb ? 20.0 : 16.0);
 
                     return GestureDetector(
                       key: _lineKeys[index],
@@ -1348,7 +1354,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                           curve: Curves.easeOutCubic,
                           style: TextStyle(
                             fontFamily: 'Spotify Mix',
-                            fontSize: isWideLyricLayout ? 24 : 22,
+                            fontSize: lyricFontSize,
                             fontWeight: isCurrentLine
                                 ? FontWeight.w700
                                 : FontWeight.w600,

@@ -6,9 +6,12 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:spotify_sdk/spotify_sdk.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:collection/collection.dart'; // Added import for firstWhereOrNull
+
+import '../auth/spotify_auth_stub.dart'
+    if (dart.library.html) '../auth/spotify_auth_web.dart';
 
 final logger = Logger();
 
@@ -64,6 +67,8 @@ class SpotifyAuthService {
 
   /// Token 刷新回调
   void Function()? onTokenRefreshed;
+
+  final SpotifyAuthWeb _webAuth = SpotifyAuthWeb();
 
   SpotifyAuthService({
     required this.clientId,
@@ -247,6 +252,11 @@ class SpotifyAuthService {
 
   /// 检查是否已认证
   Future<bool> isAuthenticated() async {
+    if (kIsWeb) {
+      final token = await _webAuth.getValidAccessToken();
+      return token != null && token.isNotEmpty;
+    }
+
     try {
       final token = await _secureStorage
           .read(key: _accessTokenKey)
@@ -255,16 +265,12 @@ class SpotifyAuthService {
           .read(key: _expirationKey)
           .catchError((_) => null);
 
-      if (token == null || expirationStr == null) {
+      if (token == null || token.isEmpty || expirationStr == null) {
         return false;
       }
 
       final expiration = DateTime.parse(expirationStr);
-      if (expiration.isBefore(DateTime.now())) {
-        return false;
-      }
-
-      return true;
+      return !expiration.isBefore(DateTime.now());
     } catch (e) {
       logger.w('检查认证状态时出错，可能是Keystore未解锁: $e');
       return false;
@@ -273,7 +279,9 @@ class SpotifyAuthService {
 
   /// 监听连接状态
   void _setupConnectionListener() {
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+    final isMobileTarget = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (kIsWeb || !isMobileTarget) {
       // Spotify SDK connect/subscribe might not be supported or behave differently on other platforms.
       return;
     }
@@ -325,6 +333,10 @@ class SpotifyAuthService {
 
   /// 确保 token 有效，必要时刷新
   Future<String?> ensureFreshToken() async {
+    if (kIsWeb) {
+      return _webAuth.getValidAccessToken();
+    }
+
     try {
       final tok = await _secureStorage
           .read(key: _accessTokenKey)
@@ -387,7 +399,9 @@ class SpotifyAuthService {
             code: 'CONFIG_ERROR');
       }
 
-      if (Platform.isIOS && errorString.contains('Connection attempt failed')) {
+      if (!kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.iOS &&
+          errorString.contains('Connection attempt failed')) {
         throw SpotifyAuthException('iOS 连接 Spotify 失败，请重试',
             code: 'IOS_CONNECTION_FAILED');
       }
@@ -430,6 +444,16 @@ class SpotifyAuthService {
   // 修改 login 方法，移除自动连接 Remote 的逻辑
   Future<String?> login({List<String>? scopes}) async {
     try {
+      if (kIsWeb) {
+        final existingToken = await _webAuth.getValidAccessToken();
+        if (existingToken != null) {
+          onTokenRefreshed?.call();
+          return existingToken;
+        }
+        await _webAuth.startLogin();
+        return null;
+      }
+
       // 1. 检查是否已认证，如果已经认证且 token 有效，则直接返回
       final existingToken = await ensureFreshToken();
       if (existingToken != null) {
@@ -469,7 +493,8 @@ class SpotifyAuthService {
         } else if (errorString.contains('Could not authenticate client')) {
           throw SpotifyAuthException('登录失败：无效的 Client ID 或 Redirect URI',
               code: 'AUTH_FAILED');
-        } else if (Platform.isIOS &&
+        } else if (!kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.iOS &&
             errorString.contains('Connection attempt failed')) {
           // iOS特有的连接失败处理
           logger.w('iOS登录时遇到连接失败，尝试重新配置: $errorString');
@@ -511,6 +536,13 @@ class SpotifyAuthService {
 
   /// 登出并清除所有存储的令牌
   Future<void> logout() async {
+    if (kIsWeb) {
+      _webAuth.logout();
+      _connectionSubscription?.cancel();
+      _connectionSubscription = null;
+      return;
+    }
+
     await Future.wait([
       _secureStorage.delete(key: _accessTokenKey),
       _secureStorage.delete(key: _expirationKey),
@@ -639,8 +671,9 @@ class SpotifyAuthService {
 
         final headers = await _authHeaders(hasBody: body != null);
         logger.d("[$attemptType Attempt] $method ${currentUri.toString()}");
-        if (body != null)
+        if (body != null) {
           logger.d("[$attemptType Attempt] Body: ${jsonEncode(body)}");
+        }
         logger.d("[$attemptType Attempt] Headers: $headers");
 
         if (method == 'POST') {
@@ -722,8 +755,9 @@ class SpotifyAuthService {
         final headersForRetry = await _authHeaders(hasBody: body != null);
 
         logger.d("[$attemptType Attempt] $method ${retryUri.toString()}");
-        if (body != null)
+        if (body != null) {
           logger.d("[$attemptType Attempt] Body: ${jsonEncode(body)}");
+        }
         logger.d("[$attemptType Attempt] Headers: $headersForRetry");
 
         if (method == 'POST') {

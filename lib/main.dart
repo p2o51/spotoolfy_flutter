@@ -1,41 +1,52 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:logger/logger.dart';
-import 'l10n/app_localizations.dart';
-import 'pages/nowplaying.dart';
-import 'pages/library.dart';
-import 'pages/roam.dart';
-import 'pages/login.dart';
-import 'pages/devices.dart';
-import 'package:provider/provider.dart';
-import 'providers/spotify_provider.dart';
-import 'package:flutter/services.dart';
-import 'providers/theme_provider.dart';
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:logger/logger.dart';
+import 'package:provider/provider.dart';
+
+import 'auth/spotify_auth_stub.dart'
+    if (dart.library.html) 'auth/spotify_auth_web.dart';
+import 'l10n/app_localizations.dart';
+import 'pages/devices.dart';
+import 'pages/library.dart';
+import 'pages/login.dart';
+import 'pages/nowplaying.dart';
+import 'pages/roam.dart';
 import 'providers/library_provider.dart';
-import 'providers/search_provider.dart';
 import 'providers/local_database_provider.dart';
+import 'providers/search_provider.dart';
+import 'providers/spotify_provider.dart';
+import 'providers/theme_provider.dart';
+import 'services/language_service.dart';
 import 'services/lyrics_service.dart';
 import 'services/notification_service.dart';
 import 'services/settings_service.dart';
-import 'services/language_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 final logger = Logger();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  if (kIsWeb) {
+    await SpotifyAuthWeb().handleRedirect();
+  }
+
   // 设置iOS URL scheme处理
-  if (Platform.isIOS) {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
     const MethodChannel('spotify_auth').setMethodCallHandler((call) async {
       if (call.method == 'handleCallback') {
         final url = call.arguments as String;
-        logger.d('收到iOS Spotify回调: $url'); // Reverted: Replaced print with logger
-        
+        logger
+            .d('收到iOS Spotify回调: $url'); // Reverted: Replaced print with logger
+
         // 解析URL中的access token
         final uri = Uri.parse(url);
         final fragment = uri.fragment;
@@ -43,29 +54,32 @@ void main() async {
           final params = Uri.splitQueryString(fragment);
           final accessToken = params['access_token'];
           final expiresIn = params['expires_in'];
-          
+
           if (accessToken != null) {
-            logger.d('从回调URL提取到access token: ${accessToken.substring(0, 10)}...'); // Reverted: Replaced print with logger
-            
+            logger.d(
+                '从回调URL提取到access token: ${accessToken.substring(0, 10)}...'); // Reverted: Replaced print with logger
+
             // 获取SpotifyProvider实例并保存token
             final context = navigatorKey.currentContext;
             if (context != null) {
-              final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+              final spotifyProvider =
+                  Provider.of<SpotifyProvider>(context, listen: false);
               await spotifyProvider.handleCallbackToken(accessToken, expiresIn);
-              
+
               // 重要：触发用户资料刷新和状态更新
               await spotifyProvider.autoLogin();
-              logger.d('iOS回调处理完成，已触发状态更新'); // Reverted: Replaced print with logger
+              logger.d(
+                  'iOS回调处理完成，已触发状态更新'); // Reverted: Replaced print with logger
             }
           }
         }
       }
     });
   }
-  
+
   final spotifyProvider = SpotifyProvider();
   await spotifyProvider.autoLogin();
-  
+
   runApp(
     MultiProvider(
       providers: [
@@ -78,18 +92,20 @@ void main() async {
           create: (context) => SearchProvider(context.read<SpotifyProvider>()),
         ),
         ChangeNotifierProxyProvider<SpotifyProvider, LocalDatabaseProvider>(
-           create: (context) => LocalDatabaseProvider(context.read<SpotifyProvider>()),
-           update: (context, spotify, previous) {
-              final provider = previous ?? LocalDatabaseProvider(spotify);
-              provider.spotifyProviderUpdated(spotify);
-              return provider;
-           },
+          create: (context) =>
+              LocalDatabaseProvider(context.read<SpotifyProvider>()),
+          update: (context, spotify, previous) {
+            final provider = previous ?? LocalDatabaseProvider(spotify);
+            provider.spotifyProviderUpdated(spotify);
+            return provider;
+          },
         ),
         Provider<LyricsService>(create: (_) => LyricsService()),
         Provider<NotificationService>(
           create: (_) => NotificationService(scaffoldMessengerKey),
         ),
-        Provider<SettingsService>(create: (_) => SettingsService()), // Add this line
+        Provider<SettingsService>(
+            create: (_) => SettingsService()), // Add this line
       ],
       child: const MyThemedApp(),
     ),
@@ -98,20 +114,20 @@ void main() async {
 
 class MyThemedApp extends StatefulWidget {
   const MyThemedApp({super.key});
-  
+
   @override
   State<MyThemedApp> createState() => _MyThemedAppState();
 }
 
 class _MyThemedAppState extends State<MyThemedApp> {
   Locale? _locale;
-  
+
   @override
   void initState() {
     super.initState();
     _loadSavedLocale();
   }
-  
+
   Future<void> _loadSavedLocale() async {
     final savedLocale = await LanguageService.getSavedLocale();
     if (savedLocale != null && mounted) {
@@ -120,7 +136,7 @@ class _MyThemedAppState extends State<MyThemedApp> {
       });
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -147,31 +163,43 @@ class _MyThemedAppState extends State<MyThemedApp> {
               statusBarColor: Colors.transparent,
               systemNavigationBarColor: Colors.transparent,
               systemNavigationBarDividerColor: Colors.transparent,
-              statusBarIconBrightness:
-                  brightness == Brightness.dark ? Brightness.light : Brightness.dark,
-              statusBarBrightness:
-                  brightness == Brightness.dark ? Brightness.dark : Brightness.light,
+              statusBarIconBrightness: brightness == Brightness.dark
+                  ? Brightness.light
+                  : Brightness.dark,
+              statusBarBrightness: brightness == Brightness.dark
+                  ? Brightness.dark
+                  : Brightness.light,
             );
 
             final themedData = ThemeData(
               fontFamily: 'Spotify Mix',
               colorScheme: colorScheme,
               useMaterial3: true,
-              appBarTheme: AppBarTheme(systemOverlayStyle: systemUiOverlayStyle),
+              appBarTheme:
+                  AppBarTheme(systemOverlayStyle: systemUiOverlayStyle),
               pageTransitionsTheme: const PageTransitionsTheme(
                 builders: <TargetPlatform, PageTransitionsBuilder>{
-                  TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+                  TargetPlatform.android:
+                      PredictiveBackPageTransitionsBuilder(),
                 },
               ),
             );
-
             final themedChild = child ?? const SizedBox.shrink();
+            final baseMediaQuery = MediaQuery.of(context);
+            final double textScaleMultiplier = kIsWeb ? 1.12 : 1.0;
+            final mediaData = baseMediaQuery.copyWith(
+              textScaleFactor:
+                  baseMediaQuery.textScaleFactor * textScaleMultiplier,
+            );
 
             return AnnotatedRegion<SystemUiOverlayStyle>(
               value: systemUiOverlayStyle,
-              child: Theme(
-                data: themedData,
-                child: themedChild,
+              child: MediaQuery(
+                data: mediaData,
+                child: Theme(
+                  data: themedData,
+                  child: themedChild,
+                ),
               ),
             );
           },
@@ -199,7 +227,8 @@ class ProgressIndicator extends StatefulWidget {
   State<ProgressIndicator> createState() => _ProgressIndicatorState();
 }
 
-class _ProgressIndicatorState extends State<ProgressIndicator> with SingleTickerProviderStateMixin {
+class _ProgressIndicatorState extends State<ProgressIndicator>
+    with SingleTickerProviderStateMixin {
   late double _currentProgress;
   Timer? _progressTimer;
   late final AnimationController _animationController;
@@ -208,14 +237,14 @@ class _ProgressIndicatorState extends State<ProgressIndicator> with SingleTicker
   @override
   void initState() {
     super.initState();
-    
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _currentProgress = widget.progress;
-    
+
     _progressAnimation = Tween<double>(
       begin: _currentProgress,
       end: _currentProgress,
@@ -223,7 +252,7 @@ class _ProgressIndicatorState extends State<ProgressIndicator> with SingleTicker
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
-    
+
     _startProgressTimer();
   }
 
@@ -251,10 +280,12 @@ class _ProgressIndicatorState extends State<ProgressIndicator> with SingleTicker
   void _startProgressTimer() {
     _progressTimer?.cancel();
     if (widget.isPlaying) {
-      _progressTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) {
+      _progressTimer =
+          Timer.periodic(const Duration(milliseconds: 1000), (timer) {
         if (mounted) {
           setState(() {
-            _currentProgress = math.min(_currentProgress + 1000, widget.duration);
+            _currentProgress =
+                math.min(_currentProgress + 1000, widget.duration);
           });
         }
       });
@@ -273,14 +304,15 @@ class _ProgressIndicatorState extends State<ProgressIndicator> with SingleTicker
     return AnimatedBuilder(
       animation: _progressAnimation,
       builder: (context, child) {
-        final displayProgress = _animationController.isAnimating 
-            ? _progressAnimation.value 
+        final displayProgress = _animationController.isAnimating
+            ? _progressAnimation.value
             : _currentProgress;
-            
+
         return LinearProgressIndicator(
           value: displayProgress / widget.duration,
           minHeight: 4.0,
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          backgroundColor:
+              Theme.of(context).colorScheme.surfaceContainerHighest,
           valueColor: AlwaysStoppedAnimation<Color>(
             Theme.of(context).colorScheme.primary,
           ),
@@ -298,7 +330,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   int _selectedIndex = 0;
-  
+
   @override
   void initState() {
     super.initState();
@@ -319,12 +351,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // 当应用从后台恢复时，刷新播放状态和主题
-      final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+      final spotifyProvider =
+          Provider.of<SpotifyProvider>(context, listen: false);
       // 仅在用户已登录时才执行刷新和启动定时器
       if (spotifyProvider.username != null) {
         // 调用 startTrackRefresh 会取消任何现有定时器并启动新的，同时会立即执行一次刷新
         spotifyProvider.startTrackRefresh();
-      } 
+      }
       // 刷新主题的操作可以保留，因为它与登录状态无关
       context.read<ThemeProvider>().updateThemeFromSystem(context);
     }
@@ -335,7 +368,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // 当系统主题改变时更新应用主题
     context.read<ThemeProvider>().updateThemeFromSystem(context);
   }
-  
+
   // 准备所有页面
   final List<Widget> _pages = [
     const NowPlaying(),
@@ -354,22 +387,28 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           children: [
             Image.asset(
               'assets/icons/adaptive_icon_monochrome.png',
-              width: 40,  // 设置合适的宽度
+              width: 40, // 设置合适的宽度
               height: 40, // 设置合适的高度
               color: Theme.of(context).colorScheme.onSurface, // 使图标颜色与主题匹配
             ),
             const SizedBox(width: 8),
-            Expanded( // 使用 Expanded 防止文本溢出
+            Expanded(
+              // 使用 Expanded 防止文本溢出
               child: Consumer<SpotifyProvider>(
                 builder: (context, provider, child) {
                   final currentTrack = provider.currentTrack;
                   final isPlaying = currentTrack?['is_playing'] ?? false;
                   // 尝试获取上下文描述 (使用新的路径)
-                  final contextDescription = currentTrack?['context']?['name'] as String?;
-                  final contextType = currentTrack?['context']?['type'] as String?;
+                  final contextDescription =
+                      currentTrack?['context']?['name'] as String?;
+                  final contextType =
+                      currentTrack?['context']?['type'] as String?;
 
                   // 检查是否正在播放且有上下文描述和类型
-                  if (isPlaying && contextDescription != null && contextDescription.isNotEmpty && contextType != null) {
+                  if (isPlaying &&
+                      contextDescription != null &&
+                      contextDescription.isNotEmpty &&
+                      contextType != null) {
                     final l10n = AppLocalizations.of(context)!;
                     String playFromText = l10n.playingFrom; // Default
                     if (contextType == 'album') {
@@ -384,7 +423,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       children: [
                         Text(
                           contextDescription, // 显示上下文名称
-                          style: Theme.of(context).textTheme.titleMedium, // 或合适的样式
+                          style:
+                              Theme.of(context).textTheme.titleMedium, // 或合适的样式
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
@@ -431,7 +471,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             },
             icon: const Icon(Icons.devices),
           ),
-          const SizedBox(width: 8,),
+          const SizedBox(
+            width: 8,
+          ),
           IconButton.filledTonal(
             onPressed: () {
               HapticFeedback.lightImpact();
@@ -449,7 +491,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             },
             icon: const Icon(Icons.person_outlined),
           ),
-          const SizedBox(width: 8,),
+          const SizedBox(
+            width: 8,
+          ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4.0),
@@ -459,11 +503,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               if (currentTrack == null || currentTrack['item'] == null) {
                 return const SizedBox.shrink();
               }
-              
+
               final progress = currentTrack['progress_ms'] ?? 0;
               final duration = currentTrack['item']['duration_ms'] ?? 1;
               final isPlaying = currentTrack['is_playing'] ?? false;
-              
+
               return ProgressIndicator(
                 progress: progress.toDouble(),
                 duration: duration.toDouble(),
@@ -507,34 +551,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: isLargeScreen ? null : SafeArea(
-        bottom: false,
-        child: NavigationBar(
-          height: Platform.isIOS ? 55 : null,  // 只在 iOS 平台设置固定高度
-          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (int index) {
-            HapticFeedback.lightImpact();
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
-          destinations: [
-            NavigationDestination(
-              icon: const Icon(Icons.music_note),
-              label: AppLocalizations.of(context)!.nowPlayingLabel,
+      bottomNavigationBar: isLargeScreen
+          ? null
+          : SafeArea(
+              bottom: false,
+              child: NavigationBar(
+                height: defaultTargetPlatform == TargetPlatform.iOS
+                    ? 55
+                    : null, // 只在 iOS 平台设置固定高度
+                labelBehavior:
+                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (int index) {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _selectedIndex = index;
+                  });
+                },
+                destinations: [
+                  NavigationDestination(
+                    icon: const Icon(Icons.music_note),
+                    label: AppLocalizations.of(context)!.nowPlayingLabel,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.library_music_outlined),
+                    label: AppLocalizations.of(context)!.libraryLabel,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.radio),
+                    label: AppLocalizations.of(context)!.roamLabel,
+                  ),
+                ],
+              ),
             ),
-            NavigationDestination(
-              icon: const Icon(Icons.library_music_outlined),
-              label: AppLocalizations.of(context)!.libraryLabel,
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.radio),
-              label: AppLocalizations.of(context)!.roamLabel,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
