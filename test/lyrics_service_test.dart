@@ -28,9 +28,9 @@ void main() {
                 'list': [
                   {
                     'songmid': 'mock-song-id',
-                    'songname': 'Bohemian Rhapsody',
+                    'songname': '你瞒我瞒',
                     'singer': [
-                      {'name': 'Queen'}
+                      {'name': '陈柏宇'}
                     ],
                   }
                 ],
@@ -42,8 +42,9 @@ void main() {
         }
 
         if (path.contains('fcg_query_lyric_new')) {
-          final response = {'lyric': '[00:00]Is this the real life'};
-          return http.Response(jsonEncode(response), 200,
+          final response = {'lyric': '[00:00]你瞒我瞒'};
+          final bodyBytes = utf8.encode(jsonEncode(response));
+          return http.Response.bytes(bodyBytes, 200,
               headers: {'content-type': 'application/json'});
         }
 
@@ -55,6 +56,8 @@ void main() {
 
       expect(songMatch, isNotNull);
       if (songMatch != null) {
+        expect(songMatch.title, '你瞒我瞒');
+        expect(songMatch.artist, '陈柏宇');
         final lyrics = await provider.fetchLyric(songMatch.songId);
         expect(lyrics, isNotNull);
 
@@ -62,6 +65,7 @@ void main() {
           // 验证歌词格式
           expect(lyrics.contains('['), isTrue);
           expect(lyrics.contains(']'), isTrue);
+          expect(lyrics.contains('你瞒我瞒'), isTrue);
         }
       }
     });

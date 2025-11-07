@@ -1294,9 +1294,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
                     final Color translationColor = baseTextColor;
                     final double lyricFontSize = isWideLyricLayout
                         ? (isWeb ? 30.0 : 24.0)
-                        : (isWeb ? 26.0 : 22.0);
+                        : (isWeb ? 36.0 : 22.0);
                     final double translationFontSize = isWideLyricLayout
-                        ? (isWeb ? 22.0 : 18.0)
+                        ? (isWeb ? 24.0 : 18.0)
                         : (isWeb ? 20.0 : 16.0);
 
                     return GestureDetector(
@@ -1343,7 +1343,10 @@ class _LyricsWidgetState extends State<LyricsWidget>
                         duration: const Duration(milliseconds: 400),
                         curve: Curves.easeOutCubic,
                         padding: EdgeInsets.symmetric(
-                          vertical: isCurrentLine ? 12.0 : 8.0,
+                          // Web端行间距增大30%
+                          vertical: isWeb
+                              ? (isCurrentLine ? 15.6 : 10.4)
+                              : (isCurrentLine ? 12.0 : 8.0),
                           // Responsive horizontal padding
                           horizontal: isWideLyricLayout
                               ? 24.0
@@ -1359,8 +1362,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
                                 ? FontWeight.w700
                                 : FontWeight.w600,
                             color: baseTextColor,
-                            height:
-                                1.1, // Line height for readability - Reverted height
+                            // Web端文字行高增大30%
+                            height: isWeb ? 1.43 : 1.1,
                           ),
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 400),
@@ -1377,7 +1380,10 @@ class _LyricsWidgetState extends State<LyricsWidget>
                                 ),
                                 if (showTranslationLine)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 6.0),
+                                    padding: EdgeInsets.only(
+                                      // Web端翻译行间距增大30%
+                                      top: isWeb ? 7.8 : 6.0,
+                                    ),
                                     child: Text(
                                       line.translation!,
                                       textAlign: TextAlign.left,
@@ -1386,7 +1392,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
                                         fontSize: translationFontSize,
                                         fontWeight: FontWeight.w500,
                                         color: translationColor,
-                                        height: 1.3,
+                                        // Web端翻译文字行高增大30%
+                                        height: isWeb ? 1.69 : 1.3,
                                       ),
                                     ),
                                   ),
