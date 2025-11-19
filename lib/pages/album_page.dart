@@ -45,6 +45,10 @@ class _AlbumPageState extends State<AlbumPage> {
   bool _isSavingPendingRatings = false;
   bool _isSharingAlbumPoster = false;
 
+  // Cached computed values
+  double? _cachedAverageScore;
+  int _cachedRatedTrackCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -104,6 +108,7 @@ class _AlbumPageState extends State<AlbumPage> {
         _trackRatingTimestamps = normalizedTimestamps;
         _isLoading = false;
         _pendingTrackRatings.clear();
+        _updateComputedValues();
       });
       _loadCachedAlbumInsights();
     } catch (e) {
@@ -135,7 +140,7 @@ class _AlbumPageState extends State<AlbumPage> {
       return;
     }
 
-    if (_ratedTrackCount == 0) {
+    if (_cachedRatedTrackCount == 0) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -170,8 +175,8 @@ class _AlbumPageState extends State<AlbumPage> {
       final shareText = _buildSharePosterMessage(
         albumName: albumName,
         artistLine: artistLine,
-        averageScore: _averageScore,
-        ratedTrackCount: _ratedTrackCount,
+        averageScore: _cachedAverageScore,
+        ratedTrackCount: _cachedRatedTrackCount,
         totalTrackCount: _tracks.length,
       );
 
@@ -179,8 +184,8 @@ class _AlbumPageState extends State<AlbumPage> {
       final posterBytes = await _albumPosterService.generatePosterData(
         albumName: albumName,
         artistLine: artistLine,
-        averageScore: _averageScore,
-        ratedTrackCount: _ratedTrackCount,
+        averageScore: _cachedAverageScore,
+        ratedTrackCount: _cachedRatedTrackCount,
         totalTrackCount: _tracks.length,
         tracks: _tracks,
         trackRatings: _trackRatings,
@@ -309,8 +314,8 @@ class _AlbumPageState extends State<AlbumPage> {
         albumData: albumData,
         tracks: _tracks,
         trackRatings: _trackRatings,
-        averageScore: _averageScore,
-        ratedTrackCount: _ratedTrackCount,
+        averageScore: _cachedAverageScore,
+        ratedTrackCount: _cachedRatedTrackCount,
         ratingsSignature: ratingsSignature,
       );
 
@@ -377,10 +382,8 @@ class _AlbumPageState extends State<AlbumPage> {
         _trackRatingTimestamps = Map<String, int?>.from(_trackRatingTimestamps)
           ..[trackId] = timestamp;
         _pendingTrackRatings.remove(trackId);
-        _albumInsights = null;
-        _albumInsightsGeneratedAt = null;
-        _albumInsightsError = null;
         _isAlbumInsightsExpanded = false;
+        _updateComputedValues();
       });
     } catch (e) {
       if (!mounted) return;
@@ -409,32 +412,25 @@ class _AlbumPageState extends State<AlbumPage> {
     }
   }
 
-  double? get _averageScore {
+  void _updateComputedValues() {
     final values = <double>[];
-    for (final track in _tracks) {
-      final trackId = track['id'] as String?;
-      if (trackId == null) continue;
-      final rating = _trackRatings[trackId];
-      if (rating == null) continue;
-      values.add(_mapRatingToScore(rating));
-    }
-    if (values.isEmpty) {
-      return null;
-    }
-    final total = values.reduce((value, element) => value + element);
-    return total / values.length;
-  }
-
-  int get _ratedTrackCount {
     var count = 0;
     for (final track in _tracks) {
       final trackId = track['id'] as String?;
       if (trackId == null) continue;
-      if (_trackRatings[trackId] != null) {
+      final rating = _trackRatings[trackId];
+      if (rating != null) {
         count++;
+        values.add(_mapRatingToScore(rating));
       }
     }
-    return count;
+    _cachedRatedTrackCount = count;
+    if (values.isEmpty) {
+      _cachedAverageScore = null;
+    } else {
+      final total = values.reduce((value, element) => value + element);
+      _cachedAverageScore = total / values.length;
+    }
   }
 
   String _buildRatingsSignature() {
@@ -527,7 +523,7 @@ class _AlbumPageState extends State<AlbumPage> {
           ),
         ],
       ),
-      body: _buildBody(theme),
+      body: RepaintBoundary(child: _buildBody(theme)),
     );
   }
 
@@ -649,7 +645,7 @@ class _AlbumPageState extends State<AlbumPage> {
     final artists = _albumData?['artists'] as List? ?? const [];
     final releaseYear = _extractReleaseYear();
     final trackCount = _tracks.length;
-    final averageScore = _averageScore;
+    final averageScore = _cachedAverageScore;
 
     final hasInsights = _albumInsights != null;
     final insightsTitleRaw = (_albumInsights?['title'] as String?)?.trim() ?? '';
@@ -678,6 +674,7 @@ class _AlbumPageState extends State<AlbumPage> {
                       imageUrl: coverUrl,
                       width: 160,
                       height: 160,
+                      memCacheWidth: 320, // Optimize memory usage (2x for retina)
                       fit: BoxFit.cover,
                     )
                   : Container(
@@ -730,7 +727,7 @@ class _AlbumPageState extends State<AlbumPage> {
                           onPressed: _isSharingAlbumPoster
                               ? null
                               : () {
-                                  if (_ratedTrackCount == 0) {
+                                  if (_cachedRatedTrackCount == 0) {
                                     final l10n = AppLocalizations.of(context)!;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -756,14 +753,14 @@ class _AlbumPageState extends State<AlbumPage> {
                                 : Icon(
                                     Icons.ios_share_rounded,
                                     key: const ValueKey('poster-share-icon'),
-                                    color: _ratedTrackCount == 0
+                                    color: _cachedRatedTrackCount == 0
                                         ? theme.colorScheme.onSurface
                                             .withValues(alpha: 0.38)
                                         : theme.colorScheme.onSurfaceVariant,
                                     size: 20,
                                   ),
                           ),
-                          tooltip: _ratedTrackCount == 0
+                          tooltip: _cachedRatedTrackCount == 0
                               ? l10n.rateAtLeastOneSongFirst
                               : l10n.shareAlbumRatingPoster,
                           padding: EdgeInsets.zero,

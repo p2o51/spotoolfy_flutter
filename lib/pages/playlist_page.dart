@@ -296,7 +296,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
           ),
         ],
       ),
-      body: _buildBody(theme),
+      body: RepaintBoundary(child: _buildBody(theme)),
     );
   }
 
@@ -430,6 +430,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                       imageUrl: coverUrl,
                       width: 160,
                       height: 160,
+                      memCacheWidth: 320, // Optimize memory usage
                       fit: BoxFit.cover,
                     )
                   : Container(

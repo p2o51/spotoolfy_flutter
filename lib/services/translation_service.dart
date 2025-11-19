@@ -247,10 +247,10 @@ $lyricsText
     switch (style) {
       case TranslationStyle.faithful:
         return '''
-- Primary goal: convey the most accurate meaning of the original lines.
+- Primary goal: convey the accurate meaning while sounding natural in $languageName.
 - Preserve the imagery, tone, and intent explicitly present in the source text.
-- Maintain line structure wherever possible; adjust grammar only when required for clarity in $languageName.
-- Handle idioms by conveying their meaning naturally; when uncertain, prefer a literal rendering that keeps the original imagery.
+- Maintain line structure, but prioritize natural phrasing over rigid word-for-word mapping.
+- Handle idioms by conveying their meaning naturally.
 ''';
       case TranslationStyle.melodramaticPoet:
         return '''
