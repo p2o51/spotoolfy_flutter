@@ -172,8 +172,8 @@ class _NotesDisplayState extends State<NotesDisplay>
       logger.e('Error generating AI content: $e');
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('生成失败: ${e.toString()}'),
+         SnackBar(
+            content: Text(AppLocalizations.of(context)!.failedToGenerateInsights(e.toString())),
             backgroundColor: errorColor,
           ),
         );
@@ -608,8 +608,8 @@ class _NotesDisplayState extends State<NotesDisplay>
 
     if (recordId == null || trackId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Cannot proceed: Incomplete record information')),
+        SnackBar(
+            content: Text(AppLocalizations.of(context)!.incompleteRecordError)),
       );
       return;
     }
@@ -631,7 +631,7 @@ class _NotesDisplayState extends State<NotesDisplay>
       backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
         return CupertinoActionSheet(
-          title: Text(record['trackName'] ?? 'Options'),
+          title: Text(record['trackName'] ?? AppLocalizations.of(context)!.optionsTitle),
           actions: <CupertinoActionSheetAction>[
             // 新增：从指定时间播放
             if (songTimestampMs != null && songTimestampMs > 0)
