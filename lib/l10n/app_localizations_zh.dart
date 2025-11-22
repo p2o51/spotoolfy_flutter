@@ -413,12 +413,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyLyricsAsSingleLineSubtitle => '复制时将换行符替换为空格';
 
   @override
-  String get deepTranslationTitle => '深度翻译';
-
-  @override
-  String get deepTranslationSubtitle => '允许 Gemini 思考以提升翻译质量';
-
-  @override
   String get dataManagementTitle => '数据管理';
 
   @override
@@ -1584,12 +1578,6 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get copyLyricsAsSingleLineSubtitle => '複製時將換行符號替換為空格';
-
-  @override
-  String get deepTranslationTitle => '深度翻譯';
-
-  @override
-  String get deepTranslationSubtitle => '允許 Gemini 思考以提升翻譯品質';
 
   @override
   String get dataManagementTitle => '資料管理';

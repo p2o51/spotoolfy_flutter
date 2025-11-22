@@ -13,9 +13,7 @@ class TranslationService {
   final SettingsService _settingsService = SettingsService();
   static const String _geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiDefaultModel = 'gemini-2.5-flash';
-  static const String _geminiThinkingModel = 'gemini-2.5-flash';
-  static const int _thinkingBudget = 1024;
+  static const String _geminiDefaultModel = 'gemini-flash-latest';
   static const String _cacheKeyPrefix =
       'translation_cache_'; // Cache key prefix
 
@@ -41,18 +39,13 @@ class TranslationService {
         await _settingsService.getTranslationStyle(); // Capture the style used
     final styleNameUsed = translationStyleToString(
         styleUsed); // Get style name for cache key and return value
-    final enableThinking =
-        await _settingsService.getEnableThinkingForTranslation(); // 获取思考模式设置
 
     // 选择合适的模型
-    final model = enableThinking ? _geminiThinkingModel : _geminiDefaultModel;
-    final modelUrl = '$_geminiBaseUrl$model';
+    final modelUrl = '$_geminiBaseUrl$_geminiDefaultModel';
 
     // Generate cache key including language and style
-    final thinkingSuffix =
-        enableThinking ? '_thinking$_thinkingBudget' : '_noThinking';
     final cacheKey =
-        '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed$thinkingSuffix';
+        '$_cacheKeyPrefix${trackId}_${languageCodeUsed}_$styleNameUsed';
     final SharedPreferences prefs;
     try {
       prefs = await SharedPreferences.getInstance();
@@ -108,11 +101,6 @@ class TranslationService {
           ]
         }
       ],
-      'generationConfig': {
-        'thinkingConfig': {
-          'thinkingBudget': enableThinking ? _thinkingBudget : 0
-        }
-      },
     });
 
     try {
@@ -216,57 +204,42 @@ class TranslationService {
   // Helper function to generate the prompt based on the selected style
   String _getPromptForStyle(
       TranslationStyle style, String languageName, String lyricsText) {
-    final baseInstructions = '''
-You are translating song lyrics into $languageName.
-
-Each input line uses the format:
-__L0001__${kStructuredInputDelimiter}Original lyric text
-
-Strictly follow these rules:
-1. Output exactly one line for every input line, in the same order.
-2. Copy the token (e.g. "__L0001__") unchanged, then write "$kStructuredOutputDelimiter" followed by the translation.
-3. Never omit, merge, reorder, or invent tokens. Every input token must appear once in the output.
-4. If the original segment after the token is empty or equals "$kStructuredBlankPlaceholder", still output the token and leave the translation empty.
-5. Avoid any commentary, explanations, code fences, or extra formatting. Only output the lines.
-''';
-
-    final styleGuidance = _getStyleGuidance(style, languageName);
-
-    return '''
-$baseInstructions
-
-Style focus:
-$styleGuidance
-
-INPUT LYRICS:
-$lyricsText
-''';
-  }
-
-  String _getStyleGuidance(TranslationStyle style, String languageName) {
+    String styleKeywords;
     switch (style) {
       case TranslationStyle.faithful:
-        return '''
-- Primary goal: convey the accurate meaning while sounding natural in $languageName.
-- Preserve the imagery, tone, and intent explicitly present in the source text.
-- Maintain line structure, but prioritize natural phrasing over rigid word-for-word mapping.
-- Handle idioms by conveying their meaning naturally.
-''';
+        styleKeywords =
+            'Natural, Accurate, Semantic equivalence, Preserve imagery';
+        break;
       case TranslationStyle.melodramaticPoet:
-        return '''
-- Aim for vivid, emotionally heightened language that still respects the source narrative.
-- You may reinterpret phrasing to amplify drama, but keep the central ideas recognizable.
-- Feel free to add poetic flair, but keep the translation concise and lyrical.
-- Maintain the rhythm implied by the line breaks.
-''';
+        styleKeywords =
+            'Emotional, Poetic, Dramatic, Lyrical, Rhyme-aware';
+        break;
       case TranslationStyle.machineClassic:
-        return '''
-- Emulate an early 2000s machine translation: stiff, literal, and awkward.
-- Translate word-for-word, ignoring idioms or natural phrasing in $languageName.
-- Keep unusual grammar or phrasing if it reflects the literal structure of the original.
-- Avoid smoothing the text; awkwardness is expected.
-''';
+        styleKeywords =
+            'Literal, Stiff, Word-for-word, Grammatically awkward';
+        break;
     }
+
+    return '''
+Role: Expert Lyric Translator.
+Target: $languageName.
+Style: $styleKeywords.
+
+RULES:
+1. Keep format: Token${kStructuredOutputDelimiter}Translation
+2. Output ONLY the translation. DO NOT include original text.
+3. If original is blank/instrumental, output nothing after delimiter.
+
+EXAMPLES:
+Input: __L0001__${kStructuredInputDelimiter}Hello world
+Output: __L0001__${kStructuredOutputDelimiter}你好世界
+
+Input: __L0002__${kStructuredInputDelimiter}Dancing in the dark
+Output: __L0002__${kStructuredOutputDelimiter}在黑暗中起舞
+
+TASKS:
+$lyricsText
+''';
   }
 
   // Helper to get the full language name for the prompt

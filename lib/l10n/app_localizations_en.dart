@@ -427,13 +427,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Replaces line breaks with spaces when copying';
 
   @override
-  String get deepTranslationTitle => 'Deep Translation';
-
-  @override
-  String get deepTranslationSubtitle =>
-      'Enable Gemini\'s thinking mode for better translations';
-
-  @override
   String get dataManagementTitle => 'Data Management';
 
   @override

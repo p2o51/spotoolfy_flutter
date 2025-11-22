@@ -43,6 +43,7 @@ class LyricsPosterService {
     const double bottomMargin = 40.0 * scaleFactor;
     const double elementSpacing = 24.0 * scaleFactor; // 增加元素间距
     const double interTextSpacing = 8.0 * scaleFactor;
+    const double paragraphSpacing = 24.0 * scaleFactor; // 翻译段落间距
     const double albumArtSize = 100.0 * scaleFactor; // 稍微减小封面尺寸
     const double albumCornerRadius = 8.0 * scaleFactor;
     const double headerSpacing = 20.0 * scaleFactor; // 减少封面和文字之间的间距
@@ -157,7 +158,7 @@ class LyricsPosterService {
       fontWeight: FontWeight.w700,
     ); // UltraBold字重，调整行高
     final translationStyle = lyricsStyle.copyWith(
-      fontSize: lyricsFontSize * 0.82,
+      fontSize: lyricsFontSize * 0.75, // 调小翻译字号
       fontWeight: FontWeight.w500,
     );
     final List<PosterLyricLine> lyricEntries =
@@ -174,7 +175,8 @@ class LyricsPosterService {
         lyricEntries.any((entry) => entry.text.trim().isNotEmpty);
 
     if (lyricEntries.isNotEmpty && hasNonEmptyLyric) {
-      for (final entry in lyricEntries) {
+      for (int i = 0; i < lyricEntries.length; i++) {
+        final entry = lyricEntries[i];
         final lineStyle = entry.isTranslation ? translationStyle : lyricsStyle;
         final lyricLinePainter = TextPainter(
           text: TextSpan(
@@ -185,6 +187,11 @@ class LyricsPosterService {
         lyricLinePainter.layout(maxWidth: contentWidth);
         lyricLinePainters.add(lyricLinePainter);
         totalLyricsBlockHeight += lyricLinePainter.height;
+
+        // 如果是翻译行且不是最后一行，增加段落间距
+        if (entry.isTranslation && i < lyricEntries.length - 1) {
+          totalLyricsBlockHeight += paragraphSpacing;
+        }
       }
     } else {
       final emptyLyricPainter = TextPainter(
@@ -356,13 +363,22 @@ class LyricsPosterService {
     }
 
     // 绘制歌词（左对齐）
-    for (final painter in lyricLinePainters) {
+    for (int i = 0; i < lyricLinePainters.length; i++) {
+      final painter = lyricLinePainters[i];
       _drawTextPainter(
           canvas,
           painter,
           Offset(horizontalMargin, currentY + painter.height / 2),
           TextAlign.left);
       currentY += painter.height;
+      
+      // 如果是翻译行且不是最后一行，增加段落间距
+      if (i < lyricEntries.length) {
+        final entry = lyricEntries[i];
+        if (entry.isTranslation && i < lyricLinePainters.length - 1) {
+          currentY += paragraphSpacing;
+        }
+      }
     }
     if (lyricLinePainters.isNotEmpty) {
       currentY += elementSpacing;

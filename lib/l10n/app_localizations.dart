@@ -851,18 +851,6 @@ abstract class AppLocalizations {
   /// **'Replaces line breaks with spaces when copying'**
   String get copyLyricsAsSingleLineSubtitle;
 
-  /// No description provided for @deepTranslationTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Deep Translation'**
-  String get deepTranslationTitle;
-
-  /// No description provided for @deepTranslationSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable Gemini\'s thinking mode for better translations'**
-  String get deepTranslationSubtitle;
-
   /// No description provided for @dataManagementTitle.
   ///
   /// In en, this message translates to:

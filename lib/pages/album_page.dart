@@ -906,10 +906,10 @@ class _AlbumPageState extends State<AlbumPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _ratedTrackCount == 0
+                  _cachedRatedTrackCount == 0
                       ? l10n.noSongsRatedYet
                       : l10n.basedOnRatedSongs(
-                          _ratedTrackCount, _tracks.length),
+                          _cachedRatedTrackCount, _tracks.length),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

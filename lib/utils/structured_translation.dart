@@ -89,6 +89,14 @@ StructuredTranslationParserResult parseStructuredTranslation(
 
     segment = _stripWrappingDelimiters(segment);
 
+    // Defensive guard: drop any echoed delimiters and keep only the translated text.
+    if (segment.contains(kStructuredOutputDelimiter)) {
+      segment = segment.split(kStructuredOutputDelimiter).last;
+    }
+    if (segment.contains(kStructuredInputDelimiter)) {
+      segment = segment.split(kStructuredInputDelimiter).last;
+    }
+
     if (segment == kStructuredBlankPlaceholder) {
       segment = '';
     }

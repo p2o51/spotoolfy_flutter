@@ -246,8 +246,6 @@
   "autoTranslateLyricsSubtitle": "Translate lyrics automatically when translations are missing",
   "copyLyricsAsSingleLineTitle": "Copy lyrics as single line",
   "copyLyricsAsSingleLineSubtitle": "Replaces line breaks with spaces when copying",
-  "deepTranslationTitle": "Deep Translation",
-  "deepTranslationSubtitle": "Enable Gemini's thinking mode for better translations",
   "dataManagementTitle": "Data Management",
   "exportDataTitle": "Export Data",
   "exportDataSubtitle": "Export all data as JSON file",

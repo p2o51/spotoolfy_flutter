@@ -126,8 +126,6 @@
   "autoTranslateLyricsSubtitle": "翻訳がないときは自動で翻訳を実行します",
   "copyLyricsAsSingleLineTitle": "歌詞を１行でコピー",
   "copyLyricsAsSingleLineSubtitle": "コピー時に改行をスペースに置き換える",
-  "deepTranslationTitle": "思考→翻訳",
-  "deepTranslationSubtitle": "Gemini の思考モードを有効にして翻訳品質を向上させる",
   "dataManagementTitle": "データ管理",
   "exportDataTitle": "データのエクスポート",
   "exportDataSubtitle": "すべてのデータをJSONファイルとしてエクスポートする",

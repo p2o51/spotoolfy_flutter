@@ -414,12 +414,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get copyLyricsAsSingleLineSubtitle => 'コピー時に改行をスペースに置き換える';
 
   @override
-  String get deepTranslationTitle => '思考→翻訳';
-
-  @override
-  String get deepTranslationSubtitle => 'Gemini の思考モードを有効にして翻訳品質を向上させる';
-
-  @override
   String get dataManagementTitle => 'データ管理';
 
   @override
