@@ -31,6 +31,7 @@ enum PlayMode {
 class SpotifyProvider extends ChangeNotifier {
   late SpotifyAuthService _spotifyService;
   static const String _clientIdKey = 'spotify_client_id';
+  static const String _lastPlayedImageKey = 'last_played_image_url';
   final Logger logger = Logger();
 
   // 异步初始化控制
@@ -76,6 +77,9 @@ class SpotifyProvider extends ChangeNotifier {
   final ImagePreloadManager _imagePreloadManager = ImagePreloadManager();
   final AlbumArtPreloadStrategy _albumArtPreloader = AlbumArtPreloadStrategy();
 
+  // 持久化存储最后播放的图像 URL（用于离线显示）
+  String? _lastPlayedImageUrl;
+
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
   static const Duration _refreshTickInterval = Duration(seconds: 3);
   static const Duration _deviceRefreshInterval = Duration(seconds: 15);
@@ -91,6 +95,33 @@ class SpotifyProvider extends ChangeNotifier {
   bool isImageCached(String? imageUrl) {
     if (imageUrl == null) return false;
     return _imageCache.containsKey(imageUrl);
+  }
+
+  // 获取最后播放的图像 URL（用于离线默认显示）
+  String? get lastPlayedImageUrl => _lastPlayedImageUrl;
+
+  // 从持久化存储加载最后播放的图像 URL
+  Future<void> loadLastPlayedImageUrl() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      _lastPlayedImageUrl = sp.getString(_lastPlayedImageKey);
+      logger.d('已加载最后播放图像 URL: $_lastPlayedImageUrl');
+    } catch (e) {
+      logger.e('加载最后播放图像 URL 失败', error: e);
+    }
+  }
+
+  // 保存最后播放的图像 URL 到持久化存储
+  Future<void> _saveLastPlayedImageUrl(String? imageUrl) async {
+    if (imageUrl == null || imageUrl == _lastPlayedImageUrl) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(_lastPlayedImageKey, imageUrl);
+      _lastPlayedImageUrl = imageUrl;
+      logger.d('已保存最后播放图像 URL: $imageUrl');
+    } catch (e) {
+      logger.e('保存最后播放图像 URL 失败', error: e);
+    }
   }
 
   /// 验证 Access Token 格式的有效性
@@ -222,6 +253,10 @@ class SpotifyProvider extends ChangeNotifier {
       // 使用SharedPreferences读取Client ID，避免KeyStore的限制
       final sp = await SharedPreferences.getInstance();
       final storedClientId = sp.getString(_clientIdKey);
+
+      // 加载最后播放的图像 URL（用于离线显示）
+      _lastPlayedImageUrl = sp.getString(_lastPlayedImageKey);
+      logger.d('Bootstrap: 已加载最后播放图像 URL: $_lastPlayedImageUrl');
 
       logger.d(
           'Bootstrap: 从SharedPreferences读取ClientID: ${storedClientId ?? "null"}');
@@ -802,6 +837,13 @@ class SpotifyProvider extends ChangeNotifier {
               'refreshCurrentTrack: Updated currentTrack due to coreChange ($coreTrackInfoChanged) or progressJump ($significantProgressJump). New progress: ${currentTrack!['progress_ms']}, isPlaying: ${currentTrack!['is_playing']}. Reset _lastProgressUpdate: $_lastProgressUpdate');
 
           if (newId != oldId && newId != null) {
+            // 保存当前歌曲的专辑图像 URL 到持久化存储
+            final albumImageUrl =
+                track['item']?['album']?['images']?[0]?['url'] as String?;
+            if (albumImageUrl != null) {
+              _saveLastPlayedImageUrl(albumImageUrl);
+            }
+
             try {
               isCurrentTrackSaved =
                   await _guard(() => _spotifyService.isTrackSaved(newId));
