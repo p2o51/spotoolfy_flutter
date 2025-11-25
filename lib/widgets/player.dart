@@ -98,6 +98,30 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     await precacheImage(imageProvider, context);
   }
 
+  /// 构建默认/回退图像 Widget
+  /// 优先使用持久化的最后播放图像，如果没有则使用默认的 CXOXO.png
+  Widget _buildDefaultImage({Key? key, BoxFit fit = BoxFit.cover}) {
+    final lastPlayedImageUrl =
+        context.read<SpotifyProvider>().lastPlayedImageUrl;
+    if (lastPlayedImageUrl != null) {
+      return CachedNetworkImage(
+        key: key ?? const ValueKey('last_played_image'),
+        imageUrl: lastPlayedImageUrl,
+        fit: fit,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        // 如果缓存的图像也加载失败，则回退到默认图像
+        errorWidget: (context, url, error) =>
+            Image.asset('assets/examples/CXOXO.png', fit: fit),
+      );
+    }
+    return Image.asset(
+      'assets/examples/CXOXO.png',
+      key: key ?? const ValueKey('default_image'),
+      fit: fit,
+    );
+  }
+
   @override
   void dispose() {
     _dragDistanceNotifier.dispose();
@@ -491,17 +515,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                           image: CachedNetworkImageProvider(_lastImageUrl!),
                           fit: BoxFit.cover,
                         )
-                      : Image.asset('assets/examples/CXOXO.png',
-                          fit: BoxFit.cover),
+                      : _buildDefaultImage(),
                 ),
-                errorWidget: (context, url, error) =>
-                    Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+                errorWidget: (context, url, error) => _buildDefaultImage(),
               )
-            : Image.asset(
-                'assets/examples/CXOXO.png',
-                key: const ValueKey('default_image'),
-                fit: BoxFit.cover,
-              ),
+            : _buildDefaultImage(),
       ),
     );
 
@@ -885,16 +903,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       image: CachedNetworkImageProvider(_lastImageUrl!),
                       fit: BoxFit.cover,
                     )
-                  : Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+                  : _buildDefaultImage(),
             ),
-            errorWidget: (context, url, error) =>
-                Image.asset('assets/examples/CXOXO.png', fit: BoxFit.cover),
+            errorWidget: (context, url, error) => _buildDefaultImage(),
           )
-        : Image.asset(
-            'assets/examples/CXOXO.png',
-            key: const ValueKey('default_image'),
-            fit: BoxFit.cover,
-          );
+        : _buildDefaultImage();
   }
 
   void _launchSpotifyURL(BuildContext context, String? url) async {
