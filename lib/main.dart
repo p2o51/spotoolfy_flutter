@@ -26,6 +26,7 @@ import 'services/language_service.dart';
 import 'services/lyrics_service.dart';
 import 'services/notification_service.dart';
 import 'services/settings_service.dart';
+import 'widgets/spotify_selectors.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
@@ -394,15 +395,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             const SizedBox(width: 8),
             Expanded(
               // 使用 Expanded 防止文本溢出
-              child: Consumer<SpotifyProvider>(
-                builder: (context, provider, child) {
-                  final currentTrack = provider.currentTrack;
-                  final isPlaying = currentTrack?['is_playing'] ?? false;
-                  // 尝试获取上下文描述 (使用新的路径)
-                  final contextDescription =
-                      currentTrack?['context']?['name'] as String?;
-                  final contextType =
-                      currentTrack?['context']?['type'] as String?;
+              child: PlaybackContextSelector(
+                builder: (context, state, child) {
+                  final contextDescription = state.contextName;
+                  final contextType = state.contextType;
+                  final isPlaying = state.isPlaying;
 
                   // 检查是否正在播放且有上下文描述和类型
                   if (isPlaying &&
@@ -497,21 +494,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4.0),
-          child: Consumer<SpotifyProvider>(
-            builder: (context, provider, child) {
-              final currentTrack = provider.currentTrack;
-              if (currentTrack == null || currentTrack['item'] == null) {
+          child: ProgressBarSelector(
+            builder: (context, state, child) {
+              if (!state.hasTrack) {
                 return const SizedBox.shrink();
               }
 
-              final progress = currentTrack['progress_ms'] ?? 0;
-              final duration = currentTrack['item']['duration_ms'] ?? 1;
-              final isPlaying = currentTrack['is_playing'] ?? false;
-
               return ProgressIndicator(
-                progress: progress.toDouble(),
-                duration: duration.toDouble(),
-                isPlaying: isPlaying,
+                progress: state.progress.toDouble(),
+                duration: state.duration.toDouble(),
+                isPlaying: state.isPlaying,
               );
             },
           ),

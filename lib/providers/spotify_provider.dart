@@ -17,6 +17,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
+import '../utils/notify_throttler.dart';
+import '../managers/image_preload_manager.dart';
 
 final logger = Logger();
 
@@ -66,6 +68,13 @@ class SpotifyProvider extends ChangeNotifier {
   final Map<String, String> _imageCache = {};
   final Map<String, Map<String, dynamic>> _albumCache = {};
   final Map<String, Map<String, dynamic>> _playlistCache = {};
+
+  // 通知节流器 - 减少不必要的 UI 重建
+  late final CategorizedNotifyThrottler _notifyThrottler;
+
+  // 图片预加载管理器
+  final ImagePreloadManager _imagePreloadManager = ImagePreloadManager();
+  final AlbumArtPreloadStrategy _albumArtPreloader = AlbumArtPreloadStrategy();
 
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
   static const Duration _refreshTickInterval = Duration(seconds: 3);
@@ -175,7 +184,26 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   SpotifyProvider() {
+    // 初始化分类节流器
+    // - progress: 播放进度更新，较高频率但节流
+    // - track: 曲目切换，立即响应
+    // - default: 其他更新，中等节流
+    _notifyThrottler = CategorizedNotifyThrottler(
+      notifyCallback: super.notifyListeners,
+      categoryIntervals: {
+        'progress': const Duration(milliseconds: 200), // 进度更新节流 200ms
+        'track': const Duration(milliseconds: 16), // 曲目切换几乎立即响应
+        'devices': const Duration(milliseconds: 500), // 设备更新节流 500ms
+        'queue': const Duration(milliseconds: 300), // 队列更新节流 300ms
+      },
+      defaultInterval: const Duration(milliseconds: 50),
+    );
     _bootstrap();
+  }
+
+  /// 分类通知 - 根据更新类型使用不同的节流策略
+  void _notifyCategory(String category) {
+    _notifyThrottler.notify(category);
   }
 
   /// 异步初始化bootstrap过程
@@ -325,7 +353,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       final user = await _guard(() => _spotifyService.getUserProfile());
       username = user['display_name'];
-      notifyListeners(); // UI 马上刷新
+      _notifyCategory('default'); // UI 马上刷新
       if (_refreshTimer == null && username != null)
         startTrackRefresh(); // 仅在定时器未运行且用户已登录时启动
     } catch (_) {
@@ -388,7 +416,7 @@ class SpotifyProvider extends ChangeNotifier {
       // 记录新凭据应用情况
       logger.d('已应用新的ClientID: ${clientId.substring(0, 4)}...');
 
-      notifyListeners();
+      _notifyCategory('default');
     } catch (e) {
       logger.e('设置客户端凭据失败: $e');
       rethrow;
@@ -436,7 +464,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     // 重新进行bootstrap初始化
     _bootstrap();
-    notifyListeners();
+    _notifyCategory('default');
   }
 
   // 添加设备列表状态
@@ -480,7 +508,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       _activeDeviceId = activeDevice.id;
 
-      notifyListeners();
+      _notifyCategory('devices');
     } catch (e) {
       // debugPrint('刷新可用设备列表失败: $e');
       await _handleApiError(e,
@@ -659,7 +687,7 @@ class SpotifyProvider extends ChangeNotifier {
                       now.difference(_lastProgressNotify!).inMilliseconds >=
                           _progressNotifyIntervalMs;
                   if (shouldNotify) {
-                    notifyListeners();
+                    _notifyCategory('progress');
                     _lastProgressNotify = now;
                   }
                 }
@@ -681,6 +709,8 @@ class SpotifyProvider extends ChangeNotifier {
   void dispose() {
     _refreshTimer?.cancel();
     _progressTimer?.cancel();
+    // 清理节流器
+    _notifyThrottler.dispose();
     // 清理生命周期观察者
     if (_lifecycleObserver != null) {
       _binding.removeObserver(_lifecycleObserver!);
@@ -875,8 +905,11 @@ class SpotifyProvider extends ChangeNotifier {
 
         if (needsNotify) {
           logger.d('refreshCurrentTrack: Calling notifyListeners()');
-          notifyListeners();
+          _notifyCategory('track');
           _lastProgressNotify = DateTime.now();
+
+          // 预加载播放相关的封面图片
+          _triggerImagePreload();
         }
       } else if (currentTrack != null) {
         logger.d(
@@ -884,7 +917,7 @@ class SpotifyProvider extends ChangeNotifier {
         currentTrack = null;
         isCurrentTrackSaved = null;
         _lastProgressNotify = null;
-        notifyListeners();
+        _notifyCategory('track');
       }
     } catch (e) {
       logger.e('Error in refreshCurrentTrack: $e');
@@ -956,7 +989,7 @@ class SpotifyProvider extends ChangeNotifier {
   Future<void> checkCurrentTrackSaveState() async {
     if (currentTrack == null || currentTrack!['item'] == null) {
       isCurrentTrackSaved = null;
-      notifyListeners();
+      _notifyCategory('track');
       return;
     }
 
@@ -964,7 +997,7 @@ class SpotifyProvider extends ChangeNotifier {
       final trackId = currentTrack!['item']['id'];
       isCurrentTrackSaved =
           await _guard(() => _spotifyService.isTrackSaved(trackId));
-      notifyListeners();
+      _notifyCategory('track');
     } catch (e) {
       // debugPrint('检查歌曲保存状态失败: $e');
       await _handleApiError(e, contextMessage: '检查歌曲保存状态');
@@ -1019,7 +1052,7 @@ class SpotifyProvider extends ChangeNotifier {
         startTrackRefresh();
 
         // 触发UI更新
-        notifyListeners();
+        _notifyCategory('default');
 
         logger.i('iOS回调：成功保存access token并更新用户状态');
       } catch (profileError) {
@@ -1037,7 +1070,7 @@ class SpotifyProvider extends ChangeNotifier {
       // ⬇️⬇️ 关键修复：确保回调后重置loading状态 ⬇️⬇️
       if (isLoading) {
         isLoading = false;
-        notifyListeners();
+        _notifyCategory('default');
         logger.d('iOS回调：已重置isLoading状态');
       }
     }
@@ -1052,7 +1085,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     isLoading = true;
-    notifyListeners();
+    _notifyCategory('default');
 
     try {
       if (!_isInitialized) {
@@ -1085,7 +1118,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
     } finally {
       isLoading = false;
-      notifyListeners();
+      _notifyCategory('default');
     }
   }
 
@@ -1097,7 +1130,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     isLoading = true;
-    notifyListeners();
+    _notifyCategory('default');
 
     try {
       if (!_isInitialized) {
@@ -1143,7 +1176,7 @@ class SpotifyProvider extends ChangeNotifier {
           !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
       if (!isIOSPlatform) {
         isLoading = false;
-        notifyListeners();
+        _notifyCategory('default');
         logger.d('登录流程结束，isLoading已重置为false');
       } else {
         logger.d('iOS登录流程：等待回调重置isLoading状态');
@@ -1183,7 +1216,7 @@ class SpotifyProvider extends ChangeNotifier {
               await _guard(() => _spotifyService.getUserProfile());
           username = userProfile['display_name'];
           startTrackRefresh();
-          notifyListeners();
+          _notifyCategory('default');
         }
         logger.d(
             '_ensureAuthenticatedAndReady: autoLogin processed. Username: $username');
@@ -1325,7 +1358,7 @@ class SpotifyProvider extends ChangeNotifier {
         logger.d('更新本地状态 - is_playing: ${currentTrack!['is_playing']}');
       }
 
-      notifyListeners();
+      _notifyCategory('track');
 
       logger.d('延时600毫秒后刷新曲目信息...');
       await Future.delayed(const Duration(milliseconds: 600));
@@ -1367,7 +1400,7 @@ class SpotifyProvider extends ChangeNotifier {
               currentTrack!['is_playing'] =
                   initialPlaybackStateForRevert['is_playing'] ?? false;
               logger.d('恢复原始播放状态: ${currentTrack!['is_playing']}');
-              notifyListeners();
+              _notifyCategory('track');
             }
           }
           logger.d('===== TOGGLE PLAY/PAUSE DEBUG END =====');
@@ -1379,7 +1412,7 @@ class SpotifyProvider extends ChangeNotifier {
           currentTrack!['is_playing'] =
               initialPlaybackStateForRevert['is_playing'] ?? false;
           logger.d('恢复原始播放状态: ${currentTrack!['is_playing']}');
-          notifyListeners();
+          _notifyCategory('track');
         }
         await _handleApiError(e,
             contextMessage: '播放/暂停切换 (auth error)', isUserInitiated: true);
@@ -1392,7 +1425,7 @@ class SpotifyProvider extends ChangeNotifier {
         currentTrack!['is_playing'] =
             initialPlaybackStateForRevert['is_playing'] ?? false;
         logger.d('恢复原始播放状态: ${currentTrack!['is_playing']}');
-        notifyListeners();
+        _notifyCategory('track');
       }
       await _handleApiError(e,
           contextMessage: '播放/暂停切换 (unknown error)', isUserInitiated: true);
@@ -1477,7 +1510,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       // Optimistically update UI first for responsiveness
       isCurrentTrackSaved = !(isCurrentTrackSaved ?? false);
-      notifyListeners();
+      _notifyCategory('track');
 
       // Call the API to toggle the save state
       await _guard(() => _spotifyService.toggleTrackSave(trackId));
@@ -1489,7 +1522,7 @@ class SpotifyProvider extends ChangeNotifier {
       // If the actual state differs from the optimistic update, correct it
       if (isCurrentTrackSaved != actualState) {
         isCurrentTrackSaved = actualState;
-        notifyListeners();
+        _notifyCategory('track');
       }
 
       // Optional: Add a very short delay ONLY if needed due to API eventual consistency
@@ -1504,12 +1537,12 @@ class SpotifyProvider extends ChangeNotifier {
       // Revert to the original state on error
       if (isCurrentTrackSaved != originalState) {
         isCurrentTrackSaved = originalState;
-        notifyListeners();
+        _notifyCategory('track');
       }
       // Optionally re-check the state after error
       // try {
       //   isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
-      //   notifyListeners();
+      //   _notifyCategory('track');
       // } catch (recheckError) {
       //   print('重新检查收藏状态失败: $recheckError');
       // }
@@ -1562,13 +1595,16 @@ class SpotifyProvider extends ChangeNotifier {
         });
       }
 
-      notifyListeners();
+      _notifyCategory('queue');
+
+      // 队列更新后触发图片预加载
+      _triggerImagePreload();
     } catch (e) {
       // debugPrint('刷新播放队列失败: $e');
       await _handleApiError(e, contextMessage: '刷新播放队列');
       upcomingTracks = [];
       nextTrack = null;
-      notifyListeners();
+      _notifyCategory('queue');
     }
   }
 
@@ -1608,7 +1644,7 @@ class SpotifyProvider extends ChangeNotifier {
         // 其他情况默认设置为顺序播放
         await setPlayMode(PlayMode.sequential);
       }
-      notifyListeners();
+      _notifyCategory('track');
     } catch (e) {
       // debugPrint('同步播放模式失败: $e');
       await _handleApiError(e, contextMessage: '同步播放模式');
@@ -1634,7 +1670,7 @@ class SpotifyProvider extends ChangeNotifier {
       }
       _currentMode = mode;
       await refreshPlaybackQueue();
-      notifyListeners();
+      _notifyCategory('track');
     } catch (e) {
       // debugPrint('设置播放模式失败: $e');
       await _handleApiError(e, contextMessage: '设置播放模式', isUserInitiated: true);
@@ -1648,7 +1684,7 @@ class SpotifyProvider extends ChangeNotifier {
     await setPlayMode(nextMode);
   }
 
-  // 预加载图片的方法
+  // 预加载图片的方法 (旧版保留用于兼容)
   Future<void> _preloadImage(String? imageUrl) async {
     if (imageUrl == null || _imageCache.containsKey(imageUrl)) return;
     if (navigatorKey.currentContext == null) return; // Add null check
@@ -1660,6 +1696,24 @@ class SpotifyProvider extends ChangeNotifier {
     } catch (e) {
       // debugPrint('预加载图片失败: $e');
     }
+  }
+
+  /// 触发播放相关图片的智能预加载
+  ///
+  /// 使用 ImagePreloadManager 预加载当前曲目、下一首、以及队列中的封面图片
+  void _triggerImagePreload() {
+    final context = navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+
+    // 异步执行预加载，不阻塞主流程
+    Future.microtask(() {
+      _albumArtPreloader.preloadForPlayback(
+        context: context,
+        currentTrack: currentTrack,
+        nextTrack: nextTrack,
+        upcomingTracks: upcomingTracks,
+      );
+    });
   }
 
   Future<Map<String, dynamic>> fetchAlbumDetails(String albumId,
@@ -1863,7 +1917,7 @@ class SpotifyProvider extends ChangeNotifier {
         ..clear()
         ..addAll(uniqueAlbums);
 
-      notifyListeners();
+      _notifyCategory('default');
     } catch (e) {
       // debugPrint('刷新最近播放记录失败: $e');
       await _handleApiError(e, contextMessage: '刷新最近播放记录');
@@ -1875,7 +1929,7 @@ class SpotifyProvider extends ChangeNotifier {
     bool wasLoading = isLoading;
     if (!wasLoading) {
       isLoading = true;
-      notifyListeners();
+      _notifyCategory('default');
     }
 
     try {
@@ -1917,7 +1971,7 @@ class SpotifyProvider extends ChangeNotifier {
       if (!wasLoading) {
         isLoading = false;
       }
-      notifyListeners();
+      _notifyCategory('default');
     }
   }
 
@@ -2581,7 +2635,7 @@ class SpotifyProvider extends ChangeNotifier {
             final userProfile =
                 await _guard(() => _spotifyService.getUserProfile());
             username = userProfile['display_name'];
-            notifyListeners();
+            _notifyCategory('default');
             startTrackRefresh();
           } catch (profileError) {
             await logout();

@@ -4,6 +4,7 @@ import '../providers/spotify_provider.dart';
 import '../models/spotify_device.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/spotify_selectors.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({super.key});
@@ -34,10 +35,8 @@ class DevicesPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Consumer<SpotifyProvider>(
-            builder: (context, spotify, child) {
-              final devices = spotify.availableDevices;
-              
+          AvailableDevicesSelector(
+            builder: (context, devices, child) {
               if (devices.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
