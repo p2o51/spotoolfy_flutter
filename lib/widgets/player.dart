@@ -319,14 +319,17 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                         children: [
                           Expanded(
                             child: HeaderAndFooter(
-                              header: displayTrack?['name'] ?? 'Godspeed',
+                              header: displayTrack?['name'] ??
+                                  spotifyProvider.lastPlayedTrackName ??
+                                  'No track playing',
                               footer: displayTrack != null
                                   ? (displayTrack['artists'] as List?)
                                           ?.map((artist) =>
                                               artist['name'] as String)
                                           .join(', ') ??
                                       'Unknown Artist'
-                                  : 'Camila Cabello',
+                                  : spotifyProvider.lastPlayedArtists ??
+                                      'Unknown Artist',
                               track: displayTrack,
                             ),
                           ),
@@ -712,7 +715,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  track?['name'] ?? 'Godspeed',
+                  track?['name'] ??
+                      spotify.lastPlayedTrackName ??
+                      'No track playing',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,
@@ -726,7 +731,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                               ?.map((artist) => artist['name'] as String)
                               .join(', ') ??
                           'Unknown Artist'
-                      : 'Camila Cabello',
+                      : spotify.lastPlayedArtists ?? 'Unknown Artist',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Theme.of(context).colorScheme.secondary,
                       ),
@@ -1076,14 +1081,17 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       children: [
                         Expanded(
                           child: HeaderAndFooter(
-                            header: displayTrack?['name'] ?? 'Godspeed',
+                            header: displayTrack?['name'] ??
+                                spotifyProvider.lastPlayedTrackName ??
+                                'No track playing',
                             footer: displayTrack != null
                                 ? (displayTrack['artists'] as List?)
                                         ?.map((artist) =>
                                             artist['name'] as String)
                                         .join(', ') ??
                                     'Unknown Artist'
-                                : 'Camila Cabello',
+                                : spotifyProvider.lastPlayedArtists ??
+                                    'Unknown Artist',
                             track: displayTrack,
                           ),
                         ),

@@ -32,6 +32,8 @@ class SpotifyProvider extends ChangeNotifier {
   late SpotifyAuthService _spotifyService;
   static const String _clientIdKey = 'spotify_client_id';
   static const String _lastPlayedImageKey = 'last_played_image_url';
+  static const String _lastPlayedTrackNameKey = 'last_played_track_name';
+  static const String _lastPlayedArtistsKey = 'last_played_artists';
   final Logger logger = Logger();
 
   // 异步初始化控制
@@ -77,8 +79,10 @@ class SpotifyProvider extends ChangeNotifier {
   final ImagePreloadManager _imagePreloadManager = ImagePreloadManager();
   final AlbumArtPreloadStrategy _albumArtPreloader = AlbumArtPreloadStrategy();
 
-  // 持久化存储最后播放的图像 URL（用于离线显示）
+  // 持久化存储最后播放的歌曲信息（用于离线显示）
   String? _lastPlayedImageUrl;
+  String? _lastPlayedTrackName;
+  String? _lastPlayedArtists;
 
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
   static const Duration _refreshTickInterval = Duration(seconds: 3);
@@ -97,32 +101,53 @@ class SpotifyProvider extends ChangeNotifier {
     return _imageCache.containsKey(imageUrl);
   }
 
-  // 获取最后播放的图像 URL（用于离线默认显示）
+  // 获取最后播放的歌曲信息（用于离线默认显示）
   String? get lastPlayedImageUrl => _lastPlayedImageUrl;
+  String? get lastPlayedTrackName => _lastPlayedTrackName;
+  String? get lastPlayedArtists => _lastPlayedArtists;
 
-  // 从持久化存储加载最后播放的图像 URL
-  Future<void> loadLastPlayedImageUrl() async {
+  // 从持久化存储加载最后播放的歌曲信息
+  Future<void> loadLastPlayedTrackInfo() async {
     try {
       final sp = await SharedPreferences.getInstance();
       _lastPlayedImageUrl = sp.getString(_lastPlayedImageKey);
-      logger.d('已加载最后播放图像 URL: $_lastPlayedImageUrl');
+      _lastPlayedTrackName = sp.getString(_lastPlayedTrackNameKey);
+      _lastPlayedArtists = sp.getString(_lastPlayedArtistsKey);
+      logger.d(
+          '已加载最后播放歌曲信息: $_lastPlayedTrackName - $_lastPlayedArtists');
     } catch (e) {
-      logger.e('加载最后播放图像 URL 失败', error: e);
+      logger.e('加载最后播放歌曲信息失败', error: e);
     }
   }
 
-  // 保存最后播放的图像 URL 到持久化存储
-  Future<void> _saveLastPlayedImageUrl(String? imageUrl) async {
-    if (imageUrl == null || imageUrl == _lastPlayedImageUrl) return;
+
+  // 保存最后播放的歌曲信息到持久化存储
+  Future<void> _saveLastPlayedTrackInfo({
+    String? imageUrl,
+    String? trackName,
+    String? artists,
+  }) async {
+    if (imageUrl == null && trackName == null && artists == null) return;
     try {
       final sp = await SharedPreferences.getInstance();
-      await sp.setString(_lastPlayedImageKey, imageUrl);
-      _lastPlayedImageUrl = imageUrl;
-      logger.d('已保存最后播放图像 URL: $imageUrl');
+      if (imageUrl != null && imageUrl != _lastPlayedImageUrl) {
+        await sp.setString(_lastPlayedImageKey, imageUrl);
+        _lastPlayedImageUrl = imageUrl;
+      }
+      if (trackName != null && trackName != _lastPlayedTrackName) {
+        await sp.setString(_lastPlayedTrackNameKey, trackName);
+        _lastPlayedTrackName = trackName;
+      }
+      if (artists != null && artists != _lastPlayedArtists) {
+        await sp.setString(_lastPlayedArtistsKey, artists);
+        _lastPlayedArtists = artists;
+      }
+      logger.d('已保存最后播放歌曲信息: $trackName - $artists');
     } catch (e) {
-      logger.e('保存最后播放图像 URL 失败', error: e);
+      logger.e('保存最后播放歌曲信息失败', error: e);
     }
   }
+
 
   /// 验证 Access Token 格式的有效性
   bool _isValidAccessToken(String token) {
@@ -254,9 +279,12 @@ class SpotifyProvider extends ChangeNotifier {
       final sp = await SharedPreferences.getInstance();
       final storedClientId = sp.getString(_clientIdKey);
 
-      // 加载最后播放的图像 URL（用于离线显示）
+      // 加载最后播放的歌曲信息（用于离线显示）
       _lastPlayedImageUrl = sp.getString(_lastPlayedImageKey);
-      logger.d('Bootstrap: 已加载最后播放图像 URL: $_lastPlayedImageUrl');
+      _lastPlayedTrackName = sp.getString(_lastPlayedTrackNameKey);
+      _lastPlayedArtists = sp.getString(_lastPlayedArtistsKey);
+      logger.d(
+          'Bootstrap: 已加载最后播放歌曲信息: $_lastPlayedTrackName - $_lastPlayedArtists');
 
       logger.d(
           'Bootstrap: 从SharedPreferences读取ClientID: ${storedClientId ?? "null"}');
@@ -837,12 +865,20 @@ class SpotifyProvider extends ChangeNotifier {
               'refreshCurrentTrack: Updated currentTrack due to coreChange ($coreTrackInfoChanged) or progressJump ($significantProgressJump). New progress: ${currentTrack!['progress_ms']}, isPlaying: ${currentTrack!['is_playing']}. Reset _lastProgressUpdate: $_lastProgressUpdate');
 
           if (newId != oldId && newId != null) {
-            // 保存当前歌曲的专辑图像 URL 到持久化存储
+            // 保存当前歌曲信息到持久化存储（用于离线显示）
+            final item = track['item'];
             final albumImageUrl =
-                track['item']?['album']?['images']?[0]?['url'] as String?;
-            if (albumImageUrl != null) {
-              _saveLastPlayedImageUrl(albumImageUrl);
-            }
+                item?['album']?['images']?[0]?['url'] as String?;
+            final trackName = item?['name'] as String?;
+            final artistsList = item?['artists'] as List?;
+            final artists = artistsList
+                ?.map((artist) => artist['name'] as String)
+                .join(', ');
+            _saveLastPlayedTrackInfo(
+              imageUrl: albumImageUrl,
+              trackName: trackName,
+              artists: artists,
+            );
 
             try {
               isCurrentTrackSaved =
