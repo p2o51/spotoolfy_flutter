@@ -255,6 +255,12 @@ class _RoamState extends State<Roam> {
     // Consume the LocalDatabaseProvider
     return Consumer<LocalDatabaseProvider>(
       builder: (context, localDbProvider, child) {
+        // Filter out records that have no note content ("Rated" only)
+        final filteredRecords = localDbProvider.allRecordsOrdered.where((record) {
+          final noteContent = record['noteContent'] as String? ?? '';
+          return noteContent.isNotEmpty;
+        }).toList();
+
         return Scaffold(
           body: RefreshIndicator(
             onRefresh: _refreshThoughts,
@@ -279,15 +285,15 @@ class _RoamState extends State<Roam> {
                     ),
                   ),
                 ),
-                // Use the provider's loading state AND check the ALL records list
-                if (localDbProvider.isLoading && localDbProvider.allRecordsOrdered.isEmpty) // Show loading only if all records list is empty
+                // Use the provider's loading state AND check the filtered records list
+                if (localDbProvider.isLoading && filteredRecords.isEmpty) // Show loading only if filtered list is empty
                   const SliverFillRemaining(
                     child: Center(
                       child: CircularProgressIndicator(),
                     ),
                   )
-                // Use the ALL records list for the empty state
-                else if (localDbProvider.allRecordsOrdered.isEmpty)
+                // Use the filtered records list for the empty state
+                else if (filteredRecords.isEmpty)
                   SliverFillRemaining(
                     child: Center(
                       child: Text(
@@ -314,8 +320,8 @@ class _RoamState extends State<Roam> {
                             crossAxisSpacing: 10,
                             itemBuilder: (context, index) {
                               // 移除对索引的检查，改用childCount来限制项目数量
-                              // Access data using map keys from the ALL records list
-                              final record = localDbProvider.allRecordsOrdered[index];
+                              // Access data using map keys from the filtered records list
+                              final record = filteredRecords[index];
                               final recordId = record['id'] as int?;
                               final trackId = record['trackId'] as String?;
                               final albumCoverUrl = record['albumCoverUrl'] as String?; // Get album cover URL
@@ -532,7 +538,7 @@ class _RoamState extends State<Roam> {
                                 ],
                               );
                             },
-                            childCount: localDbProvider.allRecordsOrdered.length,
+                            childCount: filteredRecords.length,
                           );
                         } else {
                           // 保持原有的单列SliverList布局
@@ -540,11 +546,11 @@ class _RoamState extends State<Roam> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                                 // 原有的单列实现代码
-                          // Access data using map keys from the ALL records list
-                          final record = localDbProvider.allRecordsOrdered[index];
-                          // Determine if it's the first/last item in the ALL list
+                          // Access data using map keys from the filtered records list
+                          final record = filteredRecords[index];
+                          // Determine if it's the first/last item in the filtered list
                           final isFirst = index == 0;
-                          final isLast = index == localDbProvider.allRecordsOrdered.length - 1;
+                          final isLast = index == filteredRecords.length - 1;
                           final recordId = record['id'] as int?;
                           final trackId = record['trackId'] as String?;
                           final albumCoverUrl = record['albumCoverUrl'] as String?; // Get album cover URL
@@ -886,7 +892,11 @@ class NotesCarouselView extends StatelessWidget {
     final localDbProvider = Provider.of<LocalDatabaseProvider>(context);
     // Get SpotifyProvider for playback
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    final randomRecords = localDbProvider.randomRecords;
+    // Filter random records to exclude "Rated" only items (empty notes)
+    final randomRecords = localDbProvider.randomRecords.where((record) {
+          final noteContent = record['noteContent'] as String? ?? '';
+          return noteContent.isNotEmpty;
+    }).toList();
 
     // Don't show carousel if loading or no records
     if (localDbProvider.isLoading || randomRecords.isEmpty) {
