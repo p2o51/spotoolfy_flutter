@@ -1175,6 +1175,12 @@ abstract class AppLocalizations {
   /// **'Share Poster'**
   String get sharePoster;
 
+  /// No description provided for @shareNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Share Note'**
+  String get shareNote;
+
   /// No description provided for @copySelected.
   ///
   /// In en, this message translates to:
@@ -2237,6 +2243,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share'**
   String get shareButton;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get filterAll;
+
+  /// No description provided for @filterFire.
+  ///
+  /// In en, this message translates to:
+  /// **'Fire'**
+  String get filterFire;
+
+  /// No description provided for @filterNeutral.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral'**
+  String get filterNeutral;
+
+  /// No description provided for @filterDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Down'**
+  String get filterDown;
+
+  /// No description provided for @filterRated.
+  ///
+  /// In en, this message translates to:
+  /// **'Rated'**
+  String get filterRated;
+
+  /// No description provided for @statsTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} notes'**
+  String statsTotal(int count);
+
+  /// No description provided for @searchNotesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search notes...'**
+  String get searchNotesHint;
 }
 
 class _AppLocalizationsDelegate

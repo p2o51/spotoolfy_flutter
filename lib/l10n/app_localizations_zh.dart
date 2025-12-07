@@ -582,6 +582,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sharePoster => '分享海报';
 
   @override
+  String get shareNote => '分享笔记';
+
+  @override
   String get copySelected => '复制选中';
 
   @override
@@ -1169,6 +1172,29 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shareButton => '分享';
+
+  @override
+  String get filterAll => '全部';
+
+  @override
+  String get filterFire => '火热';
+
+  @override
+  String get filterNeutral => '中性';
+
+  @override
+  String get filterDown => '踩';
+
+  @override
+  String get filterRated => '已评价';
+
+  @override
+  String statsTotal(int count) {
+    return '$count 条笔记';
+  }
+
+  @override
+  String get searchNotesHint => '搜索笔记...';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -1747,6 +1773,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get sharePoster => '分享海報';
+
+  @override
+  String get shareNote => '分享筆記';
 
   @override
   String get copySelected => '複製選中';
@@ -2336,4 +2365,27 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get shareButton => '分享';
+
+  @override
+  String get filterAll => '全部';
+
+  @override
+  String get filterFire => '火熱';
+
+  @override
+  String get filterNeutral => '中性';
+
+  @override
+  String get filterDown => '踩';
+
+  @override
+  String get filterRated => '已評價';
+
+  @override
+  String statsTotal(int count) {
+    return '$count 則筆記';
+  }
+
+  @override
+  String get searchNotesHint => '搜尋筆記...';
 }

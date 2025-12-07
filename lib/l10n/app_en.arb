@@ -321,6 +321,7 @@
   "noLyricsSelected": "Please select some lyrics first",
   "askGemini": "Ask Gemini",
   "sharePoster": "Share Poster",
+  "shareNote": "Share Note",
   "copySelected": "Copy Selected",
   "geminiAnalysisResult": "Gemini Analysis Result",
   "lyricsTheme": "Theme",
@@ -743,5 +744,19 @@
   "playFromAlbum": "PLAY FROM ALBUM",
   "playFromPlaylist": "PLAY FROM PLAYLIST",
   "sharingStatus": "Sharing...",
-  "shareButton": "Share"
+  "shareButton": "Share",
+  "filterAll": "All",
+  "filterFire": "Fire",
+  "filterNeutral": "Neutral",
+  "filterDown": "Down",
+  "filterRated": "Rated",
+  "statsTotal": "{count} notes",
+  "@statsTotal": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchNotesHint": "Search notes..."
 }

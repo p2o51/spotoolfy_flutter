@@ -583,6 +583,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sharePoster => 'ポスターを共有';
 
   @override
+  String get shareNote => 'ノートを共有';
+
+  @override
   String get copySelected => '選択をコピー';
 
   @override
@@ -1172,4 +1175,27 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get shareButton => '共有';
+
+  @override
+  String get filterAll => 'すべて';
+
+  @override
+  String get filterFire => '熱い';
+
+  @override
+  String get filterNeutral => '普通';
+
+  @override
+  String get filterDown => '低評価';
+
+  @override
+  String get filterRated => '評価のみ';
+
+  @override
+  String statsTotal(int count) {
+    return '$count 件のノート';
+  }
+
+  @override
+  String get searchNotesHint => 'ノートを検索...';
 }

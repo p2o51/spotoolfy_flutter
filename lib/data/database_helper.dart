@@ -120,8 +120,6 @@ class DatabaseHelper {
         'CREATE INDEX idx_play_contexts_lastPlayedAt ON play_contexts (lastPlayedAt);');
   }
 
-  // --- CRUD Methods ---
-
   /// Inserts a new track into the database.
   /// Returns the id of the inserted row.
   Future<int> insertTrack(Track track) async {
@@ -366,8 +364,6 @@ class DatabaseHelper {
     }
   }
 
-  // --- Query Methods for Specific Use Cases ---
-
   /// Fetches a specified number of random records along with their associated track info.
   /// Returns a list of maps, where each map contains columns from both records and tracks tables.
   Future<List<Map<String, dynamic>>> getRandomRecordsWithTrackInfo(
@@ -453,8 +449,6 @@ class DatabaseHelper {
     return result;
   }
 
-  // --- Methods for Data Export/Import ---
-
   /// Fetches all tracks from the database.
   Future<List<Track>> getAllTracks() async {
     final db = await instance.database;
@@ -526,8 +520,6 @@ class DatabaseHelper {
     }
     await batch.commit(noResult: true);
   }
-
-  // --- Methods for Play Contexts ---
 
   /// Inserts or updates a play context.
   /// If a context with the same URI exists, it updates the lastPlayedAt timestamp.
@@ -639,8 +631,6 @@ class DatabaseHelper {
     }
   }
 
-  // --- Debug/Testing Methods ---
-
   /// Inserts sample data for testing if the database appears empty.
   Future<void> insertSampleDataIfNotExists() async {
     final db = await instance.database;
@@ -748,9 +738,6 @@ class DatabaseHelper {
     }
   }
 
-  // --- Helper Methods (Optional) ---
-
-  // Example: Close the database (might be needed in some scenarios)
   Future<void> close() async {
     final db = await instance.database;
     db.close();

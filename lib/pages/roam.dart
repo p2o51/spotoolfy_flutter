@@ -6,10 +6,10 @@ import 'package:logger/logger.dart';
 import '../providers/local_database_provider.dart'; // Import new provider
 // import 'package:flutter/services.dart'; // Unnecessary import removed
 import 'package:cached_network_image/cached_network_image.dart'; // Import CachedNetworkImage
-import 'package:flutter/cupertino.dart'; // For CupertinoActionSheet
 import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导入
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../widgets/materialui.dart'; // <--- 导入 WavyDivider
+import '../widgets/note_poster_preview_page.dart';
 import '../l10n/app_localizations.dart';
 
 final logger = Logger();
@@ -22,6 +22,16 @@ class Roam extends StatefulWidget {
 }
 
 class _RoamState extends State<Roam> {
+  // Filter state: null = all, 0 = thumb down, 3 = neutral, 5 = fire
+  int? _selectedRatingFilter;
+
+  // Show only "Rated" records (no note content)
+  bool _showRatedOnly = false;
+
+  // Search state
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +39,12 @@ class _RoamState extends State<Roam> {
       // Fetch initial data using the provider's public combined fetch method
       Provider.of<LocalDatabaseProvider>(context, listen: false).fetchInitialData(); // Call the public fetch
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshThoughts() async {
@@ -65,68 +81,111 @@ class _RoamState extends State<Roam> {
 
     showModalBottomSheet(
       context: context,
-      // Use RootNavigator to ensure it appears above bottom nav bar if applicable
       useRootNavigator: true,
-      backgroundColor: Colors.transparent,
       builder: (BuildContext bottomSheetContext) {
-        // Using CupertinoActionSheet for iOS style, you can use Column + ListTiles for Material
-        return CupertinoActionSheet(
-          title: Text(record['trackName'] ?? AppLocalizations.of(context)!.optionsTitle),
-          // message: Text(record['noteContent'] ?? ''), // Optional: show content snippet
-          actions: <CupertinoActionSheetAction>[
-            // 新增：从指定时间播放
-            if (songTimestampMs != null && songTimestampMs > 0)
-              CupertinoActionSheetAction(
-                child: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
-                onPressed: () async {
-                  Navigator.pop(bottomSheetContext); // Close the sheet
-                  final trackUri = 'spotify:track:$trackId';
-                   logger.d('Attempting to play URI: $trackUri from $songTimestampMs ms');
-                  
-                  // Capture context before async operations
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  final localizations = AppLocalizations.of(context)!;
-                  
-                  try {
-                    // 先播放曲目
-                    await spotifyProvider.playTrack(trackUri: trackUri);
-                    // 然后跳转到指定位置
-                    final duration = Duration(milliseconds: songTimestampMs); // Convert ms to Duration
-                    await spotifyProvider.seekToPosition(duration.inMilliseconds); // Use seekToPosition with Duration
-                  } catch (e) {
-                    logger.d('Error calling playTrack or seekToPosition: $e');
-                    if (mounted) {
-                      scaffoldMessenger.showSnackBar(
-                        SnackBar(
-                          content: Text(localizations.playbackFailed(e.toString())),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 32,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  record['trackName'] ?? AppLocalizations.of(context)!.optionsTitle,
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Divider(),
+              // Play from timestamp
+              if (songTimestampMs != null && songTimestampMs > 0)
+                ListTile(
+                  leading: const Icon(Icons.play_circle_outline),
+                  title: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
+                  onTap: () async {
+                    Navigator.pop(bottomSheetContext);
+                    final trackUri = 'spotify:track:$trackId';
+                    logger.d('Attempting to play URI: $trackUri from $songTimestampMs ms');
+
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                    final localizations = AppLocalizations.of(context)!;
+
+                    try {
+                      await spotifyProvider.playTrack(trackUri: trackUri);
+                      final duration = Duration(milliseconds: songTimestampMs);
+                      await spotifyProvider.seekToPosition(duration.inMilliseconds);
+                    } catch (e) {
+                      logger.d('Error calling playTrack or seekToPosition: $e');
+                      if (mounted) {
+                        scaffoldMessenger.showSnackBar(
+                          SnackBar(
+                            content: Text(localizations.playbackFailed(e.toString())),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
                     }
-                  }
+                  },
+                ),
+              // Share
+              ListTile(
+                leading: const Icon(Icons.share_outlined),
+                title: Text(AppLocalizations.of(context)!.shareNote),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotePosterPreviewPage(
+                        noteContent: record['noteContent'] as String? ?? '',
+                        lyricsSnapshot: record['lyricsSnapshot'] as String?,
+                        trackTitle: record['trackName'] as String? ?? '',
+                        artistName: record['artistName'] as String? ?? '',
+                        albumName: record['albumName'] as String? ?? '',
+                        rating: record['rating'] as int? ?? 3,
+                        albumCoverUrl: record['albumCoverUrl'] as String?,
+                      ),
+                    ),
+                  );
                 },
               ),
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.pop(bottomSheetContext); // Close the sheet
-                _showEditDialog(context, record); // Show edit dialog
-              },
-              child: Text(AppLocalizations.of(context)!.editNote),
-            ),
-            CupertinoActionSheetAction(
-              isDestructiveAction: true,
-              onPressed: () {
-                Navigator.pop(bottomSheetContext); // Close the sheet
-                _confirmDeleteRecord(context, recordId, trackId); // Show delete confirmation
-              },
-              child: Text(AppLocalizations.of(context)!.deleteNote),
-            ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            child: Text(AppLocalizations.of(context)!.cancel),
-            onPressed: () {
-              Navigator.pop(bottomSheetContext);
-            },
+              // Edit
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(AppLocalizations.of(context)!.editNote),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _showEditDialog(context, record);
+                },
+              ),
+              // Delete
+              ListTile(
+                leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                title: Text(
+                  AppLocalizations.of(context)!.deleteNote,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _confirmDeleteRecord(context, recordId, trackId);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         );
       },
@@ -255,10 +314,48 @@ class _RoamState extends State<Roam> {
     // Consume the LocalDatabaseProvider
     return Consumer<LocalDatabaseProvider>(
       builder: (context, localDbProvider, child) {
-        // Filter out records that have no note content ("Rated" only)
-        final filteredRecords = localDbProvider.allRecordsOrdered.where((record) {
+        // Get all records with notes (not just "Rated")
+        final allNotesRecords = localDbProvider.allRecordsOrdered.where((record) {
           final noteContent = record['noteContent'] as String? ?? '';
           return noteContent.isNotEmpty;
+        }).toList();
+
+        // Get all "Rated" only records (no note content)
+        final allRatedOnlyRecords = localDbProvider.allRecordsOrdered.where((record) {
+          final noteContent = record['noteContent'] as String? ?? '';
+          return noteContent.isEmpty;
+        }).toList();
+
+        // Calculate stats
+        final totalCount = allNotesRecords.length;
+        final fireCount = allNotesRecords.where((r) => (r['rating'] as int? ?? 3) == 5).length;
+        final neutralCount = allNotesRecords.where((r) => (r['rating'] as int? ?? 3) == 3).length;
+        final downCount = allNotesRecords.where((r) => (r['rating'] as int? ?? 3) == 0).length;
+        final ratedOnlyCount = allRatedOnlyRecords.length;
+
+        // Choose base records based on _showRatedOnly
+        final baseRecords = _showRatedOnly ? allRatedOnlyRecords : allNotesRecords;
+
+        // Apply rating filter and search filter
+        final filteredRecords = baseRecords.where((record) {
+          // Rating filter
+          if (_selectedRatingFilter != null) {
+            final rating = record['rating'] as int? ?? 3;
+            if (rating != _selectedRatingFilter) return false;
+          }
+
+          // Search filter
+          if (_searchQuery.isNotEmpty) {
+            final query = _searchQuery.toLowerCase();
+            final trackName = (record['trackName'] as String? ?? '').toLowerCase();
+            final artistName = (record['artistName'] as String? ?? '').toLowerCase();
+            final noteContent = (record['noteContent'] as String? ?? '').toLowerCase();
+            if (!trackName.contains(query) && !artistName.contains(query) && !noteContent.contains(query)) {
+              return false;
+            }
+          }
+
+          return true;
         }).toList();
 
         return Scaffold(
@@ -282,6 +379,132 @@ class _RoamState extends State<Roam> {
                       height: 20, // Adjust height as needed
                       waveHeight: 3, // Adjust wave height
                       waveFrequency: 0.03, // Adjust wave frequency
+                    ),
+                  ),
+                ),
+                // Search bar
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: AppLocalizations.of(context)!.searchNotesHint,
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onChanged: (value) {
+                        setState(() => _searchQuery = value);
+                      },
+                    ),
+                  ),
+                ),
+                // Rating filter chips with stats
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      children: [
+                        // Stats summary
+                        Text(
+                          AppLocalizations.of(context)!.statsTotal(totalCount),
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Filter chips (icon only with count)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                FilterChip(
+                                  avatar: const Icon(Icons.select_all, size: 18),
+                                  label: Text('$totalCount'),
+                                  selected: _selectedRatingFilter == null && !_showRatedOnly,
+                                  showCheckmark: false,
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setState(() {
+                                        _selectedRatingFilter = null;
+                                        _showRatedOnly = false;
+                                      });
+                                    }
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                FilterChip(
+                                  avatar: Icon(Icons.whatshot_outlined, size: 18, color: _selectedRatingFilter == 5 ? Theme.of(context).colorScheme.onSecondaryContainer : null),
+                                  label: Text('$fireCount'),
+                                  selected: _selectedRatingFilter == 5 && !_showRatedOnly,
+                                  showCheckmark: false,
+                                  onSelected: fireCount > 0 ? (selected) {
+                                    setState(() {
+                                      _selectedRatingFilter = selected ? 5 : null;
+                                      _showRatedOnly = false;
+                                    });
+                                  } : null,
+                                ),
+                                const SizedBox(width: 8),
+                                FilterChip(
+                                  avatar: Icon(Icons.sentiment_neutral_rounded, size: 18, color: _selectedRatingFilter == 3 ? Theme.of(context).colorScheme.onSecondaryContainer : null),
+                                  label: Text('$neutralCount'),
+                                  selected: _selectedRatingFilter == 3 && !_showRatedOnly,
+                                  showCheckmark: false,
+                                  onSelected: neutralCount > 0 ? (selected) {
+                                    setState(() {
+                                      _selectedRatingFilter = selected ? 3 : null;
+                                      _showRatedOnly = false;
+                                    });
+                                  } : null,
+                                ),
+                                const SizedBox(width: 8),
+                                FilterChip(
+                                  avatar: Icon(Icons.thumb_down_outlined, size: 18, color: _selectedRatingFilter == 0 ? Theme.of(context).colorScheme.onSecondaryContainer : null),
+                                  label: Text('$downCount'),
+                                  selected: _selectedRatingFilter == 0 && !_showRatedOnly,
+                                  showCheckmark: false,
+                                  onSelected: downCount > 0 ? (selected) {
+                                    setState(() {
+                                      _selectedRatingFilter = selected ? 0 : null;
+                                      _showRatedOnly = false;
+                                    });
+                                  } : null,
+                                ),
+                                const SizedBox(width: 8),
+                                FilterChip(
+                                  avatar: Icon(Icons.star_outline, size: 18, color: _showRatedOnly ? Theme.of(context).colorScheme.onSecondaryContainer : null),
+                                  label: Text('$ratedOnlyCount'),
+                                  selected: _showRatedOnly,
+                                  showCheckmark: false,
+                                  onSelected: ratedOnlyCount > 0 ? (selected) {
+                                    setState(() {
+                                      _showRatedOnly = selected;
+                                      _selectedRatingFilter = null;
+                                    });
+                                  } : null,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -386,6 +609,9 @@ class _RoamState extends State<Roam> {
                               // Get note content
                               final String noteContent = record['noteContent'] as String? ?? '';
 
+                              // Get lyrics snapshot
+                              final String? lyricsSnapshot = record['lyricsSnapshot'] as String?;
+
                               // Wrap InkWell/Card in a Column to add Divider
                               return Column(
                                 children: [
@@ -426,7 +652,11 @@ class _RoamState extends State<Roam> {
                                             if (noteContent.isNotEmpty)
                                               Padding(
                                                 padding: const EdgeInsets.only(bottom: 12.0), // Add space below note
-                                                child: _buildNoteContent(context, noteContent),
+                                                child: Text(
+                                                  noteContent,
+                                                  style: Theme.of(context).textTheme.bodyLarge,
+                                                  overflow: TextOverflow.visible,
+                                                ),
                                               ),
                                             // Show 'Rated' if noteContent is empty
                                             if (noteContent.isEmpty)
@@ -440,7 +670,35 @@ class _RoamState extends State<Roam> {
                                                    ),
                                                  ),
                                                ),
-                                            
+
+                                            // 1.5. Lyrics Snapshot (if available)
+                                            if (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(bottom: 12.0),
+                                                child: Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.music_note_outlined,
+                                                      size: 14,
+                                                      color: Theme.of(context).colorScheme.outline,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        lyricsSnapshot,
+                                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                          color: Theme.of(context).colorScheme.outline,
+                                                          height: 1.4,
+                                                        ),
+                                                        maxLines: 3,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+
                                             // 2. Bottom Row (Image/Info + Rating)
                                             Row(
                                               crossAxisAlignment: CrossAxisAlignment.center, // Vertically center items in this row
@@ -615,6 +873,9 @@ class _RoamState extends State<Roam> {
                           // Get note content
                           final String noteContent = record['noteContent'] as String? ?? '';
 
+                          // Get lyrics snapshot
+                          final String? lyricsSnapshot = record['lyricsSnapshot'] as String?;
+
                           // Wrap the existing Padding/InkWell/Card in a Column to add Divider
                           return Column(
                             children: [
@@ -688,6 +949,35 @@ class _RoamState extends State<Roam> {
                                                   fontStyle: FontStyle.italic,
                                                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                                                 ),
+                                              ),
+                                            ),
+
+                                          // 1.5. Lyrics Snapshot (if available)
+                                          if (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(bottom: 12.0),
+                                              child: Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Icon(
+                                                    Icons.music_note_outlined,
+                                                    size: 14,
+                                                    color: Theme.of(context).colorScheme.outline,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      lyricsSnapshot,
+                                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                        fontStyle: FontStyle.italic,
+                                                        color: Theme.of(context).colorScheme.outline,
+                                                        height: 1.4,
+                                                      ),
+                                                      maxLines: 3,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
 
@@ -790,7 +1080,7 @@ class _RoamState extends State<Roam> {
                             ],
                           );
                         },
-                        childCount: localDbProvider.allRecordsOrdered.length,
+                        childCount: filteredRecords.length,
                       ),
                           );
                         }
@@ -808,52 +1098,6 @@ class _RoamState extends State<Roam> {
     );
   }
 
-  // 构建笔记内容，检测三个引号包裹的歌词
-  Widget _buildNoteContent(BuildContext context, String noteContent) {
-    // 检测开头是否有三个双引号包裹的内容
-    final tripleQuotePattern = RegExp(r'^"""([\s\S]*?)"""(\s*)([\s\S]*)$');
-    final match = tripleQuotePattern.firstMatch(noteContent.trim());
-    
-    if (match != null) {
-      // 有三个引号包裹的内容
-      final quotedContent = match.group(1)?.trim() ?? '';
-      final remainingContent = match.group(3)?.trim() ?? '';
-      
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 引用的歌词部分 - 斜体小字体
-          if (quotedContent.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                quotedContent,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: Theme.of(context).textTheme.bodySmall?.fontSize,
-                ),
-                overflow: TextOverflow.visible,
-              ),
-            ),
-          // 剩余的笔记内容 - 正常样式
-          if (remainingContent.isNotEmpty)
-            Text(
-              remainingContent,
-              style: Theme.of(context).textTheme.bodyMedium,
-              overflow: TextOverflow.visible,
-            ),
-        ],
-      );
-    } else {
-      // 没有三个引号，正常显示
-      return Text(
-        noteContent,
-        style: Theme.of(context).textTheme.bodyMedium,
-        overflow: TextOverflow.visible,
-      );
-    }
-  }
 }
 
 // --- Add the new NotesCarouselView Widget ---

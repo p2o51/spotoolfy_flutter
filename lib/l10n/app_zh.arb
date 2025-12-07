@@ -181,6 +181,7 @@
   "noLyricsSelected": "请先选择一些歌词",
   "askGemini": "问 Gemini",
   "sharePoster": "分享海报",
+  "shareNote": "分享笔记",
   "copySelected": "复制选中",
   "geminiAnalysisResult": "Gemini 分析结果",
   "lyricsTheme": "主题",
@@ -365,5 +366,12 @@
   "playFromAlbum": "播放自专辑",
   "playFromPlaylist": "播放自播放列表",
   "sharingStatus": "分享中...",
-  "shareButton": "分享"
+  "shareButton": "分享",
+  "filterAll": "全部",
+  "filterFire": "火热",
+  "filterNeutral": "中性",
+  "filterDown": "踩",
+  "filterRated": "已评价",
+  "statsTotal": "{count} 条笔记",
+  "searchNotesHint": "搜索笔记..."
 }

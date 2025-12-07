@@ -601,6 +601,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sharePoster => 'Share Poster';
 
   @override
+  String get shareNote => 'Share Note';
+
+  @override
   String get copySelected => 'Copy Selected';
 
   @override
@@ -1205,4 +1208,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareButton => 'Share';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterFire => 'Fire';
+
+  @override
+  String get filterNeutral => 'Neutral';
+
+  @override
+  String get filterDown => 'Down';
+
+  @override
+  String get filterRated => 'Rated';
+
+  @override
+  String statsTotal(int count) {
+    return '$count notes';
+  }
+
+  @override
+  String get searchNotesHint => 'Search notes...';
 }

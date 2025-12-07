@@ -450,15 +450,15 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return;
     }
 
-    // 使用三重引号包装歌词
-    final lyricsContent = '"""\n${selectedLyrics.join('\n')}\n"""';
+    // Join selected lyrics for the lyricsSnapshot field
+    final lyricsSnapshot = selectedLyrics.join('\n');
 
-    // 弹出添加笔记对话框，预填充歌词
+    // 弹出添加笔记对话框，传递选中的歌词
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => AddNoteSheet(
-        prefilledContent: lyricsContent,
+        selectedLyrics: lyricsSnapshot, // Save to lyricsSnapshot field
       ),
     );
   }

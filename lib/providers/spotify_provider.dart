@@ -2443,16 +2443,9 @@ class SpotifyProvider extends ChangeNotifier {
       final response = await _guard(
           () => _spotifyService.search(query, types, limit: limit));
 
-      // --- Add logging for decoded response ---
-      // debugPrint('SpotifyProvider.searchItems - Decoded Response:');
-      // debugPrint(json.encode(response));
-      // --- End logging ---
-
       final Map<String, List<Map<String, dynamic>>> results = {};
 
-      // Process tracks
       if (response['tracks']?['items'] != null && types.contains('track')) {
-        // debugPrint('Processing tracks...');
         results['tracks'] = List<Map<String, dynamic>>.from(
             (response['tracks']['items'] as List)
                 .where((item) =>
@@ -2544,21 +2537,11 @@ class SpotifyProvider extends ChangeNotifier {
                     (item['images'] as List).isNotEmpty));
       }
 
-      // --- Add logging for final results map ---
-      // debugPrint('SpotifyProvider.searchItems - Final Results Map:');
-      // debugPrint(json.encode(results));
-      // --- End logging ---
-
       return results;
     } catch (e) {
-      // debugPrint('Spotify search failed: $e');
-      // Depending on how you want to handle errors, you might return empty or rethrow
-      // rethrow;
-      return {}; // Return empty map on error for now
+      return {};
     }
   }
-
-  // --- 添加新的错误处理辅助方法 ---
 
   /// 检查是否为网络连接错误
   bool _isNetworkError(dynamic error) {
@@ -2848,7 +2831,6 @@ class SpotifyProvider extends ChangeNotifier {
       }
     }
   }
-  // --- 辅助方法结束 ---
 }
 
 // 应用生命周期观察者类

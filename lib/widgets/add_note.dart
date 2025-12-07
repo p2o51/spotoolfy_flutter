@@ -10,8 +10,9 @@ import '../l10n/app_localizations.dart';
 
 class AddNoteSheet extends StatefulWidget {
   final String? prefilledContent;
-  
-  const AddNoteSheet({super.key, this.prefilledContent});
+  final String? selectedLyrics; // Selected lyrics to save to lyricsSnapshot field
+
+  const AddNoteSheet({super.key, this.prefilledContent, this.selectedLyrics});
 
   @override
   State<AddNoteSheet> createState() => _AddNoteSheetState();
@@ -132,6 +133,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
         songTimestampMs: songTimestampMs,
         contextUri: contextUri,
         contextName: contextName,
+        lyricsSnapshot: widget.selectedLyrics, // Use selected lyrics if provided
       );
 
       if (currentContext.mounted) {

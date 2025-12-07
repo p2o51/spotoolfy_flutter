@@ -184,6 +184,7 @@
   "noLyricsSelected": "まず歌詞を選択してください",
   "askGemini": "Geminiに質問",
   "sharePoster": "ポスターを共有",
+  "shareNote": "ノートを共有",
   "copySelected": "選択をコピー",
   "geminiAnalysisResult": "Gemini分析結果",
   "lyricsTheme": "テーマ",
@@ -368,5 +369,12 @@
   "playFromAlbum": "アルバムから再生",
   "playFromPlaylist": "プレイリストから再生",
   "sharingStatus": "共有中...",
-  "shareButton": "共有"
+  "shareButton": "共有",
+  "filterAll": "すべて",
+  "filterFire": "熱い",
+  "filterNeutral": "普通",
+  "filterDown": "低評価",
+  "filterRated": "評価のみ",
+  "statsTotal": "{count} 件のノート",
+  "searchNotesHint": "ノートを検索..."
 }
