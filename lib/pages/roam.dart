@@ -8,7 +8,6 @@ import '../providers/local_database_provider.dart'; // Import new provider
 import 'package:cached_network_image/cached_network_image.dart'; // Import CachedNetworkImage
 import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导入
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import '../widgets/materialui.dart'; // <--- 导入 WavyDivider
 import '../widgets/note_poster_preview_page.dart';
 import '../l10n/app_localizations.dart';
 
@@ -307,6 +306,117 @@ class _RoamState extends State<Roam> {
     );
   }
 
+  // Build Today's Review Card
+  Widget _buildTodayReviewCard(BuildContext context, List<Map<String, dynamic>> records, SpotifyProvider spotifyProvider) {
+    // Get a random record based on today's date (consistent for the day)
+    final today = DateTime.now();
+    final seed = today.year * 10000 + today.month * 100 + today.day;
+    final randomIndex = seed % records.length;
+    final record = records[randomIndex];
+
+    final trackId = record['trackId'] as String?;
+    final trackName = record['trackName'] as String? ?? 'Unknown Track';
+    final artistName = record['artistName'] as String? ?? 'Unknown Artist';
+    final noteContent = record['noteContent'] as String? ?? '';
+    final albumCoverUrl = record['albumCoverUrl'] as String?;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 4.0),
+      child: Card(
+        elevation: 0,
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: trackId != null ? () {
+            final trackUri = 'spotify:track:$trackId';
+            try {
+              spotifyProvider.playTrack(trackUri: trackUri);
+            } catch (e) {
+              logger.d('Error playing track from review card: $e');
+            }
+          } : null,
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              children: [
+                // Album cover
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: albumCoverUrl ?? '',
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      width: 48, height: 48,
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      width: 48, height: 48,
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.history_outlined,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            AppLocalizations.of(context)!.todayReviewTitle,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      if (noteContent.isNotEmpty)
+                        Text(
+                          noteContent,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      Text(
+                        '$trackName · $artistName',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.play_circle_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 获取 SpotifyProvider
@@ -364,24 +474,11 @@ class _RoamState extends State<Roam> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                // Add the new NotesCarouselView here
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: NotesCarouselView(),
+                // Today's Review Card
+                if (allNotesRecords.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildTodayReviewCard(context, allNotesRecords, spotifyProvider),
                   ),
-                ),
-                // Add the WavyDivider below the carousel
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), // Add some padding
-                    child: WavyDivider(
-                      height: 20, // Adjust height as needed
-                      waveHeight: 3, // Adjust wave height
-                      waveFrequency: 0.03, // Adjust wave frequency
-                    ),
-                  ),
-                ),
                 // Search bar
                 SliverToBoxAdapter(
                   child: Padding(
@@ -519,9 +616,33 @@ class _RoamState extends State<Roam> {
                 else if (filteredRecords.isEmpty)
                   SliverFillRemaining(
                     child: Center(
-                      child: Text(
-                        AppLocalizations.of(context)!.noNotes,
-                        style: Theme.of(context).textTheme.bodyLarge,
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.edit_note_outlined,
+                              size: 64,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              AppLocalizations.of(context)!.emptyNotesTitle,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              AppLocalizations.of(context)!.emptyNotesSubtitle,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   )
@@ -876,14 +997,105 @@ class _RoamState extends State<Roam> {
                           // Get lyrics snapshot
                           final String? lyricsSnapshot = record['lyricsSnapshot'] as String?;
 
-                          // Wrap the existing Padding/InkWell/Card in a Column to add Divider
-                          return Column(
+                          // Wrap with Dismissible for swipe gestures
+                          return Dismissible(
+                            key: Key('record_${recordId ?? index}'),
+                            background: Container(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.only(left: 24),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.play_arrow_rounded, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    AppLocalizations.of(context)!.swipeToPlay,
+                                    style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            secondaryBackground: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 24),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    AppLocalizations.of(context)!.swipeToDelete,
+                                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.onErrorContainer),
+                                ],
+                              ),
+                            ),
+                            confirmDismiss: (direction) async {
+                              if (direction == DismissDirection.startToEnd) {
+                                // Swipe right to play
+                                if (trackId != null) {
+                                  final trackUri = 'spotify:track:$trackId';
+                                  try {
+                                    spotifyProvider.playTrack(trackUri: trackUri);
+                                  } catch (e) {
+                                    logger.d('Error playing track: $e');
+                                  }
+                                }
+                                return false; // Don't dismiss
+                              } else if (direction == DismissDirection.endToStart) {
+                                // Swipe left to delete - show confirmation
+                                if (recordId != null && trackId != null) {
+                                  return await showDialog<bool>(
+                                    context: context,
+                                    builder: (dialogContext) => AlertDialog(
+                                      title: Text(AppLocalizations.of(context)!.confirmDelete),
+                                      content: Text(AppLocalizations.of(context)!.deleteConfirmMessage),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(dialogContext, false),
+                                          child: Text(AppLocalizations.of(context)!.cancel),
+                                        ),
+                                        TextButton(
+                                          style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                                          onPressed: () => Navigator.pop(dialogContext, true),
+                                          child: Text(AppLocalizations.of(context)!.deleteNote),
+                                        ),
+                                      ],
+                                    ),
+                                  ) ?? false;
+                                }
+                                return false;
+                              }
+                              return false;
+                            },
+                            onDismissed: (direction) {
+                              if (direction == DismissDirection.endToStart && recordId != null && trackId != null) {
+                                Provider.of<LocalDatabaseProvider>(context, listen: false).deleteRecord(
+                                  recordId: recordId,
+                                  trackId: trackId,
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(AppLocalizations.of(context)!.noteDeleted),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Column(
                             children: [
                               Padding(
                                 padding: EdgeInsets.only(
-                                  top: isFirst ? 0 : 4.0, // Adjust top padding slightly
+                                  top: isFirst ? 0 : 4.0,
                                   bottom: 4.0,
-                                  left: 0, // Padding handled by parent SliverPadding
+                                  left: 0,
                                   right: 0,
                                 ),
                                 child: InkWell(
@@ -1070,14 +1282,13 @@ class _RoamState extends State<Roam> {
                               // Add Divider below each card except the last one
                               if (!isLast)
                                 const Divider(
-                                  height: 1, // Make divider thin
+                                  height: 1,
                                   thickness: 1,
-                                  indent: 16, // Indent from left
-                                  endIndent: 16, // Indent from right
-                                  // Optional: Customize color
-                                  // color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                                  indent: 16,
+                                  endIndent: 16,
                                 ),
                             ],
+                          ),
                           );
                         },
                         childCount: filteredRecords.length,
@@ -1098,231 +1309,4 @@ class _RoamState extends State<Roam> {
     );
   }
 
-}
-
-// --- Add the new NotesCarouselView Widget ---
-
-class NotesCarouselView extends StatelessWidget {
-  const NotesCarouselView({super.key});
-
-  // Helper to build the rating icon
-  Widget _buildRatingIcon(BuildContext context, dynamic ratingRaw) {
-      int? ratingValue;
-      if (ratingRaw is int) {
-        ratingValue = ratingRaw;
-      } else if (ratingRaw is String) {
-        ratingValue = 3; // Default for old string data
-      }
-
-      IconData ratingIcon;
-      switch (ratingValue) {
-        case 0:
-          ratingIcon = Icons.thumb_down_outlined;
-          break;
-        case 5:
-          ratingIcon = Icons.whatshot_outlined;
-          break;
-        case 3:
-        default:
-          ratingIcon = Icons.sentiment_neutral_rounded;
-          break;
-      }
-      return Icon(ratingIcon, color: Theme.of(context).colorScheme.primary, size: 20);
-  }
-
-
-  @override
-  Widget build(BuildContext context) {
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context);
-    // Get SpotifyProvider for playback
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    // Filter random records to exclude "Rated" only items (empty notes)
-    final randomRecords = localDbProvider.randomRecords.where((record) {
-          final noteContent = record['noteContent'] as String? ?? '';
-          return noteContent.isNotEmpty;
-    }).toList();
-
-    // Don't show carousel if loading or no records
-    if (localDbProvider.isLoading || randomRecords.isEmpty) {
-       return const SizedBox.shrink(); 
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final screenWidth = constraints.maxWidth;
-        final carouselHeight = screenWidth > 900 ? 250.0 : 240.0;
-        final flexWeights = screenWidth > 900
-            ? const [1, 2, 5, 2, 1]
-            : screenWidth > 600
-            ? const [3, 4, 5, 1]
-            : const [3, 5, 1];
-
-        return Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: carouselHeight),
-            child: CarouselView.weighted(
-              flexWeights: flexWeights,
-              shrinkExtent: 0,
-              itemSnapping: true,
-              // Use the onTap property of CarouselView.weighted
-              onTap: (index) {
-                // Ensure index is valid
-                if (index >= 0 && index < randomRecords.length) {
-                  final record = randomRecords[index];
-                  final trackId = record['trackId'] as String?;
-                  if (trackId != null) {
-                    logger.d('Tapped on carousel index: $index, trackId: $trackId');
-                    final trackUri = 'spotify:track:$trackId';
-                    logger.d('Attempting to play URI from carousel: $trackUri');
-                    try {
-                      spotifyProvider.playTrack(trackUri: trackUri);
-                      // REMOVED SnackBar for playback attempt in carousel
-                      // ScaffoldMessenger.of(context).showSnackBar(
-                      //   SnackBar(
-                      //     content: Text('正在尝试播放: ${record['trackName'] ?? trackId}'),
-                      //     duration: const Duration(seconds: 2),
-                      //   ),
-                      // );
-                    } catch (e) {
-                      logger.d('Error calling playTrack from carousel: $e');
-                      ScaffoldMessenger.of(context).showSnackBar( // Keep error SnackBar
-                        SnackBar(
-                          content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  } else {
-                     logger.d('Tapped on carousel index: $index, but trackId is null.');
-                  }
-                } else {
-                   logger.d('Error: Invalid index ($index) tapped in CarouselView.');
-                }
-              },
-              children: randomRecords.map((record) {
-                final imageUrl = record['albumCoverUrl'] as String?;
-                final fallbackColor = Theme.of(context).colorScheme.secondaryContainer.withAlpha(204);
-                final String noteContent = record['noteContent'] as String? ?? '';
-                // final trackId = record['trackId'] as String?; // No longer needed here
-
-                // Remove the InkWell wrapper
-                // logger.d('Building carousel item for trackId: $trackId'); // Removed diagnostic print
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Background Image
-                        if (imageUrl != null)
-                          CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(color: fallbackColor),
-                            errorWidget: (context, url, error) => Container(
-                              color: fallbackColor,
-                              child: const Icon(Icons.broken_image_outlined, color: Colors.white54),
-                            ),
-                          )
-                        else
-                          Container(color: fallbackColor),
-
-                        // Content Overlay
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.black.withValues(alpha: 0.1), Colors.black.withValues(alpha: 0.7)],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Note Content
-                              Expanded(
-                                child: noteContent.isNotEmpty
-                                  ? Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Icon(
-                                          Icons.format_quote_rounded,
-                                          size: 20,
-                                          color: Colors.white.withValues(alpha: 0.9),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            noteContent,
-                                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                              color: Colors.white,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 5,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Center( // Center 'Rated' text if no content
-                                      child: Text(
-                                        AppLocalizations.of(context)!.ratedStatus,
-                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                          color: Colors.white70,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ),
-                              ),
-                              const SizedBox(height: 8),
-                              Divider(color: Colors.white.withValues(alpha: 0.3)),
-                              const SizedBox(height: 8),
-                              // Track Info and Rating
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${record['trackName'] ?? 'Unknown Track'}',
-                                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                            color: Colors.white,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          '${record['artistName'] ?? 'Unknown Artist'}',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Colors.white.withValues(alpha: 0.8),
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _buildRatingIcon(context, record['rating']), // Use helper
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // Optional: Add a loading carousel placeholder like in MyCarouselView
-  // Widget _buildLoadingCarousel(BuildContext context) { ... }
 }

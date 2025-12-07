@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import '../services/song_info_service.dart';
+import '../services/gemini_chat_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/materialui.dart';
+import '../widgets/ai_chat_sheet.dart';
 import '../l10n/app_localizations.dart';
 
 class SongInfoResultPage extends StatefulWidget {
@@ -29,13 +31,18 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   Map<String, dynamic>? _currentSongInfo;
 
   final SongInfoService _songInfoService = SongInfoService();
+
   
   // 加载动画控制器
   late AnimationController _pulseController;
   late AnimationController _rotationController;
+  late AnimationController _bounceController;
+  late AnimationController _shimmerController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _rotationAnimation;
-  
+  late Animation<double> _bounceAnimation;
+  late Animation<double> _shimmerAnimation;
+
   // 信息出现动画控制器
   late AnimationController _infoAnimationController;
   late List<Animation<double>> _infoAnimations;
@@ -83,35 +90,61 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     
     // 初始化动画控制器
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2000), // 延长脉冲时间让弹性效果更明显
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _rotationController = AnimationController(
-      duration: const Duration(milliseconds: 1800), // 加快旋转速度，1.8秒一圈
+      duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    
+
+    _bounceController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
     // 信息出现动画控制器
     _infoAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1200), // 总动画时长1.2秒
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    
+
     _pulseAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
+      begin: 0.85,
+      end: 1.15,
     ).animate(CurvedAnimation(
       parent: _pulseController,
-      curve: Curves.elasticInOut, // 脉冲也使用弹性效果
+      curve: Curves.easeInOutBack,
     ));
-    
+
     _rotationAnimation = Tween<double>(
       begin: 0.0,
-      end: 0.5, // 修改为0.5，一次只转半圈（180度）
+      end: 1.0,
     ).animate(CurvedAnimation(
       parent: _rotationController,
-      curve: Curves.elasticInOut, // 使用弹性曲线，更夸张的弹跳效果
+      curve: Curves.easeInOutCubic,
+    ));
+
+    _bounceAnimation = Tween<double>(
+      begin: 0.0,
+      end: 12.0,
+    ).animate(CurvedAnimation(
+      parent: _bounceController,
+      curve: Curves.elasticOut,
+    ));
+
+    _shimmerAnimation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(CurvedAnimation(
+      parent: _shimmerController,
+      curve: Curves.easeInOut,
     ));
     
     // 初始化信息动画列表（最多6个信息板块）
@@ -179,24 +212,25 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }
 
   void _startVibrationCycle() {
-    // 图标旋转半圈是1.8秒，三个振动一循环，所以每个振动间隔约600毫秒
-    const vibrationInterval = Duration(milliseconds: 600);
-    int vibrationCount = 0;
-    
+    // 更富表现力的振动模式：强-弱-弱-强 循环
+    final vibrationPattern = [
+      (Duration(milliseconds: 400), HapticFeedback.heavyImpact),
+      (Duration(milliseconds: 200), HapticFeedback.lightImpact),
+      (Duration(milliseconds: 200), HapticFeedback.selectionClick),
+      (Duration(milliseconds: 300), HapticFeedback.mediumImpact),
+      (Duration(milliseconds: 600), HapticFeedback.lightImpact),
+    ];
+    int patternIndex = 0;
+
     void performVibration() {
       if (mounted && (_isLoading || _isRegenerating)) {
-        // 强弱强弱的交替模式
-        if (vibrationCount % 2 == 0) {
-          HapticFeedback.mediumImpact(); // 强振动
-        } else {
-          HapticFeedback.lightImpact();  // 弱振动
-        }
-        
-        vibrationCount++;
-        Future.delayed(vibrationInterval, performVibration);
+        final (delay, vibration) = vibrationPattern[patternIndex];
+        vibration();
+        patternIndex = (patternIndex + 1) % vibrationPattern.length;
+        Future.delayed(delay, performVibration);
       }
     }
-    
+
     performVibration();
   }
 
@@ -212,7 +246,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     // 启动动画
     _pulseController.repeat(reverse: true);
-    _rotationController.repeat(reverse: true);
+    _rotationController.repeat();
+    _bounceController.repeat(reverse: true);
+    _shimmerController.repeat();
     _startLoadingTextAnimation();
     _startFunnyTextRotation();
     _startVibrationCycle();
@@ -231,7 +267,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         // 停止加载动画
         _pulseController.stop();
         _rotationController.stop();
-        
+        _bounceController.stop();
+        _shimmerController.stop();
+
         // 启动信息出现动画
         _infoAnimationController.forward();
       } else {
@@ -264,7 +302,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     // 启动动画和文本轮换
     _pulseController.repeat(reverse: true);
-    _rotationController.repeat(reverse: true);
+    _rotationController.repeat();
+    _bounceController.repeat(reverse: true);
+    _shimmerController.repeat();
     _startLoadingTextAnimation();
     _startFunnyTextRotation();
     _startVibrationCycle();
@@ -281,7 +321,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         // 停止加载动画
         _pulseController.stop();
         _rotationController.stop();
-        
+        _bounceController.stop();
+        _shimmerController.stop();
+
         // 重置并启动信息出现动画
         _infoAnimationController.reset();
         _infoAnimationController.forward();
@@ -300,10 +342,12 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
           _regenerationError = e.toString();
           _isRegenerating = false;
         });
-        
+
         // 停止动画
         _pulseController.stop();
         _rotationController.stop();
+        _bounceController.stop();
+        _shimmerController.stop();
       }
     }
   }
@@ -313,11 +357,13 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       _isLoading = false;
       _regenerationError = message;
     });
-    
+
     // 停止动画
     _pulseController.stop();
     _rotationController.stop();
-    
+    _bounceController.stop();
+    _shimmerController.stop();
+
     Provider.of<NotificationService>(context, listen: false)
         .showSnackBar(message);
   }
@@ -332,10 +378,34 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     }
   }
 
+  void _showFollowUpSheet(BuildContext context) {
+    HapticFeedback.mediumImpact();
+
+    final trackName = widget.trackData['name'] as String? ?? 'Unknown Track';
+    final artistNames = (widget.trackData['artists'] as List?)
+            ?.map((artist) => artist['name'] as String)
+            .join(', ') ??
+        'Unknown Artist';
+    final albumName = widget.trackData['album']?['name'] as String?;
+
+    AIChatSheet.show(
+      context: context,
+      chatContext: ChatContext(
+        type: ChatContextType.songInfo,
+        trackTitle: trackName,
+        artistName: artistNames,
+        albumName: albumName,
+        additionalContext: _currentSongInfo,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _pulseController.dispose();
     _rotationController.dispose();
+    _bounceController.dispose();
+    _shimmerController.dispose();
     _infoAnimationController.dispose();
     super.dispose();
   }
@@ -353,13 +423,18 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (!_isLoading && !_isRegenerating) // 只有在非加载和非重新生成状态下才显示刷新按钮
+          if (!_isLoading && !_isRegenerating)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               onPressed: _regenerateSongInfo,
               tooltip: AppLocalizations.of(context)!.regenerateTooltip,
             ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showFollowUpSheet(context),
+        icon: const Icon(Icons.auto_awesome_rounded),
+        label: Text(AppLocalizations.of(context)!.askGemini),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -416,45 +491,47 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }
 
   Widget _buildHeaderCard(String trackName, String artistNames) {
+    final albumName = widget.trackData['album']?['name'] as String?;
+    // Build subtitle with artist and album separated by ·
+    final subtitle = albumName != null && albumName.isNotEmpty
+        ? '$artistNames · $albumName'
+        : artistNames;
+
     return Card(
       elevation: 0,
       color: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 专辑封面 - 统一位置，根据状态显示不同效果
+            // 专辑封面 - 缩小尺寸
             _buildAlbumCover(),
             const SizedBox(width: 16),
             // 文字信息
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     trackName,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    artistNames,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.secondary,
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (widget.trackData['album']?['name'] != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.trackData['album']['name'],
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -465,11 +542,13 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }
 
   Widget _buildAlbumCover() {
+    const double coverSize = 72.0; // Smaller, more refined size
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8.0),
       child: SizedBox(
-        width: 100,
-        height: 100,
+        width: coverSize,
+        height: coverSize,
         child: Stack(
           children: [
             // 专辑封面图片
@@ -478,15 +557,15 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                 ? Image.network(
                     widget.trackData['album']['images'][0]['url'],
                     fit: BoxFit.cover,
-                    width: 100,
-                    height: 100,
+                    width: coverSize,
+                    height: coverSize,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.music_note,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          size: 40,
+                          size: 28,
                         ),
                       );
                     },
@@ -496,15 +575,15 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                     child: Icon(
                       Icons.music_note,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      size: 40,
+                      size: 28,
                     ),
                   ),
-            
+
             // 加载遮罩和动画 - 在加载或重新生成时显示
             if (_isLoading || _isRegenerating)
               Container(
-                width: 100,
-                height: 100,
+                width: coverSize,
+                height: coverSize,
                 color: Colors.black.withValues(alpha: 0.6),
                 child: AnimatedBuilder(
                   animation: Listenable.merge([_pulseController, _rotationController]),
@@ -516,7 +595,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                         child: Icon(
                           Icons.auto_awesome_rounded,
                           color: Theme.of(context).colorScheme.primary,
-                          size: 32,
+                          size: 24,
                         ),
                       ),
                     );
@@ -535,31 +614,183 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         padding: const EdgeInsets.symmetric(vertical: 48.0),
         child: Column(
           children: [
-            // 随机幽默文本
-            Text(
-              _currentFunnyText,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
+            // 动态闪烁图标组
+            AnimatedBuilder(
+              animation: Listenable.merge([
+                _pulseController,
+                _rotationController,
+                _bounceController,
+                _shimmerController,
+              ]),
+              builder: (context, child) {
+                return SizedBox(
+                  height: 80,
+                  width: 80,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // 外圈脉冲光环
+                      Transform.scale(
+                        scale: _pulseAnimation.value * 1.3,
+                        child: Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.3 * (1 - (_pulseAnimation.value - 0.85) / 0.3)),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 中心旋转图标
+                      Transform.translate(
+                        offset: Offset(0, -_bounceAnimation.value),
+                        child: Transform.scale(
+                          scale: _pulseAnimation.value,
+                          child: Transform.rotate(
+                            angle: _rotationAnimation.value * 2 * 3.14159,
+                            child: ShaderMask(
+                              shaderCallback: (bounds) {
+                                return LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Theme.of(context).colorScheme.primary,
+                                    Theme.of(context).colorScheme.tertiary,
+                                    Theme.of(context).colorScheme.primary,
+                                  ],
+                                  stops: [
+                                    (_shimmerAnimation.value - 0.3).clamp(0.0, 1.0),
+                                    _shimmerAnimation.value.clamp(0.0, 1.0),
+                                    (_shimmerAnimation.value + 0.3).clamp(0.0, 1.0),
+                                  ],
+                                ).createShader(bounds);
+                              },
+                              child: const Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 42,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 小星星装饰
+                      ...List.generate(3, (index) {
+                        final angle = (index * 2.0944) + (_rotationAnimation.value * 3.14159);
+                        final radius = 30.0 + (_bounceAnimation.value * 0.5);
+                        return Positioned(
+                          left: 40 + cos(angle) * radius - 6,
+                          top: 40 + sin(angle) * radius - 6,
+                          child: Transform.scale(
+                            scale: 0.5 + (_pulseAnimation.value - 0.85) * 1.5,
+                            child: Icon(
+                              Icons.star_rounded,
+                              size: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.6),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                );
+              },
             ),
-            
+
             const SizedBox(height: 24),
-            
-            // 进度指示器
-            SizedBox(
-              width: 200,
-              child: LinearProgressIndicator(
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.primary,
-                ),
-              ),
+
+            // 随机幽默文本带渐变动画
+            AnimatedBuilder(
+              animation: _shimmerController,
+              builder: (context, child) {
+                return ShaderMask(
+                  shaderCallback: (bounds) {
+                    return LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.onSurface,
+                        Theme.of(context).colorScheme.primary,
+                        Theme.of(context).colorScheme.onSurface,
+                      ],
+                      stops: [
+                        (_shimmerAnimation.value - 0.3).clamp(0.0, 1.0),
+                        _shimmerAnimation.value.clamp(0.0, 1.0),
+                        (_shimmerAnimation.value + 0.3).clamp(0.0, 1.0),
+                      ],
+                    ).createShader(bounds);
+                  },
+                  child: Text(
+                    _currentFunnyText,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
             ),
-            
+
+            const SizedBox(height: 24),
+
+            // 动态进度条
+            AnimatedBuilder(
+              animation: _shimmerController,
+              builder: (context, child) {
+                return SizedBox(
+                  width: 220,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Stack(
+                      children: [
+                        LinearProgressIndicator(
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        // 闪光效果
+                        Positioned.fill(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) {
+                              return LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.white.withValues(alpha: 0.3),
+                                  Colors.transparent,
+                                ],
+                                stops: [
+                                  (_shimmerAnimation.value - 0.2).clamp(0.0, 1.0),
+                                  _shimmerAnimation.value.clamp(0.0, 1.0),
+                                  (_shimmerAnimation.value + 0.2).clamp(0.0, 1.0),
+                                ],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.srcATop,
+                            child: Container(color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
             const SizedBox(height: 16),
-            
+
             // 固定的 Gemini grounding 文本
             Text(
               AppLocalizations.of(context)!.geminiGrounding,

@@ -1195,6 +1195,41 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchNotesHint => '搜索笔记...';
+
+  @override
+  String get swipeToDelete => '删除';
+
+  @override
+  String get swipeToPlay => '播放';
+
+  @override
+  String get emptyNotesTitle => '还没有笔记';
+
+  @override
+  String get emptyNotesSubtitle => '开始播放音乐，在播放页面添加你的第一条笔记吧';
+
+  @override
+  String get todayReviewTitle => '回顾';
+
+  @override
+  String get undoAction => '撤销';
+
+  @override
+  String get askMoreAboutTrack => '追问关于这首歌的问题';
+
+  @override
+  String get askFollowUpHint => '问任何关于这首歌的问题...';
+
+  @override
+  String get askFollowUpSend => '发送';
+
+  @override
+  String get followUpThinking => '思考中...';
+
+  @override
+  String followUpError(String error) {
+    return '获取回答失败: $error';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).

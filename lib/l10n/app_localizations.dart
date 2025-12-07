@@ -2285,6 +2285,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search notes...'**
   String get searchNotesHint;
+
+  /// No description provided for @swipeToDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get swipeToDelete;
+
+  /// No description provided for @swipeToPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get swipeToPlay;
+
+  /// No description provided for @emptyNotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No notes yet'**
+  String get emptyNotesTitle;
+
+  /// No description provided for @emptyNotesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start playing music and add your first note on the Now Playing page'**
+  String get emptyNotesSubtitle;
+
+  /// No description provided for @todayReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Revisit'**
+  String get todayReviewTitle;
+
+  /// No description provided for @undoAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undoAction;
+
+  /// No description provided for @askMoreAboutTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask more about this track'**
+  String get askMoreAboutTrack;
+
+  /// No description provided for @askFollowUpHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask anything about this song...'**
+  String get askFollowUpHint;
+
+  /// No description provided for @askFollowUpSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get askFollowUpSend;
+
+  /// No description provided for @followUpThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking...'**
+  String get followUpThinking;
+
+  /// No description provided for @followUpError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to get answer: {error}'**
+  String followUpError(String error);
 }
 
 class _AppLocalizationsDelegate

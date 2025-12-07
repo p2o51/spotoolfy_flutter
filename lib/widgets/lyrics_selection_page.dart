@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/notification_service.dart';
-// import '../services/lyrics_poster_service.dart'; // Unused import
 import '../services/settings_service.dart';
+import '../services/gemini_chat_service.dart';
 import '../models/poster_lyric_line.dart';
 import '../models/translation_load_result.dart';
-// import '../providers/local_database_provider.dart'; // Unused import
 import '../providers/spotify_provider.dart';
-// import '../models/track.dart'; // Unused import
 import 'lyrics_poster_preview_page.dart';
-import 'lyrics_analysis_page.dart';
+import 'ai_chat_sheet.dart';
 import 'add_note.dart';
 import '../l10n/app_localizations.dart';
 
@@ -353,15 +351,16 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return;
     }
 
-    // 导航到分析页面
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => LyricsAnalysisPage(
-          lyrics: selectedLyrics.join('\n'),
-          trackTitle: widget.trackTitle,
-          artistName: widget.artistName,
-          albumCoverUrl: widget.albumCoverUrl,
-        ),
+    final lyricsText = selectedLyrics.join('\n');
+
+    // 使用统一的聊天界面
+    AIChatSheet.show(
+      context: context,
+      chatContext: ChatContext(
+        type: ChatContextType.lyricsAnalysis,
+        trackTitle: widget.trackTitle,
+        artistName: widget.artistName,
+        selectedLyrics: lyricsText,
       ),
     );
   }

@@ -1231,4 +1231,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchNotesHint => 'Search notes...';
+
+  @override
+  String get swipeToDelete => 'Delete';
+
+  @override
+  String get swipeToPlay => 'Play';
+
+  @override
+  String get emptyNotesTitle => 'No notes yet';
+
+  @override
+  String get emptyNotesSubtitle =>
+      'Start playing music and add your first note on the Now Playing page';
+
+  @override
+  String get todayReviewTitle => 'Revisit';
+
+  @override
+  String get undoAction => 'Undo';
+
+  @override
+  String get askMoreAboutTrack => 'Ask more about this track';
+
+  @override
+  String get askFollowUpHint => 'Ask anything about this song...';
+
+  @override
+  String get askFollowUpSend => 'Send';
+
+  @override
+  String get followUpThinking => 'Thinking...';
+
+  @override
+  String followUpError(String error) {
+    return 'Failed to get answer: $error';
+  }
 }

@@ -758,5 +758,24 @@
       }
     }
   },
-  "searchNotesHint": "Search notes..."
+  "searchNotesHint": "Search notes...",
+  "swipeToDelete": "Delete",
+  "swipeToPlay": "Play",
+  "emptyNotesTitle": "No notes yet",
+  "emptyNotesSubtitle": "Start playing music and add your first note on the Now Playing page",
+  "todayReviewTitle": "Revisit",
+  "noteDeleted": "Note deleted",
+  "undoAction": "Undo",
+  "askMoreAboutTrack": "Ask more about this track",
+  "askFollowUpHint": "Ask anything about this song...",
+  "askFollowUpSend": "Send",
+  "followUpThinking": "Thinking...",
+  "followUpError": "Failed to get answer: {error}",
+  "@followUpError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

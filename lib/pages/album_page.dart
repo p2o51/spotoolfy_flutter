@@ -1,11 +1,7 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
 
 import '../providers/local_database_provider.dart';
@@ -13,7 +9,7 @@ import '../providers/spotify_provider.dart';
 import '../services/spotify_service.dart';
 import '../widgets/materialui.dart';
 import '../services/album_insights_service.dart';
-import '../services/album_rating_poster_service.dart';
+import '../widgets/album_poster_preview_page.dart';
 
 class AlbumPage extends StatefulWidget {
   final String albumId;
@@ -35,15 +31,12 @@ class _AlbumPageState extends State<AlbumPage> {
   bool _showQuickSelectors = false;
   String? _errorMessage;
   final AlbumInsightsService _albumInsightsService = AlbumInsightsService();
-  final AlbumRatingPosterService _albumPosterService =
-      AlbumRatingPosterService();
   Map<String, dynamic>? _albumInsights;
   DateTime? _albumInsightsGeneratedAt;
   String? _albumInsightsError;
   bool _isGeneratingAlbumInsights = false;
   bool _isAlbumInsightsExpanded = false;
   bool _isSavingPendingRatings = false;
-  bool _isSharingAlbumPoster = false;
 
   // Cached computed values
   double? _cachedAverageScore;
@@ -136,10 +129,6 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 
   Future<void> _handleShareAlbumPoster() async {
-    if (_isSharingAlbumPoster) {
-      return;
-    }
-
     if (_cachedRatedTrackCount == 0) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
@@ -156,72 +145,43 @@ class _AlbumPageState extends State<AlbumPage> {
 
     HapticFeedback.mediumImpact();
 
-    setState(() {
-      _isSharingAlbumPoster = true;
-    });
+    final l10n = AppLocalizations.of(context)!;
+    final albumName = albumData['name'] as String? ?? l10n.unknownAlbum;
+    final artistLine = _formatArtists(context, albumData['artists']);
+    final coverUrl = _extractCoverUrl();
+    final rawInsightsTitle = _albumInsights?['title'] as String?;
+    final normalizedInsightsTitle = rawInsightsTitle?.trim();
+    final insightsTitle = (normalizedInsightsTitle != null &&
+            normalizedInsightsTitle.isNotEmpty)
+        ? normalizedInsightsTitle
+        : null;
+    final shareText = _buildSharePosterMessage(
+      albumName: albumName,
+      artistLine: artistLine,
+      averageScore: _cachedAverageScore,
+      ratedTrackCount: _cachedRatedTrackCount,
+      totalTrackCount: _tracks.length,
+    );
 
-    try {
-      final theme = Theme.of(context);
-      final l10n = AppLocalizations.of(context)!;
-      final albumName = albumData['name'] as String? ?? l10n.unknownAlbum;
-      final artistLine = _formatArtists(context, albumData['artists']);
-      final coverUrl = _extractCoverUrl();
-      final rawInsightsTitle = _albumInsights?['title'] as String?;
-      final normalizedInsightsTitle = rawInsightsTitle?.trim();
-      final insightsTitle = (normalizedInsightsTitle != null &&
-              normalizedInsightsTitle.isNotEmpty)
-          ? normalizedInsightsTitle
-          : null;
-      final shareText = _buildSharePosterMessage(
-        albumName: albumName,
-        artistLine: artistLine,
-        averageScore: _cachedAverageScore,
-        ratedTrackCount: _cachedRatedTrackCount,
-        totalTrackCount: _tracks.length,
-      );
-
-      // 生成海报图片数据
-      final posterBytes = await _albumPosterService.generatePosterData(
-        albumName: albumName,
-        artistLine: artistLine,
-        averageScore: _cachedAverageScore,
-        ratedTrackCount: _cachedRatedTrackCount,
-        totalTrackCount: _tracks.length,
-        tracks: _tracks,
-        trackRatings: _trackRatings,
-        trackRatingTimestamps: _trackRatingTimestamps,
-        colorScheme: theme.colorScheme,
-        albumCoverUrl: coverUrl,
-        fontFamily: theme.textTheme.bodyMedium?.fontFamily,
-        insightsTitle: insightsTitle,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _isSharingAlbumPoster = false;
-      });
-
-      // 显示 bottom sheet 预览海报
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => _AlbumPosterPreviewSheet(
-          posterBytes: posterBytes,
+    // Navigate to poster preview page
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AlbumPosterPreviewPage(
+          albumName: albumName,
+          artistLine: artistLine,
+          averageScore: _cachedAverageScore,
+          ratedTrackCount: _cachedRatedTrackCount,
+          totalTrackCount: _tracks.length,
+          tracks: _tracks,
+          trackRatings: _trackRatings,
+          trackRatingTimestamps: _trackRatingTimestamps,
+          albumCoverUrl: coverUrl,
+          insightsTitle: insightsTitle,
           shareText: shareText,
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.failedToSharePoster(e.toString()))),
-      );
-      setState(() {
-        _isSharingAlbumPoster = false;
-      });
-    }
+      ),
+    );
   }
 
   Future<void> _handlePlayTrack(
@@ -724,41 +684,24 @@ class _AlbumPageState extends State<AlbumPage> {
                           color: theme.colorScheme.surfaceContainerHighest,
                         ),
                         child: IconButton(
-                          onPressed: _isSharingAlbumPoster
-                              ? null
-                              : () {
-                                  if (_cachedRatedTrackCount == 0) {
-                                    final l10n = AppLocalizations.of(context)!;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                            l10n.rateAtLeastOneSongForPoster),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  _handleShareAlbumPoster();
-                                },
-                          icon: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: _isSharingAlbumPoster
-                                ? const SizedBox(
-                                    key: ValueKey('poster-loading'),
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Icon(
-                                    Icons.ios_share_rounded,
-                                    key: const ValueKey('poster-share-icon'),
-                                    color: _cachedRatedTrackCount == 0
-                                        ? theme.colorScheme.onSurface
-                                            .withValues(alpha: 0.38)
-                                        : theme.colorScheme.onSurfaceVariant,
-                                    size: 20,
-                                  ),
+                          onPressed: () {
+                            if (_cachedRatedTrackCount == 0) {
+                              final l10n = AppLocalizations.of(context)!;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(l10n.rateAtLeastOneSongForPoster),
+                                ),
+                              );
+                              return;
+                            }
+                            _handleShareAlbumPoster();
+                          },
+                          icon: Icon(
+                            Icons.ios_share_rounded,
+                            color: _cachedRatedTrackCount == 0
+                                ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
+                                : theme.colorScheme.onSurfaceVariant,
+                            size: 20,
                           ),
                           tooltip: _cachedRatedTrackCount == 0
                               ? l10n.rateAtLeastOneSongFirst
@@ -1348,145 +1291,5 @@ class _AlbumTrackTile extends StatelessWidget {
     }
     final l10n = AppLocalizations.of(context)!;
     return l10n.unknownArtist;
-  }
-}
-
-class _AlbumPosterPreviewSheet extends StatefulWidget {
-  final Uint8List posterBytes;
-  final String? shareText;
-
-  const _AlbumPosterPreviewSheet({
-    required this.posterBytes,
-    this.shareText,
-  });
-
-  @override
-  State<_AlbumPosterPreviewSheet> createState() =>
-      _AlbumPosterPreviewSheetState();
-}
-
-class _AlbumPosterPreviewSheetState extends State<_AlbumPosterPreviewSheet> {
-  bool _isSharing = false;
-
-  Future<void> _handleShare() async {
-    if (_isSharing) return;
-
-    setState(() {
-      _isSharing = true;
-    });
-
-    try {
-      final tempDir = await getTemporaryDirectory();
-      final fileName =
-          'album_rating_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${tempDir.path}/$fileName');
-      await file.writeAsBytes(widget.posterBytes);
-
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: widget.shareText,
-      );
-    } catch (e) {
-      if (mounted) {
-        final l10n = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.failedToSharePoster(e.toString()))),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSharing = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final l10n = AppLocalizations.of(context)!;
-
-    return Container(
-      height: screenHeight * 0.9,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(28),
-        ),
-      ),
-      child: Column(
-        children: [
-          // 拖动条
-          Container(
-            margin: const EdgeInsets.only(top: 12, bottom: 8),
-            width: 32,
-            height: 4,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          // 图片预览区域
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 3.0,
-                  child: Image.memory(
-                    widget.posterBytes,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // 分享按钮
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: _isSharing ? null : _handleShare,
-                  icon: _isSharing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.ios_share_rounded),
-                  label: Text(
-                    _isSharing ? l10n.sharingStatus : l10n.shareButton,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

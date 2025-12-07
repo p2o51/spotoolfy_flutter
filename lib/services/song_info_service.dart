@@ -243,6 +243,112 @@ class SongInfoService {
     }
   }
 
+  /// Ask a follow-up question about the track with context
+  Future<String?> askFollowUp({
+    required String question,
+    required Map<String, dynamic> trackData,
+    Map<String, dynamic>? songInfo,
+  }) async {
+    final apiKey = await _settingsService.getGeminiApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw Exception('Gemini API Key not configured.');
+    }
+
+    final trackName = trackData['name'] as String? ?? 'Unknown Track';
+    final artistNames = (trackData['artists'] as List?)
+        ?.map((artist) => artist['name'] as String)
+        .join(', ') ?? 'Unknown Artist';
+    final albumName = trackData['album']?['name'] as String? ?? 'Unknown Album';
+
+    // Get user's preferred language
+    final String languageCode = await _settingsService.getTargetLanguage();
+    final String languageName = _getLanguageName(languageCode);
+
+    // Build context from existing song info
+    String contextInfo = '';
+    if (songInfo != null) {
+      if (songInfo['creation_time'] != null) contextInfo += '创作时间: ${songInfo['creation_time']}\n';
+      if (songInfo['creation_location'] != null) contextInfo += '创作地点: ${songInfo['creation_location']}\n';
+      if (songInfo['lyricist'] != null) contextInfo += '作词: ${songInfo['lyricist']}\n';
+      if (songInfo['composer'] != null) contextInfo += '作曲: ${songInfo['composer']}\n';
+      if (songInfo['producer'] != null) contextInfo += '制作人: ${songInfo['producer']}\n';
+      if (songInfo['review'] != null) contextInfo += '歌曲解析: ${songInfo['review']}\n';
+    }
+
+    final prompt = '''
+你是一个音乐专家助手。用户正在查看以下歌曲的信息，并有一个追问：
+
+歌曲名称：$trackName
+艺术家：$artistNames
+专辑：$albumName
+
+${contextInfo.isNotEmpty ? '已有的歌曲信息：\n$contextInfo' : ''}
+
+用户的问题：$question
+
+请使用搜索功能查找准确的信息来回答用户的问题。用$languageName回答，语言风格要：
+- 简洁但有深度
+- 具有音乐评论的专业性
+- 富有洞察力
+
+直接回答问题，不需要重复歌曲基本信息。
+''';
+
+    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+    final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
+    final headers = {'Content-Type': 'application/json'};
+    final body = jsonEncode({
+      'contents': [
+        {
+          'parts': [{'text': prompt}]
+        }
+      ],
+      'tools': [
+        {'googleSearch': {}}
+      ],
+      'generationConfig': {
+        'temperature': 0.8,
+        'thinkingConfig': {
+          'thinkingBudget': 0,
+        }
+      },
+    });
+
+    try {
+      final response = await http
+          .post(url, headers: headers, body: body)
+          .timeout(const Duration(seconds: 45), onTimeout: () {
+        throw Exception('Follow-up request timed out.');
+      });
+
+      if (response.statusCode == 200) {
+        final decodedResponse = jsonDecode(response.body);
+        final candidates = decodedResponse['candidates'];
+        if (candidates != null && candidates.isNotEmpty) {
+          final content = candidates[0]['content'];
+          if (content != null &&
+              content['parts'] != null &&
+              content['parts'].isNotEmpty) {
+            return content['parts'][0]['text'] as String?;
+          }
+        }
+        return null;
+      } else {
+        String errorMessage = 'Follow-up failed (Code: ${response.statusCode}).';
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson['error']?['message'] != null) {
+            errorMessage += ' ${errorJson['error']['message']}';
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      logger.e('Error during follow-up API call: $e');
+      rethrow;
+    }
+  }
+
   Map<String, dynamic> _parseTaggedResponse(String rawText) {
     final result = <String, dynamic>{};
     

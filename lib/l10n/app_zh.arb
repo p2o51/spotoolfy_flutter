@@ -373,5 +373,17 @@
   "filterDown": "踩",
   "filterRated": "已评价",
   "statsTotal": "{count} 条笔记",
-  "searchNotesHint": "搜索笔记..."
+  "searchNotesHint": "搜索笔记...",
+  "swipeToDelete": "删除",
+  "swipeToPlay": "播放",
+  "emptyNotesTitle": "还没有笔记",
+  "emptyNotesSubtitle": "开始播放音乐，在播放页面添加你的第一条笔记吧",
+  "todayReviewTitle": "回顾",
+  "noteDeleted": "笔记已删除",
+  "undoAction": "撤销",
+  "askMoreAboutTrack": "追问关于这首歌的问题",
+  "askFollowUpHint": "问任何关于这首歌的问题...",
+  "askFollowUpSend": "发送",
+  "followUpThinking": "思考中...",
+  "followUpError": "获取回答失败: {error}"
 }
