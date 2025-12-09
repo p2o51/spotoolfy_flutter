@@ -156,6 +156,9 @@ class Login extends StatelessWidget {
                     errorMessage = l10n.invalidCredentialsError; // Use localization
                   } else if (e.toString().contains('401')) {
                     errorMessage = l10n.authenticationError; // Use localization
+                  } else if (e.toString().contains('AUTH_SERVICE_UNAVAILABLE') ||
+                      e.toString().contains('AUTHENTICATION_SERVICE_UNAVAILABLE')) {
+                    errorMessage = l10n.authenticationError; // Map to existing auth error copy
                   } else if (e.toString().contains('429')) {
                     errorMessage = l10n.tooManyRequestsError; // Use localization
                   } else {

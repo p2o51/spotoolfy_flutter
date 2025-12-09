@@ -3,9 +3,12 @@ import 'package:html_unescape/html_unescape.dart';
 
 /// 歌词提供者抽象类
 abstract class LyricProvider {
-  /// 搜索歌曲，返回平台自己的歌曲ID
+  /// 搜索歌曲，返回平台自己的歌曲ID（单个结果）
   Future<SongMatch?> search(String title, String artist);
-  
+
+  /// 搜索歌曲，返回多个匹配结果
+  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3});
+
   /// 获取歌词，只返回原文LRC
   Future<String?> fetchLyric(String songId);
   

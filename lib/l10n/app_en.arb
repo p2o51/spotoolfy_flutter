@@ -777,5 +777,6 @@
         "type": "String"
       }
     }
-  }
+  },
+  "authFailureExceeded": "Authorization failed too many times. Please check your Spotify Client ID configuration."
 }

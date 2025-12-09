@@ -1230,6 +1230,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String followUpError(String error) {
     return '获取回答失败: $error';
   }
+
+  @override
+  String get authFailureExceeded => '授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2423,4 +2426,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get searchNotesHint => '搜尋筆記...';
+
+  @override
+  String get authFailureExceeded => '授權失敗次數已達上限，請檢查 Spotify Client ID 是否正確配置';
 }

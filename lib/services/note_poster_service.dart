@@ -119,17 +119,19 @@ class NotePosterService {
     }
     calculatedHeight += headerHeight + elementSpacing;
 
-    // Rating emoji
-    final ratingEmoji = _getRatingEmoji(rating);
-    final emojiStyle = TextStyle(
+    // Rating icon using Material Icons font
+    final ratingIconCodePoint = _getRatingIconCodePoint(rating);
+    final ratingIconStyle = TextStyle(
+      fontFamily: 'MaterialIcons',
       fontSize: emojiFontSize,
+      color: noteColor,
     );
-    final emojiPainter = TextPainter(
-      text: TextSpan(text: ratingEmoji, style: emojiStyle),
+    final ratingIconPainter = TextPainter(
+      text: TextSpan(text: String.fromCharCode(ratingIconCodePoint), style: ratingIconStyle),
       textDirection: TextDirection.ltr,
     );
-    emojiPainter.layout();
-    calculatedHeight += emojiPainter.height + elementSpacing;
+    ratingIconPainter.layout();
+    calculatedHeight += ratingIconPainter.height + elementSpacing;
 
     // Note content
     final noteStyle = TextStyle(
@@ -250,9 +252,9 @@ class NotePosterService {
       currentY += albumPainter.height + elementSpacing;
     }
 
-    // Draw rating emoji
-    emojiPainter.paint(canvas, Offset(horizontalMargin, currentY));
-    currentY += emojiPainter.height + elementSpacing;
+    // Draw rating icon
+    ratingIconPainter.paint(canvas, Offset(horizontalMargin, currentY));
+    currentY += ratingIconPainter.height + elementSpacing;
 
     // Draw note content
     notePainter.paint(canvas, Offset(horizontalMargin, currentY));
@@ -287,15 +289,19 @@ class NotePosterService {
     return byteData!.buffer.asUint8List();
   }
 
-  String _getRatingEmoji(int rating) {
+  // Returns Material Icons code point for rating
+  // Icons.thumb_down_rounded = 0xf589
+  // Icons.whatshot_rounded = 0xf654
+  // Icons.sentiment_neutral_rounded = 0xf52e
+  int _getRatingIconCodePoint(int rating) {
     switch (rating) {
       case 0:
-        return '👎';
+        return 0xf589; // thumb_down_rounded
       case 5:
-        return '🔥';
+        return 0xf654; // whatshot_rounded
       case 3:
       default:
-        return '😐';
+        return 0xf52e; // sentiment_neutral_rounded
     }
   }
 

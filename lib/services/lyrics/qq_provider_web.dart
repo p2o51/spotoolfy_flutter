@@ -81,36 +81,43 @@ class QQProvider extends LyricProvider {
 
   @override
   Future<SongMatch?> search(String title, String artist) async {
+    final results = await searchMultiple(title, artist, limit: 1);
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  @override
+  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
     final result = await _postJson('/qq/search', {
       'title': title,
       'artist': artist,
-      'limit': 3,
+      'limit': limit,
     });
 
     if (result == null) {
-      return null;
+      return [];
     }
 
     final matches = result['matches'];
-    if (matches is List && matches.isNotEmpty) {
-      final dynamic firstMatch = matches.first;
+    if (matches is! List || matches.isEmpty) {
+      return [];
+    }
+
+    final results = <SongMatch>[];
+    for (final item in matches) {
       final Map<String, dynamic>? match =
-          firstMatch is Map ? Map<String, dynamic>.from(firstMatch) : null;
-      if (match == null) {
-        return null;
-      }
+          item is Map ? Map<String, dynamic>.from(item) : null;
+      if (match == null) continue;
 
       final songId = match['songId'] as String?;
-      if (songId == null || songId.isEmpty) {
-        return null;
-      }
-      return SongMatch(
+      if (songId == null || songId.isEmpty) continue;
+
+      results.add(SongMatch(
         songId: songId,
         title: _normalizeTextField(match['title'] as String?, title),
         artist: _normalizeTextField(match['artist'] as String?, artist),
-      );
+      ));
     }
-    return null;
+    return results;
   }
 
   @override

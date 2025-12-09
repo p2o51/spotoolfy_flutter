@@ -385,5 +385,6 @@
   "askFollowUpHint": "问任何关于这首歌的问题...",
   "askFollowUpSend": "发送",
   "followUpThinking": "思考中...",
-  "followUpError": "获取回答失败: {error}"
+  "followUpError": "获取回答失败: {error}",
+  "authFailureExceeded": "授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置"
 }

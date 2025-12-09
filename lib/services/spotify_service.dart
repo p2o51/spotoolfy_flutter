@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:spotify_sdk/spotify_sdk.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:collection/collection.dart'; // Added import for firstWhereOrNull
@@ -332,7 +333,10 @@ class SpotifyAuthService {
   }
 
   /// 确保 token 有效，必要时刷新
-  Future<String?> ensureFreshToken() async {
+  ///
+  /// 注意：默认不主动拉起授权界面（interactive = false），只做静默检查。
+  /// 需要交互式登录时，由调用方（如 login()）显式设置 interactive = true。
+  Future<String?> ensureFreshToken({bool interactive = false}) async {
     if (kIsWeb) {
       return _webAuth.getValidAccessToken();
     }
@@ -350,8 +354,12 @@ class SpotifyAuthService {
       }
     } catch (e) {
       logger.w('读取token时出错，可能是Keystore未解锁: $e');
+      // 读取失败时避免立即拉起授权，保持静默失败
       return null;
     }
+
+    // 非交互模式下不主动唤起 SDK 登录，返回 null 由上层决定是否弹出授权
+    if (!interactive) return null;
 
     if (_isRefreshingToken) {
       // 已有刷新流程在执行，避免重复调起SDK
@@ -485,6 +493,16 @@ class SpotifyAuthService {
             errorString.contains('cancelled') ||
             errorString.contains('Auth flow cancelled by user')) {
           throw SpotifyAuthException('登录被用户取消', code: 'AUTH_CANCELLED');
+        } else if (sdkError is PlatformException &&
+            (sdkError.code == 'AUTHENTICATION_SERVICE_UNAVAILABLE' ||
+                sdkError.message
+                        ?.contains('AUTHENTICATION_SERVICE_UNAVAILABLE') ==
+                    true ||
+                '${sdkError.details}'.contains('AUTHENTICATION_SERVICE_UNAVAILABLE') ||
+                errorString.contains('AUTHENTICATION_SERVICE_UNAVAILABLE'))) {
+          throw SpotifyAuthException(
+              'Spotify 授权服务暂时不可用，请稍后重试或检查是否安装/登录最新版本的 Spotify 应用。',
+              code: 'AUTH_SERVICE_UNAVAILABLE');
         } else if (errorString.contains('CONFIG_ERROR') ||
             errorString.contains('Could not find config')) {
           throw SpotifyAuthException(

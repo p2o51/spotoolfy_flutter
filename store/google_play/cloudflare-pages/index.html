@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Spotoolfy</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --bg: #ffffff;
+            --bg-alt: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #818cf8;
+                --primary-light: #a5b4fc;
+                --bg: #0f172a;
+                --bg-alt: #1e293b;
+                --card: #1e293b;
+                --text: #f1f5f9;
+                --text-secondary: #94a3b8;
+                --border: #334155;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .app-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 28px;
+        }
+
+        .app-name {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .page-title {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 400;
+        }
+
+        .lang-switch {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .lang-switch button {
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .lang-switch button:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .lang-switch button.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .updated {
+            display: inline-block;
+            background: var(--bg-alt);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 40px 0 16px;
+            color: var(--text);
+        }
+
+        h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 24px 0 12px;
+            color: var(--text);
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+        }
+
+        ul, ol {
+            margin: 12px 0 16px;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        li::marker {
+            color: var(--primary);
+        }
+
+        strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+            box-shadow: var(--shadow);
+        }
+
+        .card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .card ul:last-child {
+            margin-bottom: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+        }
+
+        th {
+            background: var(--bg-alt);
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-no {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .badge-no {
+                background: #166534;
+                color: #dcfce7;
+            }
+        }
+
+        .content {
+            display: none;
+        }
+
+        .content.active {
+            display: block;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 64px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 32px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 32px 16px;
+            }
+
+            h2 {
+                font-size: 1.1rem;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            th, td {
+                padding: 10px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="app-icon">S</div>
+            <div class="app-name">Spotoolfy</div>
+            <div class="page-title">Privacy Policy</div>
+            <div class="lang-switch">
+                <button id="btn-en" class="active" onclick="showLang('en')">English</button>
+                <button id="btn-zh" onclick="showLang('zh')">中文</button>
+            </div>
+        </header>
+
+        <!-- English Content -->
+        <div id="content-en" class="content active">
+            <div class="updated">Last Updated: December 2024</div>
+
+            <h2>Introduction</h2>
+            <p>Spotoolfy ("we", "our", or "the app") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application.</p>
+
+            <h2>Information We Collect</h2>
+
+            <h3>Information You Provide</h3>
+            <div class="card">
+                <p><strong>1. Spotify Account Information</strong></p>
+                <ul>
+                    <li>When you connect your Spotify account, we receive your Spotify username and access tokens</li>
+                    <li>This information is used solely to enable playback features and access your Spotify library</li>
+                    <li>Access tokens are stored securely on your device using encrypted storage</li>
+                </ul>
+
+                <p><strong>2. API Keys (Optional)</strong></p>
+                <ul>
+                    <li>Google Gemini API key for AI translation features</li>
+                    <li>Spotify API credentials (Client ID and Secret)</li>
+                    <li>These are stored locally on your device and never transmitted to our servers</li>
+                </ul>
+
+                <p><strong>3. User-Generated Content</strong></p>
+                <ul>
+                    <li>Notes and ratings you add to tracks</li>
+                    <li>All user notes are stored locally on your device only</li>
+                    <li>This data is never uploaded to any external server</li>
+                </ul>
+            </div>
+
+            <h3>Information Collected Automatically</h3>
+            <div class="card">
+                <p><strong>Local Cache Data</strong></p>
+                <ul>
+                    <li>Lyrics retrieved from third-party services (QQ Music, NetEase Cloud Music)</li>
+                    <li>AI-generated translations</li>
+                    <li>Album artwork cache</li>
+                    <li>This data is stored locally to improve performance and reduce network requests</li>
+                </ul>
+            </div>
+
+            <h3>Information We Do NOT Collect</h3>
+            <ul>
+                <li>Personal identification information</li>
+                <li>Location data</li>
+                <li>Contact information</li>
+                <li>Device identifiers for advertising</li>
+                <li>Usage analytics or crash reports</li>
+                <li>Browsing history</li>
+            </ul>
+
+            <h2>How We Use Your Information</h2>
+            <p>Your information is used exclusively to:</p>
+            <div class="card">
+                <p><strong>1. Enable Core Features</strong></p>
+                <ul>
+                    <li>Connect to and control Spotify playback</li>
+                    <li>Display synchronized lyrics</li>
+                    <li>Generate AI translations using your provided API key</li>
+                    <li>Save and display your personal notes</li>
+                </ul>
+
+                <p><strong>2. Improve User Experience</strong></p>
+                <ul>
+                    <li>Cache data locally to reduce loading times</li>
+                    <li>Remember your preferences and settings</li>
+                </ul>
+            </div>
+
+            <h2>Third-Party Services</h2>
+            <p>Spotoolfy integrates with the following third-party services:</p>
+
+            <h3>Spotify</h3>
+            <ul>
+                <li>We use Spotify's Web API and SDK to enable playback control</li>
+                <li>Your Spotify credentials are handled according to Spotify's terms of service</li>
+                <li>Privacy Policy: <a href="https://www.spotify.com/legal/privacy-policy/" target="_blank">spotify.com/legal/privacy-policy</a></li>
+            </ul>
+
+            <h3>Google Gemini (Optional)</h3>
+            <ul>
+                <li>If you provide a Gemini API key, lyrics are sent to Google's servers for translation</li>
+                <li>This is subject to Google's privacy policy: <a href="https://policies.google.com/privacy" target="_blank">policies.google.com/privacy</a></li>
+            </ul>
+
+            <h3>Lyrics Providers</h3>
+            <ul>
+                <li>Lyrics are fetched from QQ Music and NetEase Cloud Music APIs</li>
+                <li>Song metadata (title, artist) is sent to these services to retrieve lyrics</li>
+                <li>No personal data is shared with these services</li>
+            </ul>
+
+            <h2>Data Storage and Security</h2>
+
+            <h3>Local Storage</h3>
+            <ul>
+                <li>All user data (notes, settings, cached content) is stored locally on your device</li>
+                <li>API keys are stored using Flutter Secure Storage with platform encryption</li>
+                <li>Database files are stored in the app's private directory</li>
+            </ul>
+
+            <h3>Data Transmission</h3>
+            <ul>
+                <li>All network communications use HTTPS encryption</li>
+                <li>No user data is transmitted to our servers (we don't operate any servers)</li>
+                <li>Third-party API calls are made directly from your device</li>
+            </ul>
+
+            <h2>Your Rights and Choices</h2>
+
+            <h3>Data Control</h3>
+            <ul>
+                <li><strong>Export:</strong> You can export all your data (notes, ratings) as a JSON file</li>
+                <li><strong>Delete:</strong> You can clear all cached data from the Settings page</li>
+                <li><strong>Disconnect:</strong> You can log out of Spotify at any time, removing stored tokens</li>
+            </ul>
+
+            <h3>Opt-Out</h3>
+            <ul>
+                <li>AI features are optional and require you to provide your own API key</li>
+                <li>You can use the app without AI features for basic playback and lyrics</li>
+            </ul>
+
+            <h2>Children's Privacy</h2>
+            <p>Spotoolfy is not directed at children under 13. We do not knowingly collect information from children under 13. If you are a parent and believe your child has provided us with personal information, please contact us.</p>
+
+            <h2>Changes to This Privacy Policy</h2>
+            <p>We may update this Privacy Policy from time to time. We will notify you of any changes by updating the "Last Updated" date at the top of this policy. You are advised to review this Privacy Policy periodically for any changes.</p>
+
+            <h2>Open Source</h2>
+            <p>Spotoolfy is open source software. You can review our source code to verify our privacy practices.</p>
+
+            <h2>Contact Us</h2>
+            <p>If you have any questions about this Privacy Policy, please contact us at:</p>
+            <div class="card">
+                <p><strong>Email:</strong> <a href="mailto:contact@spotoolfy.app">contact@spotoolfy.app</a></p>
+            </div>
+
+            <div class="divider"></div>
+
+            <h2>Data Safety Summary</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data Type</th>
+                        <th>Collected</th>
+                        <th>Shared</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Personal info</td><td><span class="badge badge-no">No</span></td><td><span class="badge badge-no">No</span></td></tr>
+                    <tr><td>Financial info</td><td><span class="badge badge-no">No</span></td><td><span class="badge badge-no">No</span></td></tr>
+                    <tr><td>Location</td><td><span class="badge badge-no">No</span></td><td><span class="badge badge-no">No</span></td></tr>
+                    <tr><td>Contacts</td><td><span class="badge badge-no">No</span></td><td><span class="badge badge-no">No</span></td></tr>
+                    <tr><td>Device IDs</td><td><span class="badge badge-no">No</span></td><td><span class="badge badge-no">No</span></td></tr>
+                    <tr><td>Usage data</td><td><span class="badge badge-no">No</span></td><td><span class="badge badge-no">No</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Chinese Content -->
+        <div id="content-zh" class="content">
+            <div class="updated">最后更新：2024年12月</div>
+
+            <h2>简介</h2>
+            <p>Spotoolfy（以下简称"我们"或"本应用"）致力于保护您的隐私。本隐私政策说明了当您使用我们的移动应用程序时，我们如何收集、使用和保护您的信息。</p>
+
+            <h2>我们收集的信息</h2>
+
+            <h3>您提供的信息</h3>
+            <div class="card">
+                <p><strong>1. Spotify 账户信息</strong></p>
+                <ul>
+                    <li>当您连接 Spotify 账户时，我们会接收您的 Spotify 用户名和访问令牌</li>
+                    <li>这些信息仅用于启用播放功能和访问您的 Spotify 音乐库</li>
+                    <li>访问令牌使用加密存储安全地保存在您的设备上</li>
+                </ul>
+
+                <p><strong>2. API 密钥（可选）</strong></p>
+                <ul>
+                    <li>用于 AI 翻译功能的 Google Gemini API 密钥</li>
+                    <li>Spotify API 凭据（Client ID 和 Secret）</li>
+                    <li>这些信息仅存储在您的设备本地，绝不会传输到我们的服务器</li>
+                </ul>
+
+                <p><strong>3. 用户生成的内容</strong></p>
+                <ul>
+                    <li>您添加到歌曲的笔记和评分</li>
+                    <li>所有用户笔记仅存储在您设备的本地</li>
+                    <li>这些数据绝不会上传到任何外部服务器</li>
+                </ul>
+            </div>
+
+            <h3>自动收集的信息</h3>
+            <div class="card">
+                <p><strong>本地缓存数据</strong></p>
+                <ul>
+                    <li>从第三方服务获取的歌词（QQ音乐、网易云音乐）</li>
+                    <li>AI 生成的翻译</li>
+                    <li>专辑封面缓存</li>
+                    <li>这些数据存储在本地以提高性能并减少网络请求</li>
+                </ul>
+            </div>
+
+            <h3>我们不收集的信息</h3>
+            <ul>
+                <li>个人身份信息</li>
+                <li>位置数据</li>
+                <li>联系信息</li>
+                <li>用于广告的设备标识符</li>
+                <li>使用分析或崩溃报告</li>
+                <li>浏览历史</li>
+            </ul>
+
+            <h2>我们如何使用您的信息</h2>
+            <p>您的信息仅用于：</p>
+            <div class="card">
+                <p><strong>1. 启用核心功能</strong></p>
+                <ul>
+                    <li>连接和控制 Spotify 播放</li>
+                    <li>显示同步歌词</li>
+                    <li>使用您提供的 API 密钥生成 AI 翻译</li>
+                    <li>保存和显示您的个人笔记</li>
+                </ul>
+
+                <p><strong>2. 改善用户体验</strong></p>
+                <ul>
+                    <li>在本地缓存数据以减少加载时间</li>
+                    <li>记住您的偏好和设置</li>
+                </ul>
+            </div>
+
+            <h2>数据存储和安全</h2>
+
+            <h3>本地存储</h3>
+            <ul>
+                <li>所有用户数据（笔记、设置、缓存内容）都存储在您设备的本地</li>
+                <li>API 密钥使用 Flutter Secure Storage 进行平台加密存储</li>
+                <li>数据库文件存储在应用程序的私有目录中</li>
+            </ul>
+
+            <h3>数据传输</h3>
+            <ul>
+                <li>所有网络通信使用 HTTPS 加密</li>
+                <li>没有用户数据传输到我们的服务器（我们不运营任何服务器）</li>
+                <li>第三方 API 调用直接从您的设备发起</li>
+            </ul>
+
+            <h2>您的权利和选择</h2>
+
+            <h3>数据控制</h3>
+            <ul>
+                <li><strong>导出：</strong>您可以将所有数据（笔记、评分）导出为 JSON 文件</li>
+                <li><strong>删除：</strong>您可以从设置页面清除所有缓存数据</li>
+                <li><strong>断开连接：</strong>您可以随时退出 Spotify，移除存储的令牌</li>
+            </ul>
+
+            <h2>儿童隐私</h2>
+            <p>Spotoolfy 不针对 13 岁以下的儿童。我们不会故意收集 13 岁以下儿童的信息。如果您是家长并认为您的孩子向我们提供了个人信息，请与我们联系。</p>
+
+            <h2>隐私政策的更新</h2>
+            <p>我们可能会不时更新本隐私政策。我们会通过更新本政策顶部的"最后更新"日期来通知您任何更改。建议您定期查看本隐私政策以了解任何变更。</p>
+
+            <h2>开源</h2>
+            <p>Spotoolfy 是开源软件。您可以查看我们的源代码来验证我们的隐私实践。</p>
+
+            <h2>联系我们</h2>
+            <p>如果您对本隐私政策有任何疑问，请通过以下方式联系我们：</p>
+            <div class="card">
+                <p><strong>电子邮件：</strong> <a href="mailto:contact@spotoolfy.app">contact@spotoolfy.app</a></p>
+            </div>
+
+            <div class="divider"></div>
+
+            <h2>数据安全摘要</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>数据类型</th>
+                        <th>是否收集</th>
+                        <th>是否共享</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>个人信息</td><td><span class="badge badge-no">否</span></td><td><span class="badge badge-no">否</span></td></tr>
+                    <tr><td>财务信息</td><td><span class="badge badge-no">否</span></td><td><span class="badge badge-no">否</span></td></tr>
+                    <tr><td>位置信息</td><td><span class="badge badge-no">否</span></td><td><span class="badge badge-no">否</span></td></tr>
+                    <tr><td>联系人</td><td><span class="badge badge-no">否</span></td><td><span class="badge badge-no">否</span></td></tr>
+                    <tr><td>设备标识</td><td><span class="badge badge-no">否</span></td><td><span class="badge badge-no">否</span></td></tr>
+                    <tr><td>使用数据</td><td><span class="badge badge-no">否</span></td><td><span class="badge badge-no">否</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer>
+            <p>&copy; 2024 Spotoolfy. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        function showLang(lang) {
+            document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.lang-switch button').forEach(el => el.classList.remove('active'));
+
+            document.getElementById('content-' + lang).classList.add('active');
+            document.getElementById('btn-' + lang).classList.add('active');
+        }
+    </script>
+</body>
+</html>

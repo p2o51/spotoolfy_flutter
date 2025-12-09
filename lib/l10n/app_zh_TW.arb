@@ -376,5 +376,6 @@
   "filterDown": "踩",
   "filterRated": "已評價",
   "statsTotal": "{count} 則筆記",
-  "searchNotesHint": "搜尋筆記..."
+  "searchNotesHint": "搜尋筆記...",
+  "authFailureExceeded": "授權失敗次數已達上限，請檢查 Spotify Client ID 是否正確配置"
 }

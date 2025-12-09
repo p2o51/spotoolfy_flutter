@@ -20,39 +20,50 @@ class NetEaseProvider extends LyricProvider {
   /// 搜索歌曲，返回首条匹配
   @override
   Future<SongMatch?> search(String title, String artist) async {
+    final results = await searchMultiple(title, artist, limit: 1);
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  @override
+  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
     try {
       final keyword = '$title $artist';
       final uri = Uri.parse('$_baseUrl/search').replace(
         queryParameters: {
           'keywords': keyword,
           'type': '1',  // 单曲
-          'limit': '3',
+          'limit': limit.toString(),
         },
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
         _logger.w('搜索请求失败: ${response.statusCode}');
-        return null;
+        return [];
       }
 
       final data = json.decode(response.body);
       final songs = data['result']?['songs'] as List<dynamic>?;
-      if (songs != null && songs.isNotEmpty) {
-        final song = songs[0] as Map<String, dynamic>;
+      if (songs == null || songs.isEmpty) {
+        return [];
+      }
+
+      final results = <SongMatch>[];
+      for (var i = 0; i < songs.length && i < limit; i++) {
+        final song = songs[i] as Map<String, dynamic>;
         final artists = song['artists'] as List<dynamic>?;
         final artistName = (artists != null && artists.isNotEmpty)
             ? artists[0]['name'] as String
             : artist;
-        return SongMatch(
+        results.add(SongMatch(
           songId: song['id'].toString(),
           title: song['name'] as String? ?? title,
           artist: artistName,
-        );
+        ));
       }
-      return null;
+      return results;
     } catch (e, st) {
       _logger.e('搜索失败', error: e, stackTrace: st);
-      return null;
+      return [];
     }
   }
 

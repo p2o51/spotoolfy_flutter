@@ -32,12 +32,18 @@ class QQProvider extends LyricProvider {
 
   @override
   Future<SongMatch?> search(String title, String artist) async {
+    final results = await searchMultiple(title, artist, limit: 1);
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  @override
+  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
     try {
       final keyword = '$title $artist';
       final url = Uri.parse(_baseSearchUrl).replace(queryParameters: {
         'w': keyword,
         'p': '1',
-        'n': '3',
+        'n': limit.toString(),
         'format': 'json'
       });
 
@@ -50,17 +56,19 @@ class QQProvider extends LyricProvider {
 
       if (response.statusCode != 200) {
         _logger.w('QQ音乐搜索请求失败，状态码: ${response.statusCode}');
-        return null;
+        return [];
       }
 
       final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
       final data = json.decode(decodedBody);
       final songList = data['data']?['song']?['list'];
-      if (songList is List && songList.isNotEmpty) {
-        final dynamic songData = songList.first;
-        if (songData is! Map<String, dynamic>) {
-          return null;
-        }
+      if (songList is! List || songList.isEmpty) {
+        return [];
+      }
+
+      final results = <SongMatch>[];
+      for (final songData in songList) {
+        if (songData is! Map<String, dynamic>) continue;
 
         String? primaryArtist;
         final singers = songData['singer'];
@@ -73,13 +81,16 @@ class QQProvider extends LyricProvider {
           }
         }
 
-        return SongMatch(
-          songId: songData['songmid'] as String,
+        final songmid = songData['songmid'];
+        if (songmid == null) continue;
+
+        results.add(SongMatch(
+          songId: songmid as String,
           title: _normalizeTextField(songData['songname'] as String?, title),
           artist: _normalizeTextField(primaryArtist, artist),
-        );
+        ));
       }
-      return null;
+      return results;
     } catch (e) {
       _logger.e('QQ音乐搜索歌曲失败: $e');
       if (e is SocketException) {
@@ -87,7 +98,7 @@ class QQProvider extends LyricProvider {
       } else if (e is TimeoutException) {
         _logger.w('请求超时: ${e.message}');
       }
-      return null;
+      return [];
     }
   }
 

@@ -376,5 +376,6 @@
   "filterDown": "低評価",
   "filterRated": "評価のみ",
   "statsTotal": "{count} 件のノート",
-  "searchNotesHint": "ノートを検索..."
+  "searchNotesHint": "ノートを検索...",
+  "authFailureExceeded": "認証失敗回数が上限に達しました。Spotify Client ID の設定を確認してください"
 }

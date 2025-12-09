@@ -1267,4 +1267,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String followUpError(String error) {
     return 'Failed to get answer: $error';
   }
+
+  @override
+  String get authFailureExceeded =>
+      'Authorization failed too many times. Please check your Spotify Client ID configuration.';
 }

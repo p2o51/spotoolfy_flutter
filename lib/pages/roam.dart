@@ -319,97 +319,238 @@ class _RoamState extends State<Roam> {
     final artistName = record['artistName'] as String? ?? 'Unknown Artist';
     final noteContent = record['noteContent'] as String? ?? '';
     final albumCoverUrl = record['albumCoverUrl'] as String?;
+    final lyricsSnapshot = record['lyricsSnapshot'] as String?;
+
+    // Get rating icon
+    final dynamic ratingRaw = record['rating'];
+    int ratingValue = 3;
+    if (ratingRaw is int) ratingValue = ratingRaw;
+    IconData ratingIcon;
+    switch (ratingValue) {
+      case 0: ratingIcon = Icons.thumb_down_rounded; break;
+      case 5: ratingIcon = Icons.whatshot_rounded; break;
+      case 3: default: ratingIcon = Icons.sentiment_neutral_rounded; break;
+    }
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 4.0),
-      child: Card(
-        elevation: 0,
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.primaryContainer,
+              colorScheme.primaryContainer.withValues(alpha: 0.6),
+              colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.primary.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: trackId != null ? () {
-            final trackUri = 'spotify:track:$trackId';
-            try {
-              spotifyProvider.playTrack(trackUri: trackUri);
-            } catch (e) {
-              logger.d('Error playing track from review card: $e');
-            }
-          } : null,
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                // Album cover
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: albumCoverUrl ?? '',
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      width: 48, height: 48,
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      width: 48, height: 48,
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      child: Icon(Icons.music_note_outlined, size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: trackId != null ? () {
+              final trackUri = 'spotify:track:$trackId';
+              try {
+                spotifyProvider.playTrack(trackUri: trackUri);
+              } catch (e) {
+                logger.d('Error playing track from review card: $e');
+              }
+            } : null,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row with badge and play button
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.history_outlined,
-                            size: 14,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            AppLocalizations.of(context)!.todayReviewTitle,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w500,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 14,
+                              color: colorScheme.primary,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Text(
+                              AppLocalizations.of(context)!.todayReviewTitle,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      if (noteContent.isNotEmpty)
-                        Text(
-                          noteContent,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
                         ),
-                      Text(
-                        '$trackName · $artistName',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          size: 20,
+                          color: colorScheme.primary,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.play_circle_outline,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  // Main content row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Album cover with shadow
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: CachedNetworkImage(
+                            imageUrl: albumCoverUrl ?? '',
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              width: 72, height: 72,
+                              decoration: BoxDecoration(
+                                color: colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(Icons.music_note_rounded, size: 32, color: colorScheme.onSecondaryContainer),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              width: 72, height: 72,
+                              decoration: BoxDecoration(
+                                color: colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(Icons.music_note_rounded, size: 32, color: colorScheme.onSecondaryContainer),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Text content
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Track name
+                            Text(
+                              trackName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            // Artist name
+                            Text(
+                              artistName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            // Rating icon
+                            Icon(
+                              ratingIcon,
+                              size: 20,
+                              color: colorScheme.primary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Note content or lyrics snapshot
+                  if (noteContent.isNotEmpty || (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (noteContent.isNotEmpty)
+                            Text(
+                              noteContent,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurface,
+                                height: 1.4,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          if (noteContent.isNotEmpty && lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)
+                            const SizedBox(height: 8),
+                          if (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.format_quote_rounded,
+                                  size: 14,
+                                  color: colorScheme.onSurface.withValues(alpha: 0.5),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    lyricsSnapshot,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurface.withValues(alpha: 0.7),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),

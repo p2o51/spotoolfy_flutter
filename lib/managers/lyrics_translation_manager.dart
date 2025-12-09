@@ -250,6 +250,9 @@ class LyricsTranslationManager {
   }
 
   /// 预加载下一首歌曲的资源
+  ///
+  /// [preloadTranslation] 是否预加载翻译。如果为 null，则根据用户的自动翻译设置决定。
+  /// [loadTranslation] 翻译加载回调，当需要预加载翻译时调用。
   Future<void> preloadNextTrackResources({
     required String trackId,
     required String songName,
@@ -258,6 +261,8 @@ class LyricsTranslationManager {
     required Future<String?> Function(String songName, String artistName, String trackId)
         getLyrics,
     required List<LyricLine> Function(String rawLyrics) parseLyrics,
+    bool? preloadTranslation,
+    Future<void> Function(String trackId, List<String> originalLines, Map<String, dynamic> trackItem)? loadTranslation,
   }) async {
     if (_nextTrackPreloadedId == trackId ||
         (_nextTrackPreloadFuture != null && _nextTrackPreloadingId == trackId)) {
@@ -267,10 +272,14 @@ class LyricsTranslationManager {
     _nextTrackPreloadingId = trackId;
     _nextTrackPreloadFuture = Future(() async {
       try {
+        // 始终预加载歌词（会自动缓存）
         final rawLyrics = await getLyrics(songName, artistName, trackId);
         if (rawLyrics == null) {
+          debugPrint('Preloaded lyrics for next track: $trackId (no lyrics found)');
           return;
         }
+
+        debugPrint('Preloaded lyrics for next track: $trackId');
 
         var lyricLines = parseLyrics(rawLyrics);
         List<String> originalLines =
@@ -288,7 +297,15 @@ class LyricsTranslationManager {
           return;
         }
 
-        // 这里可以预加载翻译
+        // 根据参数或用户设置决定是否预加载翻译
+        final shouldPreloadTranslation = preloadTranslation ??
+            await _settingsService.getAutoTranslateLyricsEnabled();
+
+        if (shouldPreloadTranslation && loadTranslation != null) {
+          await loadTranslation(trackId, originalLines, trackData);
+          debugPrint('Preloaded translation for next track: $trackId');
+        }
+
         _nextTrackPreloadedId = trackId;
       } catch (e) {
         debugPrint('Failed to preload next track resources: $e');

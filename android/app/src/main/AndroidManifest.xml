@@ -54,15 +54,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
 
-            <!-- Add Spotify callback handling -->
+        <activity
+            android:name="com.spotify.sdk.android.auth.RedirectUriReceiverActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="spotoolfy"
-                    android:host="callback" />
+                    android:scheme="${redirectSchemeName}"
+                    android:host="${redirectHostName}" />
             </intent-filter>
         </activity>
 

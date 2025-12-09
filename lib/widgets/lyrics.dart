@@ -210,6 +210,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _manualQuickActionsVisible = false;
           _isLyricsLoading = false;
         });
+        // 始终预加载下一首歌词，翻译根据自动翻译设置决定
+        unawaited(_preloadNextTrackResources());
         unawaited(_maybeTriggerAutoTranslate());
       } else {
         final unsyncedLines = _buildUnsyncedLyrics(rawLyrics);
@@ -230,6 +232,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
             _manualQuickActionsVisible = false;
             _isLyricsLoading = false;
           });
+          // 始终预加载下一首歌词，翻译根据自动翻译设置决定
+          unawaited(_preloadNextTrackResources());
           unawaited(_maybeTriggerAutoTranslate());
         } else {
           _quickActionsHideTimer?.cancel();
@@ -632,15 +636,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
     }
   }
 
-  Future<void> _preloadNextTrackResources() async {
+  /// 预加载下一首歌曲的歌词和翻译（当启用自动翻译时）
+  ///
+  /// [preloadTranslation] 是否预加载翻译。如果为 null，则根据用户的自动翻译设置决定。
+  Future<void> _preloadNextTrackResources({bool? preloadTranslation}) async {
     if (!mounted) {
-      return;
-    }
-    if (!_lyricsAreSynced) {
-      setState(() {
-        _autoScroll = false;
-        _temporarilyIgnoreUserScroll = false;
-      });
       return;
     }
 
@@ -678,11 +678,15 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final songName = nextTrack['name']?.toString() ?? '';
         final artistName = _getPrimaryArtistName(nextTrack);
 
+        // 始终预加载歌词（会自动缓存到 SharedPreferences）
         final rawLyrics =
             await _lyricsService.getLyrics(songName, artistName, trackId);
         if (rawLyrics == null || !mounted) {
+          debugPrint('Preloaded lyrics for next track: $trackId (no lyrics found)');
           return;
         }
+
+        debugPrint('Preloaded lyrics for next track: $trackId');
 
         var lyricLines = _parseLyrics(rawLyrics);
         List<String> originalLines =
@@ -700,11 +704,18 @@ class _LyricsWidgetState extends State<LyricsWidget>
           return;
         }
 
-        await _loadTranslationForTrack(
-          trackId: trackId,
-          originalLines: originalLines,
-          trackItem: nextTrack,
-        );
+        // 根据参数或用户设置决定是否预加载翻译
+        final shouldPreloadTranslation = preloadTranslation ??
+            await _settingsService.getAutoTranslateLyricsEnabled();
+
+        if (shouldPreloadTranslation) {
+          await _loadTranslationForTrack(
+            trackId: trackId,
+            originalLines: originalLines,
+            trackItem: nextTrack,
+          );
+          debugPrint('Preloaded translation for next track: $trackId');
+        }
 
         if (!mounted) return;
         _nextTrackPreloadedId = trackId;
@@ -740,7 +751,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     _autoTranslationRequestedForTrack = true;
     unawaited(_startTranslationPreload(triggerDisplayWhenReady: true));
-    unawaited(_preloadNextTrackResources());
+    // 注意：下一首歌的预加载已在 _loadLyrics 中触发，这里不需要重复调用
+    // _preloadNextTrackResources() 会根据自动翻译设置自动决定是否预加载翻译
   }
 
   bool get _requiresManualQuickActions =>

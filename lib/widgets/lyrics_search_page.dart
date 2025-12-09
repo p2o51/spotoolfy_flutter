@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/lyrics/lyric_provider.dart'; 
-import '../services/lyrics/qq_provider.dart'; 
+import '../services/lyrics/lyric_provider.dart';
+import '../services/lyrics/qq_provider.dart';
 import '../services/lyrics/lrclib_provider.dart';
+import '../services/lyrics/netease_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/notification_service.dart';
 
@@ -92,36 +93,39 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     try {
       // 分别从每个提供者搜索
       final results = <LyricsSearchResult>[];
-      
-      // 获取所有可用的歌词提供者 - 不直接访问私有成员
-      // 手动创建提供者实例 (与LyricsService中相同的提供者)
-      final providers = [
+
+      // 获取所有可用的歌词提供者
+      final providers = <LyricProvider>[
         QQProvider(),
         LRCLibProvider(),
+        NetEaseProvider(),
       ];
-      
-      // 从每个提供者获取搜索结果
+
+      // 每个提供者获取3个搜索结果
+      const int resultsPerProvider = 3;
+
+      // 从每个提供者获取多个搜索结果
       for (final provider in providers) {
         try {
-          final match = await provider.search(_currentQuery, '');
-          if (match != null) {
+          final matches = await provider.searchMultiple(_currentQuery, '', limit: resultsPerProvider);
+          for (final match in matches) {
             results.add(LyricsSearchResult(match: match, provider: provider));
-            
-            // 更新UI显示已找到的结果
-            if (mounted) {
-              setState(() {
-                _searchResults = List.from(results);
-              });
-            }
+          }
+
+          // 更新UI显示已找到的结果
+          if (mounted) {
+            setState(() {
+              _searchResults = List.from(results);
+            });
           }
         } catch (e) {
           debugPrint('Provider ${provider.name} search error: $e');
           // 继续尝试其他提供者
         }
       }
-      
+
       if (!mounted) return;
-      
+
       setState(() {
         _isLoading = false;
         // 已经在循环中更新了 _searchResults，这里不需要再设置
@@ -130,7 +134,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       if (mounted) {
         _notificationService.showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
       }
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;

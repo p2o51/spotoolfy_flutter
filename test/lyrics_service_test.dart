@@ -117,4 +117,9 @@ class _FakeLyricProvider extends LyricProvider {
   Future<SongMatch?> search(String title, String artist) async {
     return SongMatch(songId: 'fake-id', title: title, artist: artist);
   }
+
+  @override
+  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
+    return [SongMatch(songId: 'fake-id', title: title, artist: artist)];
+  }
 }

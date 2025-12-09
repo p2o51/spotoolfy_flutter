@@ -2351,6 +2351,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to get answer: {error}'**
   String followUpError(String error);
+
+  /// No description provided for @authFailureExceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization failed too many times. Please check your Spotify Client ID configuration.'**
+  String get authFailureExceeded;
 }
 
 class _AppLocalizationsDelegate

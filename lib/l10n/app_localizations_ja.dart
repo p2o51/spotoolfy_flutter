@@ -1234,4 +1234,8 @@ class AppLocalizationsJa extends AppLocalizations {
   String followUpError(String error) {
     return 'Failed to get answer: $error';
   }
+
+  @override
+  String get authFailureExceeded =>
+      '認証失敗回数が上限に達しました。Spotify Client ID の設定を確認してください';
 }

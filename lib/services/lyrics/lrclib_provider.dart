@@ -19,10 +19,16 @@ class LRCLibProvider extends LyricProvider {
 
   @override
   Future<SongMatch?> search(String title, String artist) async {
+    final results = await searchMultiple(title, artist, limit: 1);
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  @override
+  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
     final trimmedTitle = title.trim();
     final trimmedArtist = artist.trim();
     if (trimmedTitle.isEmpty && trimmedArtist.isEmpty) {
-      return null;
+      return [];
     }
 
     try {
@@ -42,36 +48,38 @@ class LRCLibProvider extends LyricProvider {
 
       if (response.statusCode != 200) {
         _logger.w('LRCLIB 搜索请求失败，状态码: ${response.statusCode}');
-        return null;
+        return [];
       }
 
       final data = json.decode(response.body);
       if (data is! List) {
         _logger.w('LRCLIB 搜索响应格式异常');
-        return null;
+        return [];
       }
 
       if (data.isEmpty) {
-        return null;
+        return [];
       }
 
-      final first = data.first as Map<String, dynamic>;
-      final id = first['id'];
-      if (id == null) {
-        return null;
+      final results = <SongMatch>[];
+      for (var i = 0; i < data.length && i < limit; i++) {
+        final item = data[i] as Map<String, dynamic>;
+        final id = item['id'];
+        if (id == null) continue;
+
+        final trackName = (item['trackName'] as String?)?.trim();
+        final artistName = (item['artistName'] as String?)?.trim();
+
+        results.add(SongMatch(
+          songId: id.toString(),
+          title: trackName?.isNotEmpty == true ? trackName! : trimmedTitle,
+          artist: artistName?.isNotEmpty == true ? artistName! : trimmedArtist,
+        ));
       }
-
-      final trackName = (first['trackName'] as String?)?.trim();
-      final artistName = (first['artistName'] as String?)?.trim();
-
-      return SongMatch(
-        songId: id.toString(),
-        title: trackName?.isNotEmpty == true ? trackName! : trimmedTitle,
-        artist: artistName?.isNotEmpty == true ? artistName! : trimmedArtist,
-      );
+      return results;
     } catch (e, st) {
       _logger.e('LRCLIB 搜索失败', error: e, stackTrace: st);
-      return null;
+      return [];
     }
   }
 

@@ -67,6 +67,15 @@ class SpotifyProvider extends ChangeNotifier {
   DateTime? _lastDeviceRefresh;
   DateTime? _lastQueueRefresh;
 
+  // 授权失败防护 - 防止授权失败后持续刷新导致闪屏
+  bool _isAuthFailed = false;
+  DateTime? _lastAuthFailure;
+  static const Duration _authFailureCooldown = Duration(seconds: 30);
+
+  // 授权失败重试次数限制 - 防止错误 Client ID 导致无限重试
+  int _authFailureCount = 0;
+  static const int _maxAuthRetries = 3;
+
   // 添加图片预加载缓存 - 持久化跨登录会话
   final Map<String, String> _imageCache = {};
   final Map<String, Map<String, dynamic>> _albumCache = {};
@@ -416,6 +425,14 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       final user = await _guard(() => _spotifyService.getUserProfile());
       username = user['display_name'];
+
+      // 登录成功，重置授权失败标记和计数器
+      if (username != null) {
+        _isAuthFailed = false;
+        _lastAuthFailure = null;
+        _authFailureCount = 0;
+      }
+
       _notifyCategory('default'); // UI 马上刷新
       if (_refreshTimer == null && username != null)
         startTrackRefresh(); // 仅在定时器未运行且用户已登录时启动
@@ -444,6 +461,12 @@ class SpotifyProvider extends ChangeNotifier {
       _availableDevices.clear();
       _activeDeviceId = null;
       _isInitialized = false; // Set to false before re-init
+
+      // 重置授权失败计数器 - 用户重新设置了 Client ID
+      _isAuthFailed = false;
+      _lastAuthFailure = null;
+      _authFailureCount = 0;
+      logger.d('已重置授权失败计数器');
 
       // 停止所有计时器
       _refreshTimer?.cancel();
@@ -508,6 +531,11 @@ class SpotifyProvider extends ChangeNotifier {
     _availableDevices.clear();
     _activeDeviceId = null;
     _isInitialized = false; // Set to false before re-init
+
+    // 重置授权失败计数器
+    _isAuthFailed = false;
+    _lastAuthFailure = null;
+    _authFailureCount = 0;
 
     _refreshTimer?.cancel();
     _refreshTimer = null;
@@ -683,6 +711,24 @@ class SpotifyProvider extends ChangeNotifier {
 
         _refreshTimer?.cancel();
         _refreshTimer = Timer.periodic(_refreshTickInterval, (_) {
+          // 授权失败防护：如果授权失败且在冷却期内，跳过刷新
+          if (_isAuthFailed) {
+            if (_lastAuthFailure != null &&
+                DateTime.now().difference(_lastAuthFailure!) < _authFailureCooldown) {
+              logger.t('_refreshTimer tick: Skipped due to auth failure cooldown.');
+              return;
+            }
+            // 冷却期已过，检查重试次数
+            if (_authFailureCount >= _maxAuthRetries) {
+              logger.w('_refreshTimer tick: 授权失败次数已达上限 ($_maxAuthRetries 次)，停止自动重试。请检查 Client ID 配置。');
+              // 显示用户提示
+              _notifyAuthFailureExceeded();
+              return;
+            }
+            // 冷却期已过且未达上限，重置标记允许重试
+            _isAuthFailed = false;
+            _lastAuthFailure = null;
+          }
           if (_isSkipping) {
             logger.t('_refreshTimer tick: Skipped due to _isSkipping=true.');
             return;
@@ -1156,6 +1202,23 @@ class SpotifyProvider extends ChangeNotifier {
 
   /// 自动登录
   Future<void> autoLogin() async {
+    // 避免在授权失败冷却期间反复触发自动登录导致闪屏
+    if (_isAuthFailed) {
+      if (_lastAuthFailure != null &&
+          DateTime.now().difference(_lastAuthFailure!) < _authFailureCooldown) {
+        logger.d('跳过自动登录：处于授权失败冷却期');
+        return;
+      }
+      if (_authFailureCount >= _maxAuthRetries) {
+        logger.w('跳过自动登录：授权失败次数已达上限 ($_maxAuthRetries)');
+        _notifyAuthFailureExceeded();
+        return;
+      }
+      // 冷却已过，允许重新尝试
+      _isAuthFailed = false;
+      _lastAuthFailure = null;
+    }
+
     // 如果正在加载中，跳过自动登录
     if (isLoading) {
       logger.d('跳过自动登录：已在加载中');
@@ -1176,7 +1239,9 @@ class SpotifyProvider extends ChangeNotifier {
         return;
       }
 
-      final token = await _guard(() => _spotifyService.ensureFreshToken());
+      // 自动登录允许一次交互式获取 token（可能会拉起 Spotify 授权界面）
+      final token =
+          await _guard(() => _spotifyService.ensureFreshToken(interactive: true));
       if (token != null) {
         logger.d('自动登录：使用现有token成功');
         await _refreshUserProfile();
@@ -1191,6 +1256,13 @@ class SpotifyProvider extends ChangeNotifier {
       }
     } catch (e) {
       logger.w('自动登录失败: $e');
+      if (e is SpotifyAuthException && e.code != 'AUTH_CANCELLED') {
+        // 标记授权失败，触发冷却，避免反复弹窗
+        _isAuthFailed = true;
+        _lastAuthFailure = DateTime.now();
+        _authFailureCount++;
+        logger.w('自动登录授权失败计数: $_authFailureCount / $_maxAuthRetries');
+      }
       if (username != null) {
         username = null;
       }
@@ -2625,6 +2697,44 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  // 防止重复显示授权失败提示
+  DateTime? _lastAuthFailureNotification;
+  static const Duration _authFailureNotificationCooldown = Duration(minutes: 1);
+
+  /// 授权失败次数达到上限时通知用户
+  void _notifyAuthFailureExceeded() {
+    // 防止短时间内重复显示
+    if (_lastAuthFailureNotification != null &&
+        DateTime.now().difference(_lastAuthFailureNotification!) < _authFailureNotificationCooldown) {
+      return;
+    }
+    _lastAuthFailureNotification = DateTime.now();
+
+    final context = navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n?.authFailureExceeded ??
+            '授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置',
+          ),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.red[700],
+          action: SnackBarAction(
+            label: l10n?.settingsTitle ?? '设置',
+            textColor: Colors.white,
+            onPressed: () {
+              // 停止定时器，避免继续重试
+              _refreshTimer?.cancel();
+              _refreshTimer = null;
+            },
+          ),
+        ),
+      );
+    }
+  }
+
   /// 详细的错误日志记录和分析
   void _logDetailedError(dynamic error, String contextMessage) {
     if (error is SpotifyAuthException) {
@@ -2706,6 +2816,10 @@ class SpotifyProvider extends ChangeNotifier {
           return; // Silent refresh succeeded
         }
         // Token 为 null，视为真正过期
+        _isAuthFailed = true;
+        _lastAuthFailure = DateTime.now();
+        _authFailureCount++;
+        logger.w('授权失败计数: $_authFailureCount / $_maxAuthRetries');
         await logout();
         throw SpotifyAuthException('会话已过期，请重新登录', code: 'SESSION_EXPIRED');
       } on SpotifyAuthException catch (refreshError) {
@@ -2735,6 +2849,10 @@ class SpotifyProvider extends ChangeNotifier {
         }
 
         // 未知错误，回退到要求用户重新登录，但不立即清除状态
+        _isAuthFailed = true;
+        _lastAuthFailure = DateTime.now();
+        _authFailureCount++;
+        logger.w('授权失败计数: $_authFailureCount / $_maxAuthRetries');
         throw SpotifyAuthException('无法刷新会话，请重新登录', code: 'SESSION_EXPIRED');
       }
     } else if (e is SpotifyAuthException &&
