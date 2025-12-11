@@ -1265,6 +1265,41 @@ class _LyricsWidgetState extends State<LyricsWidget>
             },
             child: Stack(
               children: [
+                // 歌词加载中时显示居中的加载指示器
+                if (_lyrics.isEmpty && _isLyricsLoading)
+                  Positioned.fill(
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withAlpha((0.7 * 255).round()),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            l10n.lyricsLoading,
+                            style: TextStyle(
+                              fontFamily: 'Spotify Mix',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withAlpha((0.6 * 255).round()),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ListView.builder(
                   key: _listViewKey,
                   controller: _scrollController,
@@ -1278,49 +1313,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
                             .padding
                             .bottom, // Reverted bottom padding
                   ),
-                  itemCount: _lyrics.isEmpty && _isLyricsLoading
-                      ? 1
-                      : _lyrics.length + 1,
+                  itemCount: _lyrics.length + 1,
                   itemBuilder: (context, index) {
-                    // Show loading indicator when lyrics are empty and loading
-                    if (_lyrics.isEmpty && _isLyricsLoading) {
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          top: MediaQuery.of(context).size.height * 0.3,
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary
-                                      .withAlpha((0.7 * 255).round()),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                l10n.lyricsLoading,
-                                style: TextStyle(
-                                  fontFamily: 'Spotify Mix',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary
-                                      .withAlpha((0.6 * 255).round()),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
                     if (index == _lyrics.length) {
                       return SizedBox(
                           height:

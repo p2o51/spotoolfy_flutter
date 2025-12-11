@@ -1238,4 +1238,34 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get authFailureExceeded =>
       '認証失敗回数が上限に達しました。Spotify Client ID の設定を確認してください';
+
+  @override
+  String get timeMachineTitle => 'タイムマシン';
+
+  @override
+  String get timeMachineDateRange => '日付範囲を選択';
+
+  @override
+  String get timeMachineToday => '今日の思い出';
+
+  @override
+  String get timeMachineEmpty => '思い出が見つかりませんでした';
+
+  @override
+  String get timeMachineEmptyHint => '別の日付範囲を選択して、音楽履歴を探索してみてね';
+
+  @override
+  String yearsAgoToday(int years) {
+    return '$years年前の今日';
+  }
+
+  @override
+  String andMoreTracks(int count) {
+    return '他に $count 曲';
+  }
+
+  @override
+  String addedYearsAgo(int years, String date) {
+    return '$years年前に追加 ($date)';
+  }
 }

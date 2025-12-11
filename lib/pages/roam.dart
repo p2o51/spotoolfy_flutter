@@ -10,6 +10,9 @@ import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导�
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../widgets/note_poster_preview_page.dart';
 import '../l10n/app_localizations.dart';
+import '../services/time_machine_service.dart';
+import '../widgets/time_machine_carousel.dart';
+import 'memory_page.dart';
 
 final logger = Logger();
 
@@ -31,17 +34,48 @@ class _RoamState extends State<Roam> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // Time Machine Service
+  TimeMachineService? _timeMachineService;
+
+  // SpotifyProvider listener
+  SpotifyProvider? _spotifyProvider;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Fetch initial data using the provider's public combined fetch method
       Provider.of<LocalDatabaseProvider>(context, listen: false).fetchInitialData(); // Call the public fetch
+
+      // Initialize TimeMachineService and listen for changes
+      _spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+      _spotifyProvider!.addListener(_onSpotifyProviderChanged);
+      _initTimeMachineService();
     });
+  }
+
+  void _onSpotifyProviderChanged() {
+    // Re-initialize TimeMachineService when user state changes
+    if (_timeMachineService == null && _spotifyProvider?.username != null) {
+      _initTimeMachineService();
+    }
+  }
+
+  void _initTimeMachineService() {
+    final spotifyProvider = _spotifyProvider ?? Provider.of<SpotifyProvider>(context, listen: false);
+    logger.d('TimeMachine init: username=${spotifyProvider.username}');
+
+    if (spotifyProvider.username != null) {
+      _timeMachineService = TimeMachineService(spotifyProvider.spotifyAuthService);
+      _timeMachineService!.setActiveUser(spotifyProvider.username);
+      logger.d('TimeMachineService initialized for user: ${spotifyProvider.username}');
+      if (mounted) setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    _spotifyProvider?.removeListener(_onSpotifyProviderChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -542,6 +576,39 @@ class _RoamState extends State<Roam> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                // Time Machine Carousel - "X年前的今天"
+                if (_timeMachineService != null)
+                  SliverToBoxAdapter(
+                    child: TimeMachineCarousel(
+                      timeMachineService: _timeMachineService!,
+                      onMemoryTap: (memory) {
+                        HapticFeedback.lightImpact();
+                        spotifyProvider.playTrack(trackUri: memory.trackUri);
+                      },
+                      onViewAllTap: (memories) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MemoryPage(
+                              timeMachineService: _timeMachineService!,
+                              initialMemories: memories,
+                              yearsAgo: memories.isNotEmpty ? memories.first.yearsAgo : null,
+                            ),
+                          ),
+                        );
+                      },
+                      onDateRangeTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MemoryPage(
+                              timeMachineService: _timeMachineService!,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 // Today's Review Card
                 if (allNotesRecords.isNotEmpty)
                   SliverToBoxAdapter(
@@ -1071,15 +1138,30 @@ class _RoamState extends State<Roam> {
                           // Get lyrics snapshot
                           final String? lyricsSnapshot = record['lyricsSnapshot'] as String?;
 
+                          // 计算背景圆角（与卡片一致）
+                          final bgBorderRadius = BorderRadius.only(
+                            topLeft: Radius.circular(isFirst ? 24 : 16),
+                            topRight: Radius.circular(isFirst ? 24 : 16),
+                            bottomLeft: Radius.circular(isLast ? 24 : 16),
+                            bottomRight: Radius.circular(isLast ? 24 : 16),
+                          );
+
                           // Wrap with Dismissible for swipe gestures
                           return Dismissible(
                             key: Key('record_${recordId ?? index}'),
+                            // 改进滑动手感
+                            movementDuration: const Duration(milliseconds: 150),
+                            resizeDuration: const Duration(milliseconds: 200),
+                            dismissThresholds: const {
+                              DismissDirection.startToEnd: 0.3,
+                              DismissDirection.endToStart: 0.4,
+                            },
                             background: Container(
                               alignment: Alignment.centerLeft,
                               padding: const EdgeInsets.only(left: 24),
                               decoration: BoxDecoration(
                                 color: Theme.of(context).colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: bgBorderRadius,
                               ),
                               child: Row(
                                 children: [
@@ -1097,7 +1179,7 @@ class _RoamState extends State<Roam> {
                               padding: const EdgeInsets.only(right: 24),
                               decoration: BoxDecoration(
                                 color: Theme.of(context).colorScheme.errorContainer,
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: bgBorderRadius,
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
@@ -1175,25 +1257,15 @@ class _RoamState extends State<Roam> {
                                   right: 0,
                                 ),
                                 child: InkWell(
-                                  onTap: trackId != null ? () {
+                                  // 点击打开笔记详情页（包含播放、编辑、删除选项）
+                                  onTap: recordId != null ? () {
                                     HapticFeedback.lightImpact();
-                                    logger.d('Tapped on card with trackId: $trackId');
-                                    final trackUri = 'spotify:track:$trackId';
-                                    logger.d('Attempting to play URI: $trackUri');
-                                    try {
-                                      spotifyProvider.playTrack(trackUri: trackUri);
-                                      // REMOVED Playback SnackBar
-                                    } catch (e) {
-                                       logger.d('Error calling playTrack: $e');
-                                       ScaffoldMessenger.of(context).showSnackBar( // Keep error SnackBar
-                                        SnackBar(
-                                          content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                                          duration: const Duration(seconds: 2),
-                                        ),
-                                      );
-                                    }
+                                    _showActionSheet(context, record);
                                   } : null,
-                                  onLongPress: recordId != null ? () { logger.d('Long pressed on card with recordId: $recordId'); _showActionSheet(context, record); } : () { logger.d('Long press disabled for record: ${record['noteContent']}'); },
+                                  onLongPress: recordId != null ? () {
+                                    HapticFeedback.mediumImpact();
+                                    _showActionSheet(context, record);
+                                  } : null,
                                   // Apply borderRadius to InkWell for ripple effect consistency
                                   borderRadius: BorderRadius.only(
                                     topLeft: Radius.circular(isFirst ? 24 : 16), // Adjusted radius

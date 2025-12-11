@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:animations/animations.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
@@ -179,10 +180,12 @@ class _MyThemedAppState extends State<MyThemedApp> {
               useMaterial3: true,
               appBarTheme:
                   AppBarTheme(systemOverlayStyle: systemUiOverlayStyle),
-              pageTransitionsTheme: const PageTransitionsTheme(
+              pageTransitionsTheme: PageTransitionsTheme(
                 builders: <TargetPlatform, PageTransitionsBuilder>{
-                  TargetPlatform.android:
-                      PredictiveBackPageTransitionsBuilder(),
+                  TargetPlatform.android: SharedAxisPageTransitionsBuilder(
+                    transitionType: SharedAxisTransitionType.horizontal,
+                  ),
+                  TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
                 },
               ),
             );

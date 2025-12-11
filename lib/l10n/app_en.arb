@@ -778,5 +778,37 @@
       }
     }
   },
-  "authFailureExceeded": "Authorization failed too many times. Please check your Spotify Client ID configuration."
+  "authFailureExceeded": "Authorization failed too many times. Please check your Spotify Client ID configuration.",
+  "timeMachineTitle": "Time Machine",
+  "timeMachineDateRange": "Select Date Range",
+  "timeMachineToday": "Today's Memories",
+  "timeMachineEmpty": "No memories found",
+  "timeMachineEmptyHint": "Try selecting a different date range to explore your music history",
+  "yearsAgoToday": "{years, plural, =1{1 year ago today} other{{years} years ago today}}",
+  "@yearsAgoToday": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      }
+    }
+  },
+  "andMoreTracks": "+{count} more",
+  "@andMoreTracks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addedYearsAgo": "{years, plural, =1{Added 1 year ago} other{Added {years} years ago}} ({date})",
+  "@addedYearsAgo": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  }
 }

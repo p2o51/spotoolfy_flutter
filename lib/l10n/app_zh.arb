@@ -386,5 +386,13 @@
   "askFollowUpSend": "发送",
   "followUpThinking": "思考中...",
   "followUpError": "获取回答失败: {error}",
-  "authFailureExceeded": "授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置"
+  "authFailureExceeded": "授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置",
+  "timeMachineTitle": "时光机",
+  "timeMachineDateRange": "选择日期范围",
+  "timeMachineToday": "今日回忆",
+  "timeMachineEmpty": "没有找到回忆",
+  "timeMachineEmptyHint": "尝试选择不同的日期范围来探索你的音乐历史",
+  "yearsAgoToday": "{years}年前的今天",
+  "andMoreTracks": "还有 {count} 首",
+  "addedYearsAgo": "{years}年前添加 ({date})"
 }

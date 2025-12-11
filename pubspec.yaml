@@ -67,6 +67,7 @@ dependencies:
   flutter_markdown: ^0.7.4+3
   material_color_utilities: ^0.11.1
   image_gallery_saver_plus: ^4.0.1
+  animations: ^2.0.11
 dev_dependencies:
   flutter_test:
     sdk: flutter

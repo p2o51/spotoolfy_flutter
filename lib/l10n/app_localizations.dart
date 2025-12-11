@@ -2357,6 +2357,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Authorization failed too many times. Please check your Spotify Client ID configuration.'**
   String get authFailureExceeded;
+
+  /// No description provided for @timeMachineTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Time Machine'**
+  String get timeMachineTitle;
+
+  /// No description provided for @timeMachineDateRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Date Range'**
+  String get timeMachineDateRange;
+
+  /// No description provided for @timeMachineToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s Memories'**
+  String get timeMachineToday;
+
+  /// No description provided for @timeMachineEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No memories found'**
+  String get timeMachineEmpty;
+
+  /// No description provided for @timeMachineEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try selecting a different date range to explore your music history'**
+  String get timeMachineEmptyHint;
+
+  /// No description provided for @yearsAgoToday.
+  ///
+  /// In en, this message translates to:
+  /// **'{years, plural, =1{1 year ago today} other{{years} years ago today}}'**
+  String yearsAgoToday(int years);
+
+  /// No description provided for @andMoreTracks.
+  ///
+  /// In en, this message translates to:
+  /// **'+{count} more'**
+  String andMoreTracks(int count);
+
+  /// No description provided for @addedYearsAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{years, plural, =1{Added 1 year ago} other{Added {years} years ago}} ({date})'**
+  String addedYearsAgo(int years, String date);
 }
 
 class _AppLocalizationsDelegate

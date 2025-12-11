@@ -1271,4 +1271,47 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authFailureExceeded =>
       'Authorization failed too many times. Please check your Spotify Client ID configuration.';
+
+  @override
+  String get timeMachineTitle => 'Time Machine';
+
+  @override
+  String get timeMachineDateRange => 'Select Date Range';
+
+  @override
+  String get timeMachineToday => 'Today\'s Memories';
+
+  @override
+  String get timeMachineEmpty => 'No memories found';
+
+  @override
+  String get timeMachineEmptyHint =>
+      'Try selecting a different date range to explore your music history';
+
+  @override
+  String yearsAgoToday(int years) {
+    String _temp0 = intl.Intl.pluralLogic(
+      years,
+      locale: localeName,
+      other: '$years years ago today',
+      one: '1 year ago today',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String andMoreTracks(int count) {
+    return '+$count more';
+  }
+
+  @override
+  String addedYearsAgo(int years, String date) {
+    String _temp0 = intl.Intl.pluralLogic(
+      years,
+      locale: localeName,
+      other: 'Added $years years ago',
+      one: 'Added 1 year ago',
+    );
+    return '$_temp0 ($date)';
+  }
 }

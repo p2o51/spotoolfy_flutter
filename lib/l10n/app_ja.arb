@@ -377,5 +377,13 @@
   "filterRated": "評価のみ",
   "statsTotal": "{count} 件のノート",
   "searchNotesHint": "ノートを検索...",
-  "authFailureExceeded": "認証失敗回数が上限に達しました。Spotify Client ID の設定を確認してください"
+  "authFailureExceeded": "認証失敗回数が上限に達しました。Spotify Client ID の設定を確認してください",
+  "timeMachineTitle": "タイムマシン",
+  "timeMachineDateRange": "日付範囲を選択",
+  "timeMachineToday": "今日の思い出",
+  "timeMachineEmpty": "思い出が見つかりませんでした",
+  "timeMachineEmptyHint": "別の日付範囲を選択して、音楽履歴を探索してみてね",
+  "yearsAgoToday": "{years}年前の今日",
+  "andMoreTracks": "他に {count} 曲",
+  "addedYearsAgo": "{years}年前に追加 ({date})"
 }

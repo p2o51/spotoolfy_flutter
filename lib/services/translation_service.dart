@@ -204,40 +204,27 @@ class TranslationService {
   // Helper function to generate the prompt based on the selected style
   String _getPromptForStyle(
       TranslationStyle style, String languageName, String lyricsText) {
-    String styleKeywords;
+    String tone;
     switch (style) {
       case TranslationStyle.faithful:
-        styleKeywords =
-            'Natural, Accurate, Semantic equivalence, Preserve imagery';
+        tone = 'natural';
         break;
       case TranslationStyle.melodramaticPoet:
-        styleKeywords =
-            'Emotional, Poetic, Dramatic, Lyrical, Rhyme-aware';
+        tone = 'lyrical';
         break;
       case TranslationStyle.machineClassic:
-        styleKeywords =
-            'Literal, Stiff, Word-for-word, Grammatically awkward';
+        tone = 'robotic';
         break;
     }
 
     return '''
-Role: Expert Lyric Translator.
-Target: $languageName.
-Style: $styleKeywords.
+Translate lyrics to $languageName. Tone: $tone.
 
-RULES:
-1. Keep format: Token${kStructuredOutputDelimiter}Translation
-2. Output ONLY the translation. DO NOT include original text.
-3. If original is blank/instrumental, output nothing after delimiter.
+FORMAT: __LXXXX__${kStructuredOutputDelimiter}translation
+- One line in = one line out
+- Output translation only, no original text
+- Blank/instrumental → empty after delimiter
 
-EXAMPLES:
-Input: __L0001__${kStructuredInputDelimiter}Hello world
-Output: __L0001__${kStructuredOutputDelimiter}你好世界
-
-Input: __L0002__${kStructuredInputDelimiter}Dancing in the dark
-Output: __L0002__${kStructuredOutputDelimiter}在黑暗中起舞
-
-TASKS:
 $lyricsText
 ''';
   }

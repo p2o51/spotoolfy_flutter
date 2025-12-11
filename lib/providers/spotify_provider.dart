@@ -115,6 +115,9 @@ class SpotifyProvider extends ChangeNotifier {
   String? get lastPlayedTrackName => _lastPlayedTrackName;
   String? get lastPlayedArtists => _lastPlayedArtists;
 
+  // 获取 SpotifyAuthService 实例（用于 TimeMachineService 等）
+  SpotifyAuthService get spotifyAuthService => _spotifyService;
+
   // 从持久化存储加载最后播放的歌曲信息
   Future<void> loadLastPlayedTrackInfo() async {
     try {
@@ -1069,7 +1072,7 @@ class SpotifyProvider extends ChangeNotifier {
 
     Map<String, dynamic> enrichedContext = {
       ...context,
-      'name': 'UNKNOWN CONTEXT',
+      'name': 'Spotify Contents',
       'images': [
         {'url': 'https://via.placeholder.com/300'}
       ],

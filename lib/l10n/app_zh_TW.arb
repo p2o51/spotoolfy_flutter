@@ -377,5 +377,13 @@
   "filterRated": "已評價",
   "statsTotal": "{count} 則筆記",
   "searchNotesHint": "搜尋筆記...",
-  "authFailureExceeded": "授權失敗次數已達上限，請檢查 Spotify Client ID 是否正確配置"
+  "authFailureExceeded": "授權失敗次數已達上限，請檢查 Spotify Client ID 是否正確配置",
+  "timeMachineTitle": "時光機",
+  "timeMachineDateRange": "選擇日期範圍",
+  "timeMachineToday": "今日回憶",
+  "timeMachineEmpty": "沒有找到回憶",
+  "timeMachineEmptyHint": "嘗試選擇不同的日期範圍來探索你的音樂歷史",
+  "yearsAgoToday": "{years}年前的今天",
+  "andMoreTracks": "還有 {count} 首",
+  "addedYearsAgo": "{years}年前新增 ({date})"
 }

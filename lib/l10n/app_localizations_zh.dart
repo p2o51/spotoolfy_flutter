@@ -1233,6 +1233,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authFailureExceeded => '授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置';
+
+  @override
+  String get timeMachineTitle => '时光机';
+
+  @override
+  String get timeMachineDateRange => '选择日期范围';
+
+  @override
+  String get timeMachineToday => '今日回忆';
+
+  @override
+  String get timeMachineEmpty => '没有找到回忆';
+
+  @override
+  String get timeMachineEmptyHint => '尝试选择不同的日期范围来探索你的音乐历史';
+
+  @override
+  String yearsAgoToday(int years) {
+    return '$years年前的今天';
+  }
+
+  @override
+  String andMoreTracks(int count) {
+    return '还有 $count 首';
+  }
+
+  @override
+  String addedYearsAgo(int years, String date) {
+    return '$years年前添加 ($date)';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2429,4 +2459,34 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get authFailureExceeded => '授權失敗次數已達上限，請檢查 Spotify Client ID 是否正確配置';
+
+  @override
+  String get timeMachineTitle => '時光機';
+
+  @override
+  String get timeMachineDateRange => '選擇日期範圍';
+
+  @override
+  String get timeMachineToday => '今日回憶';
+
+  @override
+  String get timeMachineEmpty => '沒有找到回憶';
+
+  @override
+  String get timeMachineEmptyHint => '嘗試選擇不同的日期範圍來探索你的音樂歷史';
+
+  @override
+  String yearsAgoToday(int years) {
+    return '$years年前的今天';
+  }
+
+  @override
+  String andMoreTracks(int count) {
+    return '還有 $count 首';
+  }
+
+  @override
+  String addedYearsAgo(int years, String date) {
+    return '$years年前新增 ($date)';
+  }
 }

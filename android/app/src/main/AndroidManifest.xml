@@ -23,7 +23,6 @@
         android:label="Spotoolfy"
         android:icon="@mipmap/launcher_icon"
         android:allowBackup="true"
-        android:enableOnBackInvokedCallback="true"
         android:localeConfig="@xml/locale_config"
         android:theme="@style/AppTheme">
 

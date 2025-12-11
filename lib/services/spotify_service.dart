@@ -1495,6 +1495,83 @@ class SpotifyAuthService {
 
   void enableAutoReconnect() => _autoReconnectRemote = true;
   void disableAutoReconnect() => _autoReconnectRemote = false;
+
+  /// 获取用户收藏的曲目（带 added_at 时间戳）
+  /// 用于"时光机"功能，可以按添加日期筛选歌曲
+  Future<List<Map<String, dynamic>>> getUserSavedTracks({
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    try {
+      final headers = await _authHeaders(hasBody: false);
+      final response = await http.get(
+        Uri.parse(
+            'https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit'),
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取收藏曲目失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+
+      final data = json.decode(response.body);
+      return List<Map<String, dynamic>>.from(data['items'] ?? []);
+    } catch (e) {
+      if (e is SpotifyAuthException) rethrow;
+      throw SpotifyAuthException('获取收藏曲目时出错: $e');
+    }
+  }
+
+  /// 获取用户所有收藏的曲目（自动分页）
+  /// 返回包含 added_at 和 track 信息的完整列表
+  Future<List<Map<String, dynamic>>> getAllUserSavedTracks({
+    int maxTracks = 2000, // 限制最大获取数量避免过长等待
+    void Function(int loaded, int? total)? onProgress,
+  }) async {
+    final allTracks = <Map<String, dynamic>>[];
+    int offset = 0;
+    const limit = 50;
+    int? totalTracks;
+
+    while (true) {
+      try {
+        final headers = await _authHeaders(hasBody: false);
+        final response = await http.get(
+          Uri.parse(
+              'https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit'),
+          headers: headers,
+        );
+
+        if (response.statusCode != 200) {
+          throw SpotifyAuthException(
+            '获取收藏曲目失败: ${response.body}',
+            code: response.statusCode.toString(),
+          );
+        }
+
+        final data = json.decode(response.body);
+        totalTracks ??= data['total'] as int?;
+        final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+
+        if (items.isEmpty) break;
+
+        allTracks.addAll(items);
+        onProgress?.call(allTracks.length, totalTracks);
+
+        if (allTracks.length >= maxTracks || data['next'] == null) break;
+
+        offset += limit;
+      } catch (e) {
+        if (e is SpotifyAuthException) rethrow;
+        throw SpotifyAuthException('获取收藏曲目时出错: $e');
+      }
+    }
+
+    return allTracks;
+  }
 }
 
 // Add helper class at the end of the file
