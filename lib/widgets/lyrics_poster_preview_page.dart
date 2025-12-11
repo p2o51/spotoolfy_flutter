@@ -70,13 +70,13 @@ class PosterColorConfig {
           separatorColor: colorScheme.outline.withValues(alpha: 0.3),
         );
       case PosterStyle.style4:
-        // 样式4: 歌词正文，脚注与标题：Tertiary, 歌手：Tertiary * 0.5（混白色）, 背景：Tertiary Container
+        // 样式4: 歌词正文，脚注与标题：On Tertiary Container, 歌手：On Tertiary Container @ 0.7, 背景：Tertiary Container
         return PosterColorConfig(
           backgroundColor: colorScheme.tertiaryContainer,
-          titleColor: colorScheme.tertiary,
-          artistColor: Color.lerp(colorScheme.tertiary, Colors.white, 0.5)!,
-          lyricsColor: colorScheme.tertiary,
-          watermarkColor: colorScheme.tertiary,
+          titleColor: colorScheme.onTertiaryContainer,
+          artistColor: colorScheme.onTertiaryContainer.withValues(alpha: 0.7),
+          lyricsColor: colorScheme.onTertiaryContainer,
+          watermarkColor: colorScheme.onTertiaryContainer,
           separatorColor: colorScheme.outline.withValues(alpha: 0.3),
         );
     }

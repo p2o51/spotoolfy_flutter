@@ -1,6 +1,6 @@
 {
-    "name": "spotoolfy_flutter",
-    "short_name": "spotoolfy_flutter",
+    "name": "Spotoolfy",
+    "short_name": "Spotoolfy",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

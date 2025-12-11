@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import '../services/notification_service.dart';
 import '../services/album_rating_poster_service.dart';
 import '../l10n/app_localizations.dart';
@@ -17,52 +15,71 @@ enum AlbumPosterStyle {
   style4,
 }
 
-// Poster color config
+// Poster color config - matches lyrics/note poster structure
 class AlbumPosterColorConfig {
-  final ColorScheme colorScheme;
+  final Color backgroundColor;
+  final Color titleColor;
+  final Color artistColor;
+  final Color scoreColor;
+  final Color trackColor;
+  final Color ratingColor;
+  final Color watermarkColor;
 
-  const AlbumPosterColorConfig({required this.colorScheme});
+  const AlbumPosterColorConfig({
+    required this.backgroundColor,
+    required this.titleColor,
+    required this.artistColor,
+    required this.scoreColor,
+    required this.trackColor,
+    required this.ratingColor,
+    required this.watermarkColor,
+  });
 
-  static AlbumPosterColorConfig getConfig(AlbumPosterStyle style, ColorScheme baseScheme) {
+  static AlbumPosterColorConfig getConfig(AlbumPosterStyle style, ColorScheme colorScheme) {
     switch (style) {
       case AlbumPosterStyle.style1:
-        // Default style - uses base color scheme
-        return AlbumPosterColorConfig(colorScheme: baseScheme);
-      case AlbumPosterStyle.style2:
-        // Inverted primary colors
+        // Style 1: Primary container based (dark bg)
         return AlbumPosterColorConfig(
-          colorScheme: baseScheme.copyWith(
-            surface: baseScheme.primaryContainer,
-            onSurface: baseScheme.onPrimaryContainer,
-            onSurfaceVariant: baseScheme.onPrimaryContainer.withValues(alpha: 0.7),
-            primary: baseScheme.primary,
-            primaryContainer: baseScheme.onPrimaryContainer.withValues(alpha: 0.2),
-            surfaceContainerHighest: baseScheme.onPrimaryContainer.withValues(alpha: 0.1),
-          ),
+          backgroundColor: colorScheme.onPrimaryContainer,
+          titleColor: colorScheme.primaryContainer,
+          artistColor: colorScheme.primary,
+          scoreColor: colorScheme.primaryContainer,
+          trackColor: colorScheme.primaryContainer,
+          ratingColor: colorScheme.primaryContainer.withValues(alpha: 0.7),
+          watermarkColor: colorScheme.primaryContainer,
+        );
+      case AlbumPosterStyle.style2:
+        // Style 2: Primary container based (light bg)
+        return AlbumPosterColorConfig(
+          backgroundColor: colorScheme.primaryContainer,
+          titleColor: colorScheme.onPrimaryContainer,
+          artistColor: colorScheme.primary,
+          scoreColor: colorScheme.onPrimaryContainer,
+          trackColor: colorScheme.onPrimaryContainer,
+          ratingColor: colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+          watermarkColor: colorScheme.onPrimaryContainer,
         );
       case AlbumPosterStyle.style3:
-        // Tertiary based
+        // Style 3: Tertiary based (dark bg)
         return AlbumPosterColorConfig(
-          colorScheme: baseScheme.copyWith(
-            surface: baseScheme.tertiary,
-            onSurface: baseScheme.onTertiary,
-            onSurfaceVariant: baseScheme.onTertiary.withValues(alpha: 0.7),
-            primary: baseScheme.tertiaryContainer,
-            primaryContainer: baseScheme.onTertiary.withValues(alpha: 0.2),
-            surfaceContainerHighest: baseScheme.onTertiary.withValues(alpha: 0.1),
-          ),
+          backgroundColor: colorScheme.tertiary,
+          titleColor: colorScheme.onTertiary,
+          artistColor: colorScheme.tertiaryContainer,
+          scoreColor: colorScheme.onTertiary,
+          trackColor: colorScheme.onTertiary,
+          ratingColor: colorScheme.onTertiary.withValues(alpha: 0.7),
+          watermarkColor: colorScheme.onTertiary,
         );
       case AlbumPosterStyle.style4:
-        // Tertiary container based
+        // Style 4: Tertiary container based (light bg)
         return AlbumPosterColorConfig(
-          colorScheme: baseScheme.copyWith(
-            surface: baseScheme.tertiaryContainer,
-            onSurface: baseScheme.tertiary,
-            onSurfaceVariant: baseScheme.tertiary.withValues(alpha: 0.7),
-            primary: baseScheme.tertiary,
-            primaryContainer: baseScheme.tertiary.withValues(alpha: 0.2),
-            surfaceContainerHighest: baseScheme.tertiary.withValues(alpha: 0.1),
-          ),
+          backgroundColor: colorScheme.tertiaryContainer,
+          titleColor: colorScheme.onTertiaryContainer,
+          artistColor: colorScheme.onTertiaryContainer.withValues(alpha: 0.7),
+          scoreColor: colorScheme.onTertiaryContainer,
+          trackColor: colorScheme.onTertiaryContainer,
+          ratingColor: colorScheme.onTertiaryContainer.withValues(alpha: 0.6),
+          watermarkColor: colorScheme.onTertiaryContainer,
         );
     }
   }
@@ -146,7 +163,13 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
         tracks: widget.tracks,
         trackRatings: widget.trackRatings,
         trackRatingTimestamps: widget.trackRatingTimestamps,
-        colorScheme: colorConfig.colorScheme,
+        backgroundColor: colorConfig.backgroundColor,
+        titleColor: colorConfig.titleColor,
+        artistColor: colorConfig.artistColor,
+        scoreColor: colorConfig.scoreColor,
+        trackColor: colorConfig.trackColor,
+        ratingColor: colorConfig.ratingColor,
+        watermarkColor: colorConfig.watermarkColor,
         albumCoverUrl: widget.albumCoverUrl,
         fontFamily: uiFontFamily,
         insightsTitle: widget.insightsTitle,
@@ -183,20 +206,11 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
     });
 
     try {
-      final result = await ImageGallerySaverPlus.saveImage(
-        _posterBytes!,
-        quality: 100,
-        name: 'album_poster_${widget.albumName}_${DateTime.now().millisecondsSinceEpoch}',
-      );
+      await _posterService.savePosterFromBytes(_posterBytes!, widget.albumName);
 
       if (mounted) {
-        if (result['isSuccess'] == true) {
-          Provider.of<NotificationService>(context, listen: false)
-              .showSnackBar(AppLocalizations.of(context)!.exportSuccess);
-        } else {
-          Provider.of<NotificationService>(context, listen: false)
-              .showErrorSnackBar(AppLocalizations.of(context)!.operationFailed);
-        }
+        Provider.of<NotificationService>(context, listen: false)
+            .showSnackBar(AppLocalizations.of(context)!.exportSuccess);
       }
     } catch (e) {
       if (mounted) {
@@ -221,9 +235,9 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
     });
 
     try {
-      await Share.shareXFiles(
-        [XFile(_tempFilePath!)],
-        text: widget.shareText,
+      await _posterService.sharePosterFile(
+        _tempFilePath!,
+        widget.shareText ?? '${widget.albumName} - ${widget.artistLine}',
       );
     } catch (e) {
       if (mounted) {
@@ -281,8 +295,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      colorConfig.colorScheme.surface,
-                      colorConfig.colorScheme.surface.withValues(alpha: 0.8),
+                      colorConfig.backgroundColor,
+                      colorConfig.backgroundColor.withValues(alpha: 0.8),
                     ],
                   ),
                 ),
@@ -298,25 +312,25 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
                           Container(
                             height: 2,
                             width: double.infinity,
-                            color: colorConfig.colorScheme.onSurface,
+                            color: colorConfig.titleColor,
                           ),
                           const SizedBox(height: 2),
                           Container(
                             height: 1,
                             width: 20,
-                            color: colorConfig.colorScheme.onSurfaceVariant,
+                            color: colorConfig.artistColor,
                           ),
                           const SizedBox(height: 4),
                           Container(
                             height: 1,
                             width: 16,
-                            color: colorConfig.colorScheme.primary,
+                            color: colorConfig.scoreColor,
                           ),
                           const SizedBox(height: 1),
                           Container(
                             height: 1,
                             width: 24,
-                            color: colorConfig.colorScheme.primary,
+                            color: colorConfig.trackColor,
                           ),
                         ],
                       ),

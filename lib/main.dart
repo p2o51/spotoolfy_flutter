@@ -141,6 +141,7 @@ class _MyThemedAppState extends State<MyThemedApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Spotoolfy',
       scaffoldMessengerKey: scaffoldMessengerKey,
       navigatorKey: navigatorKey,
       locale: _locale,

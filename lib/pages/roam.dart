@@ -1,10 +1,10 @@
 //roam.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 // import '../providers/firestore_provider.dart'; // Remove old provider
 import '../providers/local_database_provider.dart'; // Import new provider
-// import 'package:flutter/services.dart'; // Unnecessary import removed
 import 'package:cached_network_image/cached_network_image.dart'; // Import CachedNetworkImage
 import '../providers/spotify_provider.dart'; // <--- 添加 SpotifyProvider 导入
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -78,6 +78,7 @@ class _RoamState extends State<Roam> {
       formattedTimestamp = '$minutes:$seconds';
     }
 
+    HapticFeedback.mediumImpact();
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
@@ -116,6 +117,7 @@ class _RoamState extends State<Roam> {
                   leading: const Icon(Icons.play_circle_outline),
                   title: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
                   onTap: () async {
+                    HapticFeedback.lightImpact();
                     Navigator.pop(bottomSheetContext);
                     final trackUri = 'spotify:track:$trackId';
                     logger.d('Attempting to play URI: $trackUri from $songTimestampMs ms');
@@ -145,6 +147,7 @@ class _RoamState extends State<Roam> {
                 leading: const Icon(Icons.share_outlined),
                 title: Text(AppLocalizations.of(context)!.shareNote),
                 onTap: () {
+                  HapticFeedback.lightImpact();
                   Navigator.pop(bottomSheetContext);
                   Navigator.push(
                     context,
@@ -167,6 +170,7 @@ class _RoamState extends State<Roam> {
                 leading: const Icon(Icons.edit_outlined),
                 title: Text(AppLocalizations.of(context)!.editNote),
                 onTap: () {
+                  HapticFeedback.lightImpact();
                   Navigator.pop(bottomSheetContext);
                   _showEditDialog(context, record);
                 },
@@ -179,6 +183,7 @@ class _RoamState extends State<Roam> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 onTap: () {
+                  HapticFeedback.mediumImpact();
                   Navigator.pop(bottomSheetContext);
                   _confirmDeleteRecord(context, recordId, trackId);
                 },
@@ -239,6 +244,7 @@ class _RoamState extends State<Roam> {
                         ],
                         selected: {selectedRating}, // Use a Set for selected
                         onSelectionChanged: (Set<int> newSelection) {
+                           HapticFeedback.selectionClick();
                            setDialogState(() { // Update dialog state
                               selectedRating = newSelection.first;
                            });
@@ -260,6 +266,7 @@ class _RoamState extends State<Roam> {
                   TextButton(
                     child: Text(AppLocalizations.of(context)!.saveChanges),
                     onPressed: () {
+                      HapticFeedback.lightImpact();
                       localDbProvider.updateRecord(
                         recordId: recordId,
                         trackId: trackId,
@@ -293,6 +300,7 @@ class _RoamState extends State<Roam> {
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               child: Text(AppLocalizations.of(context)!.deleteNote),
               onPressed: () {
+                HapticFeedback.mediumImpact();
                 Provider.of<LocalDatabaseProvider>(context, listen: false).deleteRecord(
                    recordId: recordId,
                    trackId: trackId, // Pass trackId
@@ -306,7 +314,7 @@ class _RoamState extends State<Roam> {
     );
   }
 
-  // Build Today's Review Card
+  // Build Today's Review Card - Material 3 Style
   Widget _buildTodayReviewCard(BuildContext context, List<Map<String, dynamic>> records, SpotifyProvider spotifyProvider) {
     // Get a random record based on today's date (consistent for the day)
     final today = DateTime.now();
@@ -337,221 +345,140 @@ class _RoamState extends State<Roam> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colorScheme.primaryContainer,
-              colorScheme.primaryContainer.withValues(alpha: 0.6),
-              colorScheme.tertiaryContainer.withValues(alpha: 0.3),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.primary.withValues(alpha: 0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: trackId != null ? () {
-              final trackUri = 'spotify:track:$trackId';
-              try {
-                spotifyProvider.playTrack(trackUri: trackUri);
-              } catch (e) {
-                logger.d('Error playing track from review card: $e');
-              }
-            } : null,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: trackId != null ? () {
+          HapticFeedback.lightImpact();
+          final trackUri = 'spotify:track:$trackId';
+          try {
+            spotifyProvider.playTrack(trackUri: trackUri);
+          } catch (e) {
+            logger.d('Error playing track from review card: $e');
+          }
+        } : null,
+        child: Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header row with badge
+              Row(
                 children: [
-                  // Header row with badge and play button
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome_rounded,
-                              size: 14,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              AppLocalizations.of(context)!.todayReviewTitle,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.play_arrow_rounded,
-                          size: 20,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 16,
+                    color: colorScheme.primary,
                   ),
-                  const SizedBox(height: 16),
-                  // Main content row
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Album cover with shadow
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: CachedNetworkImage(
-                            imageUrl: albumCoverUrl ?? '',
-                            width: 72,
-                            height: 72,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              width: 72, height: 72,
-                              decoration: BoxDecoration(
-                                color: colorScheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.music_note_rounded, size: 32, color: colorScheme.onSecondaryContainer),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              width: 72, height: 72,
-                              decoration: BoxDecoration(
-                                color: colorScheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.music_note_rounded, size: 32, color: colorScheme.onSecondaryContainer),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Text content
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Track name
-                            Text(
-                              trackName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            // Artist name
-                            Text(
-                              artistName,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            // Rating icon
-                            Icon(
-                              ratingIcon,
-                              size: 20,
-                              color: colorScheme.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Note content or lyrics snapshot
-                  if (noteContent.isNotEmpty || (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (noteContent.isNotEmpty)
-                            Text(
-                              noteContent,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurface,
-                                height: 1.4,
-                              ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          if (noteContent.isNotEmpty && lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)
-                            const SizedBox(height: 8),
-                          if (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.format_quote_rounded,
-                                  size: 14,
-                                  color: colorScheme.onSurface.withValues(alpha: 0.5),
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    lyricsSnapshot,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurface.withValues(alpha: 0.7),
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
+                  const SizedBox(width: 6),
+                  Text(
+                    AppLocalizations.of(context)!.todayReviewTitle,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w500,
                     ),
-                  ],
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 12),
+              // Main content row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Album cover
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: albumCoverUrl ?? '',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 80, height: 80,
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Icon(Icons.music_note_rounded, size: 32, color: colorScheme.onSurfaceVariant),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 80, height: 80,
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Icon(Icons.music_note_rounded, size: 32, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Text content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Track name
+                        Text(
+                          trackName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        // Artist name
+                        Text(
+                          artistName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        // Rating icon and play hint
+                        Row(
+                          children: [
+                            Icon(
+                              ratingIcon,
+                              size: 18,
+                              color: colorScheme.primary,
+                            ),
+                            const Spacer(),
+                            Icon(
+                              Icons.play_circle_outline_rounded,
+                              size: 20,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              // Note content or lyrics snapshot
+              if (noteContent.isNotEmpty || (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty)) ...[
+                const SizedBox(height: 12),
+                if (noteContent.isNotEmpty)
+                  Text(
+                    noteContent,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                      height: 1.4,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                if (lyricsSnapshot != null && lyricsSnapshot.isNotEmpty) ...[
+                  if (noteContent.isNotEmpty) const SizedBox(height: 8),
+                  Text(
+                    '"$lyricsSnapshot"',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ],
           ),
         ),
       ),
@@ -679,6 +606,7 @@ class _RoamState extends State<Roam> {
                                   showCheckmark: false,
                                   onSelected: (selected) {
                                     if (selected) {
+                                      HapticFeedback.selectionClick();
                                       setState(() {
                                         _selectedRatingFilter = null;
                                         _showRatedOnly = false;
@@ -693,6 +621,7 @@ class _RoamState extends State<Roam> {
                                   selected: _selectedRatingFilter == 5 && !_showRatedOnly,
                                   showCheckmark: false,
                                   onSelected: fireCount > 0 ? (selected) {
+                                    HapticFeedback.selectionClick();
                                     setState(() {
                                       _selectedRatingFilter = selected ? 5 : null;
                                       _showRatedOnly = false;
@@ -706,6 +635,7 @@ class _RoamState extends State<Roam> {
                                   selected: _selectedRatingFilter == 3 && !_showRatedOnly,
                                   showCheckmark: false,
                                   onSelected: neutralCount > 0 ? (selected) {
+                                    HapticFeedback.selectionClick();
                                     setState(() {
                                       _selectedRatingFilter = selected ? 3 : null;
                                       _showRatedOnly = false;
@@ -719,6 +649,7 @@ class _RoamState extends State<Roam> {
                                   selected: _selectedRatingFilter == 0 && !_showRatedOnly,
                                   showCheckmark: false,
                                   onSelected: downCount > 0 ? (selected) {
+                                    HapticFeedback.selectionClick();
                                     setState(() {
                                       _selectedRatingFilter = selected ? 0 : null;
                                       _showRatedOnly = false;
@@ -732,6 +663,7 @@ class _RoamState extends State<Roam> {
                                   selected: _showRatedOnly,
                                   showCheckmark: false,
                                   onSelected: ratedOnlyCount > 0 ? (selected) {
+                                    HapticFeedback.selectionClick();
                                     setState(() {
                                       _showRatedOnly = selected;
                                       _selectedRatingFilter = null;
@@ -879,6 +811,7 @@ class _RoamState extends State<Roam> {
                                 children: [
                                   InkWell(
                                     onTap: trackId != null ? () {
+                                      HapticFeedback.lightImpact();
                                       logger.d('Tapped on card with trackId: $trackId');
                                       final trackUri = 'spotify:track:$trackId';
                                       logger.d('Attempting to play URI: $trackUri');
@@ -894,9 +827,9 @@ class _RoamState extends State<Roam> {
                                         );
                                       }
                                     } : null,
-                                    onLongPress: recordId != null ? () { 
-                                      logger.d('Long pressed on card with recordId: $recordId'); 
-                                      _showActionSheet(context, record); 
+                                    onLongPress: recordId != null ? () {
+                                      logger.d('Long pressed on card with recordId: $recordId');
+                                      _showActionSheet(context, record);
                                     } : null,
                                     borderRadius: BorderRadius.circular(16),
                                     child: Card(
@@ -1181,6 +1114,7 @@ class _RoamState extends State<Roam> {
                             confirmDismiss: (direction) async {
                               if (direction == DismissDirection.startToEnd) {
                                 // Swipe right to play
+                                HapticFeedback.lightImpact();
                                 if (trackId != null) {
                                   final trackUri = 'spotify:track:$trackId';
                                   try {
@@ -1192,6 +1126,7 @@ class _RoamState extends State<Roam> {
                                 return false; // Don't dismiss
                               } else if (direction == DismissDirection.endToStart) {
                                 // Swipe left to delete - show confirmation
+                                HapticFeedback.mediumImpact();
                                 if (recordId != null && trackId != null) {
                                   return await showDialog<bool>(
                                     context: context,
@@ -1241,6 +1176,7 @@ class _RoamState extends State<Roam> {
                                 ),
                                 child: InkWell(
                                   onTap: trackId != null ? () {
+                                    HapticFeedback.lightImpact();
                                     logger.d('Tapped on card with trackId: $trackId');
                                     final trackUri = 'spotify:track:$trackId';
                                     logger.d('Attempting to play URI: $trackUri');

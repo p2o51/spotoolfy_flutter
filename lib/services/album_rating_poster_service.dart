@@ -1,17 +1,18 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+
+final _logger = Logger();
 
 class AlbumRatingPosterService {
   AlbumRatingPosterService();
-
-  final Logger _logger = Logger();
 
   Future<void> shareAlbumPoster({
     required String albumName,
@@ -22,7 +23,13 @@ class AlbumRatingPosterService {
     required List<Map<String, dynamic>> tracks,
     required Map<String, int?> trackRatings,
     required Map<String, int?> trackRatingTimestamps,
-    required ColorScheme colorScheme,
+    required Color backgroundColor,
+    required Color titleColor,
+    required Color artistColor,
+    required Color scoreColor,
+    required Color trackColor,
+    required Color ratingColor,
+    required Color watermarkColor,
     String? albumCoverUrl,
     String? fontFamily,
     String? insightsTitle,
@@ -37,7 +44,13 @@ class AlbumRatingPosterService {
       tracks: tracks,
       trackRatings: trackRatings,
       trackRatingTimestamps: trackRatingTimestamps,
-      colorScheme: colorScheme,
+      backgroundColor: backgroundColor,
+      titleColor: titleColor,
+      artistColor: artistColor,
+      scoreColor: scoreColor,
+      trackColor: trackColor,
+      ratingColor: ratingColor,
+      watermarkColor: watermarkColor,
       albumCoverUrl: albumCoverUrl,
       fontFamily: fontFamily,
       insightsTitle: insightsTitle,
@@ -66,263 +79,285 @@ class AlbumRatingPosterService {
     required List<Map<String, dynamic>> tracks,
     required Map<String, int?> trackRatings,
     required Map<String, int?> trackRatingTimestamps,
-    required ColorScheme colorScheme,
+    required Color backgroundColor,
+    required Color titleColor,
+    required Color artistColor,
+    required Color scoreColor,
+    required Color trackColor,
+    required Color ratingColor,
+    required Color watermarkColor,
     String? albumCoverUrl,
     String? fontFamily,
     String? insightsTitle,
   }) async {
-    const double width = 1080;
-    const double height = 1920;
-    const double horizontalPadding = 96.0;
-    const double topPadding = 120.0;
-    const double coverSize = 480.0;
+    // 使用与 lyrics/note poster 相同的缩放因子
+    const double scaleFactor = 2.0;
+    const double baseWidth = 720;
+    const double width = baseWidth * scaleFactor;
+    const double horizontalMargin = 32.0 * scaleFactor;
+    const double contentWidth = width - 2 * horizontalMargin;
 
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, height));
+    // 字号调整
+    const double titleFontSize = 28.0 * scaleFactor;
+    const double artistFontSize = 20.0 * scaleFactor;
+    const double scoreFontSize = 96.0 * scaleFactor;
+    const double insightsFontSize = 20.0 * scaleFactor;
+    const double trackFontSize = 24.0 * scaleFactor;
+    const double ratingFontSize = 18.0 * scaleFactor;
+    const double watermarkFontSize = 20.0 * scaleFactor;
 
-    final backgroundPaint = Paint()..color = colorScheme.surface;
-    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), backgroundPaint);
+    const double topMargin = 40.0 * scaleFactor;
+    const double bottomMargin = 40.0 * scaleFactor;
+    const double elementSpacing = 24.0 * scaleFactor;
+    const double interTextSpacing = 8.0 * scaleFactor;
+    const double albumArtSize = 100.0 * scaleFactor;
+    const double albumCornerRadius = 8.0 * scaleFactor;
+    const double headerSpacing = 20.0 * scaleFactor;
+    const double trackRowHeight = 56.0 * scaleFactor;
 
-    ui.Image? coverImage;
+    double calculatedHeight = topMargin;
+
+    ui.Image? loadedAlbumImage;
+    double headerHeight = 0;
+
+    // 加载封面图片
     if (albumCoverUrl != null && albumCoverUrl.isNotEmpty) {
-      coverImage = await _loadNetworkImage(albumCoverUrl);
+      try {
+        loadedAlbumImage = await _loadNetworkImage(albumCoverUrl);
+      } catch (e) {
+        _logger.w('Failed to load album cover: $e');
+      }
     }
 
-    double currentY = topPadding;
-    final onSurface = colorScheme.onSurface;
-    final onSurfaceVariant = colorScheme.onSurfaceVariant;
-    final primary = colorScheme.primary;
-    final primaryContainer = colorScheme.primaryContainer;
-    final onPrimaryContainer = colorScheme.onPrimaryContainer;
-    final surfaceContainerHighest = colorScheme.surfaceContainerHighest;
-
-    final coverRect = Rect.fromLTWH(
-      (width - coverSize) / 2,
-      currentY,
-      coverSize,
-      coverSize,
+    // 计算 header 高度
+    final titleStyle = TextStyle(
+      fontFamily: fontFamily,
+      fontSize: titleFontSize,
+      color: titleColor,
+      fontWeight: FontWeight.w600,
+    );
+    final artistStyle = TextStyle(
+      fontFamily: fontFamily,
+      fontSize: artistFontSize,
+      color: artistColor,
+      fontWeight: FontWeight.w400,
     );
 
-    if (coverImage != null) {
-      final coverRRect =
-          RRect.fromRectAndRadius(coverRect, const Radius.circular(48));
-      canvas.save();
-      canvas.clipRRect(coverRRect);
-      final srcRect = Rect.fromLTWH(
-        0,
-        0,
-        coverImage.width.toDouble(),
-        coverImage.height.toDouble(),
-      );
-      canvas.drawImageRect(coverImage, srcRect, coverRect, Paint());
-      canvas.restore();
+    final titlePainter = TextPainter(
+      text: TextSpan(text: albumName, style: titleStyle),
+      textDirection: TextDirection.ltr,
+    );
+    final artistPainter = TextPainter(
+      text: TextSpan(text: artistLine, style: artistStyle),
+      textDirection: TextDirection.ltr,
+    );
 
-      // 添加 Material 风格的封面边框
-      final borderPaint = Paint()
-        ..color = surfaceContainerHighest.withValues(alpha: 0.3)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      canvas.drawRRect(coverRRect, borderPaint);
+    if (loadedAlbumImage != null) {
+      final maxTextWidth = contentWidth - albumArtSize - headerSpacing;
+      titlePainter.layout(maxWidth: maxTextWidth);
+      artistPainter.layout(maxWidth: maxTextWidth);
+      final textTotalHeight =
+          titlePainter.height + interTextSpacing + artistPainter.height;
+      headerHeight =
+          albumArtSize > textTotalHeight ? albumArtSize : textTotalHeight;
     } else {
-      final placeholderPaint = Paint()
-        ..color = surfaceContainerHighest.withValues(alpha: 0.5);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(coverRect, const Radius.circular(48)),
-        placeholderPaint,
-      );
-      _paintText(
-        canvas,
-        text: 'No Cover',
-        maxWidth: coverSize - 40,
-        offset: Offset(coverRect.center.dx, coverRect.center.dy),
-        style: TextStyle(
-          fontFamily: fontFamily,
-          fontSize: 36,
-          fontWeight: FontWeight.w600,
-          color: onSurfaceVariant.withValues(alpha: 0.6),
-        ),
-        align: TextAlign.center,
-        center: true,
-      );
+      titlePainter.layout(maxWidth: contentWidth);
+      artistPainter.layout(maxWidth: contentWidth);
+      headerHeight =
+          titlePainter.height + interTextSpacing + artistPainter.height;
     }
+    calculatedHeight += headerHeight + elementSpacing;
 
-    currentY = coverRect.bottom + 64;
-
-    _paintText(
-      canvas,
-      text: albumName,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, currentY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 64,
-        fontWeight: FontWeight.w600,
-        color: onSurface,
-        letterSpacing: -0.5,
-      ),
-      align: TextAlign.center,
-      center: true,
+    // 评分显示
+    final scoreStyle = TextStyle(
+      fontFamily: fontFamily,
+      fontSize: scoreFontSize,
+      color: scoreColor,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -2.0,
     );
-    currentY += 104;
-
-    _paintText(
-      canvas,
-      text: artistLine,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, currentY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 36,
-        fontWeight: FontWeight.w400,
-        color: onSurfaceVariant.withValues(alpha: 0.8),
-        letterSpacing: 0.15,
-      ),
-      align: TextAlign.center,
-      center: true,
-    );
-    currentY += 120;
-
     final averageLabel =
         averageScore != null ? averageScore.toStringAsFixed(1) : '--';
-    _paintText(
-      canvas,
-      text: averageLabel,
-      maxWidth: width - horizontalPadding * 2,
-      offset: Offset(width / 2, currentY),
-      style: TextStyle(
-        fontFamily: fontFamily,
-        fontSize: 180,
-        fontWeight: FontWeight.w700,
-        color: primary,
-        letterSpacing: -2.0,
-      ),
-      align: TextAlign.center,
-      center: true,
+    final scorePainter = TextPainter(
+      text: TextSpan(text: averageLabel, style: scoreStyle),
+      textDirection: TextDirection.ltr,
     );
-    currentY += 260;
+    scorePainter.layout();
+    calculatedHeight += scorePainter.height + elementSpacing;
 
+    // Insights 标题
+    TextPainter? insightsPainter;
     if (insightsTitle != null && insightsTitle.trim().isNotEmpty) {
-      // 为 insights 添加突出的背景标签
-      final insightsPainter = TextPainter(
-        text: TextSpan(
-          text: insightsTitle.trim(),
-          style: TextStyle(
-            fontFamily: fontFamily,
-            fontSize: 38,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.25,
-          ),
-        ),
+      final insightsStyle = TextStyle(
+        fontFamily: fontFamily,
+        fontSize: insightsFontSize,
+        color: artistColor,
+        fontWeight: FontWeight.w500,
+        fontStyle: FontStyle.italic,
+      );
+      insightsPainter = TextPainter(
+        text: TextSpan(text: insightsTitle.trim(), style: insightsStyle),
         textDirection: TextDirection.ltr,
       );
-      insightsPainter.layout(maxWidth: width - horizontalPadding * 2);
-
-      final insightsBgRect = Rect.fromCenter(
-        center: Offset(width / 2, currentY + insightsPainter.height / 2),
-        width: insightsPainter.width + 48,
-        height: insightsPainter.height + 24,
-      );
-      final insightsBgPaint = Paint()
-        ..color = primaryContainer.withValues(alpha: 0.4);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(insightsBgRect, const Radius.circular(20)),
-        insightsBgPaint,
-      );
-
-      _paintText(
-        canvas,
-        text: insightsTitle.trim(),
-        maxWidth: width - horizontalPadding * 2,
-        offset: Offset(width / 2, currentY),
-        style: TextStyle(
-          fontFamily: fontFamily,
-          fontSize: 38,
-          fontWeight: FontWeight.w500,
-          color: onPrimaryContainer,
-          letterSpacing: 0.25,
-        ),
-        align: TextAlign.center,
-        center: true,
-      );
-      currentY += 120;
+      insightsPainter.layout(maxWidth: contentWidth);
+      calculatedHeight += insightsPainter.height + elementSpacing;
     }
 
+    // 曲目列表
     final topTracks = _buildTopTracks(
       tracks: tracks,
       trackRatings: trackRatings,
       trackRatingTimestamps: trackRatingTimestamps,
     );
 
-    final listWidth = width - horizontalPadding * 2;
-    final listStartX = horizontalPadding;
-    double rowY = currentY;
-
     if (topTracks.isNotEmpty) {
+      calculatedHeight += topTracks.length * trackRowHeight;
+      calculatedHeight += elementSpacing;
+    }
+
+    // 水印
+    final watermarkStyle = TextStyle(
+      fontFamily: fontFamily,
+      fontSize: watermarkFontSize,
+      color: watermarkColor,
+      fontWeight: FontWeight.w400,
+    );
+    final watermarkPainter = TextPainter(
+      text: TextSpan(text: 'Spotoolfy', style: watermarkStyle),
+      textDirection: TextDirection.ltr,
+    );
+    watermarkPainter.layout(maxWidth: contentWidth);
+
+    ui.Image? watermarkIcon;
+    try {
+      watermarkIcon =
+          await _loadAssetImage('assets/icons/adaptive_icon_monochrome.png');
+    } catch (e) {
+      _logger.w('Failed to load watermark icon: $e');
+    }
+
+    final double iconSize = watermarkPainter.height;
+    const double iconTextSpacing = 8.0 * scaleFactor;
+    double watermarkHeight = watermarkPainter.height;
+    if (watermarkIcon != null) {
+      watermarkHeight = watermarkHeight > iconSize ? watermarkHeight : iconSize;
+    }
+    calculatedHeight += watermarkHeight + bottomMargin;
+
+    final double finalPosterHeight =
+        calculatedHeight < 400 ? 400 : calculatedHeight;
+
+    // 开始绘制
+    final recorder = ui.PictureRecorder();
+    final canvas =
+        Canvas(recorder, Rect.fromLTWH(0, 0, width, finalPosterHeight));
+
+    // 背景
+    final backgroundPaint = Paint()..color = backgroundColor;
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, width, finalPosterHeight), backgroundPaint);
+
+    double currentY = topMargin;
+
+    // 绘制 header（封面 + 标题/艺术家）
+    if (loadedAlbumImage != null) {
+      final maxTextWidth = contentWidth - albumArtSize - headerSpacing;
+      titlePainter.layout(maxWidth: maxTextWidth);
+      artistPainter.layout(maxWidth: maxTextWidth);
+
+      // 绘制圆角封面
+      final albumX = horizontalMargin;
+      final albumRect =
+          Rect.fromLTWH(albumX, currentY, albumArtSize, albumArtSize);
+      final albumRRect = RRect.fromRectAndRadius(
+          albumRect, Radius.circular(albumCornerRadius));
+
+      canvas.save();
+      canvas.clipRRect(albumRRect);
+      canvas.drawImageRect(
+        loadedAlbumImage,
+        Rect.fromLTWH(0, 0, loadedAlbumImage.width.toDouble(),
+            loadedAlbumImage.height.toDouble()),
+        albumRect,
+        Paint(),
+      );
+      canvas.restore();
+
+      // 绘制文字
+      final textStartX = albumX + albumArtSize + headerSpacing;
+      final textTotalHeight =
+          titlePainter.height + interTextSpacing + artistPainter.height;
+      final textStartY = currentY + (albumArtSize - textTotalHeight) / 2;
+
+      titlePainter.paint(canvas, Offset(textStartX, textStartY));
+      artistPainter.paint(canvas,
+          Offset(textStartX, textStartY + titlePainter.height + interTextSpacing));
+
+      currentY += headerHeight + elementSpacing;
+    } else {
+      titlePainter.layout(maxWidth: contentWidth);
+      artistPainter.layout(maxWidth: contentWidth);
+
+      titlePainter.paint(canvas, Offset(horizontalMargin, currentY));
+      currentY += titlePainter.height + interTextSpacing;
+      artistPainter.paint(canvas, Offset(horizontalMargin, currentY));
+      currentY += artistPainter.height + elementSpacing;
+    }
+
+    // 绘制评分（左对齐）
+    scorePainter.paint(canvas, Offset(horizontalMargin, currentY));
+    currentY += scorePainter.height + elementSpacing;
+
+    // 绘制 insights 标题
+    if (insightsPainter != null) {
+      insightsPainter.paint(canvas, Offset(horizontalMargin, currentY));
+      currentY += insightsPainter.height + elementSpacing;
+    }
+
+    // 绘制曲目列表
+    if (topTracks.isNotEmpty) {
+      final trackStyle = TextStyle(
+        fontFamily: fontFamily,
+        fontSize: trackFontSize,
+        color: trackColor,
+        fontWeight: FontWeight.w500,
+      );
+
       for (int i = 0; i < topTracks.length; i++) {
         final entry = topTracks[i];
         final numberLabel = entry.position.toString().padLeft(2, '0');
-        final titleMaxWidth = listWidth * 0.58;
 
-        // 为列表项添加交替背景色
-        if (i % 2 == 0) {
-          final itemBgRect = Rect.fromLTWH(
-            listStartX - 24,
-            rowY - 16,
-            listWidth + 48,
-            100,
-          );
-          final itemBgPaint = Paint()
-            ..color = surfaceContainerHighest.withValues(alpha: 0.25);
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(itemBgRect, const Radius.circular(16)),
-            itemBgPaint,
-          );
-        }
-
-        _paintText(
-          canvas,
-          text: '$numberLabel  ${entry.title}',
-          maxWidth: titleMaxWidth,
-          offset: Offset(listStartX, rowY),
-          style: TextStyle(
-            fontFamily: fontFamily,
-            fontSize: 38,
-            fontWeight: FontWeight.w500,
-            color: onSurface,
-            letterSpacing: 0.15,
-          ),
+        // 绘制曲目号和标题
+        final trackTextPainter = TextPainter(
+          text: TextSpan(text: '$numberLabel  ${entry.title}', style: trackStyle),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+          ellipsis: '...',
         );
+        trackTextPainter.layout(maxWidth: contentWidth * 0.65);
+        trackTextPainter.paint(canvas, Offset(horizontalMargin, currentY));
 
-        // 绘制评分图标和信息
-        final ratingStartX = listStartX + titleMaxWidth + 24;
-        final ratingY = rowY + 48;
-
+        // 绘制评分信息
         if (entry.rating != null) {
-          // 根据评分选择图标和颜色
           String iconText;
           Color iconColor;
-          Color bgColor;
 
           switch (entry.rating!) {
             case 5:
-              iconText = String.fromCharCode(0xe23a); // whatshot icon
-              iconColor = primary;
-              bgColor = primaryContainer.withValues(alpha: 0.4);
+              iconText = String.fromCharCode(0xf654); // whatshot_rounded
+              iconColor = scoreColor;
               break;
             case 3:
-              iconText = String.fromCharCode(0xe7f3); // sentiment_neutral icon
-              iconColor = onSurfaceVariant;
-              bgColor = surfaceContainerHighest.withValues(alpha: 0.6);
+              iconText = String.fromCharCode(0xf52e); // sentiment_neutral_rounded
+              iconColor = ratingColor;
               break;
             case 0:
             default:
-              iconText = String.fromCharCode(0xe8db); // thumb_down icon
-              iconColor = onSurfaceVariant.withValues(alpha: 0.7);
-              bgColor = surfaceContainerHighest.withValues(alpha: 0.5);
+              iconText = String.fromCharCode(0xf589); // thumb_down_rounded
+              iconColor = ratingColor.withValues(alpha: 0.6);
               break;
           }
 
-          // 绘制带背景的评分信息
           final ratingLabel = _formatDate(entry.recordedAt);
           final ratingPainter = TextPainter(
             text: TextSpan(
@@ -331,7 +366,7 @@ class AlbumRatingPosterService {
                   text: iconText,
                   style: TextStyle(
                     fontFamily: 'MaterialIcons',
-                    fontSize: 32,
+                    fontSize: ratingFontSize,
                     color: iconColor,
                   ),
                 ),
@@ -339,139 +374,104 @@ class AlbumRatingPosterService {
                   text: '  $ratingLabel',
                   style: TextStyle(
                     fontFamily: fontFamily,
-                    fontSize: 30,
+                    fontSize: ratingFontSize,
                     fontWeight: FontWeight.w400,
-                    color: onSurfaceVariant.withValues(alpha: 0.8),
-                    letterSpacing: 0.25,
+                    color: ratingColor,
                   ),
                 ),
               ],
             ),
             textDirection: TextDirection.ltr,
           );
-          ratingPainter.layout(maxWidth: listWidth - titleMaxWidth - 32);
+          ratingPainter.layout();
 
-          final ratingBgRect = Rect.fromLTWH(
-            ratingStartX - 12,
-            ratingY - 8,
-            ratingPainter.width + 24,
-            ratingPainter.height + 16,
-          );
-          final ratingBgPaint = Paint()..color = bgColor;
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(ratingBgRect, const Radius.circular(12)),
-            ratingBgPaint,
-          );
-
-          ratingPainter.paint(canvas, Offset(ratingStartX, ratingY));
-        } else {
-          // 未评分显示 N/A
-          final naPainter = TextPainter(
-            text: TextSpan(
-              text: 'N/A',
-              style: TextStyle(
-                fontFamily: fontFamily,
-                fontSize: 30,
-                fontWeight: FontWeight.w400,
-                color: onSurfaceVariant.withValues(alpha: 0.5),
-                letterSpacing: 0.25,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-          );
-          naPainter.layout();
-
-          final naBgRect = Rect.fromLTWH(
-            ratingStartX - 12,
-            ratingY - 8,
-            naPainter.width + 24,
-            naPainter.height + 16,
-          );
-          final naBgPaint = Paint()
-            ..color = surfaceContainerHighest.withValues(alpha: 0.3);
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(naBgRect, const Radius.circular(12)),
-            naBgPaint,
-          );
-
-          naPainter.paint(canvas, Offset(ratingStartX, ratingY));
+          final ratingX = width - horizontalMargin - ratingPainter.width;
+          final ratingY = currentY + (trackTextPainter.height - ratingPainter.height) / 2;
+          ratingPainter.paint(canvas, Offset(ratingX, ratingY));
         }
 
-        rowY += 104;
+        currentY += trackRowHeight;
       }
-    } else {
-      _paintText(
-        canvas,
-        text: '给几首歌打分，生成专属专辑评分榜单',
-        maxWidth: listWidth,
-        offset: Offset(listStartX, rowY),
-        style: TextStyle(
-          fontFamily: fontFamily,
-          fontSize: 36,
-          fontWeight: FontWeight.w400,
-          color: onSurfaceVariant.withValues(alpha: 0.7),
-          letterSpacing: 0.25,
-        ),
+      currentY += elementSpacing - trackRowHeight + trackFontSize;
+    }
+
+    // 绘制水印
+    if (watermarkIcon != null) {
+      final iconY =
+          currentY + (watermarkHeight - iconSize) / 2;
+      canvas.drawImageRect(
+        watermarkIcon,
+        Rect.fromLTWH(0, 0, watermarkIcon.width.toDouble(),
+            watermarkIcon.height.toDouble()),
+        Rect.fromLTWH(horizontalMargin, iconY, iconSize, iconSize),
+        Paint()
+          ..colorFilter = ColorFilter.mode(watermarkColor, BlendMode.srcIn),
       );
-      rowY += 76;
+
+      final textX = horizontalMargin + iconSize + iconTextSpacing;
+      final textY = currentY + (watermarkHeight - watermarkPainter.height) / 2;
+      watermarkPainter.paint(canvas, Offset(textX, textY));
+    } else {
+      watermarkPainter.paint(canvas, Offset(horizontalMargin, currentY));
     }
 
     final picture = recorder.endRecording();
-    final rendered = await picture.toImage(width.toInt(), height.toInt());
-    final byteData = await rendered.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData == null) {
-      throw Exception('Failed to encode album rating poster.');
-    }
+    final img = await picture.toImage(width.toInt(), finalPosterHeight.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
 
-    return byteData.buffer.asUint8List();
+    return byteData!.buffer.asUint8List();
   }
 
-  Future<ui.Image?> _loadNetworkImage(String url) async {
+  Future<String?> savePosterFromBytes(Uint8List imageBytes, String albumName) async {
     try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) {
-        _logger.w('Failed to load album cover: HTTP ${response.statusCode}');
-        return null;
+      final result = await ImageGallerySaverPlus.saveImage(
+        imageBytes,
+        quality: 90,
+        name: "album_poster_${albumName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}",
+      );
+      if (result != null && result['isSuccess'] == true) {
+        _logger.d('Album poster saved to gallery: ${result["filePath"]}');
+        return result["filePath"];
+      } else {
+        throw Exception('Failed to save album poster');
       }
+    } catch (e) {
+      _logger.e('Error saving album poster: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> sharePosterFile(String imagePath, String textToShare) async {
+    try {
+      await Share.shareXFiles(
+        [XFile(imagePath)],
+        text: textToShare,
+      );
+      _logger.d('Album poster shared successfully');
+    } catch (e) {
+      _logger.e('Error sharing album poster: $e');
+      rethrow;
+    }
+  }
+
+  Future<ui.Image> _loadNetworkImage(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
       final bytes = response.bodyBytes;
-      if (bytes.isEmpty) {
-        return null;
-      }
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       return frame.image;
-    } catch (e, s) {
-      _logger.w('Failed to load album cover for poster',
-          error: e, stackTrace: s);
-      return null;
+    } else {
+      throw Exception('Failed to load image from $url');
     }
   }
 
-  void _paintText(
-    Canvas canvas, {
-    required String text,
-    required double maxWidth,
-    required Offset offset,
-    required TextStyle style,
-    TextAlign align = TextAlign.left,
-    bool center = false,
-  }) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: align,
-    );
-    painter.layout(maxWidth: maxWidth);
-
-    Offset paintOffset = offset;
-    if (center) {
-      paintOffset = Offset(
-        offset.dx - painter.width / 2,
-        offset.dy,
-      );
-    }
-
-    painter.paint(canvas, paintOffset);
+  Future<ui.Image> _loadAssetImage(String assetPath) async {
+    final data = await rootBundle.load(assetPath);
+    final bytes = data.buffer.asUint8List();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
   }
 
   List<_PosterTrackEntry> _buildTopTracks({
@@ -499,7 +499,6 @@ class AlbumRatingPosterService {
       );
     }
 
-    // 按原始曲目顺序排序，不再按评分排序
     return entries.take(6).toList();
   }
 

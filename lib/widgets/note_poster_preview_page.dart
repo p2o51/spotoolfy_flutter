@@ -65,11 +65,11 @@ class NotePosterColorConfig {
       case NotePosterStyle.style4:
         return NotePosterColorConfig(
           backgroundColor: colorScheme.tertiaryContainer,
-          titleColor: colorScheme.tertiary,
-          artistColor: Color.lerp(colorScheme.tertiary, Colors.white, 0.5)!,
-          noteColor: colorScheme.tertiary,
-          lyricsColor: colorScheme.tertiary.withValues(alpha: 0.7),
-          watermarkColor: colorScheme.tertiary,
+          titleColor: colorScheme.onTertiaryContainer,
+          artistColor: colorScheme.onTertiaryContainer.withValues(alpha: 0.7),
+          noteColor: colorScheme.onTertiaryContainer,
+          lyricsColor: colorScheme.onTertiaryContainer.withValues(alpha: 0.6),
+          watermarkColor: colorScheme.onTertiaryContainer,
         );
     }
   }
