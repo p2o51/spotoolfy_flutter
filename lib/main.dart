@@ -27,6 +27,7 @@ import 'services/language_service.dart';
 import 'services/lyrics_service.dart';
 import 'services/notification_service.dart';
 import 'services/settings_service.dart';
+import 'utils/responsive.dart';
 import 'widgets/spotify_selectors.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -383,8 +384,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // 检查屏幕宽度
-    bool isLargeScreen = MediaQuery.of(context).size.width > 600;
+    // 使用响应式工具检查屏幕宽度
+    final isLargeScreen = context.isLargeScreen;
 
     return Scaffold(
       appBar: AppBar(

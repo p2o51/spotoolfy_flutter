@@ -1314,4 +1314,25 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0 ($date)';
   }
+
+  @override
+  String get ratingLabel => 'Rating';
+
+  @override
+  String get lyricsSnapshotLabel => 'Lyrics Snapshot';
+
+  @override
+  String get addNoteHint => 'Add a note...';
+
+  @override
+  String get changesSaved => 'Changes saved';
+
+  @override
+  String get play => 'Play';
+
+  @override
+  String get randomReviewTitle => 'Random Review';
+
+  @override
+  String get thisDayInHistory => 'This Day in History';
 }

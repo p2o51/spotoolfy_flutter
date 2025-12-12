@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../services/notification_service.dart';
-import '../services/settings_service.dart';
-import '../services/gemini_chat_service.dart';
+
+import '../l10n/app_localizations.dart';
 import '../models/poster_lyric_line.dart';
 import '../models/translation_load_result.dart';
 import '../providers/spotify_provider.dart';
-import 'lyrics_poster_preview_page.dart';
-import 'ai_chat_sheet.dart';
+import '../services/gemini_chat_service.dart';
+import '../services/notification_service.dart';
+import '../services/settings_service.dart';
+import '../utils/responsive.dart';
 import 'add_note.dart';
-import '../l10n/app_localizations.dart';
+import 'ai_chat_sheet.dart';
+import 'lyrics_poster_preview_page.dart';
 
 enum _TranslationMenuAction {
   copyAllOriginal,
@@ -425,17 +427,16 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     }
 
     // 导航到海报预览页面
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LyricsPosterPreviewPage(
-          lyrics: posterLyricLines.map((line) => line.text).join('\n'),
-          posterLyricLines: posterLyricLines,
-          trackTitle: widget.trackTitle,
-          artistName: widget.artistName,
-          albumCoverUrl: widget.albumCoverUrl,
-        ),
+    ResponsiveNavigation.showSecondaryPage(
+      context: context,
+      child: LyricsPosterPreviewPage(
+        lyrics: posterLyricLines.map((line) => line.text).join('\n'),
+        posterLyricLines: posterLyricLines,
+        trackTitle: widget.trackTitle,
+        artistName: widget.artistName,
+        albumCoverUrl: widget.albumCoverUrl,
       ),
+      preferredMode: SecondaryPageMode.fullScreen,
     );
   }
 

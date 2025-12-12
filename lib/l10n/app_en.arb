@@ -810,5 +810,12 @@
         "type": "String"
       }
     }
-  }
+  },
+  "ratingLabel": "Rating",
+  "lyricsSnapshotLabel": "Lyrics Snapshot",
+  "addNoteHint": "Add a note...",
+  "changesSaved": "Changes saved",
+  "play": "Play",
+  "randomReviewTitle": "Random Review",
+  "thisDayInHistory": "This Day in History"
 }

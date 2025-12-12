@@ -2,14 +2,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../l10n/app_localizations.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
-import '../services/spotify_service.dart';
-import '../widgets/materialui.dart';
 import '../services/album_insights_service.dart';
+import '../services/spotify_service.dart';
+import '../utils/responsive.dart';
 import '../widgets/album_poster_preview_page.dart';
+import '../widgets/materialui.dart';
+import '../widgets/time_machine_carousel.dart'; // For AlbumColorExtractor
 
 class AlbumPage extends StatefulWidget {
   final String albumId;
@@ -41,6 +43,9 @@ class _AlbumPageState extends State<AlbumPage> {
   // Cached computed values
   double? _cachedAverageScore;
   int _cachedRatedTrackCount = 0;
+
+  // Dynamic color from album cover
+  ColorScheme? _albumColorScheme;
 
   @override
   void initState() {
@@ -104,6 +109,7 @@ class _AlbumPageState extends State<AlbumPage> {
         _updateComputedValues();
       });
       _loadCachedAlbumInsights();
+      _extractAlbumColors();
     } catch (e) {
       if (!mounted) return;
       final message = e is SpotifyAuthException ? e.message : e.toString();
@@ -164,23 +170,22 @@ class _AlbumPageState extends State<AlbumPage> {
     );
 
     // Navigate to poster preview page
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AlbumPosterPreviewPage(
-          albumName: albumName,
-          artistLine: artistLine,
-          averageScore: _cachedAverageScore,
-          ratedTrackCount: _cachedRatedTrackCount,
-          totalTrackCount: _tracks.length,
-          tracks: _tracks,
-          trackRatings: _trackRatings,
-          trackRatingTimestamps: _trackRatingTimestamps,
-          albumCoverUrl: coverUrl,
-          insightsTitle: insightsTitle,
-          shareText: shareText,
-        ),
+    ResponsiveNavigation.showSecondaryPage(
+      context: context,
+      child: AlbumPosterPreviewPage(
+        albumName: albumName,
+        artistLine: artistLine,
+        averageScore: _cachedAverageScore,
+        ratedTrackCount: _cachedRatedTrackCount,
+        totalTrackCount: _tracks.length,
+        tracks: _tracks,
+        trackRatings: _trackRatings,
+        trackRatingTimestamps: _trackRatingTimestamps,
+        albumCoverUrl: coverUrl,
+        insightsTitle: insightsTitle,
+        shareText: shareText,
       ),
+      preferredMode: SecondaryPageMode.fullScreen,
     );
   }
 
@@ -220,6 +225,20 @@ class _AlbumPageState extends State<AlbumPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.failedToPlaySong(e.toString()))),
       );
+    }
+  }
+
+  Future<void> _extractAlbumColors() async {
+    final coverUrl = _extractCoverUrl();
+    if (coverUrl == null) return;
+
+    final brightness = Theme.of(context).brightness;
+    final colorScheme = await AlbumColorExtractor.extractFromUrl(coverUrl, brightness);
+
+    if (mounted && colorScheme != null) {
+      setState(() {
+        _albumColorScheme = colorScheme;
+      });
     }
   }
 
@@ -621,6 +640,9 @@ class _AlbumPageState extends State<AlbumPage> {
             ? (generatedAtLabel ?? l10n.albumInsightReadyStatus)
             : l10n.clickToGenerateAlbumInsights;
 
+    // 使用动态提取的颜色
+    final albumColors = _albumColorScheme ?? theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -753,11 +775,16 @@ class _AlbumPageState extends State<AlbumPage> {
           ],
         ),
         const SizedBox(height: 12),
-        Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            color: albumColors.primaryContainer.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: albumColors.primary.withValues(alpha: 0.2),
+              width: 1,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
@@ -785,7 +812,7 @@ class _AlbumPageState extends State<AlbumPage> {
                                 child: Text(
                                   insightsTitleRaw,
                                   style: theme.textTheme.titleMedium?.copyWith(
-                                    color: theme.colorScheme.primary,
+                                    color: albumColors.primary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                   maxLines: 2,
@@ -805,6 +832,10 @@ class _AlbumPageState extends State<AlbumPage> {
                               }
                               _generateAlbumInsights();
                             },
+                      style: IconButton.styleFrom(
+                        backgroundColor: albumColors.primary,
+                        foregroundColor: albumColors.onPrimary,
+                      ),
                       icon: _isGeneratingAlbumInsights
                           ? const SizedBox(
                               width: 16,
@@ -823,6 +854,7 @@ class _AlbumPageState extends State<AlbumPage> {
                           _isAlbumInsightsExpanded
                               ? Icons.expand_less
                               : Icons.expand_more,
+                          color: albumColors.onSurfaceVariant,
                         ),
                         tooltip: _isAlbumInsightsExpanded
                             ? l10n.collapseInsights
@@ -845,6 +877,7 @@ class _AlbumPageState extends State<AlbumPage> {
                       : averageScore.toStringAsFixed(1),
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w700,
+                    color: albumColors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -854,7 +887,7 @@ class _AlbumPageState extends State<AlbumPage> {
                       : l10n.basedOnRatedSongs(
                           _cachedRatedTrackCount, _tracks.length),
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: albumColors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -863,7 +896,7 @@ class _AlbumPageState extends State<AlbumPage> {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: _albumInsightsError != null
                         ? theme.colorScheme.error
-                        : theme.colorScheme.onSurfaceVariant,
+                        : albumColors.onSurfaceVariant,
                   ),
                 ),
                 if ((_isAlbumInsightsExpanded || _isGeneratingAlbumInsights) &&

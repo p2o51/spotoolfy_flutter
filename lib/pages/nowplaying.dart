@@ -1,12 +1,13 @@
 //nowplaying.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:spotoolfy_flutter/utils/responsive.dart';
 import 'package:spotoolfy_flutter/widgets/player.dart';
 import 'package:spotoolfy_flutter/widgets/notes.dart';
 import 'package:spotoolfy_flutter/widgets/add_note.dart';
 import 'package:spotoolfy_flutter/widgets/queue.dart';
 import 'package:spotoolfy_flutter/widgets/lyrics.dart';
 import 'package:spotoolfy_flutter/widgets/mdtab.dart';
-import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 
 class NowPlaying extends StatefulWidget {
@@ -150,15 +151,15 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   // 缓存屏幕尺寸信息
   bool _getIsLargeScreen(BuildContext context) {
     final currentSize = MediaQuery.of(context).size;
-    
+
     // 如果尺寸发生变化，清除缓存
     if (_cachedScreenSize != currentSize) {
       _cachedScreenSize = currentSize;
       _cachedIsLargeScreen = null;
       _cachedPages = null; // 屏幕尺寸变化时也清除页面缓存
     }
-    
-    _cachedIsLargeScreen ??= currentSize.width > 600;
+
+    _cachedIsLargeScreen ??= currentSize.width >= Breakpoints.tablet;
     return _cachedIsLargeScreen!;
   }
 

@@ -1,22 +1,24 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For Clipboard
-import 'package:provider/provider.dart';
-import 'package:logger/logger.dart'; // Added logger
-import 'package:intl/intl.dart'; // Import intl for date formatting
-import 'dart:convert'; // Import for JSON operations
-import 'dart:math'; // Import for min function
-// import '../providers/firestore_provider.dart'; // Keep for homoThoughts for now
-import '../providers/local_database_provider.dart'; // Import new provider
-import '../providers/spotify_provider.dart';
-import '../models/record.dart' as model; // Use prefix to avoid name collision
-import 'materialui.dart';
-import 'stats_card.dart'; // Import the new StatsCard widget
-import '../utils/date_formatter.dart'; // Assuming getLeadingText uses this
-import '../l10n/app_localizations.dart';
-import '../services/song_info_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:math';
 import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:logger/logger.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../l10n/app_localizations.dart';
+import '../models/record.dart' as model;
+import '../providers/local_database_provider.dart';
+import '../providers/spotify_provider.dart';
+import '../services/song_info_service.dart';
+import '../utils/date_formatter.dart';
+import '../utils/responsive.dart';
+import 'materialui.dart';
 import 'note_poster_preview_page.dart';
+import 'stats_card.dart';
 
 final logger = Logger(); // Added logger instance
 
@@ -597,19 +599,18 @@ class _NotesDisplayState extends State<NotesDisplay>
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
                   final currentTrack = spotifyProvider.currentTrack?['item'];
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => NotePosterPreviewPage(
-                        noteContent: record.noteContent ?? '',
-                        lyricsSnapshot: record.lyricsSnapshot,
-                        trackTitle: currentTrack?['name'] as String? ?? '',
-                        artistName: (currentTrack?['artists'] as List?)?.map((a) => a['name']).join(', ') ?? '',
-                        albumName: currentTrack?['album']?['name'] as String? ?? '',
-                        rating: record.rating ?? 3,
-                        albumCoverUrl: (currentTrack?['album']?['images'] as List?)?.firstOrNull?['url'] as String?,
-                      ),
+                  ResponsiveNavigation.showSecondaryPage(
+                    context: context,
+                    child: NotePosterPreviewPage(
+                      noteContent: record.noteContent ?? '',
+                      lyricsSnapshot: record.lyricsSnapshot,
+                      trackTitle: currentTrack?['name'] as String? ?? '',
+                      artistName: (currentTrack?['artists'] as List?)?.map((a) => a['name']).join(', ') ?? '',
+                      albumName: currentTrack?['album']?['name'] as String? ?? '',
+                      rating: record.rating ?? 3,
+                      albumCoverUrl: (currentTrack?['album']?['images'] as List?)?.firstOrNull?['url'] as String?,
                     ),
+                    preferredMode: SecondaryPageMode.fullScreen,
                   );
                 },
               ),
@@ -735,19 +736,18 @@ class _NotesDisplayState extends State<NotesDisplay>
                 title: Text(AppLocalizations.of(context)!.shareNote),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => NotePosterPreviewPage(
-                        noteContent: record['noteContent'] as String? ?? '',
-                        lyricsSnapshot: record['lyricsSnapshot'] as String?,
-                        trackTitle: record['trackName'] as String? ?? '',
-                        artistName: record['artistName'] as String? ?? '',
-                        albumName: record['albumName'] as String? ?? '',
-                        rating: record['rating'] as int? ?? 3,
-                        albumCoverUrl: record['albumCoverUrl'] as String?,
-                      ),
+                  ResponsiveNavigation.showSecondaryPage(
+                    context: context,
+                    child: NotePosterPreviewPage(
+                      noteContent: record['noteContent'] as String? ?? '',
+                      lyricsSnapshot: record['lyricsSnapshot'] as String?,
+                      trackTitle: record['trackName'] as String? ?? '',
+                      artistName: record['artistName'] as String? ?? '',
+                      albumName: record['albumName'] as String? ?? '',
+                      rating: record['rating'] as int? ?? 3,
+                      albumCoverUrl: record['albumCoverUrl'] as String?,
                     ),
+                    preferredMode: SecondaryPageMode.fullScreen,
                   );
                 },
               ),

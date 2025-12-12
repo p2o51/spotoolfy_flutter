@@ -1,25 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../providers/spotify_provider.dart';
-import '../providers/local_database_provider.dart';
-import '../services/lyrics_service.dart';
-import 'dart:async';
-import '../services/translation_service.dart';
-import '../models/translation.dart';
+
+import '../l10n/app_localizations.dart';
 import '../models/lyrics_translation_error.dart';
 import '../models/track.dart';
-import './translation_result_page.dart';
-import './lyrics_search_page.dart';
-import './lyrics_selection_page.dart';
-import '../services/settings_service.dart';
-import 'package:flutter/services.dart';
-import '../services/notification_service.dart';
-import '../l10n/app_localizations.dart';
+import '../models/translation.dart';
 import '../models/translation_load_result.dart';
-import '../utils/structured_translation.dart';
+import '../providers/local_database_provider.dart';
+import '../providers/spotify_provider.dart';
+import '../services/lyrics_service.dart';
+import '../services/notification_service.dart';
+import '../services/settings_service.dart';
+import '../services/translation_service.dart';
 import '../utils/lyric_timing_utils.dart';
+import '../utils/responsive.dart';
+import '../utils/structured_translation.dart';
+import 'lyrics_search_page.dart';
+import 'lyrics_selection_page.dart';
+import 'translation_result_page.dart';
 
 class LyricLine {
   final Duration timestamp;
@@ -945,24 +948,25 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     if (!mounted) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => TranslationResultPage(
-          originalLyrics: originalLyricsJoined,
-          initialStyle: currentStyle,
-          loadTranslation: ({
-            bool forceRefresh = false,
-            TranslationStyle? style,
-          }) {
-            return _loadTranslationData(
-              forceRefresh: forceRefresh,
-              style: style,
-              overrideOriginalLines: originalLines,
-            );
-          },
-          initialData: initialFuture,
-        ),
+    await ResponsiveNavigation.showSecondaryPage(
+      context: context,
+      child: TranslationResultPage(
+        originalLyrics: originalLyricsJoined,
+        initialStyle: currentStyle,
+        loadTranslation: ({
+          bool forceRefresh = false,
+          TranslationStyle? style,
+        }) {
+          return _loadTranslationData(
+            forceRefresh: forceRefresh,
+            style: style,
+            overrideOriginalLines: originalLines,
+          );
+        },
+        initialData: initialFuture,
       ),
+      preferredMode: SecondaryPageMode.sideSheet,
+      maxWidth: 520,
     );
 
     if (!mounted) return;
@@ -1321,8 +1325,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                               _tailSpace()); // Spacer keeps final line centerable
                     }
                     final theme = Theme.of(context);
-                    final screenWidth = MediaQuery.of(context).size.width;
-                    final bool isWideLyricLayout = screenWidth > 600;
+                    final bool isWideLyricLayout = context.isLargeScreen;
                     final bool isWeb = kIsWeb;
                     final line = _lyrics[index];
                     final bool showTranslationLine = _translationsVisible &&
@@ -1492,7 +1495,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                 // Buttons overlay at the bottom
                 if (shouldShowQuickActions)
                   Positioned(
-                    left: MediaQuery.of(context).size.width > 600
+                    left: context.isLargeScreen
                         ? 24
                         : 16, // Reverted left positioning
                     bottom: 24 +
@@ -2023,28 +2026,29 @@ class _LyricsWidgetState extends State<LyricsWidget>
             })
         .toList();
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => LyricsSelectionPage(
-          lyrics: lyricsData,
-          trackTitle: trackName,
-          artistName: artistName,
-          albumCoverUrl: albumCoverUrl,
-          initialShowTranslation: _translationsVisible,
-          initialStyle: currentStyle,
-          loadTranslation: ({
-            bool forceRefresh = false,
-            TranslationStyle? style,
-          }) {
-            return _loadTranslationData(
-              forceRefresh: forceRefresh,
-              style: style,
-              overrideOriginalLines: originalLines,
-            );
-          },
-          originalLyrics: originalLyricsJoined,
-        ),
+    await ResponsiveNavigation.showSecondaryPage(
+      context: context,
+      child: LyricsSelectionPage(
+        lyrics: lyricsData,
+        trackTitle: trackName,
+        artistName: artistName,
+        albumCoverUrl: albumCoverUrl,
+        initialShowTranslation: _translationsVisible,
+        initialStyle: currentStyle,
+        loadTranslation: ({
+          bool forceRefresh = false,
+          TranslationStyle? style,
+        }) {
+          return _loadTranslationData(
+            forceRefresh: forceRefresh,
+            style: style,
+            overrideOriginalLines: originalLines,
+          );
+        },
+        originalLyrics: originalLyricsJoined,
       ),
+      preferredMode: SecondaryPageMode.sideSheet,
+      maxWidth: 520,
     );
 
     if (!mounted) return;

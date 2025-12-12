@@ -1,18 +1,21 @@
 //player.dart
+import 'dart:math';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:spotoolfy_flutter/widgets/materialui.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../l10n/app_localizations.dart';
+import '../pages/album_page.dart';
 import '../providers/spotify_provider.dart';
 import '../providers/theme_provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/physics.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
-import 'dart:math';
-import '../pages/album_page.dart';
-import '../widgets/song_info_result_page.dart';
 import '../services/notification_service.dart';
-import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
+import 'materialui.dart';
+import 'song_info_result_page.dart';
 
 class Player extends StatefulWidget {
   final bool isLargeScreen;
@@ -273,9 +276,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       _buildMainContent(displayTrack, spotifyProvider),
                       Positioned(
                         bottom: 64,
-                        right: MediaQuery.of(context).size.width < 350
+                        right: context.isCompact
                             ? 25
-                            : MediaQuery.of(context).size.width < 400
+                            : context.isNarrow
                                 ? 20
                                 : 15,
                         child: PlayButton(
@@ -647,12 +650,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     });
 
     // 直接导航到结果页面，页面内部会处理加载状态
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SongInfoResultPage(
-          trackData: trackData,
-        ),
-      ),
+    ResponsiveNavigation.showSecondaryPage(
+      context: context,
+      child: SongInfoResultPage(trackData: trackData),
+      preferredMode: SecondaryPageMode.sideSheet,
+      maxWidth: 480,
     );
   }
 
@@ -692,7 +694,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       curve: Curves.easeInOut,
       height: 72,
       padding: EdgeInsets.symmetric(
-        horizontal: MediaQuery.of(context).size.width < 350 ? 8 : 16,
+        horizontal: context.isCompact ? 8 : 16,
       ),
       decoration: BoxDecoration(
         color: Colors.transparent,
@@ -708,7 +710,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               child: _buildMiniAlbumArt(track),
             ),
           ),
-          SizedBox(width: MediaQuery.of(context).size.width < 350 ? 8 : 16),
+          SizedBox(width: context.isCompact ? 8 : 16),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -753,10 +755,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       SpotifyProvider spotify, bool isPlaying) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final screenWidth = MediaQuery.of(context).size.width;
-
         // 根据屏幕宽度调整按钮大小和行为
-        if (screenWidth < 350) {
+        if (context.isCompact) {
           // 极窄屏幕：只显示播放/暂停按钮
           return IconButton(
             iconSize: 20, // 较小的图标
@@ -787,7 +787,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               spotify.togglePlayPause();
             },
           );
-        } else if (screenWidth < 400) {
+        } else if (context.isNarrow) {
           // 窄屏幕：使用紧凑按钮
           return Row(
             mainAxisSize: MainAxisSize.min,
@@ -1435,10 +1435,8 @@ class _PlayButtonState extends State<PlayButton>
         child: TextButton(
           onPressed: widget.onPressed,
           child: Container(
-            width:
-                MediaQuery.of(context).size.width < 400 ? 80 : 96, // 窄屏幕使用更小尺寸
-            height:
-                MediaQuery.of(context).size.width < 400 ? 56 : 64, // 窄屏幕使用更小尺寸
+            width: context.isNarrow ? 80 : 96, // 窄屏幕使用更小尺寸
+            height: context.isNarrow ? 56 : 64, // 窄屏幕使用更小尺寸
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.circular(32.0),
@@ -1652,10 +1650,11 @@ class HeaderAndFooter extends StatelessWidget {
             final albumId = track?['album']?['id'] as String?;
             if (albumId != null) {
               HapticFeedback.lightImpact();
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AlbumPage(albumId: albumId),
-                ),
+              ResponsiveNavigation.showSecondaryPage(
+                context: context,
+                child: AlbumPage(albumId: albumId),
+                preferredMode: SecondaryPageMode.sideSheet,
+                maxWidth: 520,
               );
               return;
             }

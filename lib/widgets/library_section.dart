@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
+import '../l10n/app_localizations.dart';
+import '../pages/album_page.dart';
+import '../pages/library.dart';
+import '../pages/playlist_page.dart';
 import '../providers/library_provider.dart';
 import '../providers/spotify_provider.dart';
-import '../widgets/library_grid.dart';
-import '../widgets/materialui.dart' as custom_ui;
-import '../widgets/materialui.dart'; // Import WavyDivider
-import '../pages/library.dart'; // Add import for MyCarouselView
-import '../pages/album_page.dart';
-import '../pages/playlist_page.dart';
-import 'package:flutter/services.dart'; // 新增导入
-import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
+import 'library_grid.dart';
+import 'materialui.dart' as custom_ui;
+import 'materialui.dart';
 
 class LibrarySection extends StatefulWidget {
   // Optional controller to allow parent widget to initiate refresh
@@ -102,19 +104,21 @@ class _LibrarySectionState extends State<LibrarySection> {
     final id = item['id'] as String?;
 
     if (type == 'album' && id != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => AlbumPage(albumId: id),
-        ),
+      ResponsiveNavigation.showSecondaryPage(
+        context: context,
+        child: AlbumPage(albumId: id),
+        preferredMode: SecondaryPageMode.sideSheet,
+        maxWidth: 520,
       );
       return;
     }
 
     if (type == 'playlist' && id != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PlaylistPage(playlistId: id),
-        ),
+      ResponsiveNavigation.showSecondaryPage(
+        context: context,
+        child: PlaylistPage(playlistId: id),
+        preferredMode: SecondaryPageMode.sideSheet,
+        maxWidth: 520,
       );
       return;
     }
@@ -157,13 +161,8 @@ class _LibrarySectionState extends State<LibrarySection> {
           );
         }
 
-        // Calculate grid cross axis count here
-        final screenWidth = MediaQuery.of(context).size.width;
-        final gridCrossAxisCount = switch (screenWidth) {
-          > 900 => 6, // 5 columns for screens wider than 900px
-          > 600 => 5,
-          _ => 3,
-        };
+        // Calculate grid cross axis count using responsive utility
+        final gridCrossAxisCount = context.gridCrossAxisCount;
 
         return CustomScrollView(
           controller: _scrollController,

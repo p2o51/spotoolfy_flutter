@@ -1263,6 +1263,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String addedYearsAgo(int years, String date) {
     return '$years年前添加 ($date)';
   }
+
+  @override
+  String get ratingLabel => '评分';
+
+  @override
+  String get lyricsSnapshotLabel => '歌词片段';
+
+  @override
+  String get addNoteHint => '添加笔记...';
+
+  @override
+  String get changesSaved => '更改已保存';
+
+  @override
+  String get play => '播放';
+
+  @override
+  String get randomReviewTitle => '随机回顾';
+
+  @override
+  String get thisDayInHistory => '往年今日';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).

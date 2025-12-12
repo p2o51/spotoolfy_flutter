@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/search_provider.dart';
-import '../widgets/library_grid.dart';
-import '../widgets/materialui.dart' as custom_ui;
+
 import '../l10n/app_localizations.dart';
+import '../providers/search_provider.dart';
+import '../utils/responsive.dart';
+import 'library_grid.dart';
+import 'materialui.dart' as custom_ui;
 
 class SearchSection extends StatefulWidget {
   final VoidCallback onBackPressed;
@@ -32,12 +34,7 @@ class _SearchSectionState extends State<SearchSection> {
   Widget build(BuildContext context) {
     return Consumer<SearchProvider>(
       builder: (context, searchProvider, child) {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final gridCrossAxisCount = switch (screenWidth) {
-          > 900 => 6,
-          > 600 => 5,
-          _ => 3,
-        };
+        final gridCrossAxisCount = context.gridCrossAxisCount;
         
         return Column(
           children: [

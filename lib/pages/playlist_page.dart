@@ -8,6 +8,7 @@ import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
 import '../services/spotify_service.dart';
 import '../widgets/materialui.dart';
+import '../widgets/time_machine_carousel.dart'; // For AlbumColorExtractor
 
 class PlaylistPage extends StatefulWidget {
   final String playlistId;
@@ -29,6 +30,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
   bool _showQuickSelectors = false;
   bool _isSavingPendingRatings = false;
   String? _errorMessage;
+
+  // Dynamic color from playlist cover
+  ColorScheme? _playlistColorScheme;
 
   @override
   void initState() {
@@ -91,12 +95,27 @@ class _PlaylistPageState extends State<PlaylistPage> {
         _updatingTracks.clear();
         _showQuickSelectors = false;
       });
+      _extractPlaylistColors();
     } catch (e) {
       if (!mounted) return;
       final message = e is SpotifyAuthException ? e.message : e.toString();
       setState(() {
         _errorMessage = message;
         _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _extractPlaylistColors() async {
+    final coverUrl = _extractCoverUrl();
+    if (coverUrl == null) return;
+
+    final brightness = Theme.of(context).brightness;
+    final colorScheme = await AlbumColorExtractor.extractFromUrl(coverUrl, brightness);
+
+    if (mounted && colorScheme != null) {
+      setState(() {
+        _playlistColorScheme = colorScheme;
       });
     }
   }
@@ -417,6 +436,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
     final description = _extractDescription();
     final trackCount = _tracks.length;
 
+    // 使用动态提取的颜色
+    final playlistColors = _playlistColorScheme ?? theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -524,22 +546,33 @@ class _PlaylistPageState extends State<PlaylistPage> {
           ],
         ),
         if (description != null && description.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 16.0),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            margin: const EdgeInsets.only(top: 16.0),
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: playlistColors.primaryContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: playlistColors.primary.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   Icons.notes_rounded,
                   size: 24,
-                  color: theme.colorScheme.primary,
+                  color: playlistColors.primary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     description,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: playlistColors.onSurface,
                     ),
                   ),
                 ),

@@ -2405,6 +2405,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{years, plural, =1{Added 1 year ago} other{Added {years} years ago}} ({date})'**
   String addedYearsAgo(int years, String date);
+
+  /// No description provided for @ratingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get ratingLabel;
+
+  /// No description provided for @lyricsSnapshotLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics Snapshot'**
+  String get lyricsSnapshotLabel;
+
+  /// No description provided for @addNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a note...'**
+  String get addNoteHint;
+
+  /// No description provided for @changesSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes saved'**
+  String get changesSaved;
+
+  /// No description provided for @play.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get play;
+
+  /// No description provided for @randomReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Random Review'**
+  String get randomReviewTitle;
+
+  /// No description provided for @thisDayInHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'This Day in History'**
+  String get thisDayInHistory;
 }
 
 class _AppLocalizationsDelegate
