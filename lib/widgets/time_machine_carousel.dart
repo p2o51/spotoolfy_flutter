@@ -258,7 +258,7 @@ class _TimeMachineCarouselState extends State<TimeMachineCarousel> {
 
     // 整个卡片包裹在一个容器中，点击打开日期选择页面
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
