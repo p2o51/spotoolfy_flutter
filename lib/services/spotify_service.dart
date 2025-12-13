@@ -1294,6 +1294,42 @@ class SpotifyAuthService {
     }
   }
 
+  /// 播放多个曲目（使用 URIs 列表创建临时播放上下文）
+  Future<void> playTracks({
+    required List<String> trackUris,
+    int? offsetIndex,
+    String? deviceId,
+  }) async {
+    try {
+      final headers =
+          await _authHeaders(hasBody: true); // PUT request with body
+      final body = {
+        'uris': trackUris,
+      };
+
+      // 如果指定了偏移量，添加 offset 参数
+      if (offsetIndex != null) {
+        body['offset'] = {'position': offsetIndex};
+      }
+
+      final queryParams = deviceId != null ? '?device_id=$deviceId' : '';
+      final response = await http.put(
+        Uri.parse('https://api.spotify.com/v1/me/player/play$queryParams'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      if (response.statusCode != 202 && response.statusCode != 204) {
+        throw SpotifyAuthException(
+          '开始播放失败: ${response.body}',
+          code: response.statusCode.toString(),
+        );
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// 在上下文中播放特定歌曲
   Future<void> playTrackInContext({
     required String contextUri,

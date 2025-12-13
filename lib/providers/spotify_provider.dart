@@ -2301,6 +2301,48 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  /// 播放多个曲目（使用 URIs 列表创建临时播放上下文）
+  Future<void> playTracks({
+    required List<String> trackUris,
+    int? offsetIndex,
+    String? deviceId,
+  }) async {
+    // Check for active device BEFORE attempting to play
+    if (!await _ensureAuthenticatedAndReady()) {
+      return; // Stop if no active device and picker is shown
+    }
+
+    try {
+      // Get the current active device ID if not explicitly provided
+      final targetDeviceId = deviceId ?? activeDeviceId;
+
+      await _guard(() => _spotifyService.playTracks(
+            trackUris: trackUris,
+            offsetIndex: offsetIndex,
+            deviceId: targetDeviceId,
+          ));
+
+      // Wait slightly to allow Spotify state to update
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Refresh state after initiating play
+      await refreshCurrentTrack();
+      await refreshPlaybackQueue();
+    } catch (e) {
+      await _handleApiError(e, contextMessage: '播放歌曲列表', isUserInitiated: true);
+      if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)),
+          );
+        }
+      } else if (e is! SpotifyAuthException || e.code != 'SESSION_EXPIRED') {
+        rethrow;
+      }
+    }
+  }
+
   /// Get authenticated headers from the Spotify service
   Future<Map<String, String>> getAuthenticatedHeaders() async {
     // Ensure service is initialized
