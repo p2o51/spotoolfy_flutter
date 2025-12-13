@@ -1303,7 +1303,7 @@ class SpotifyAuthService {
     try {
       final headers =
           await _authHeaders(hasBody: true); // PUT request with body
-      final body = {
+      final Map<String, dynamic> body = {
         'uris': trackUris,
       };
 
