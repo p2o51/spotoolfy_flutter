@@ -1564,7 +1564,7 @@ class SpotifyAuthService {
   /// 获取用户所有收藏的曲目（自动分页）
   /// 返回包含 added_at 和 track 信息的完整列表
   Future<List<Map<String, dynamic>>> getAllUserSavedTracks({
-    int maxTracks = 2000, // 限制最大获取数量避免过长等待
+    int maxTracks = 10000, // 提高限制支持重度用户
     void Function(int loaded, int? total)? onProgress,
   }) async {
     final allTracks = <Map<String, dynamic>>[];
@@ -1600,6 +1600,10 @@ class SpotifyAuthService {
         if (allTracks.length >= maxTracks || data['next'] == null) break;
 
         offset += limit;
+
+        // 添加延迟防止触发 Spotify API 速率限制（180次/30秒）
+        // 每次请求后等待 200ms，确保不会超过限额
+        await Future.delayed(const Duration(milliseconds: 200));
       } catch (e) {
         if (e is SpotifyAuthException) rethrow;
         throw SpotifyAuthException('获取收藏曲目时出错: $e');
