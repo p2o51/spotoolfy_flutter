@@ -8,6 +8,14 @@ import 'spotify_service.dart';
 
 final _logger = Logger();
 
+/// 采样数据点 - 用于计算添加速率
+class _SamplePoint {
+  final int offset;
+  final DateTime addedAt;
+
+  _SamplePoint(this.offset, this.addedAt);
+}
+
 /// 表示一个"时光机"回忆项目
 class TimeMachineMemory {
   final String trackId;
@@ -182,20 +190,60 @@ class TimeMachineService {
   ///
   /// [targetDate] 目标日期，默认为今天
   /// [toleranceDays] 日期容差，默认为0（精确匹配月日），可设为1-3扩大范围
+  /// [useSmartSearch] 是否使用智能预测搜索（仅在无缓存时生效）
   Future<List<TimeMachineMemory>> getTodayMemories({
     DateTime? targetDate,
     int toleranceDays = 0,
     bool forceRefresh = false,
+    bool useSmartSearch = true,
     void Function(int loaded, int? total)? onProgress,
   }) async {
     final date = targetDate ?? DateTime.now();
-    final tracks = await _getSavedTracks(
-      forceRefresh: forceRefresh,
-      onProgress: onProgress,
-    );
+    final currentYear = date.year;
+
+    List<Map<String, dynamic>> tracks;
+
+    // 检查是否有缓存
+    final hasCache = !forceRefresh &&
+        _cachedTracks != null &&
+        _cacheTimestamp != null &&
+        DateTime.now().difference(_cacheTimestamp!) < _cacheMaxAge;
+
+    if (hasCache || !useSmartSearch) {
+      // 使用传统方式：全量获取
+      _logger.d('使用${hasCache ? "缓存" : "全量获取"}模式');
+      tracks = await _getSavedTracks(
+        forceRefresh: forceRefresh,
+        onProgress: onProgress,
+      );
+    } else {
+      // 使用智能搜索：只获取目标日期范围的数据
+      _logger.i('启用智能搜索模式');
+
+      // 计算目标日期范围（考虑容差）
+      final targetStart = DateTime(
+        currentYear - 10, // 搜索过去 10 年
+        date.month,
+        date.day,
+      ).subtract(Duration(days: toleranceDays));
+
+      final targetEnd = DateTime(
+        currentYear - 1, // 最近一年
+        date.month,
+        date.day,
+      ).add(Duration(days: toleranceDays + 1));
+
+      tracks = await _getTracksSmartSearch(
+        targetStart: targetStart,
+        targetEnd: targetEnd,
+        onProgress: onProgress,
+      );
+
+      // 后台异步构建完整缓存（不阻塞当前请求）
+      _buildCacheInBackground();
+    }
 
     final memories = <TimeMachineMemory>[];
-    final currentYear = date.year;
 
     for (final item in tracks) {
       final addedAtStr = item['added_at'] as String?;
@@ -247,6 +295,26 @@ class TimeMachineService {
     memories.sort((a, b) => a.yearsAgo.compareTo(b.yearsAgo));
 
     return memories;
+  }
+
+  /// 后台构建完整缓存（不阻塞主线程）
+  void _buildCacheInBackground() {
+    if (_cachedTracks != null) return; // 已有缓存，无需构建
+
+    _logger.i('启动后台缓存构建任务');
+
+    // 异步执行，不等待结果
+    Future.microtask(() async {
+      try {
+        final tracks = await _spotifyService.getAllUserSavedTracks();
+        _cachedTracks = tracks;
+        _cacheTimestamp = DateTime.now();
+        await _saveToCache(tracks);
+        _logger.i('后台缓存构建完成：${tracks.length} 首歌');
+      } catch (e) {
+        _logger.w('后台缓存构建失败: $e');
+      }
+    });
   }
 
   /// 计算两个日期在一年中的天数差（忽略年份）
@@ -365,6 +433,162 @@ class TimeMachineService {
     } catch (e) {
       _logger.w('Failed to check today memories: $e');
       return false;
+    }
+  }
+
+  // ============ 智能预测优化算法 ============
+
+  /// 采样用户资料库，计算歌曲添加速率
+  /// 返回采样点列表，用于预测目标日期的位置
+  Future<List<_SamplePoint>> _sampleLibrary({
+    int sampleSize = 200,
+    int sampleInterval = 100,
+  }) async {
+    final samples = <_SamplePoint>[];
+
+    try {
+      _logger.d('开始采样资料库：采样 $sampleSize 首歌，间隔 $sampleInterval');
+
+      for (int offset = 0; offset < sampleSize; offset += sampleInterval) {
+        final tracks = await _spotifyService.getUserSavedTracks(
+          offset: offset,
+          limit: 1, // 只需要第一首歌的时间戳
+        );
+
+        if (tracks.isEmpty) break;
+
+        final addedAtStr = tracks.first['added_at'] as String?;
+        if (addedAtStr == null) continue;
+
+        final addedAt = DateTime.tryParse(addedAtStr);
+        if (addedAt == null) continue;
+
+        samples.add(_SamplePoint(offset, addedAt));
+        _logger.d('采样点 ${samples.length}: offset=$offset, date=${addedAt.toIso8601String()}');
+
+        // 防止速率限制
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      _logger.i('采样完成：获得 ${samples.length} 个数据点');
+    } catch (e) {
+      _logger.w('采样失败: $e');
+    }
+
+    return samples;
+  }
+
+  /// 根据采样数据预测目标日期的 offset 位置
+  /// 返回预测的 offset，如果无法预测则返回 null
+  int? _predictOffset(List<_SamplePoint> samples, DateTime targetDate) {
+    if (samples.length < 2) {
+      _logger.w('采样点不足，无法进行预测');
+      return null;
+    }
+
+    try {
+      // 计算平均添加速率（歌曲/天）
+      final first = samples.first;
+      final last = samples.last;
+
+      final daysDiff = first.addedAt.difference(last.addedAt).inDays;
+      if (daysDiff <= 0) {
+        _logger.w('时间范围无效，无法计算速率');
+        return null;
+      }
+
+      final tracksDiff = last.offset - first.offset;
+      final tracksPerDay = tracksDiff / daysDiff;
+
+      _logger.d('计算速率：$tracksDiff 首歌 / $daysDiff 天 ≈ ${tracksPerDay.toStringAsFixed(2)} 首/天');
+
+      // 预测目标日期的位置
+      final daysFromNow = DateTime.now().difference(targetDate).inDays;
+      final predictedOffset = (tracksPerDay * daysFromNow).round();
+
+      _logger.i('预测结果：目标日期 $targetDate 应该在 offset $predictedOffset 附近');
+
+      // 限制在合理范围内（0 到 10000）
+      return predictedOffset.clamp(0, 10000);
+    } catch (e) {
+      _logger.w('预测计算失败: $e');
+      return null;
+    }
+  }
+
+  /// 使用智能预测优化的方式获取特定日期范围内的歌曲
+  /// 适用于"一年前的今天"这种精确日期查询
+  Future<List<Map<String, dynamic>>> _getTracksSmartSearch({
+    required DateTime targetStart,
+    required DateTime targetEnd,
+    void Function(int loaded, int? total)? onProgress,
+  }) async {
+    _logger.i('开始智能搜索：目标区间 [$targetStart, $targetEnd]');
+
+    try {
+      // 步骤 1: 采样资料库
+      final samples = await _sampleLibrary(sampleSize: 200, sampleInterval: 100);
+
+      if (samples.isEmpty) {
+        _logger.w('采样失败，降级到全量获取');
+        return await _spotifyService.getAllUserSavedTracks(onProgress: onProgress);
+      }
+
+      // 步骤 2: 预测目标位置
+      final predictedOffset = _predictOffset(samples, targetStart);
+
+      if (predictedOffset == null) {
+        _logger.w('预测失败，降级到全量获取');
+        return await _spotifyService.getAllUserSavedTracks(onProgress: onProgress);
+      }
+
+      // 步骤 3: 在预测位置附近搜索
+      final searchRange = 200; // 在预测位置前后各搜索 200 首
+      final startOffset = (predictedOffset - searchRange).clamp(0, 10000);
+      final endOffset = (predictedOffset + searchRange).clamp(0, 10000);
+
+      _logger.d('在 offset [$startOffset, $endOffset] 范围内搜索');
+
+      final results = <Map<String, dynamic>>[];
+
+      for (int offset = startOffset; offset <= endOffset; offset += 50) {
+        final tracks = await _spotifyService.getUserSavedTracks(
+          offset: offset,
+          limit: 50,
+        );
+
+        if (tracks.isEmpty) break;
+
+        // 检查是否在目标时间范围内
+        for (final track in tracks) {
+          final addedAtStr = track['added_at'] as String?;
+          if (addedAtStr == null) continue;
+
+          final addedAt = DateTime.tryParse(addedAtStr);
+          if (addedAt == null) continue;
+
+          // 如果歌曲在目标范围内，添加到结果
+          if (addedAt.isAfter(targetStart.subtract(const Duration(days: 1))) &&
+              addedAt.isBefore(targetEnd.add(const Duration(days: 1)))) {
+            results.add(track);
+          }
+
+          // 如果已经超出范围（太早），可以提前退出
+          if (addedAt.isBefore(targetStart.subtract(const Duration(days: 30)))) {
+            _logger.d('已超出搜索范围，提前结束');
+            return results;
+          }
+        }
+
+        onProgress?.call(results.length, null);
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
+      _logger.i('智能搜索完成：找到 ${results.length} 首歌');
+      return results;
+    } catch (e) {
+      _logger.w('智能搜索失败: $e，降级到全量获取');
+      return await _spotifyService.getAllUserSavedTracks(onProgress: onProgress);
     }
   }
 }
