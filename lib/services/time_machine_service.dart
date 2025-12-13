@@ -16,6 +16,29 @@ class _SamplePoint {
   _SamplePoint(this.offset, this.addedAt);
 }
 
+/// 稀疏索引检查点 - "路标"系统的核心数据结构
+class IndexCheckpoint {
+  final int offset;      // 在资料库中的位置
+  final DateTime date;   // 该位置的时间戳
+
+  IndexCheckpoint({
+    required this.offset,
+    required this.date,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'offset': offset,
+    'date': date.toIso8601String(),
+  };
+
+  factory IndexCheckpoint.fromJson(Map<String, dynamic> json) {
+    return IndexCheckpoint(
+      offset: json['offset'] as int,
+      date: DateTime.parse(json['date'] as String),
+    );
+  }
+}
+
 /// 表示一个"时光机"回忆项目
 class TimeMachineMemory {
   final String trackId;
@@ -70,9 +93,15 @@ class TimeMachineService {
 
   // 缓存相关
   static const String _cacheFileName = 'saved_tracks_cache.json';
+  static const String _indexCacheFileName = 'sparse_index_cache.json';
   static const Duration _cacheMaxAge = Duration(days: 1); // 缓存有效期1天
+  static const Duration _indexMaxAge = Duration(days: 30); // 索引缓存30天
   List<Map<String, dynamic>>? _cachedTracks;
   DateTime? _cacheTimestamp;
+
+  // 稀疏索引缓存
+  List<IndexCheckpoint>? _sparseIndex;
+  DateTime? _indexTimestamp;
 
   TimeMachineService(this._spotifyService);
 
@@ -82,6 +111,8 @@ class TimeMachineService {
       _activeUserId = userId;
       _cachedTracks = null;
       _cacheTimestamp = null;
+      _sparseIndex = null;
+      _indexTimestamp = null;
     }
   }
 
@@ -91,9 +122,20 @@ class TimeMachineService {
     return 'saved_tracks_cache_$sanitizedId.json';
   }
 
+  String get _resolvedIndexCacheFileName {
+    if (_activeUserId == null) return _indexCacheFileName;
+    final sanitizedId = _activeUserId!.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    return 'sparse_index_cache_$sanitizedId.json';
+  }
+
   Future<File> _getCacheFile() async {
     final directory = await getApplicationSupportDirectory();
     return File('${directory.path}/$_resolvedCacheFileName');
+  }
+
+  Future<File> _getIndexCacheFile() async {
+    final directory = await getApplicationSupportDirectory();
+    return File('${directory.path}/$_resolvedIndexCacheFileName');
   }
 
   /// 从缓存加载数据
@@ -203,23 +245,20 @@ class TimeMachineService {
 
     List<Map<String, dynamic>> tracks;
 
-    // 检查是否有缓存
+    // 检查是否有完整缓存
     final hasCache = !forceRefresh &&
         _cachedTracks != null &&
         _cacheTimestamp != null &&
         DateTime.now().difference(_cacheTimestamp!) < _cacheMaxAge;
 
-    if (hasCache || !useSmartSearch) {
-      // 使用传统方式：全量获取
-      _logger.d('使用${hasCache ? "缓存" : "全量获取"}模式');
+    if (hasCache) {
+      // 优先级1: 使用完整缓存（最快）
+      _logger.d('使用完整缓存模式');
       tracks = await _getSavedTracks(
         forceRefresh: forceRefresh,
         onProgress: onProgress,
       );
-    } else {
-      // 使用智能搜索：只获取目标日期范围的数据
-      _logger.i('启用智能搜索模式');
-
+    } else if (useSmartSearch) {
       // 计算目标日期范围（考虑容差）
       final targetStart = DateTime(
         currentYear - 10, // 搜索过去 10 年
@@ -233,14 +272,40 @@ class TimeMachineService {
         date.day,
       ).add(Duration(days: toleranceDays + 1));
 
-      tracks = await _getTracksSmartSearch(
-        targetStart: targetStart,
-        targetEnd: targetEnd,
+      // 优先级2: 尝试使用稀疏索引（次快）
+      final sparseIndex = await _getSparseIndex();
+
+      if (sparseIndex != null && sparseIndex.isNotEmpty) {
+        _logger.i('使用稀疏索引查询模式');
+        tracks = await _searchWithSparseIndex(
+          targetStart: targetStart,
+          targetEnd: targetEnd,
+          index: sparseIndex,
+          onProgress: onProgress,
+        );
+
+        // 后台构建完整缓存
+        _buildCacheInBackground();
+      } else {
+        // 优先级3: 智能预测搜索（最后手段）
+        _logger.i('使用智能预测搜索模式');
+        tracks = await _getTracksSmartSearch(
+          targetStart: targetStart,
+          targetEnd: targetEnd,
+          onProgress: onProgress,
+        );
+
+        // 后台构建索引和缓存
+        _buildIndexInBackground();
+        _buildCacheInBackground();
+      }
+    } else {
+      // 禁用智能搜索，使用全量获取
+      _logger.d('使用全量获取模式');
+      tracks = await _getSavedTracks(
+        forceRefresh: forceRefresh,
         onProgress: onProgress,
       );
-
-      // 后台异步构建完整缓存（不阻塞当前请求）
-      _buildCacheInBackground();
     }
 
     final memories = <TimeMachineMemory>[];
@@ -414,15 +479,271 @@ class TimeMachineService {
   Future<void> clearCache() async {
     _cachedTracks = null;
     _cacheTimestamp = null;
+    _sparseIndex = null;
+    _indexTimestamp = null;
     try {
       final file = await _getCacheFile();
       if (await file.exists()) {
         await file.delete();
         _logger.i('Time machine cache cleared');
       }
+      final indexFile = await _getIndexCacheFile();
+      if (await indexFile.exists()) {
+        await indexFile.delete();
+        _logger.i('Sparse index cache cleared');
+      }
     } catch (e) {
-      _logger.w('Failed to clear time machine cache: $e');
+      _logger.w('Failed to clear cache: $e');
     }
+  }
+
+  // ============ 稀疏索引系统 ============
+
+  /// 从磁盘加载稀疏索引
+  Future<bool> _loadSparseIndex() async {
+    try {
+      final file = await _getIndexCacheFile();
+      if (!await file.exists()) return false;
+
+      final raw = await file.readAsString();
+      if (raw.isEmpty) return false;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return false;
+
+      final timestampStr = decoded['timestamp'] as String?;
+      if (timestampStr == null) return false;
+
+      final timestamp = DateTime.tryParse(timestampStr);
+      if (timestamp == null) return false;
+
+      // 检查索引是否过期
+      if (DateTime.now().difference(timestamp) > _indexMaxAge) {
+        _logger.d('Sparse index expired');
+        return false;
+      }
+
+      final checkpointsRaw = decoded['checkpoints'] as List?;
+      if (checkpointsRaw == null) return false;
+
+      _sparseIndex = checkpointsRaw
+          .whereType<Map>()
+          .map((item) => IndexCheckpoint.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      _indexTimestamp = timestamp;
+
+      _logger.i('Loaded sparse index with ${_sparseIndex!.length} checkpoints');
+      return true;
+    } catch (e) {
+      _logger.w('Failed to load sparse index: $e');
+      return false;
+    }
+  }
+
+  /// 保存稀疏索引到磁盘
+  Future<void> _saveSparseIndex(List<IndexCheckpoint> checkpoints) async {
+    if (_activeUserId == null) {
+      _logger.w('Cannot save sparse index without active user');
+      return;
+    }
+
+    try {
+      final file = await _getIndexCacheFile();
+      final payload = {
+        'timestamp': DateTime.now().toIso8601String(),
+        'checkpoints': checkpoints.map((c) => c.toJson()).toList(),
+      };
+      await file.writeAsString(jsonEncode(payload), flush: true);
+      _logger.i('Saved sparse index with ${checkpoints.length} checkpoints');
+    } catch (e) {
+      _logger.w('Failed to save sparse index: $e');
+    }
+  }
+
+  /// 构建稀疏索引（采样间隔100首歌）
+  Future<List<IndexCheckpoint>> _buildSparseIndex({
+    int interval = 100,
+    int maxCheckpoints = 100,
+  }) async {
+    final checkpoints = <IndexCheckpoint>[];
+
+    try {
+      _logger.i('开始构建稀疏索引：间隔 $interval 首歌');
+
+      for (int offset = 0; offset < 10000; offset += interval) {
+        if (checkpoints.length >= maxCheckpoints) break;
+
+        final tracks = await _spotifyService.getUserSavedTracks(
+          offset: offset,
+          limit: 1,
+        );
+
+        if (tracks.isEmpty) break;
+
+        final addedAtStr = tracks.first['added_at'] as String?;
+        if (addedAtStr == null) continue;
+
+        final date = DateTime.tryParse(addedAtStr);
+        if (date == null) continue;
+
+        checkpoints.add(IndexCheckpoint(offset: offset, date: date));
+        _logger.d('索引点 ${checkpoints.length}: offset=$offset, date=${date.toIso8601String()}');
+
+        // 防止速率限制
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+
+      _logger.i('稀疏索引构建完成：${checkpoints.length} 个检查点');
+
+      // 保存到缓存
+      _sparseIndex = checkpoints;
+      _indexTimestamp = DateTime.now();
+      await _saveSparseIndex(checkpoints);
+
+      return checkpoints;
+    } catch (e) {
+      _logger.w('构建稀疏索引失败: $e');
+      return checkpoints;
+    }
+  }
+
+  /// 检查并获取稀疏索引（如果不存在则构建）
+  Future<List<IndexCheckpoint>?> _getSparseIndex() async {
+    // 检查内存缓存
+    if (_sparseIndex != null && _indexTimestamp != null) {
+      if (DateTime.now().difference(_indexTimestamp!) < _indexMaxAge) {
+        return _sparseIndex;
+      }
+    }
+
+    // 尝试从磁盘加载
+    if (await _loadSparseIndex()) {
+      return _sparseIndex;
+    }
+
+    // 如果都没有，返回 null（不在这里构建，避免阻塞）
+    return null;
+  }
+
+  /// 后台构建稀疏索引（不阻塞主线程）
+  void _buildIndexInBackground() {
+    if (_sparseIndex != null) return; // 已有索引，无需构建
+
+    _logger.i('启动后台稀疏索引构建任务');
+
+    Future.microtask(() async {
+      try {
+        await _buildSparseIndex();
+      } catch (e) {
+        _logger.w('后台索引构建失败: $e');
+      }
+    });
+  }
+
+  /// 使用稀疏索引查找目标日期范围的歌曲
+  Future<List<Map<String, dynamic>>> _searchWithSparseIndex({
+    required DateTime targetStart,
+    required DateTime targetEnd,
+    required List<IndexCheckpoint> index,
+    void Function(int loaded, int? total)? onProgress,
+  }) async {
+    _logger.i('使用稀疏索引查询：[$targetStart, $targetEnd]');
+
+    try {
+      // 二分查找：找到目标日期范围的起始位置
+      int leftBound = _binarySearchCheckpoint(index, targetEnd, searchForStart: true);
+      int rightBound = _binarySearchCheckpoint(index, targetStart, searchForStart: false);
+
+      if (leftBound == -1 || rightBound == -1 || leftBound > rightBound) {
+        _logger.w('索引中未找到目标范围');
+        return [];
+      }
+
+      // 确定需要扫描的 offset 范围
+      final startOffset = index[leftBound].offset;
+      final endOffset = (rightBound + 1 < index.length)
+          ? index[rightBound + 1].offset
+          : index[rightBound].offset + 200;
+
+      _logger.i('索引定位：检查点 [$leftBound, $rightBound], offset [$startOffset, $endOffset]');
+
+      // 扫描这个范围内的所有歌曲
+      final results = <Map<String, dynamic>>[];
+
+      for (int offset = startOffset; offset <= endOffset && offset < 10000; offset += 50) {
+        final tracks = await _spotifyService.getUserSavedTracks(
+          offset: offset,
+          limit: 50,
+        );
+
+        if (tracks.isEmpty) break;
+
+        for (final track in tracks) {
+          final addedAtStr = track['added_at'] as String?;
+          if (addedAtStr == null) continue;
+
+          final addedAt = DateTime.tryParse(addedAtStr);
+          if (addedAt == null) continue;
+
+          // 只添加在目标范围内的歌曲
+          if (addedAt.isAfter(targetStart.subtract(const Duration(days: 1))) &&
+              addedAt.isBefore(targetEnd.add(const Duration(days: 1)))) {
+            results.add(track);
+          }
+
+          // 提前退出：如果已经太早了
+          if (addedAt.isBefore(targetStart.subtract(const Duration(days: 30)))) {
+            _logger.d('已超出范围，提前结束扫描');
+            return results;
+          }
+        }
+
+        onProgress?.call(results.length, null);
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
+      _logger.i('稀疏索引查询完成：找到 ${results.length} 首歌');
+      return results;
+    } catch (e) {
+      _logger.w('稀疏索引查询失败: $e');
+      return [];
+    }
+  }
+
+  /// 二分查找检查点
+  /// [searchForStart] = true: 找第一个 >= target 的位置
+  /// [searchForStart] = false: 找最后一个 <= target 的位置
+  int _binarySearchCheckpoint(List<IndexCheckpoint> checkpoints, DateTime target, {required bool searchForStart}) {
+    if (checkpoints.isEmpty) return -1;
+
+    int left = 0;
+    int right = checkpoints.length - 1;
+    int result = -1;
+
+    while (left <= right) {
+      int mid = (left + right) ~/ 2;
+      final checkDate = checkpoints[mid].date;
+
+      if (searchForStart) {
+        // 找第一个 >= target 的（最新的相关检查点）
+        if (checkDate.isAfter(target) || checkDate.isAtSameMomentAs(target)) {
+          result = mid;
+          right = mid - 1; // 继续向左找更早的
+        } else {
+          left = mid + 1;
+        }
+      } else {
+        // 找最后一个 <= target 的（最旧的相关检查点）
+        if (checkDate.isBefore(target) || checkDate.isAtSameMomentAs(target)) {
+          result = mid;
+          left = mid + 1; // 继续向右找更晚的
+        } else {
+          right = mid - 1;
+        }
+      }
+    }
+
+    return result;
   }
 
   /// 检查是否有今日回忆
