@@ -129,7 +129,16 @@ class _MemoryPageState extends State<MemoryPage> {
     HapticFeedback.lightImpact();
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
     try {
-      spotifyProvider.playTrack(trackUri: memory.trackUri);
+      // 收集所有 track URIs
+      final trackUris = _memories.map((m) => m.trackUri).toList();
+      // 找到当前点击的 memory 在列表中的索引
+      final currentIndex = _memories.indexOf(memory);
+
+      // 使用整个列表作为上下文播放
+      spotifyProvider.playTracks(
+        trackUris: trackUris,
+        offsetIndex: currentIndex >= 0 ? currentIndex : 0,
+      );
     } catch (e) {
       _logger.w('Failed to play track: $e');
       ScaffoldMessenger.of(context).showSnackBar(
