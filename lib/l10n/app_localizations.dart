@@ -2447,6 +2447,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This Day in History'**
   String get thisDayInHistory;
+
+  /// No description provided for @translationAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Translation Available'**
+  String get translationAvailable;
+
+  /// No description provided for @useNeteaseTranslation.
+  ///
+  /// In en, this message translates to:
+  /// **'This song has a NetEase Cloud Music translation. Would you like to include it?'**
+  String get useNeteaseTranslation;
+
+  /// No description provided for @originalOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Original Only'**
+  String get originalOnly;
+
+  /// No description provided for @useTranslation.
+  ///
+  /// In en, this message translates to:
+  /// **'Include Translation'**
+  String get useTranslation;
+
+  /// No description provided for @translationStyleNetease.
+  ///
+  /// In en, this message translates to:
+  /// **'NetEase Cloud'**
+  String get translationStyleNetease;
+
+  /// No description provided for @neteaseTranslationChineseOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Chinese only'**
+  String get neteaseTranslationChineseOnly;
+
+  /// No description provided for @neteaseTranslationSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'NetEase translation saved'**
+  String get neteaseTranslationSaved;
 }
 
 class _AppLocalizationsDelegate

@@ -22,6 +22,8 @@ String _getTranslationStyleDisplayName(
     case TranslationStyle.machineClassic:
       // 使用 l10n 获取本地化字符串
       return l10n.translationStyleMachineClassic;
+    case TranslationStyle.neteaseProvider:
+      return l10n.translationStyleNetease;
   }
 }
 
@@ -34,6 +36,8 @@ IconData _getTranslationStyleIcon(TranslationStyle style) {
       return Icons.auto_stories;
     case TranslationStyle.machineClassic:
       return Icons.smart_toy;
+    case TranslationStyle.neteaseProvider:
+      return Icons.cloud;
   }
 }
 
@@ -45,6 +49,9 @@ TranslationStyle _getNextTranslationStyle(TranslationStyle currentStyle) {
     case TranslationStyle.melodramaticPoet:
       return TranslationStyle.machineClassic;
     case TranslationStyle.machineClassic:
+      return TranslationStyle.faithful;
+    case TranslationStyle.neteaseProvider:
+      // 网易云翻译切换到忠实翻译
       return TranslationStyle.faithful;
   }
 }
@@ -62,6 +69,8 @@ String _getTranslationStyleTooltip(
     case TranslationStyle.machineClassic:
       // 使用 l10n 获取本地化字符串
       return l10n.translationStyleTooltipMachine;
+    case TranslationStyle.neteaseProvider:
+      return l10n.neteaseTranslationChineseOnly;
   }
 }
 

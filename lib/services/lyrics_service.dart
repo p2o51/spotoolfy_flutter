@@ -19,7 +19,7 @@ class LyricsService {
   static const int _cacheTtlDays = 30;
 
   LyricsService({List<LyricProvider>? providers, SharedPreferences? prefs})
-      : _providers = providers ?? [QQProvider(), LRCLibProvider(), NetEaseProvider()],
+      : _providers = providers ?? [NetEaseProvider(), QQProvider(), LRCLibProvider()],
         _prefsCache = prefs;
 
   Future<String?> getLyrics(String songName, String artistName, String trackId) async {
@@ -59,6 +59,7 @@ class LyricsService {
       if (lyrics != null) {
         final provider = lyrics['provider'] as String;
         final lyricText = lyrics['lyric'] as String;
+        final translation = lyrics['translation'];
 
         final cacheData = LyricCacheData(
           provider: provider,
@@ -68,6 +69,13 @@ class LyricsService {
 
         await prefs.setString(cacheKey, json.encode(cacheData.toJson()));
         _logger.i('歌词已缓存: $trackId (来源: $provider)');
+
+        // 如果有网易云翻译，单独缓存
+        if (translation != null && translation.isNotEmpty) {
+          final translationCacheKey = 'netease_translation_$trackId';
+          await prefs.setString(translationCacheKey, translation);
+          _logger.i('网易云翻译已缓存: $trackId');
+        }
 
         return lyricText;
       }
@@ -80,14 +88,37 @@ class LyricsService {
   }
 
   /// 从多个提供者并行获取歌词
+  /// 返回 Map 包含 provider, lyric, 以及可选的 translation（仅网易云）
   Future<Map<String, String>?> _getFromProviders(String title, String artist) async {
     try {
       // 创建所有提供者的Future
-      final futures = _providers.map((provider) =>
-        provider.getLyric(title, artist).then((lyric) =>
-          lyric != null ? {'provider': provider.name, 'lyric': lyric} : null
-        )
-      ).toList();
+      final futures = _providers.map((provider) async {
+        // 网易云特殊处理：获取歌词和翻译
+        if (provider is NetEaseProvider) {
+          final match = await provider.search(title, artist);
+          if (match == null) return null;
+
+          final result = await provider.fetchLyricWithTranslation(match.songId);
+          if (result == null) return null;
+
+          final normalized = provider.normalizeLyric(result.lyric);
+          if (normalized.isEmpty) return null;
+
+          final map = <String, String>{
+            'provider': provider.name,
+            'lyric': normalized,
+          };
+          // 如果有翻译，也加入返回
+          if (result.hasTranslation) {
+            map['translation'] = result.translation!;
+          }
+          return map;
+        }
+
+        // 其他提供者使用标准流程
+        final lyric = await provider.getLyric(title, artist);
+        return lyric != null ? {'provider': provider.name, 'lyric': lyric} : null;
+      }).toList();
 
       // 并行执行所有Future，返回第一个非空结果
       final results = await Future.wait(futures);
@@ -101,6 +132,29 @@ class LyricsService {
       // 如果并行获取都失败，尝试顺序获取（增加超时时间）
       for (final provider in _providers) {
         _logger.i('尝试从 ${provider.name} 获取歌词（延长超时）');
+
+        // 网易云特殊处理
+        if (provider is NetEaseProvider) {
+          final match = await provider.search(title, artist);
+          if (match != null) {
+            final result = await provider.fetchLyricWithTranslation(match.songId);
+            if (result != null) {
+              final normalized = provider.normalizeLyric(result.lyric);
+              if (normalized.isNotEmpty) {
+                final map = <String, String>{
+                  'provider': provider.name,
+                  'lyric': normalized,
+                };
+                if (result.hasTranslation) {
+                  map['translation'] = result.translation!;
+                }
+                return map;
+              }
+            }
+          }
+          continue;
+        }
+
         final lyric = await provider.getLyric(title, artist);
         if (lyric != null) {
           return {'provider': provider.name, 'lyric': lyric};

@@ -385,5 +385,12 @@
   "timeMachineEmptyHint": "別の日付範囲を選択して、音楽履歴を探索してみてね",
   "yearsAgoToday": "{years}年前の今日",
   "andMoreTracks": "他に {count} 曲",
-  "addedYearsAgo": "{years}年前に追加 ({date})"
+  "addedYearsAgo": "{years}年前に追加 ({date})",
+  "translationAvailable": "翻訳あり",
+  "useNeteaseTranslation": "この曲には網易雲音楽の翻訳歌詞があります。使用しますか？",
+  "originalOnly": "原文のみ",
+  "useTranslation": "翻訳を使用",
+  "translationStyleNetease": "網易雲翻訳",
+  "neteaseTranslationChineseOnly": "網易雲翻訳は中国語のみ対応",
+  "neteaseTranslationSaved": "網易雲翻訳を保存しました"
 }

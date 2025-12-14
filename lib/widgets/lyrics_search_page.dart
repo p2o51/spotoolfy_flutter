@@ -156,22 +156,47 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
 
      try {
        _notificationService.showSnackBar(AppLocalizations.of(context)!.lyricsFetching);
-       // 使用提供者获取歌词
-       final rawLyric = await result.provider.fetchLyric(result.match.songId);
 
-       if (!mounted) return;
+       // 网易云特殊处理：获取翻译并保存
+       if (result.provider is NetEaseProvider) {
+         final neteaseProvider = result.provider as NetEaseProvider;
+         final lyricResult = await neteaseProvider.fetchLyricWithTranslation(result.match.songId);
 
-       if (rawLyric != null) {
-         final normalizedLyric = result.provider.normalizeLyric(rawLyric);
+         if (!mounted) return;
 
-         if (normalizedLyric.isNotEmpty) {
-           // 保存到缓存
-           await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
-           debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
+         if (lyricResult != null) {
+           final normalizedLyric = result.provider.normalizeLyric(lyricResult.lyric);
+           if (normalizedLyric.isNotEmpty) {
+             await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
 
-           // 返回获取的歌词
-           navigator.pop(normalizedLyric); // 使用捕获的 navigator
-           return;
+             // 如果有翻译，单独保存供后续使用
+             if (lyricResult.hasTranslation) {
+               await _cacheNeteaseTranslation(widget.trackId, lyricResult.translation!);
+               _notificationService.showSnackBar(
+                 AppLocalizations.of(context)!.neteaseTranslationSaved,
+               );
+             }
+
+             debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
+             navigator.pop(normalizedLyric);
+             return;
+           }
+         }
+       } else {
+         // 其他提供者使用原有逻辑
+         final rawLyric = await result.provider.fetchLyric(result.match.songId);
+
+         if (!mounted) return;
+
+         if (rawLyric != null) {
+           final normalizedLyric = result.provider.normalizeLyric(rawLyric);
+
+           if (normalizedLyric.isNotEmpty) {
+             await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
+             debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
+             navigator.pop(normalizedLyric);
+             return;
+           }
          }
        }
 
@@ -189,6 +214,18 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
          });
        }
      }
+  }
+
+  /// 缓存网易云翻译歌词（供翻译风格切换使用）
+  Future<void> _cacheNeteaseTranslation(String trackId, String translation) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'netease_translation_$trackId';
+      await prefs.setString(cacheKey, translation);
+      debugPrint("网易云翻译已缓存: $trackId");
+    } catch (e) {
+      debugPrint('缓存网易云翻译失败: $e');
+    }
   }
   
   // 手动将歌词缓存到共享首选项

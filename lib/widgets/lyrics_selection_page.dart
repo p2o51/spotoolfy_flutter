@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/poster_lyric_line.dart';
@@ -17,7 +18,7 @@ import 'lyrics_poster_preview_page.dart';
 enum _TranslationMenuAction {
   copyAllOriginal,
   copyAllTranslations,
-  cycleStyle,
+  selectStyle,
   retranslate,
 }
 
@@ -185,12 +186,103 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     }
   }
 
-  Future<void> _cycleTranslationStyle() async {
+  Future<void> _showStyleSelectionDialog() async {
     if (_isTranslating) return;
     HapticFeedback.lightImpact();
-    final nextStyle = _getNextTranslationStyle(_currentStyle);
-    await _settingsService.saveTranslationStyle(nextStyle);
-    await _loadTranslation(style: nextStyle);
+
+    final l10n = AppLocalizations.of(context)!;
+    final trackId = Provider.of<SpotifyProvider>(context, listen: false)
+        .currentTrack?['item']?['id'] as String?;
+
+    // 检查是否有网易云翻译缓存
+    bool hasNeteaseTranslation = false;
+    if (trackId != null) {
+      final prefs = await SharedPreferences.getInstance();
+      hasNeteaseTranslation = prefs.getString('netease_translation_$trackId') != null;
+    }
+
+    if (!mounted) return;
+
+    final selectedStyle = await showDialog<TranslationStyle>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(l10n.translationStyleTitle),
+        children: [
+          _buildStyleOption(
+            context,
+            TranslationStyle.faithful,
+            l10n.translationStyleFaithful,
+            _currentStyle == TranslationStyle.faithful,
+          ),
+          _buildStyleOption(
+            context,
+            TranslationStyle.melodramaticPoet,
+            l10n.translationStyleMelodramaticPoet,
+            _currentStyle == TranslationStyle.melodramaticPoet,
+          ),
+          _buildStyleOption(
+            context,
+            TranslationStyle.machineClassic,
+            l10n.translationStyleMachineClassic,
+            _currentStyle == TranslationStyle.machineClassic,
+          ),
+          if (hasNeteaseTranslation)
+            _buildStyleOption(
+              context,
+              TranslationStyle.neteaseProvider,
+              l10n.translationStyleNetease,
+              _currentStyle == TranslationStyle.neteaseProvider,
+              subtitle: l10n.neteaseTranslationChineseOnly,
+            ),
+        ],
+      ),
+    );
+
+    if (selectedStyle != null && selectedStyle != _currentStyle) {
+      await _settingsService.saveTranslationStyle(selectedStyle);
+      await _loadTranslation(style: selectedStyle);
+    }
+  }
+
+  Widget _buildStyleOption(
+    BuildContext context,
+    TranslationStyle style,
+    String title,
+    bool isSelected, {
+    String? subtitle,
+  }) {
+    return SimpleDialogOption(
+      onPressed: () => Navigator.of(context).pop(style),
+      child: Row(
+        children: [
+          if (isSelected)
+            Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+          else
+            const SizedBox(width: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: isSelected ? FontWeight.bold : null,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _getTranslationStyleDisplayName(AppLocalizations l10n) {
@@ -201,17 +293,8 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
         return l10n.translationStyleMelodramaticPoet;
       case TranslationStyle.machineClassic:
         return l10n.translationStyleMachineClassic;
-    }
-  }
-
-  TranslationStyle _getNextTranslationStyle(TranslationStyle currentStyle) {
-    switch (currentStyle) {
-      case TranslationStyle.faithful:
-        return TranslationStyle.melodramaticPoet;
-      case TranslationStyle.melodramaticPoet:
-        return TranslationStyle.machineClassic;
-      case TranslationStyle.machineClassic:
-        return TranslationStyle.faithful;
+      case TranslationStyle.neteaseProvider:
+        return l10n.translationStyleNetease;
     }
   }
 
@@ -224,8 +307,8 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       case _TranslationMenuAction.copyAllTranslations:
         await _copyAllTranslatedLyrics();
         break;
-      case _TranslationMenuAction.cycleStyle:
-        await _cycleTranslationStyle();
+      case _TranslationMenuAction.selectStyle:
+        await _showStyleSelectionDialog();
         break;
       case _TranslationMenuAction.retranslate:
         await _loadTranslation(forceRefresh: true);
@@ -512,7 +595,7 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                     ),
                   ),
                   PopupMenuItem(
-                    value: _TranslationMenuAction.cycleStyle,
+                    value: _TranslationMenuAction.selectStyle,
                     child: Text(
                       '${l10n.translationStyleTitle} · ${_getTranslationStyleDisplayName(l10n)}',
                     ),

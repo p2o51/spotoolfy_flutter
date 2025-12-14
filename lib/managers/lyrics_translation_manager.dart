@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/lyric_line.dart';
 import '../models/track.dart';
@@ -75,6 +76,11 @@ class LyricsTranslationManager {
     final effectiveStyle = style ?? await _settingsService.getTranslationStyle();
     final currentLanguage = await _settingsService.getTargetLanguage();
     final styleString = translationStyleToString(effectiveStyle);
+
+    // 网易云翻译特殊处理
+    if (effectiveStyle == TranslationStyle.neteaseProvider) {
+      return _loadNeteaseTranslation(trackId, originalLines);
+    }
 
     // 首先检查缓存
     if (!forceRefresh) {
@@ -352,6 +358,71 @@ class LyricsTranslationManager {
     _preloadedTrackId = null;
     _preloadingTrackId = null;
     _activeTranslationStyle = null;
+  }
+
+  /// 加载网易云翻译
+  Future<TranslationLoadResult> _loadNeteaseTranslation(
+    String trackId,
+    List<String> originalLines,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = 'netease_translation_$trackId';
+    final cachedTranslation = prefs.getString(cacheKey);
+
+    if (cachedTranslation == null || cachedTranslation.isEmpty) {
+      throw const LyricsTranslationException(
+        code: LyricsTranslationErrorCode.cacheFailure,
+        message: 'No NetEase translation available for this track.',
+      );
+    }
+
+    // 解析网易云翻译（LRC 格式）
+    final timeRegex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)');
+    final translationMap = <Duration, String>{};
+
+    for (final line in cachedTranslation.split('\n')) {
+      final match = timeRegex.firstMatch(line);
+      if (match != null) {
+        final minutes = int.parse(match.group(1)!);
+        final seconds = int.parse(match.group(2)!);
+        final millisecondsStr = match.group(3)!;
+        int milliseconds = millisecondsStr.length == 2
+            ? int.parse(millisecondsStr) * 10
+            : int.parse(millisecondsStr);
+
+        final timestamp = Duration(
+          minutes: minutes,
+          seconds: seconds,
+          milliseconds: milliseconds,
+        );
+        final text = match.group(4)?.trim() ?? '';
+        if (text.isNotEmpty) {
+          translationMap[timestamp] = text;
+        }
+      }
+    }
+
+    // 将翻译映射到原文行（基于时间戳匹配）
+    // 注意：这里需要原文行的时间戳信息，但 originalLines 只是文本
+    // 简化处理：按行索引匹配（假设原文和翻译行数对应）
+    final perLineTranslations = <int, String>{};
+    final translationLines = translationMap.values.toList();
+
+    for (var i = 0; i < originalLines.length && i < translationLines.length; i++) {
+      if (translationLines[i].isNotEmpty) {
+        perLineTranslations[i] = translationLines[i];
+      }
+    }
+
+    _activeTranslationStyle = TranslationStyle.neteaseProvider;
+
+    return TranslationLoadResult(
+      rawTranslatedLyrics: cachedTranslation,
+      cleanedTranslatedLyrics: translationLines.join('\n'),
+      perLineTranslations: perLineTranslations,
+      style: TranslationStyle.neteaseProvider,
+      languageCode: 'zh-CN', // 网易云翻译只有中文
+    );
   }
 
   // Helper methods

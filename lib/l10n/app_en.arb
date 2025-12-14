@@ -817,5 +817,12 @@
   "changesSaved": "Changes saved",
   "play": "Play",
   "randomReviewTitle": "Random Review",
-  "thisDayInHistory": "This Day in History"
+  "thisDayInHistory": "This Day in History",
+  "translationAvailable": "Translation Available",
+  "useNeteaseTranslation": "This song has a NetEase Cloud Music translation. Would you like to include it?",
+  "originalOnly": "Original Only",
+  "useTranslation": "Include Translation",
+  "translationStyleNetease": "NetEase Cloud",
+  "neteaseTranslationChineseOnly": "Chinese only",
+  "neteaseTranslationSaved": "NetEase translation saved"
 }

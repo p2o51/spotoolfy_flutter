@@ -1335,4 +1335,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get thisDayInHistory => 'This Day in History';
+
+  @override
+  String get translationAvailable => 'Translation Available';
+
+  @override
+  String get useNeteaseTranslation =>
+      'This song has a NetEase Cloud Music translation. Would you like to include it?';
+
+  @override
+  String get originalOnly => 'Original Only';
+
+  @override
+  String get useTranslation => 'Include Translation';
+
+  @override
+  String get translationStyleNetease => 'NetEase Cloud';
+
+  @override
+  String get neteaseTranslationChineseOnly => 'Chinese only';
+
+  @override
+  String get neteaseTranslationSaved => 'NetEase translation saved';
 }

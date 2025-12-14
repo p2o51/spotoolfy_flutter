@@ -215,6 +215,10 @@ class TranslationService {
       case TranslationStyle.machineClassic:
         tone = 'robotic';
         break;
+      case TranslationStyle.neteaseProvider:
+        // 网易云翻译不使用 Gemini，此处不会被调用
+        tone = 'natural';
+        break;
     }
 
     return '''

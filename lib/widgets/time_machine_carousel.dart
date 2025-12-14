@@ -132,6 +132,10 @@ class _TimeMachineCarouselState extends State<TimeMachineCarousel> {
   bool _isLoading = true;
   String? _error;
 
+  // Loading progress state
+  int _loadedTracks = 0;
+  int? _totalTracks;
+
   // Auto-cycle state
   List<TimeMachineMemory> _allMemories = [];
   int _currentMemoryIndex = 0;
@@ -193,11 +197,22 @@ class _TimeMachineCarouselState extends State<TimeMachineCarousel> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _loadedTracks = 0;
+      _totalTracks = null;
     });
 
     try {
       final grouped = await widget.timeMachineService.getTodayMemoriesGroupedByYear(
         toleranceDays: 1, // 允许前后1天的容差
+        useSmartSearch: false, // 禁用智能搜索，使用完整缓存确保数据完整
+        onProgress: (loaded, total) {
+          if (mounted) {
+            setState(() {
+              _loadedTracks = loaded;
+              _totalTracks = total;
+            });
+          }
+        },
       );
 
       // Flatten all memories for auto-cycling
@@ -329,13 +344,40 @@ class _TimeMachineCarouselState extends State<TimeMachineCarousel> {
   }
 
   Widget _buildLoadingState(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // 构建进度文本
+    String progressText;
+    if (_totalTracks != null && _totalTracks! > 0) {
+      progressText = '$_loadedTracks / $_totalTracks';
+    } else if (_loadedTracks > 0) {
+      progressText = '$_loadedTracks';
+    } else {
+      progressText = '';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       child: Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            if (progressText.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                progressText,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colorScheme.outline,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/lyrics_translation_error.dart';
@@ -752,10 +753,48 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return;
     }
 
+    // 检查是否有网易云翻译缓存，如果有则自动切换风格
+    await _maybeAutoSwitchToNeteaseTranslation();
+
     _autoTranslationRequestedForTrack = true;
     unawaited(_startTranslationPreload(triggerDisplayWhenReady: true));
     // 注意：下一首歌的预加载已在 _loadLyrics 中触发，这里不需要重复调用
     // _preloadNextTrackResources() 会根据自动翻译设置自动决定是否预加载翻译
+  }
+
+  /// 检查是否有网易云翻译缓存，如果有且当前风格不是网易云则自动切换
+  Future<void> _maybeAutoSwitchToNeteaseTranslation() async {
+    if (!mounted) return;
+
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
+    final trackId = spotifyProvider.currentTrack?['item']?['id'] as String?;
+    if (trackId == null) return;
+
+    // 检查当前翻译风格
+    final currentStyle = await _settingsService.getTranslationStyle();
+    if (currentStyle == TranslationStyle.neteaseProvider) {
+      // 已经是网易云风格，无需切换
+      return;
+    }
+
+    // 检查是否有网易云翻译缓存
+    final prefs = await SharedPreferences.getInstance();
+    final hasNeteaseTranslation =
+        prefs.getString('netease_translation_$trackId') != null;
+
+    if (!hasNeteaseTranslation || !mounted) return;
+
+    // 自动切换到网易云翻译风格
+    await _settingsService.saveTranslationStyle(TranslationStyle.neteaseProvider);
+
+    // 显示轻提示
+    if (mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      final notificationService =
+          Provider.of<NotificationService>(context, listen: false);
+      notificationService.showSnackBar(l10n.neteaseTranslationSaved);
+    }
   }
 
   bool get _requiresManualQuickActions =>

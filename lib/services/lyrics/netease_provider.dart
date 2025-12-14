@@ -4,10 +4,10 @@ import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'lyric_provider.dart';
 
-/// 基于社区 Node API 的网易云歌词提供者
+/// 基于第三方代理 API 的网易云歌词提供者
 class NetEaseProvider extends LyricProvider {
-  /// 社区服务基础 URL
-  static const String _baseUrl = 'https://neteasecloudmusicapi.vercel.app';
+  /// 第三方代理服务基础 URL
+  static const String _baseUrl = 'https://163api.qijieya.cn';
 
   final Logger _logger = Logger();
   final http.Client _client;
@@ -28,10 +28,9 @@ class NetEaseProvider extends LyricProvider {
   Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
     try {
       final keyword = '$title $artist';
-      final uri = Uri.parse('$_baseUrl/search').replace(
+      final uri = Uri.parse('$_baseUrl/cloudsearch').replace(
         queryParameters: {
           'keywords': keyword,
-          'type': '1',  // 单曲
           'limit': limit.toString(),
         },
       );
@@ -50,7 +49,8 @@ class NetEaseProvider extends LyricProvider {
       final results = <SongMatch>[];
       for (var i = 0; i < songs.length && i < limit; i++) {
         final song = songs[i] as Map<String, dynamic>;
-        final artists = song['artists'] as List<dynamic>?;
+        // cloudsearch 使用 'ar' 而不是 'artists'
+        final artists = song['ar'] as List<dynamic>?;
         final artistName = (artists != null && artists.isNotEmpty)
             ? artists[0]['name'] as String
             : artist;
@@ -67,11 +67,11 @@ class NetEaseProvider extends LyricProvider {
     }
   }
 
-  /// 获取歌词
+  /// 获取歌词（使用新版 API，支持翻译歌词）
   @override
   Future<String?> fetchLyric(String songId) async {
     try {
-      final uri = Uri.parse('$_baseUrl/lyric').replace(
+      final uri = Uri.parse('$_baseUrl/lyric/new').replace(
         queryParameters: {'id': songId},
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 10));
@@ -81,14 +81,125 @@ class NetEaseProvider extends LyricProvider {
       }
 
       final data = json.decode(response.body) as Map<String, dynamic>;
+
+      // 获取原文歌词
       final lrc = data['lrc'] as Map<String, dynamic>?;
-      if (lrc != null && lrc['lyric'] != null) {
-        return lrc['lyric'] as String;
+      String? lrcText = lrc?['lyric'] as String?;
+
+      if (lrcText == null || lrcText.isEmpty) {
+        return null;
       }
-      return null;
+
+      // 检查是否是 JSON 格式的逐字歌词（新版 API 特性）
+      if (lrcText.trim().startsWith('{')) {
+        lrcText = _parseJsonLyric(lrcText);
+      }
+
+      return lrcText;
     } catch (e, st) {
       _logger.e('获取歌词失败', error: e, stackTrace: st);
       return null;
     }
+  }
+
+  /// 获取歌词（包含翻译信息）
+  Future<LyricResult?> fetchLyricWithTranslation(String songId) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/lyric/new').replace(
+        queryParameters: {'id': songId},
+      );
+      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        _logger.w('获取歌词失败: ${response.statusCode}');
+        return null;
+      }
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+
+      // 获取原文歌词
+      final lrc = data['lrc'] as Map<String, dynamic>?;
+      String? lrcText = lrc?['lyric'] as String?;
+
+      if (lrcText == null || lrcText.isEmpty) {
+        return null;
+      }
+
+      // 检查是否是 JSON 格式的逐字歌词
+      if (lrcText.trim().startsWith('{')) {
+        lrcText = _parseJsonLyric(lrcText);
+      }
+
+      if (lrcText == null || lrcText.isEmpty) {
+        return null;
+      }
+
+      // 获取翻译歌词
+      final tlyric = data['tlyric'] as Map<String, dynamic>?;
+      final tlyricText = tlyric?['lyric'] as String?;
+
+      return LyricResult(
+        lyric: lrcText,
+        translation: tlyricText,
+      );
+    } catch (e, st) {
+      _logger.e('获取歌词失败', error: e, stackTrace: st);
+      return null;
+    }
+  }
+
+  /// 解析 JSON 格式的逐字歌词，转换为标准 LRC 格式
+  String? _parseJsonLyric(String jsonLyric) {
+    try {
+      final lines = jsonLyric.split('\n');
+      final lrcLines = <String>[];
+
+      for (final line in lines) {
+        if (line.trim().isEmpty) continue;
+        if (!line.trim().startsWith('{')) {
+          // 已经是 LRC 格式
+          lrcLines.add(line);
+          continue;
+        }
+
+        try {
+          final json = jsonDecode(line.trim());
+          final time = json['t'] as int? ?? 0;
+          final parts = json['c'] as List<dynamic>?;
+
+          if (parts != null) {
+            final text = parts.map((p) => p['tx'] ?? '').join('');
+            // 跳过元数据行（作词、作曲等）
+            if (_isMetadataLine(text)) continue;
+
+            final minutes = (time ~/ 60000).toString().padLeft(2, '0');
+            final seconds = ((time % 60000) ~/ 1000).toString().padLeft(2, '0');
+            final millis = ((time % 1000) ~/ 10).toString().padLeft(2, '0');
+            lrcLines.add('[$minutes:$seconds.$millis]$text');
+          }
+        } catch (_) {
+          // 解析失败，跳过这行
+        }
+      }
+
+      return lrcLines.isNotEmpty ? lrcLines.join('\n') : null;
+    } catch (e) {
+      _logger.w('解析 JSON 歌词失败: $e');
+      return null;
+    }
+  }
+
+  /// 检查是否是元数据行（作词、作曲等）
+  bool _isMetadataLine(String text) {
+    final metadataKeywords = [
+      '歌词贡献者', '翻译贡献者', '作词', '作曲', '编曲',
+      '制作', '词曲', '词 / 曲', 'lyricist', 'composer',
+      'arrange', 'translation', 'translator', 'producer',
+    ];
+    final lowerText = text.toLowerCase();
+    return metadataKeywords.any((keyword) =>
+      lowerText.startsWith(keyword.toLowerCase()) ||
+      lowerText.contains(':$keyword') ||
+      lowerText.contains('：$keyword')
+    );
   }
 }

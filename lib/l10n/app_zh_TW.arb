@@ -385,5 +385,12 @@
   "timeMachineEmptyHint": "嘗試選擇不同的日期範圍來探索你的音樂歷史",
   "yearsAgoToday": "{years}年前的今天",
   "andMoreTracks": "還有 {count} 首",
-  "addedYearsAgo": "{years}年前新增 ({date})"
+  "addedYearsAgo": "{years}年前新增 ({date})",
+  "translationAvailable": "發現翻譯",
+  "useNeteaseTranslation": "這首歌有網易雲音樂的翻譯歌詞，是否使用？",
+  "originalOnly": "僅原文",
+  "useTranslation": "使用翻譯",
+  "translationStyleNetease": "網易雲翻譯",
+  "neteaseTranslationChineseOnly": "網易雲翻譯僅提供中文",
+  "neteaseTranslationSaved": "網易雲翻譯已儲存"
 }

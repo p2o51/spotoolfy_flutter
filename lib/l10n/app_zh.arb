@@ -401,5 +401,12 @@
   "changesSaved": "更改已保存",
   "play": "播放",
   "randomReviewTitle": "随机回顾",
-  "thisDayInHistory": "往年今日"
+  "thisDayInHistory": "往年今日",
+  "translationAvailable": "发现翻译",
+  "useNeteaseTranslation": "这首歌有网易云音乐的翻译歌词，是否使用？",
+  "originalOnly": "仅原文",
+  "useTranslation": "使用翻译",
+  "translationStyleNetease": "网易云",
+  "neteaseTranslationChineseOnly": "仅中文",
+  "neteaseTranslationSaved": "网易云翻译已保存"
 }

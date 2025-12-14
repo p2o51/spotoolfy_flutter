@@ -47,12 +47,25 @@ class SongMatch {
   final String songId;
   final String title;
   final String artist;
-  
+
   SongMatch({
     required this.songId,
     required this.title,
     required this.artist,
   });
+}
+
+/// 歌词获取结果（包含可选翻译）
+class LyricResult {
+  final String lyric;
+  final String? translation;
+
+  LyricResult({
+    required this.lyric,
+    this.translation,
+  });
+
+  bool get hasTranslation => translation != null && translation!.trim().isNotEmpty;
 }
 
 /// 歌词缓存数据

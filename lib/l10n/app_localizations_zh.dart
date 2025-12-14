@@ -1284,6 +1284,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get thisDayInHistory => '往年今日';
+
+  @override
+  String get translationAvailable => '发现翻译';
+
+  @override
+  String get useNeteaseTranslation => '这首歌有网易云音乐的翻译歌词，是否使用？';
+
+  @override
+  String get originalOnly => '仅原文';
+
+  @override
+  String get useTranslation => '使用翻译';
+
+  @override
+  String get translationStyleNetease => '网易云';
+
+  @override
+  String get neteaseTranslationChineseOnly => '仅中文';
+
+  @override
+  String get neteaseTranslationSaved => '网易云翻译已保存';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2510,4 +2531,25 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String addedYearsAgo(int years, String date) {
     return '$years年前新增 ($date)';
   }
+
+  @override
+  String get translationAvailable => '發現翻譯';
+
+  @override
+  String get useNeteaseTranslation => '這首歌有網易雲音樂的翻譯歌詞，是否使用？';
+
+  @override
+  String get originalOnly => '僅原文';
+
+  @override
+  String get useTranslation => '使用翻譯';
+
+  @override
+  String get translationStyleNetease => '網易雲翻譯';
+
+  @override
+  String get neteaseTranslationChineseOnly => '網易雲翻譯僅提供中文';
+
+  @override
+  String get neteaseTranslationSaved => '網易雲翻譯已儲存';
 }

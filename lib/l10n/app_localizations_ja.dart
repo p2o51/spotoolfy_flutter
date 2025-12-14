@@ -1289,4 +1289,25 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get thisDayInHistory => 'This Day in History';
+
+  @override
+  String get translationAvailable => '翻訳あり';
+
+  @override
+  String get useNeteaseTranslation => 'この曲には網易雲音楽の翻訳歌詞があります。使用しますか？';
+
+  @override
+  String get originalOnly => '原文のみ';
+
+  @override
+  String get useTranslation => '翻訳を使用';
+
+  @override
+  String get translationStyleNetease => '網易雲翻訳';
+
+  @override
+  String get neteaseTranslationChineseOnly => '網易雲翻訳は中国語のみ対応';
+
+  @override
+  String get neteaseTranslationSaved => '網易雲翻訳を保存しました';
 }

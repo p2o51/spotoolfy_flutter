@@ -5,6 +5,7 @@ enum TranslationStyle {
   faithful,
   melodramaticPoet,
   machineClassic,
+  neteaseProvider, // 网易云翻译（仅中文）
 }
 
 // Helper to convert enum to string for storage

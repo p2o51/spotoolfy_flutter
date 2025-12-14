@@ -460,11 +460,15 @@ class TimeMachineService {
     DateTime? targetDate,
     int toleranceDays = 1,
     bool forceRefresh = false,
+    bool useSmartSearch = true,
+    void Function(int loaded, int? total)? onProgress,
   }) async {
     final memories = await getTodayMemories(
       targetDate: targetDate,
       toleranceDays: toleranceDays,
       forceRefresh: forceRefresh,
+      useSmartSearch: useSmartSearch,
+      onProgress: onProgress,
     );
 
     final grouped = <int, List<TimeMachineMemory>>{};
