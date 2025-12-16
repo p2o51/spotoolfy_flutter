@@ -1200,39 +1200,38 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchNotesHint => 'ノートを検索...';
 
   @override
-  String get swipeToDelete => 'Delete';
+  String get swipeToDelete => '削除';
 
   @override
-  String get swipeToPlay => 'Play';
+  String get swipeToPlay => '再生';
 
   @override
-  String get emptyNotesTitle => 'No notes yet';
+  String get emptyNotesTitle => 'メモがまだない';
 
   @override
-  String get emptyNotesSubtitle =>
-      'Start playing music and add your first note on the Now Playing page';
+  String get emptyNotesSubtitle => '音楽を再生して、再生中ページで最初のメモを追加しよう';
 
   @override
-  String get todayReviewTitle => 'Revisit';
+  String get todayReviewTitle => '振り返り';
 
   @override
-  String get undoAction => 'Undo';
+  String get undoAction => '元に戻す';
 
   @override
-  String get askMoreAboutTrack => 'Ask more about this track';
+  String get askMoreAboutTrack => 'この曲についてもっと聞く';
 
   @override
-  String get askFollowUpHint => 'Ask anything about this song...';
+  String get askFollowUpHint => 'この曲について何でも聞いて...';
 
   @override
-  String get askFollowUpSend => 'Send';
+  String get askFollowUpSend => '送信';
 
   @override
-  String get followUpThinking => 'Thinking...';
+  String get followUpThinking => '考え中...';
 
   @override
   String followUpError(String error) {
-    return 'Failed to get answer: $error';
+    return '回答の取得に失敗しました: $error';
   }
 
   @override
@@ -1270,25 +1269,25 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get ratingLabel => 'Rating';
+  String get ratingLabel => '評価';
 
   @override
-  String get lyricsSnapshotLabel => 'Lyrics Snapshot';
+  String get lyricsSnapshotLabel => '歌詞スナップショット';
 
   @override
-  String get addNoteHint => 'Add a note...';
+  String get addNoteHint => 'メモを追加...';
 
   @override
-  String get changesSaved => 'Changes saved';
+  String get changesSaved => '変更を保存しました';
 
   @override
-  String get play => 'Play';
+  String get play => '再生';
 
   @override
-  String get randomReviewTitle => 'Random Review';
+  String get randomReviewTitle => 'ランダムレビュー';
 
   @override
-  String get thisDayInHistory => 'This Day in History';
+  String get thisDayInHistory => '今日の歴史';
 
   @override
   String get translationAvailable => '翻訳あり';
@@ -1310,4 +1309,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get neteaseTranslationSaved => '網易雲翻訳を保存しました';
+
+  @override
+  String get pressAgainToExit => 'もう一度押すと終了します';
 }

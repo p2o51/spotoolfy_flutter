@@ -77,6 +77,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
   String? _nextTrackPreloadingId;
   bool _lyricsAreSynced = true;
   bool _isLyricsLoading = false;
+  // 歌词来源信息
+  String? _currentLyricsProvider;
+  bool _hasNeteaseTranslation = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -119,6 +122,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _preloadingTrackId = null;
       _nextTrackPreloadFuture = null;
       _activeTranslationStyle = null;
+      _currentLyricsProvider = null;
+      _hasNeteaseTranslation = false;
       // If no track is playing, clear lyrics and reset state
       if (_lyrics.isNotEmpty || _lastTrackId != null) {
         _quickActionsHideTimer?.cancel();
@@ -134,6 +139,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _activeTranslationStyle = null;
           _lyricsAreSynced = true;
           _manualQuickActionsVisible = false;
+          _currentLyricsProvider = null;
+          _hasNeteaseTranslation = false;
         });
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0);
@@ -178,9 +185,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _lyricsAreSynced = true;
       _manualQuickActionsVisible = false;
       _isLyricsLoading = true;
+      _currentLyricsProvider = null;
+      _hasNeteaseTranslation = false;
     });
 
-    final rawLyrics =
+    final lyricsResult =
         await _lyricsService.getLyrics(songName, artistName, trackId);
 
     // Check mounted *before* accessing context again after await
@@ -193,9 +202,14 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return;
     }
 
-    if (rawLyrics != null) {
+    if (lyricsResult != null) {
+      final rawLyrics = lyricsResult.lyric;
       final summary = LyricTimingUtils.summarize(rawLyrics);
       final parsedLyrics = _parseLyrics(rawLyrics);
+
+      // 保存歌词来源信息
+      _currentLyricsProvider = lyricsResult.provider;
+      _hasNeteaseTranslation = lyricsResult.hasNeteaseTranslation;
 
       if (summary.hasTimestamps && parsedLyrics.isNotEmpty) {
         _quickActionsHideTimer?.cancel();
@@ -362,6 +376,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final currentLanguage = await _settingsService.getTargetLanguage();
     final styleString = translationStyleToString(effectiveStyle);
 
+    // 网易云翻译特殊处理：从缓存加载而非调用 Gemini
+    if (effectiveStyle == TranslationStyle.neteaseProvider) {
+      return _loadNeteaseTranslation(trackId);
+    }
+
     if (!forceRefresh) {
       final cached = await localDbProvider.fetchTranslation(
         trackId,
@@ -496,6 +515,74 @@ class _LyricsWidgetState extends State<LyricsWidget>
     );
   }
 
+  /// 加载网易云翻译（从 SharedPreferences 缓存）
+  Future<TranslationLoadResult> _loadNeteaseTranslation(String trackId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = 'netease_translation_$trackId';
+    final cachedTranslation = prefs.getString(cacheKey);
+
+    if (cachedTranslation == null || cachedTranslation.isEmpty) {
+      throw const LyricsTranslationException(
+        code: LyricsTranslationErrorCode.cacheFailure,
+        message: 'No NetEase translation available for this track.',
+      );
+    }
+
+    // 解析网易云翻译（LRC 格式）
+    final timeRegex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)');
+    final translationMap = <Duration, String>{};
+
+    for (final line in cachedTranslation.split('\n')) {
+      final match = timeRegex.firstMatch(line);
+      if (match != null) {
+        final minutes = int.parse(match.group(1)!);
+        final seconds = int.parse(match.group(2)!);
+        final millisecondsStr = match.group(3)!;
+        int milliseconds = millisecondsStr.length == 2
+            ? int.parse(millisecondsStr) * 10
+            : int.parse(millisecondsStr);
+
+        final timestamp = Duration(
+          minutes: minutes,
+          seconds: seconds,
+          milliseconds: milliseconds,
+        );
+        final text = match.group(4)?.trim() ?? '';
+        if (text.isNotEmpty) {
+          translationMap[timestamp] = text;
+        }
+      }
+    }
+
+    // 基于时间戳匹配原文和翻译
+    final perLineTranslations = <int, String>{};
+    final sortedTimestamps = translationMap.keys.toList()..sort();
+
+    for (var i = 0; i < _lyrics.length; i++) {
+      final lyricTimestamp = _lyrics[i].timestamp;
+      // 找到最接近的翻译时间戳（允许 500ms 误差）
+      String? matchedTranslation;
+      for (final transTimestamp in sortedTimestamps) {
+        final diff = (lyricTimestamp - transTimestamp).inMilliseconds.abs();
+        if (diff <= 500) {
+          matchedTranslation = translationMap[transTimestamp];
+          break;
+        }
+      }
+      if (matchedTranslation != null && matchedTranslation.isNotEmpty) {
+        perLineTranslations[i] = matchedTranslation;
+      }
+    }
+
+    return TranslationLoadResult(
+      rawTranslatedLyrics: cachedTranslation,
+      cleanedTranslatedLyrics: translationMap.values.join('\n'),
+      perLineTranslations: perLineTranslations,
+      style: TranslationStyle.neteaseProvider,
+      languageCode: 'zh-CN', // 网易云翻译只有中文
+    );
+  }
+
   bool get _hasTranslationsLoaded {
     return _lyrics.any(
       (line) => line.translation != null && line.translation!.trim().isNotEmpty,
@@ -518,6 +605,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
   Future<void> _startTranslationPreload({
     required bool triggerDisplayWhenReady,
     bool forceRefresh = false,
+    TranslationStyle? overrideStyle,
   }) async {
     if (!mounted || _lyrics.isEmpty) {
       return;
@@ -602,6 +690,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     _preloadingTrackId = currentTrackId;
     final future = _loadTranslationData(
       forceRefresh: forceRefresh,
+      style: overrideStyle,
     );
     _translationPreloadFuture = future;
 
@@ -683,15 +772,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final artistName = _getPrimaryArtistName(nextTrack);
 
         // 始终预加载歌词（会自动缓存到 SharedPreferences）
-        final rawLyrics =
+        final lyricsResult =
             await _lyricsService.getLyrics(songName, artistName, trackId);
-        if (rawLyrics == null || !mounted) {
+        if (lyricsResult == null || !mounted) {
           debugPrint('Preloaded lyrics for next track: $trackId (no lyrics found)');
           return;
         }
 
-        debugPrint('Preloaded lyrics for next track: $trackId');
+        debugPrint('Preloaded lyrics for next track: $trackId (provider: ${lyricsResult.provider})');
 
+        final rawLyrics = lyricsResult.lyric;
         var lyricLines = _parseLyrics(rawLyrics);
         List<String> originalLines =
             lyricLines.map((line) => line.text).toList(growable: false);
@@ -713,10 +803,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
             await _settingsService.getAutoTranslateLyricsEnabled();
 
         if (shouldPreloadTranslation) {
+          // 如果歌词来自网易云且有翻译，使用网易云翻译
+          TranslationStyle? preferredStyle;
+          if (lyricsResult.isFromNetease && lyricsResult.hasNeteaseTranslation) {
+            preferredStyle = TranslationStyle.neteaseProvider;
+          }
           await _loadTranslationForTrack(
             trackId: trackId,
             originalLines: originalLines,
             trackItem: nextTrack,
+            style: preferredStyle,
           );
           debugPrint('Preloaded translation for next track: $trackId');
         }
@@ -753,48 +849,22 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return;
     }
 
-    // 检查是否有网易云翻译缓存，如果有则自动切换风格
-    await _maybeAutoSwitchToNeteaseTranslation();
-
     _autoTranslationRequestedForTrack = true;
-    unawaited(_startTranslationPreload(triggerDisplayWhenReady: true));
+
+    // 根据歌词来源决定翻译风格
+    // 如果歌词来自网易云且有翻译可用，优先使用网易云翻译（不修改用户设置）
+    TranslationStyle? preferredStyle;
+    if (_currentLyricsProvider == 'netease' && _hasNeteaseTranslation) {
+      preferredStyle = TranslationStyle.neteaseProvider;
+      _activeTranslationStyle = TranslationStyle.neteaseProvider;
+    }
+
+    unawaited(_startTranslationPreload(
+      triggerDisplayWhenReady: true,
+      overrideStyle: preferredStyle,
+    ));
     // 注意：下一首歌的预加载已在 _loadLyrics 中触发，这里不需要重复调用
     // _preloadNextTrackResources() 会根据自动翻译设置自动决定是否预加载翻译
-  }
-
-  /// 检查是否有网易云翻译缓存，如果有且当前风格不是网易云则自动切换
-  Future<void> _maybeAutoSwitchToNeteaseTranslation() async {
-    if (!mounted) return;
-
-    final spotifyProvider =
-        Provider.of<SpotifyProvider>(context, listen: false);
-    final trackId = spotifyProvider.currentTrack?['item']?['id'] as String?;
-    if (trackId == null) return;
-
-    // 检查当前翻译风格
-    final currentStyle = await _settingsService.getTranslationStyle();
-    if (currentStyle == TranslationStyle.neteaseProvider) {
-      // 已经是网易云风格，无需切换
-      return;
-    }
-
-    // 检查是否有网易云翻译缓存
-    final prefs = await SharedPreferences.getInstance();
-    final hasNeteaseTranslation =
-        prefs.getString('netease_translation_$trackId') != null;
-
-    if (!hasNeteaseTranslation || !mounted) return;
-
-    // 自动切换到网易云翻译风格
-    await _settingsService.saveTranslationStyle(TranslationStyle.neteaseProvider);
-
-    // 显示轻提示
-    if (mounted) {
-      final l10n = AppLocalizations.of(context)!;
-      final notificationService =
-          Provider.of<NotificationService>(context, listen: false);
-      notificationService.showSnackBar(l10n.neteaseTranslationSaved);
-    }
   }
 
   bool get _requiresManualQuickActions =>
@@ -1435,7 +1505,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                         }
                       },
                       child: AnimatedPadding(
-                        duration: const Duration(milliseconds: 400),
+                        duration: const Duration(milliseconds: 550),
                         curve: Curves.easeOutCubic,
                         padding: EdgeInsets.symmetric(
                           // Web端行间距增大30%
@@ -1448,7 +1518,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                               : 40.0, // Reverted padding
                         ),
                         child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 400),
+                          duration: const Duration(milliseconds: 550),
                           curve: Curves.easeOutCubic,
                           style: TextStyle(
                             fontFamily: 'Spotify Mix',
@@ -1461,7 +1531,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                             height: isWeb ? 1.43 : 1.1,
                           ),
                           child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 400),
+                            duration: const Duration(milliseconds: 550),
                             curve: Curves.easeOutCubic,
                             opacity: lyricsSynced
                                 ? (isCurrentLine ? 1.0 : 0.8)
@@ -2085,6 +2155,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           );
         },
         originalLyrics: originalLyricsJoined,
+        hasNeteaseTranslation: _hasNeteaseTranslation,
       ),
       preferredMode: SecondaryPageMode.sideSheet,
       maxWidth: 520,

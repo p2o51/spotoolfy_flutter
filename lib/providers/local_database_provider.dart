@@ -281,9 +281,11 @@ class LocalDatabaseProvider with ChangeNotifier {
   Future<String?> _getLyricsSnippet(String trackId, String trackName,
       String artistName, int? timestampMs) async {
     try {
-      final fullLyrics =
+      final lyricsResult =
           await _lyricsService.getLyrics(trackName, artistName, trackId);
-      if (fullLyrics == null || fullLyrics.isEmpty) return null;
+      if (lyricsResult == null) return null;
+      final fullLyrics = lyricsResult.lyric;
+      if (fullLyrics.isEmpty) return null;
 
       if (timestampMs == null || timestampMs <= 0) {
         return fullLyrics.split('\n').take(3).join('\n').trim();

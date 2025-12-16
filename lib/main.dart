@@ -336,6 +336,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -382,12 +383,44 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     const Roam(),
   ];
 
+  /// 处理返回键：如果不在首页则返回首页，否则双击退出
+  void _handleBackPress(bool didPop) {
+    if (didPop) return;
+
+    // 如果不在首页，返回首页
+    if (_selectedIndex != 0) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+      return;
+    }
+
+    // 在首页，实现双击退出
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      final notificationService =
+          Provider.of<NotificationService>(context, listen: false);
+      final l10n = AppLocalizations.of(context);
+      notificationService.showSnackBar(
+        l10n?.pressAgainToExit ?? 'Press again to exit',
+      );
+    } else {
+      // 双击确认退出
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // 使用响应式工具检查屏幕宽度
     final isLargeScreen = context.isLargeScreen;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) => _handleBackPress(didPop),
+      child: Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
@@ -581,6 +614,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 ],
               ),
             ),
+      ),
     );
   }
 }

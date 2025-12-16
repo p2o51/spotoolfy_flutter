@@ -234,6 +234,37 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     });
   }
 
+  /// 根据当前专辑封面更新主题色
+  void _updateThemeIfNeeded(BuildContext context, Map<String, dynamic>? displayTrack) {
+    final String? currentImageUrl =
+        displayTrack?['album']?['images']?[0]?['url'];
+
+    if (currentImageUrl != null && currentImageUrl != _lastImageUrl) {
+      _prefetchImage(currentImageUrl);
+
+      if (!_isThemeUpdating) {
+        _isThemeUpdating = true;
+        _lastImageUrl = currentImageUrl;
+
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && currentImageUrl == _lastImageUrl) {
+            final themeProvider = context.read<ThemeProvider>();
+            final imageProvider = CachedNetworkImageProvider(
+              currentImageUrl,
+              maxWidth: MediaQuery.sizeOf(context).width.toInt(),
+            );
+            themeProvider.updateThemeFromImage(
+              imageProvider: imageProvider,
+              brightness: MediaQuery.platformBrightnessOf(context),
+              cacheKey: currentImageUrl,
+            );
+          }
+          _isThemeUpdating = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final track = context.select<SpotifyProvider, Map<String, dynamic>?>(
@@ -247,6 +278,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     }
 
     final displayTrack = track ?? _lastTrack;
+
+    // 主题更新（对 miniplayer 和全屏播放器都生效）
+    _updateThemeIfNeeded(context, displayTrack);
 
     if (widget.isMiniPlayer) {
       return _buildMiniPlayer(displayTrack, spotifyProvider);
@@ -456,34 +490,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   }
 
   Widget _buildAlbumArt(Map<String, dynamic>? track) {
-    final themeProvider = context.read<ThemeProvider>();
     final displayTrack = track ?? _lastTrack;
     final String? currentImageUrl =
         displayTrack?['album']?['images']?[0]?['url'];
 
-    if (currentImageUrl != null && currentImageUrl != _lastImageUrl) {
-      _prefetchImage(currentImageUrl);
-
-      if (!_isThemeUpdating) {
-        _isThemeUpdating = true;
-        _lastImageUrl = currentImageUrl;
-
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted && currentImageUrl == _lastImageUrl) {
-            final imageProvider = CachedNetworkImageProvider(
-              currentImageUrl,
-              maxWidth: MediaQuery.sizeOf(context).width.toInt(),
-            );
-            themeProvider.updateThemeFromImage(
-              imageProvider: imageProvider,
-              brightness: MediaQuery.platformBrightnessOf(context),
-              cacheKey: currentImageUrl,
-            );
-          }
-          _isThemeUpdating = false;
-        });
-      }
-    }
+    // 主题更新已移至 _updateThemeIfNeeded，在 build 开始时统一调用
 
     // 原本的 ClipRRect 现在是 Stack 的第一个子元素
     final albumArtWidget = ClipRRect(

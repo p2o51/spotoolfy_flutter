@@ -1305,6 +1305,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get neteaseTranslationSaved => '网易云翻译已保存';
+
+  @override
+  String get pressAgainToExit => '再按一次退出';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2500,6 +2503,41 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get searchNotesHint => '搜尋筆記...';
 
   @override
+  String get swipeToDelete => '刪除';
+
+  @override
+  String get swipeToPlay => '播放';
+
+  @override
+  String get emptyNotesTitle => '還沒有筆記';
+
+  @override
+  String get emptyNotesSubtitle => '開始播放音樂，在播放頁面新增你的第一則筆記吧';
+
+  @override
+  String get todayReviewTitle => '回顧';
+
+  @override
+  String get undoAction => '復原';
+
+  @override
+  String get askMoreAboutTrack => '追問關於這首歌的問題';
+
+  @override
+  String get askFollowUpHint => '問任何關於這首歌的問題...';
+
+  @override
+  String get askFollowUpSend => '傳送';
+
+  @override
+  String get followUpThinking => '思考中...';
+
+  @override
+  String followUpError(String error) {
+    return '取得回答失敗: $error';
+  }
+
+  @override
   String get authFailureExceeded => '授權失敗次數已達上限，請檢查 Spotify Client ID 是否正確配置';
 
   @override
@@ -2533,6 +2571,27 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   }
 
   @override
+  String get ratingLabel => '評分';
+
+  @override
+  String get lyricsSnapshotLabel => '歌詞片段';
+
+  @override
+  String get addNoteHint => '新增筆記...';
+
+  @override
+  String get changesSaved => '變更已儲存';
+
+  @override
+  String get play => '播放';
+
+  @override
+  String get randomReviewTitle => '隨機回顧';
+
+  @override
+  String get thisDayInHistory => '往年今日';
+
+  @override
   String get translationAvailable => '發現翻譯';
 
   @override
@@ -2552,4 +2611,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get neteaseTranslationSaved => '網易雲翻譯已儲存';
+
+  @override
+  String get pressAgainToExit => '再按一次退出';
 }

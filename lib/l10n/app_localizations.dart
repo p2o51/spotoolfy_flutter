@@ -2489,6 +2489,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'NetEase translation saved'**
   String get neteaseTranslationSaved;
+
+  /// No description provided for @pressAgainToExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Press again to exit'**
+  String get pressAgainToExit;
 }
 
 class _AppLocalizationsDelegate

@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // html_unescape is used in the provider classes
+import '../models/lyrics_result.dart';
 import 'lyrics/lyric_provider.dart';
 import 'lyrics/qq_provider.dart';
 import 'lyrics/netease_provider.dart';
 import 'lyrics/lrclib_provider.dart';
+
+export '../models/lyrics_result.dart';
 
 class LyricsService {
   final Logger _logger = Logger();
@@ -22,10 +25,14 @@ class LyricsService {
       : _providers = providers ?? [NetEaseProvider(), QQProvider(), LRCLibProvider()],
         _prefsCache = prefs;
 
-  Future<String?> getLyrics(String songName, String artistName, String trackId) async {
+  /// 获取歌词
+  ///
+  /// 返回 [LyricsResult] 包含歌词文本、来源信息和翻译可用性
+  Future<LyricsResult?> getLyrics(String songName, String artistName, String trackId) async {
     try {
       // 使用 trackId 作为缓存键
       final cacheKey = _cacheKeyPrefix + trackId;
+      final translationCacheKey = 'netease_translation_$trackId';
 
       // 尝试从缓存获取
       final prefs = await _getPrefs();
@@ -39,7 +46,13 @@ class LyricsService {
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
           if (now - cacheData.timestamp < _cacheTtlDays * 24 * 60 * 60) {
             _logger.i('从缓存获取歌词: $trackId (来源: ${cacheData.provider})');
-            return cacheData.lyric;
+            // 检查是否有网易云翻译缓存
+            final hasNeteaseTranslation = prefs.getString(translationCacheKey) != null;
+            return LyricsResult(
+              lyric: cacheData.lyric,
+              provider: cacheData.provider,
+              hasNeteaseTranslation: hasNeteaseTranslation,
+            );
           } else {
             _logger.i('缓存已过期: $trackId');
           }
@@ -60,6 +73,7 @@ class LyricsService {
         final provider = lyrics['provider'] as String;
         final lyricText = lyrics['lyric'] as String;
         final translation = lyrics['translation'];
+        final hasTranslation = translation != null && translation.isNotEmpty;
 
         final cacheData = LyricCacheData(
           provider: provider,
@@ -71,13 +85,16 @@ class LyricsService {
         _logger.i('歌词已缓存: $trackId (来源: $provider)');
 
         // 如果有网易云翻译，单独缓存
-        if (translation != null && translation.isNotEmpty) {
-          final translationCacheKey = 'netease_translation_$trackId';
+        if (hasTranslation) {
           await prefs.setString(translationCacheKey, translation);
           _logger.i('网易云翻译已缓存: $trackId');
         }
 
-        return lyricText;
+        return LyricsResult(
+          lyric: lyricText,
+          provider: provider,
+          hasNeteaseTranslation: hasTranslation,
+        );
       }
 
       return null;

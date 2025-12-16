@@ -1357,4 +1357,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get neteaseTranslationSaved => 'NetEase translation saved';
+
+  @override
+  String get pressAgainToExit => 'Press again to exit';
 }

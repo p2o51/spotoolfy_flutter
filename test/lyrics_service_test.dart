@@ -92,13 +92,15 @@ void main() {
 
     test('LyricsService can get lyrics from multiple providers', () async {
       final service = LyricsService(providers: [_FakeLyricProvider()]);
-      final lyrics = await service.getLyrics('Bohemian Rhapsody', 'Queen', 'test_track_id');
+      final result = await service.getLyrics('Bohemian Rhapsody', 'Queen', 'test_track_id');
 
-      expect(lyrics, isNotNull);
-      if (lyrics != null) {
+      expect(result, isNotNull);
+      if (result != null) {
         // 验证歌词格式
-        expect(lyrics.contains('['), isTrue);
-        expect(lyrics.contains(']'), isTrue);
+        expect(result.lyric.contains('['), isTrue);
+        expect(result.lyric.contains(']'), isTrue);
+        // 验证来源信息
+        expect(result.provider, equals('fake'));
       }
     });
   });

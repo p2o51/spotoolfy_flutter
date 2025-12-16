@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/poster_lyric_line.dart';
@@ -49,6 +48,8 @@ class LyricsSelectionPage extends StatefulWidget {
     TranslationStyle? style,
   }) loadTranslation;
   final String originalLyrics;
+  /// 是否有网易云翻译可用（基于歌词来源）
+  final bool hasNeteaseTranslation;
 
   const LyricsSelectionPage({
     super.key,
@@ -60,6 +61,7 @@ class LyricsSelectionPage extends StatefulWidget {
     required this.initialStyle,
     required this.loadTranslation,
     required this.originalLyrics,
+    this.hasNeteaseTranslation = false,
   });
 
   @override
@@ -191,15 +193,6 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     HapticFeedback.lightImpact();
 
     final l10n = AppLocalizations.of(context)!;
-    final trackId = Provider.of<SpotifyProvider>(context, listen: false)
-        .currentTrack?['item']?['id'] as String?;
-
-    // 检查是否有网易云翻译缓存
-    bool hasNeteaseTranslation = false;
-    if (trackId != null) {
-      final prefs = await SharedPreferences.getInstance();
-      hasNeteaseTranslation = prefs.getString('netease_translation_$trackId') != null;
-    }
 
     if (!mounted) return;
 
@@ -226,7 +219,8 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
             l10n.translationStyleMachineClassic,
             _currentStyle == TranslationStyle.machineClassic,
           ),
-          if (hasNeteaseTranslation)
+          // 只有当歌词来源有网易云翻译时才显示此选项
+          if (widget.hasNeteaseTranslation)
             _buildStyleOption(
               context,
               TranslationStyle.neteaseProvider,

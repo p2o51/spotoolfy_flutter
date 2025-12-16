@@ -18,6 +18,14 @@ class LyricsSearchResult {
   LyricsSearchResult({required this.match, required this.provider});
 }
 
+/// 每个提供者的搜索状态
+enum ProviderSearchState {
+  idle,
+  loading,
+  loaded,
+  error,
+}
+
 class LyricsSearchPage extends StatefulWidget {
   final String initialTrackTitle;
   final String initialArtistName;
@@ -37,11 +45,15 @@ class LyricsSearchPage extends StatefulWidget {
 class _LyricsSearchPageState extends State<LyricsSearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  bool _isLoading = false;
   bool _isFetchingLyric = false;
-  // 使用我们自己定义的类型
-  List<LyricsSearchResult> _searchResults = [];
   String _currentQuery = '';
+
+  // 每个提供者的搜索状态和结果
+  final Map<String, ProviderSearchState> _providerStates = {};
+  final Map<String, List<LyricsSearchResult>> _providerResults = {};
+
+  // 提供者列表
+  late final List<LyricProvider> _providers;
 
   // 注入服务
   late NotificationService _notificationService;
@@ -49,18 +61,34 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
   @override
   void initState() {
     super.initState();
-    _notificationService = Provider.of<NotificationService>(context, listen: false);
+    _notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+
+    // 初始化提供者
+    _providers = [
+      QQProvider(),
+      LRCLibProvider(),
+      NetEaseProvider(),
+    ];
+
+    // 初始化每个提供者的状态
+    for (final provider in _providers) {
+      _providerStates[provider.name] = ProviderSearchState.idle;
+      _providerResults[provider.name] = [];
+    }
 
     // 设置初始查询并执行第一次搜索
-    _currentQuery = '${widget.initialTrackTitle} ${widget.initialArtistName}'.trim();
+    _currentQuery =
+        '${widget.initialTrackTitle} ${widget.initialArtistName}'.trim();
     _searchController.text = _currentQuery;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       if (!mounted) return;
-       _performSearch(_currentQuery);
-       // 首帧后请求焦点
-       FocusScope.of(context).requestFocus(_searchFocusNode);
-       // 选择全部文本方便替换
-       _searchController.selection = TextSelection(baseOffset: 0, extentOffset: _searchController.text.length);
+      if (!mounted) return;
+      _performSearch(_currentQuery);
+      // 首帧后请求焦点
+      FocusScope.of(context).requestFocus(_searchFocusNode);
+      // 选择全部文本方便替换
+      _searchController.selection = TextSelection(
+          baseOffset: 0, extentOffset: _searchController.text.length);
     });
   }
 
@@ -71,13 +99,30 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     super.dispose();
   }
 
+  /// 检查是否有任何提供者正在加载
+  bool get _isAnyProviderLoading {
+    return _providerStates.values
+        .any((state) => state == ProviderSearchState.loading);
+  }
+
+  /// 获取所有搜索结果（合并所有提供者）
+  List<LyricsSearchResult> get _allResults {
+    final results = <LyricsSearchResult>[];
+    for (final provider in _providers) {
+      results.addAll(_providerResults[provider.name] ?? []);
+    }
+    return results;
+  }
+
   Future<void> _performSearch(String query) async {
     if (!mounted || query.trim().isEmpty) {
       // 如果查询为空，清除结果
       setState(() {
-        _searchResults = [];
         _currentQuery = '';
-        _isLoading = false;
+        for (final provider in _providers) {
+          _providerStates[provider.name] = ProviderSearchState.idle;
+          _providerResults[provider.name] = [];
+        }
       });
       return;
     }
@@ -85,139 +130,140 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     _searchFocusNode.unfocus(); // 隐藏键盘
 
     setState(() {
-      _isLoading = true;
-      _searchResults = [];
-      _currentQuery = query.trim(); // 存储当前查询
+      _currentQuery = query.trim();
+      // 重置所有提供者状态为加载中
+      for (final provider in _providers) {
+        _providerStates[provider.name] = ProviderSearchState.loading;
+        _providerResults[provider.name] = [];
+      }
     });
 
+    // 并行搜索所有提供者
+    await Future.wait(
+      _providers.map((provider) => _searchProvider(provider, _currentQuery)),
+    );
+  }
+
+  /// 搜索单个提供者
+  Future<void> _searchProvider(LyricProvider provider, String query) async {
+    const int resultsPerProvider = 3;
+
     try {
-      // 分别从每个提供者搜索
-      final results = <LyricsSearchResult>[];
-
-      // 获取所有可用的歌词提供者
-      final providers = <LyricProvider>[
-        QQProvider(),
-        LRCLibProvider(),
-        NetEaseProvider(),
-      ];
-
-      // 每个提供者获取3个搜索结果
-      const int resultsPerProvider = 3;
-
-      // 从每个提供者获取多个搜索结果
-      for (final provider in providers) {
-        try {
-          final matches = await provider.searchMultiple(_currentQuery, '', limit: resultsPerProvider);
-          for (final match in matches) {
-            results.add(LyricsSearchResult(match: match, provider: provider));
-          }
-
-          // 更新UI显示已找到的结果
-          if (mounted) {
-            setState(() {
-              _searchResults = List.from(results);
-            });
-          }
-        } catch (e) {
-          debugPrint('Provider ${provider.name} search error: $e');
-          // 继续尝试其他提供者
-        }
-      }
+      final matches =
+          await provider.searchMultiple(query, '', limit: resultsPerProvider);
 
       if (!mounted) return;
 
+      // 检查查询是否仍然是当前查询（避免过时的结果）
+      if (query != _currentQuery) return;
+
+      final results = matches
+          .map((match) => LyricsSearchResult(match: match, provider: provider))
+          .toList();
+
       setState(() {
-        _isLoading = false;
-        // 已经在循环中更新了 _searchResults，这里不需要再设置
+        _providerResults[provider.name] = results;
+        _providerStates[provider.name] = ProviderSearchState.loaded;
       });
     } catch (e) {
-      if (mounted) {
-        _notificationService.showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: ${e.toString()}');
-      }
+      debugPrint('Provider ${provider.name} search error: $e');
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      if (query != _currentQuery) return;
+
+      setState(() {
+        _providerStates[provider.name] = ProviderSearchState.error;
+        _providerResults[provider.name] = [];
+      });
     }
   }
 
   // 使用我们自己定义的LyricsSearchResult类型
   Future<void> _selectResult(LyricsSearchResult result) async {
-     if (!mounted || _isFetchingLyric) return;
+    if (!mounted || _isFetchingLyric) return;
 
-     // 在异步调用前捕获 Navigator
-     final navigator = Navigator.of(context);
+    // 在异步调用前捕获 Navigator
+    final navigator = Navigator.of(context);
 
-     setState(() {
-       _isFetchingLyric = true;
-     });
+    setState(() {
+      _isFetchingLyric = true;
+    });
 
-     try {
-       _notificationService.showSnackBar(AppLocalizations.of(context)!.lyricsFetching);
+    try {
+      _notificationService
+          .showSnackBar(AppLocalizations.of(context)!.lyricsFetching);
 
-       // 网易云特殊处理：获取翻译并保存
-       if (result.provider is NetEaseProvider) {
-         final neteaseProvider = result.provider as NetEaseProvider;
-         final lyricResult = await neteaseProvider.fetchLyricWithTranslation(result.match.songId);
+      // 网易云特殊处理：获取翻译并保存
+      if (result.provider is NetEaseProvider) {
+        final neteaseProvider = result.provider as NetEaseProvider;
+        final lyricResult =
+            await neteaseProvider.fetchLyricWithTranslation(result.match.songId);
 
-         if (!mounted) return;
+        if (!mounted) return;
 
-         if (lyricResult != null) {
-           final normalizedLyric = result.provider.normalizeLyric(lyricResult.lyric);
-           if (normalizedLyric.isNotEmpty) {
-             await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
+        if (lyricResult != null) {
+          final normalizedLyric =
+              result.provider.normalizeLyric(lyricResult.lyric);
+          if (normalizedLyric.isNotEmpty) {
+            await _cacheLyric(
+                widget.trackId, normalizedLyric, result.provider.name);
 
-             // 如果有翻译，单独保存供后续使用
-             if (lyricResult.hasTranslation) {
-               await _cacheNeteaseTranslation(widget.trackId, lyricResult.translation!);
-               _notificationService.showSnackBar(
-                 AppLocalizations.of(context)!.neteaseTranslationSaved,
-               );
-             }
+            // 如果有翻译，单独保存供后续使用
+            if (lyricResult.hasTranslation) {
+              await _cacheNeteaseTranslation(
+                  widget.trackId, lyricResult.translation!);
+              _notificationService.showSnackBar(
+                AppLocalizations.of(context)!.neteaseTranslationSaved,
+              );
+            }
 
-             debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
-             navigator.pop(normalizedLyric);
-             return;
-           }
-         }
-       } else {
-         // 其他提供者使用原有逻辑
-         final rawLyric = await result.provider.fetchLyric(result.match.songId);
-
-         if (!mounted) return;
-
-         if (rawLyric != null) {
-           final normalizedLyric = result.provider.normalizeLyric(rawLyric);
-
-           if (normalizedLyric.isNotEmpty) {
-             await _cacheLyric(widget.trackId, normalizedLyric, result.provider.name);
-             debugPrint("手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
-             navigator.pop(normalizedLyric);
-             return;
-           }
-         }
-       }
-
-       if (mounted) {
-          _notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsNotFoundForTrack);
-       }
-     } catch (e) {
-        if (mounted) {
-         _notificationService.showErrorSnackBar(AppLocalizations.of(context)!.lyricsFetchError(e.toString()));
+            debugPrint(
+                "手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
+            navigator.pop(normalizedLyric);
+            return;
+          }
         }
-     } finally {
-       if (mounted) {
-         setState(() {
-           _isFetchingLyric = false;
-         });
-       }
-     }
+      } else {
+        // 其他提供者使用原有逻辑
+        final rawLyric = await result.provider.fetchLyric(result.match.songId);
+
+        if (!mounted) return;
+
+        if (rawLyric != null) {
+          final normalizedLyric = result.provider.normalizeLyric(rawLyric);
+
+          if (normalizedLyric.isNotEmpty) {
+            await _cacheLyric(
+                widget.trackId, normalizedLyric, result.provider.name);
+            debugPrint(
+                "手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
+            navigator.pop(normalizedLyric);
+            return;
+          }
+        }
+      }
+
+      if (mounted) {
+        _notificationService.showErrorSnackBar(
+            AppLocalizations.of(context)!.lyricsNotFoundForTrack);
+      }
+    } catch (e) {
+      if (mounted) {
+        _notificationService.showErrorSnackBar(
+            AppLocalizations.of(context)!.lyricsFetchError(e.toString()));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingLyric = false;
+        });
+      }
+    }
   }
 
   /// 缓存网易云翻译歌词（供翻译风格切换使用）
-  Future<void> _cacheNeteaseTranslation(String trackId, String translation) async {
+  Future<void> _cacheNeteaseTranslation(
+      String trackId, String translation) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'netease_translation_$trackId';
@@ -227,23 +273,24 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       debugPrint('缓存网易云翻译失败: $e');
     }
   }
-  
+
   // 手动将歌词缓存到共享首选项
-  Future<void> _cacheLyric(String trackId, String lyric, String providerName) async {
+  Future<void> _cacheLyric(
+      String trackId, String lyric, String providerName) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'manual_lyrics_cache_$trackId'; // 使用插值
-      
+
       // 使用 LyricCacheData 保存
       final cacheData = LyricCacheData(
         provider: providerName,
         lyric: lyric,
         timestamp: (DateTime.now().millisecondsSinceEpoch ~/ 1000),
       );
-      
+
       // 保存到缓存
       await prefs.setString(cacheKey, json.encode(cacheData.toJson()));
-      
+
       // 同时保存到 LyricsService 使用的常规缓存位置
       // 不直接使用私有变量
       final regularCacheKey = 'lyrics_cache_$trackId'; // 使用插值
@@ -255,9 +302,13 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final allResults = _allResults;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.searchLyrics),
+        title: Text(l10n.searchLyrics),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -270,19 +321,20 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
               controller: _searchController,
               focusNode: _searchFocusNode,
               decoration: InputDecoration(
-                hintText: AppLocalizations.of(context)!.searchHint,
+                hintText: l10n.searchHint,
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _isLoading
+                suffixIcon: _isAnyProviderLoading
                     ? const Padding(
                         padding: EdgeInsets.all(12.0),
                         child: SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
                       )
                     : (_searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
-                            tooltip: AppLocalizations.of(context)!.clearSearch,
+                            tooltip: l10n.clearSearch,
                             onPressed: () {
                               _searchController.clear();
                               _performSearch('');
@@ -295,11 +347,11 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                fillColor: theme.colorScheme.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
               onChanged: (value) {
-                 setState(() {});
+                setState(() {});
               },
               onSubmitted: (value) {
                 _performSearch(value);
@@ -312,63 +364,54 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       body: Stack(
         children: [
           // 初始状态提示
-          if (!_isLoading && _searchResults.isEmpty && _currentQuery.isEmpty)
-             Center(
-               child: Padding(
-                 padding: const EdgeInsets.all(20.0),
-                 child: Text(
-                   AppLocalizations.of(context)!.searchHint,
-                   textAlign: TextAlign.center,
-                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                     color: Theme.of(context).colorScheme.secondary,
-                   ),
-                 ),
-               ),
-             )
-          // 显示搜索结果
-          else if (_searchResults.isNotEmpty)
-            ListView.builder(
-              padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-              itemCount: _searchResults.length,
-              itemBuilder: (context, index) {
-                final result = _searchResults[index];
-                final providerDisplayName = _providerDisplayName(context, result.provider.name);
-
-                return ListTile(
-                  leading: Chip(
-                    label: Text(providerDisplayName),
-                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer.withAlpha((0.7 * 255).round()),
-                    labelStyle: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 6.0),
-                  ),
-                  title: Text(result.match.title),
-                  subtitle: Text(result.match.artist),
-                  onTap: () => _selectResult(result),
-                  enabled: !_isFetchingLyric,
-                );
-              },
-            )
-          // 无结果状态
-          else if (!_isLoading && _searchResults.isEmpty && _currentQuery.isNotEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    AppLocalizations.of(context)!.noResultsFound,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
+          if (!_isAnyProviderLoading &&
+              allResults.isEmpty &&
+              _currentQuery.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Text(
+                  l10n.searchHint,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.secondary,
                   ),
                 ),
               ),
-          // 加载指示器
-          if (_isLoading || _isFetchingLyric)
+            )
+          // 显示搜索结果（分组显示）
+          else if (allResults.isNotEmpty || _isAnyProviderLoading)
+            ListView(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
+              children: [
+                // 按提供者分组显示
+                for (final provider in _providers) ...[
+                  _buildProviderSection(provider),
+                ],
+              ],
+            )
+          // 无结果状态（所有提供者都加载完成但没有结果）
+          else if (!_isAnyProviderLoading &&
+              allResults.isEmpty &&
+              _currentQuery.isNotEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  l10n.noResultsFound,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ),
+          // 只在获取歌词内容时显示遮罩
+          if (_isFetchingLyric)
             Positioned.fill(
               child: Container(
-                color: Theme.of(context).scaffoldBackgroundColor.withAlpha((0.5 * 255).round()),
+                color:
+                    theme.scaffoldBackgroundColor.withAlpha((0.7 * 255).round()),
                 child: const Center(
                   child: CircularProgressIndicator(),
                 ),
@@ -376,6 +419,110 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
             ),
         ],
       ),
+    );
+  }
+
+  /// 构建单个提供者的搜索结果区域
+  Widget _buildProviderSection(LyricProvider provider) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final state = _providerStates[provider.name] ?? ProviderSearchState.idle;
+    final results = _providerResults[provider.name] ?? [];
+    final providerDisplayName = _providerDisplayName(context, provider.name);
+
+    // 如果是空闲状态且没有当前查询，不显示
+    if (state == ProviderSearchState.idle && _currentQuery.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 提供者标题栏
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  providerDisplayName,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 加载状态指示
+              if (state == ProviderSearchState.loading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
+                  ),
+                )
+              else if (state == ProviderSearchState.loaded && results.isEmpty)
+                Text(
+                  l10n.noResultsFound,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                )
+              else if (state == ProviderSearchState.error)
+                Icon(
+                  Icons.error_outline,
+                  size: 16,
+                  color: theme.colorScheme.error,
+                ),
+            ],
+          ),
+        ),
+        // 搜索结果列表
+        if (results.isNotEmpty)
+          ...results.map((result) => ListTile(
+                title: Text(result.match.title),
+                subtitle: Text(result.match.artist),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.outline,
+                ),
+                onTap: _isFetchingLyric ? null : () => _selectResult(result),
+                enabled: !_isFetchingLyric,
+              )),
+        // 加载中的占位
+        if (state == ProviderSearchState.loading && results.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 200,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // 分隔线
+        if (_currentQuery.isNotEmpty)
+          Divider(
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+            color: theme.colorScheme.outlineVariant.withAlpha(80),
+          ),
+      ],
     );
   }
 
