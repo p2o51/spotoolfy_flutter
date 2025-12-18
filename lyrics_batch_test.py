@@ -551,9 +551,11 @@ def validate_translation(raw_response: str, original_lyrics: str) -> Dict:
 class TestCase:
     """测试用例"""
     index: int
-    title: str
-    artist: str
-    language: str
+    test_num: str  # Test# 列
+    title: str     # Tracks 列
+    artist: str    # Artist 列
+    source: str    # Source 列
+    target: str    # Target 列（目标翻译语言）
 
 
 def load_test_cases_from_csv(csv_file: str) -> List[TestCase]:
@@ -561,19 +563,39 @@ def load_test_cases_from_csv(csv_file: str) -> List[TestCase]:
     从 CSV 加载测试用例
 
     CSV 格式:
-    title,artist,language
-    Song Name,Artist Name,zh
+    Test#,Tracks,Artist,Source,Target
+    1,Song Name,Artist Name,en,zh
+
+    说明：
+    - Test#: 测试编号
+    - Tracks: 歌曲名
+    - Artist: 歌手
+    - Source: 来源语言（en/zh等）
+    - Target: 目标翻译语言（zh/en等）
     """
     test_cases = []
 
     with open(csv_file, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
+            # 支持列名的多种写法
+            test_num = row.get('Test#', row.get('test_num', str(i + 1))).strip()
+            title = row.get('Tracks', row.get('title', '')).strip()
+            artist = row.get('Artist', row.get('artist', '')).strip()
+            source = row.get('Source', row.get('source', 'en')).strip()
+            target = row.get('Target', row.get('target', 'zh')).strip()
+
+            if not title or not artist:
+                print(f"  ⚠ 跳过第 {i+1} 行：缺少歌曲名或歌手")
+                continue
+
             test_cases.append(TestCase(
                 index=i,
-                title=row['title'].strip(),
-                artist=row['artist'].strip(),
-                language=row['language'].strip()
+                test_num=test_num,
+                title=title,
+                artist=artist,
+                source=source,
+                target=target
             ))
 
     return test_cases
@@ -583,7 +605,6 @@ def run_batch_test(
     input_csv: str,
     output_dir: str,
     gemini_api_key: str,
-    target_language: str = "简体中文",
     styles: List[int] = [1, 2, 3],
     model: str = "gemini-2.0-flash-exp"
 ):
@@ -591,12 +612,13 @@ def run_batch_test(
     批量测试
 
     Args:
-        input_csv: 输入 CSV 文件路径
+        input_csv: 输入 CSV 文件路径（包含 Test#, Tracks, Artist, Source, Target 列）
         output_dir: 输出目录
         gemini_api_key: Gemini API Key
-        target_language: 目标语言
         styles: 测试的风格列表 [1, 2, 3]
         model: Gemini 模型
+
+    注意：目标语言从 CSV 的 Target 列读取，每首歌可以有不同的目标语言
     """
     # 创建输出目录
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -615,35 +637,54 @@ def run_batch_test(
     # 结果列表
     results = []
 
+    # 语言代码映射
+    lang_map = {
+        'zh': '简体中文',
+        'en': 'English',
+        'ja': '日本語',
+        'ko': '한국어',
+        'es': 'Español',
+        'fr': 'Français'
+    }
+
     # 处理每个测试用例
     for tc in test_cases:
-        print(f"\n[{tc.index:02d}] {tc.title} - {tc.artist} ({tc.language})")
+        print(f"\n[Test {tc.test_num}] {tc.title} - {tc.artist}")
+        print(f"  来源语言: {tc.source} → 目标语言: {tc.target}")
         print("-" * 80)
 
         # 1. 获取歌词
-        lyrics, source = get_lyrics_with_priority(tc.title, tc.artist)
+        lyrics, lyrics_source = get_lyrics_with_priority(tc.title, tc.artist)
 
         if not lyrics:
             print("  ✗ 跳过（无歌词）")
             continue
 
-        # 2. 保存原始歌词
-        lyrics_file = save_lyrics_file(lyrics, tc.index, tc.title, tc.artist, tc.language, lyrics_dir)
+        # 2. 保存原始歌词 (使用 test_num 作为编号)
+        lyrics_file = save_lyrics_file(
+            lyrics, int(tc.test_num), tc.title, tc.artist, tc.source, lyrics_dir
+        )
         print(f"  ✓ 保存歌词: {os.path.basename(lyrics_file)}")
 
         # 3. 保存纯文本（用于 CometKiwi）
-        plaintext_file = os.path.join(plaintext_dir, f"{tc.index:02d}_{tc.title}-{tc.artist}_original.txt")
+        plaintext_file = os.path.join(
+            plaintext_dir,
+            f"{int(tc.test_num):02d}_{tc.title}-{tc.artist}_original.txt"
+        )
         plaintext_file = "".join(c for c in plaintext_file if c.isalnum() or c in (' ', '-', '_', '.', '/')).strip()
         save_plaintext(lyrics, plaintext_file)
 
         # 4. 翻译（不同风格）
+        # 将目标语言代码转换为完整语言名称
+        target_language = lang_map.get(tc.target.lower(), tc.target)
+
         for style in styles:
             style_name = {1: 'faithful', 2: 'melodramatic_poet', 3: 'machine_classic'}[style]
 
-            print(f"\n  翻译 (Style {style}: {style_name})...")
+            print(f"\n  翻译 (Style {style}: {style_name} → {target_language})...")
 
             try:
-                # 翻译
+                # 翻译（使用 CSV 中的 target 语言）
                 raw_response, structured = translate_lyrics(
                     lyrics, target_language, style, gemini_api_key, model
                 )
@@ -657,7 +698,7 @@ def run_batch_test(
                 # 保存翻译文件
                 trans_file = os.path.join(
                     translations_dir,
-                    f"{tc.index:02d}_{tc.title}-{tc.artist}_style{style}.txt"
+                    f"{int(tc.test_num):02d}_{tc.title}-{tc.artist}_style{style}.txt"
                 )
                 trans_file = "".join(c for c in trans_file if c.isalnum() or c in (' ', '-', '_', '.', '/')).strip()
 
@@ -667,7 +708,7 @@ def run_batch_test(
                 # 保存翻译纯文本（用于 CometKiwi）
                 plaintext_trans_file = os.path.join(
                     plaintext_dir,
-                    f"{tc.index:02d}_{tc.title}-{tc.artist}_style{style}_{target_language}.txt"
+                    f"{int(tc.test_num):02d}_{tc.title}-{tc.artist}_style{style}_{tc.target}.txt"
                 )
                 plaintext_trans_file = "".join(c for c in plaintext_trans_file if c.isalnum() or c in (' ', '-', '_', '.', '/')).strip()
                 save_plaintext(cleaned['cleaned_text'], plaintext_trans_file)
@@ -678,14 +719,15 @@ def run_batch_test(
 
                 # 记录结果
                 results.append({
-                    'index': tc.index,
+                    'test_num': tc.test_num,
                     'title': tc.title,
                     'artist': tc.artist,
-                    'language': tc.language,
-                    'lyrics_source': source,
+                    'source_lang': tc.source,
+                    'target_lang': tc.target,
+                    'lyrics_source': lyrics_source,
                     'style': style,
                     'style_name': style_name,
-                    'target_language': target_language,
+                    'target_language_full': target_language,
                     'model': model,
                     'validation_status': validation['status'],
                     'success_rate': validation['success_rate'],
@@ -700,10 +742,11 @@ def run_batch_test(
             except Exception as e:
                 print(f"    ✗ 失败: {e}")
                 results.append({
-                    'index': tc.index,
+                    'test_num': tc.test_num,
                     'title': tc.title,
                     'artist': tc.artist,
-                    'language': tc.language,
+                    'source_lang': tc.source,
+                    'target_lang': tc.target,
                     'style': style,
                     'validation_status': 'error',
                     'success_rate': 0.0,
@@ -729,13 +772,13 @@ def save_results_csv(results: List[Dict], output_file: str):
         return
 
     fieldnames = [
-        'index', 'title', 'artist', 'language', 'lyrics_source',
-        'style', 'style_name', 'target_language', 'model',
+        'test_num', 'title', 'artist', 'source_lang', 'target_lang', 'lyrics_source',
+        'style', 'style_name', 'target_language_full', 'model',
         'validation_status', 'success_rate', 'translated_lines', 'missing_lines', 'issues'
     ]
 
     with open(output_file, 'w', encoding='utf-8', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(results)
 
@@ -775,13 +818,28 @@ def save_plaintext(lyrics: str, output_file: str):
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='歌词翻译批量测试')
-    parser.add_argument('input_csv', help='输入 CSV 文件（包含 title, artist, language）')
+    parser = argparse.ArgumentParser(
+        description='歌词翻译批量测试',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+CSV 格式示例:
+  Test#,Tracks,Artist,Source,Target
+  1,Shed That Fear,Nourished by Time,en,zh
+  2,A BUG'S LIFE,Sudan Archives,en,zh
+
+说明:
+  - Test#: 测试编号
+  - Tracks: 歌曲名
+  - Artist: 歌手
+  - Source: 来源语言（en/zh等）
+  - Target: 目标翻译语言（zh=简体中文, en=English）
+        """
+    )
+    parser.add_argument('input_csv', help='输入 CSV 文件（包含 Test#, Tracks, Artist, Source, Target）')
     parser.add_argument('output_dir', help='输出目录')
     parser.add_argument('--api-key', help='Gemini API Key（或设置环境变量 GEMINI_API_KEY）')
-    parser.add_argument('--target-lang', default='简体中文', help='目标语言（默认：简体中文）')
-    parser.add_argument('--styles', default='1,2,3', help='测试风格，逗号分隔（默认：1,2,3）')
-    parser.add_argument('--model', default='gemini-2.0-flash-exp', help='Gemini 模型')
+    parser.add_argument('--styles', default='1,2,3', help='测试风格，逗号分隔（1=faithful, 2=melodramatic_poet, 3=machine_classic，默认：1,2,3）')
+    parser.add_argument('--model', default='gemini-2.0-flash-exp', help='Gemini 模型（默认：gemini-2.0-flash-exp）')
 
     args = parser.parse_args()
 
@@ -799,7 +857,6 @@ if __name__ == '__main__':
         input_csv=args.input_csv,
         output_dir=args.output_dir,
         gemini_api_key=api_key,
-        target_language=args.target_lang,
         styles=styles,
         model=args.model
     )

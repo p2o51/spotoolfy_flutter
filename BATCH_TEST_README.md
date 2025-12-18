@@ -56,16 +56,20 @@ pip install requests
 创建 `songs.csv` 文件：
 
 ```csv
-title,artist,language
-Bohemian Rhapsody,Queen,en
-Hotel California,Eagles,en
-晴天,周杰伦,zh
+Test#,Tracks,Artist,Source,Target
+1,Bohemian Rhapsody,Queen,en,zh
+2,Hotel California,Eagles,en,zh
+3,晴天,周杰伦,zh,en
 ```
 
 **字段说明**：
-- `title`: 歌名
-- `artist`: 歌手
-- `language`: 语言标记（en=英文, zh=中文, ja=日文等）
+- `Test#`: 测试编号（用于文件命名）
+- `Tracks`: 歌曲名
+- `Artist`: 歌手
+- `Source`: 来源语言（en=英文, zh=中文, ja=日文等）
+- `Target`: 目标翻译语言（zh=简体中文, en=English等）
+
+**注意**：目标语言从 CSV 的 `Target` 列读取，每首歌可以有不同的目标语言
 
 ### 2. 运行批量测试
 
@@ -79,9 +83,11 @@ python lyrics_batch_test.py songs.csv output/ --api-key YOUR_GEMINI_KEY
 # 完整参数
 python lyrics_batch_test.py songs.csv output/ \
   --api-key YOUR_KEY \
-  --target-lang "简体中文" \
   --styles "1,2,3" \
   --model "gemini-2.0-flash-exp"
+
+# 只测试某种风格
+python lyrics_batch_test.py songs.csv output/ --styles "1"
 ```
 
 ### 3. 使用环境变量
@@ -91,14 +97,15 @@ export GEMINI_API_KEY="your_api_key"
 python lyrics_batch_test.py songs.csv output/
 ```
 
+**注意**：不需要 `--target-lang` 参数，因为目标语言从 CSV 的 `Target` 列读取
+
 ## 参数说明
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `input_csv` | 输入 CSV 文件 | 必需 |
+| `input_csv` | 输入 CSV 文件（必需包含 Test#, Tracks, Artist, Source, Target） | 必需 |
 | `output_dir` | 输出目录 | 必需 |
 | `--api-key` | Gemini API Key | 环境变量 `GEMINI_API_KEY` |
-| `--target-lang` | 目标语言 | `简体中文` |
 | `--styles` | 翻译风格（逗号分隔） | `1,2,3` |
 | `--model` | Gemini 模型 | `gemini-2.0-flash-exp` |
 
@@ -141,12 +148,18 @@ output/
 ## 结果 CSV 格式
 
 ```csv
-index,title,artist,language,lyrics_source,style,style_name,target_language,model,validation_status,success_rate,translated_lines,missing_lines,issues
-0,Bohemian Rhapsody,Queen,en,QQ,1,faithful,简体中文,gemini-2.0-flash-exp,success,1.0,56,0,
-0,Bohemian Rhapsody,Queen,en,QQ,2,melodramatic_poet,简体中文,gemini-2.0-flash-exp,auto_fixed,0.98,55,1,warning: 翻译行数不匹配
+test_num,title,artist,source_lang,target_lang,lyrics_source,style,style_name,target_language_full,model,validation_status,success_rate,translated_lines,missing_lines,issues
+1,Bohemian Rhapsody,Queen,en,zh,QQ,1,faithful,简体中文,gemini-2.0-flash-exp,success,1.0,56,0,
+1,Bohemian Rhapsody,Queen,en,zh,QQ,2,melodramatic_poet,简体中文,gemini-2.0-flash-exp,auto_fixed,0.98,55,1,warning: 翻译行数不匹配
+2,晴天,周杰伦,zh,en,NetEase,1,faithful,English,gemini-2.0-flash-exp,success,1.0,32,0,
 ```
 
 **字段说明**：
+- `test_num`: 测试编号（来自 CSV 的 Test#）
+- `source_lang`: 来源语言代码
+- `target_lang`: 目标语言代码
+- `target_language_full`: 完整目标语言名称
+- `lyrics_source`: 歌词来源（QQ / NetEase）
 - `validation_status`: 验证状态（success / auto_fixed / error）
 - `success_rate`: 翻译成功率（0.0-1.0）
 - `translated_lines`: 成功翻译的行数
@@ -222,10 +235,10 @@ for original in originals:
 ```bash
 # 1. 准备测试歌曲列表
 cat > my_songs.csv << EOF
-title,artist,language
-Imagine,John Lennon,en
-Yesterday,The Beatles,en
-夜曲,周杰伦,zh
+Test#,Tracks,Artist,Source,Target
+1,Imagine,John Lennon,en,zh
+2,Yesterday,The Beatles,en,zh
+3,夜曲,周杰伦,zh,en
 EOF
 
 # 2. 设置 API Key
@@ -233,7 +246,6 @@ export GEMINI_API_KEY="your_key_here"
 
 # 3. 运行批量测试（只测试 Style 1 和 2）
 python lyrics_batch_test.py my_songs.csv results/ \
-  --target-lang "简体中文" \
   --styles "1,2" \
   --model "gemini-2.0-flash-exp"
 
@@ -244,6 +256,11 @@ cat results/results.csv
 cd results/plaintext/
 # ... 运行评估脚本
 ```
+
+**注意**：
+- Test# 1和2 会翻译为中文（zh）
+- Test# 3 会翻译为英文（en）
+- 每首歌的目标语言独立配置
 
 ## 高级用法
 
