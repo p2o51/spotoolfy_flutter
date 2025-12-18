@@ -129,42 +129,105 @@ python lyrics_batch_test.py songs.csv output/
 ```
 output/
 ├── lyrics/                    # 原始歌词
-│   ├── 00_Song1-Artist1_en.txt
-│   ├── 01_Song2-Artist2_zh.txt
+│   ├── 01_Song1-Artist1_en.txt
+│   ├── 02_Song2-Artist2_zh.txt
 │   └── ...
-├── translations/              # 翻译结果
-│   ├── 00_Song1-Artist1_style1.txt
-│   ├── 00_Song1-Artist1_style2.txt
-│   ├── 00_Song1-Artist1_style3.txt
+├── translations/              # 翻译结果和元数据
+│   ├── 01_Song1-Artist1_style1.txt
+│   ├── 01_Song1-Artist1_style1_metadata.json  # 生成元数据
+│   ├── 01_Song1-Artist1_style2.txt
+│   ├── 01_Song1-Artist1_style2_metadata.json
+│   ├── 01_Song1-Artist1_style3.txt
+│   ├── 01_Song1-Artist1_style3_metadata.json
 │   └── ...
 ├── plaintext/                 # 纯文本（用于 CometKiwi）
-│   ├── 00_Song1-Artist1_original.txt
-│   ├── 00_Song1-Artist1_style1_简体中文.txt
-│   ├── 00_Song1-Artist1_style2_简体中文.txt
+│   ├── 01_Song1-Artist1_original.txt
+│   ├── 01_Song1-Artist1_style1_zh.txt
+│   ├── 01_Song1-Artist1_style2_zh.txt
 │   └── ...
-└── results.csv                # 测试结果汇总
+└── results.csv                # 测试结果汇总（包含所有元数据）
+```
+
+### 元数据 JSON 文件格式
+
+每个翻译会生成对应的 `*_metadata.json` 文件，包含详细信息：
+
+```json
+{
+  "test_num": "1",
+  "title": "Bohemian Rhapsody",
+  "artist": "Queen",
+  "source_lang": "en",
+  "target_lang": "zh",
+  "style": 1,
+  "style_name": "faithful",
+  "metadata": {
+    "timestamp": "2025-01-15T14:30:25.123456",
+    "duration_seconds": 3.45,
+    "model": "gemini-2.0-flash-exp",
+    "temperature": 0.8,
+    "prompt_length": 2048,
+    "response_length": 1856,
+    "usage": {
+      "prompt_tokens": 512,
+      "candidates_tokens": 464,
+      "total_tokens": 976
+    },
+    "finish_reason": "STOP",
+    "safety_ratings": [...]
+  },
+  "validation": {
+    "status": "success",
+    "success_rate": 1.0,
+    "issues": []
+  },
+  "cleaned_stats": {
+    "translated_lines": 56,
+    "missing_lines": 0
+  }
+}
 ```
 
 ## 结果 CSV 格式
 
 ```csv
-test_num,title,artist,source_lang,target_lang,lyrics_source,style,style_name,target_language_full,model,validation_status,success_rate,translated_lines,missing_lines,issues
-1,Bohemian Rhapsody,Queen,en,zh,QQ,1,faithful,简体中文,gemini-2.0-flash-exp,success,1.0,56,0,
-1,Bohemian Rhapsody,Queen,en,zh,QQ,2,melodramatic_poet,简体中文,gemini-2.0-flash-exp,auto_fixed,0.98,55,1,warning: 翻译行数不匹配
-2,晴天,周杰伦,zh,en,NetEase,1,faithful,English,gemini-2.0-flash-exp,success,1.0,32,0,
+test_num,title,artist,source_lang,target_lang,lyrics_source,style,style_name,target_language_full,model,validation_status,success_rate,translated_lines,missing_lines,issues,timestamp,duration_seconds,temperature,prompt_length,response_length,prompt_tokens,candidates_tokens,total_tokens,finish_reason
+1,Bohemian Rhapsody,Queen,en,zh,QQ,1,faithful,简体中文,gemini-2.0-flash-exp,success,1.0,56,0,,2025-01-15T14:30:25.123456,3.45,0.8,2048,1856,512,464,976,STOP
+1,Bohemian Rhapsody,Queen,en,zh,QQ,2,melodramatic_poet,简体中文,gemini-2.0-flash-exp,auto_fixed,0.98,55,1,warning: 翻译行数不匹配,2025-01-15T14:30:35.789012,4.12,0.8,2048,1920,512,480,992,STOP
+2,晴天,周杰伦,zh,en,NetEase,1,faithful,English,gemini-2.0-flash-exp,success,1.0,32,0,,2025-01-15T14:30:50.456789,2.87,0.8,1024,896,256,224,480,STOP
 ```
 
 **字段说明**：
+
+**基本信息**：
 - `test_num`: 测试编号（来自 CSV 的 Test#）
+- `title`: 歌曲名
+- `artist`: 歌手
 - `source_lang`: 来源语言代码
 - `target_lang`: 目标语言代码
 - `target_language_full`: 完整目标语言名称
 - `lyrics_source`: 歌词来源（QQ / NetEase）
+- `style`: 风格编号 (1-3)
+- `style_name`: 风格名称
+- `model`: 使用的 Gemini 模型
+
+**验证结果**：
 - `validation_status`: 验证状态（success / auto_fixed / error）
 - `success_rate`: 翻译成功率（0.0-1.0）
 - `translated_lines`: 成功翻译的行数
 - `missing_lines`: 缺失的行数
 - `issues`: 发现的问题（分号分隔）
+
+**生成元数据**：
+- `timestamp`: 生成时间（ISO 8601 格式）
+- `duration_seconds`: 生成耗时（秒）
+- `temperature`: 生成温度参数
+- `prompt_length`: 提示词长度（字符数）
+- `response_length`: 响应长度（字符数）
+- `prompt_tokens`: 提示词 token 数
+- `candidates_tokens`: 生成 token 数
+- `total_tokens`: 总 token 数
+- `finish_reason`: 完成原因（STOP / MAX_TOKENS / SAFETY 等）
 
 ## 用于 CometKiwi 评估
 

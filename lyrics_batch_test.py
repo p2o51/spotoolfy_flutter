@@ -229,7 +229,7 @@ def translate_lyrics(
     style: int,
     gemini_api_key: str,
     model: str = "gemini-2.0-flash-exp"
-) -> Tuple[str, str]:
+) -> Tuple[str, str, Dict]:
     """
     翻译歌词（模拟 App 真实环境）
 
@@ -241,8 +241,13 @@ def translate_lyrics(
         model: Gemini 模型名称
 
     Returns:
-        (原始响应, 结构化歌词)
+        (原始响应, 结构化歌词, 元数据)
     """
+    from datetime import datetime
+
+    # 记录开始时间
+    start_time = datetime.now()
+
     # 构建结构化歌词（与 App 一致）
     structured_lyrics, original_lines = build_structured_lyrics(lyrics)
 
@@ -269,10 +274,39 @@ def translate_lyrics(
     )
     response.raise_for_status()
 
+    # 记录结束时间
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+
     data = response.json()
     response_text = data['candidates'][0]['content']['parts'][0]['text']
 
-    return response_text, structured_lyrics
+    # 提取元数据
+    metadata = {
+        'timestamp': start_time.isoformat(),
+        'duration_seconds': round(duration, 2),
+        'model': model,
+        'temperature': 0.8,
+        'prompt_length': len(prompt),
+        'response_length': len(response_text),
+    }
+
+    # 提取 Gemini 特定元数据（如果存在）
+    candidate = data.get('candidates', [{}])[0]
+    if 'tokenCount' in data.get('usageMetadata', {}):
+        metadata['usage'] = {
+            'prompt_tokens': data['usageMetadata'].get('promptTokenCount', 0),
+            'candidates_tokens': data['usageMetadata'].get('candidatesTokenCount', 0),
+            'total_tokens': data['usageMetadata'].get('totalTokenCount', 0),
+        }
+
+    if 'finishReason' in candidate:
+        metadata['finish_reason'] = candidate['finishReason']
+
+    if 'safetyRatings' in candidate:
+        metadata['safety_ratings'] = candidate['safetyRatings']
+
+    return response_text, structured_lyrics, metadata
 
 
 def build_structured_lyrics(lyrics: str) -> Tuple[str, List[str]]:
@@ -685,7 +719,7 @@ def run_batch_test(
 
             try:
                 # 翻译（使用 CSV 中的 target 语言）
-                raw_response, structured = translate_lyrics(
+                raw_response, structured, metadata = translate_lyrics(
                     lyrics, target_language, style, gemini_api_key, model
                 )
 
@@ -713,12 +747,37 @@ def run_batch_test(
                 plaintext_trans_file = "".join(c for c in plaintext_trans_file if c.isalnum() or c in (' ', '-', '_', '.', '/')).strip()
                 save_plaintext(cleaned['cleaned_text'], plaintext_trans_file)
 
+                # 保存元数据到 JSON
+                metadata_file = os.path.join(
+                    translations_dir,
+                    f"{int(tc.test_num):02d}_{tc.title}-{tc.artist}_style{style}_metadata.json"
+                )
+                metadata_file = "".join(c for c in metadata_file if c.isalnum() or c in (' ', '-', '_', '.', '/')).strip()
+
+                with open(metadata_file, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'test_num': tc.test_num,
+                        'title': tc.title,
+                        'artist': tc.artist,
+                        'source_lang': tc.source,
+                        'target_lang': tc.target,
+                        'style': style,
+                        'style_name': style_name,
+                        'metadata': metadata,
+                        'validation': validation,
+                        'cleaned_stats': {
+                            'translated_lines': len(cleaned['line_translations']),
+                            'missing_lines': len(cleaned['missing_lines']),
+                        }
+                    }, f, ensure_ascii=False, indent=2)
+
                 # 统计
                 status_symbol = {'success': '✓', 'auto_fixed': '⚠', 'error': '✗'}[validation['status']]
-                print(f"    {status_symbol} {validation['status'].upper()} ({validation['success_rate']*100:.1f}%)")
+                duration_str = f"{metadata['duration_seconds']}s"
+                print(f"    {status_symbol} {validation['status'].upper()} ({validation['success_rate']*100:.1f}%) [耗时: {duration_str}]")
 
                 # 记录结果
-                results.append({
+                result_entry = {
                     'test_num': tc.test_num,
                     'title': tc.title,
                     'artist': tc.artist,
@@ -733,8 +792,31 @@ def run_batch_test(
                     'success_rate': validation['success_rate'],
                     'translated_lines': len(cleaned['line_translations']),
                     'missing_lines': len(cleaned['missing_lines']),
-                    'issues': '; '.join(validation['issues'])
-                })
+                    'issues': '; '.join(validation['issues']),
+                    # 元数据
+                    'timestamp': metadata['timestamp'],
+                    'duration_seconds': metadata['duration_seconds'],
+                    'temperature': metadata['temperature'],
+                    'prompt_length': metadata['prompt_length'],
+                    'response_length': metadata['response_length'],
+                }
+
+                # 添加 token 使用量（如果有）
+                if 'usage' in metadata:
+                    result_entry['prompt_tokens'] = metadata['usage']['prompt_tokens']
+                    result_entry['candidates_tokens'] = metadata['usage']['candidates_tokens']
+                    result_entry['total_tokens'] = metadata['usage']['total_tokens']
+                else:
+                    result_entry['prompt_tokens'] = 0
+                    result_entry['candidates_tokens'] = 0
+                    result_entry['total_tokens'] = 0
+
+                if 'finish_reason' in metadata:
+                    result_entry['finish_reason'] = metadata['finish_reason']
+                else:
+                    result_entry['finish_reason'] = 'UNKNOWN'
+
+                results.append(result_entry)
 
                 # 避免 API 限流
                 time.sleep(2)
@@ -772,9 +854,16 @@ def save_results_csv(results: List[Dict], output_file: str):
         return
 
     fieldnames = [
+        # 基本信息
         'test_num', 'title', 'artist', 'source_lang', 'target_lang', 'lyrics_source',
         'style', 'style_name', 'target_language_full', 'model',
-        'validation_status', 'success_rate', 'translated_lines', 'missing_lines', 'issues'
+        # 验证结果
+        'validation_status', 'success_rate', 'translated_lines', 'missing_lines', 'issues',
+        # 生成元数据
+        'timestamp', 'duration_seconds', 'temperature',
+        'prompt_length', 'response_length',
+        'prompt_tokens', 'candidates_tokens', 'total_tokens',
+        'finish_reason'
     ]
 
     with open(output_file, 'w', encoding='utf-8', newline='') as f:
