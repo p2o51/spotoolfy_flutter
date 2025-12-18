@@ -16,6 +16,18 @@ from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
+# 导入验证器
+try:
+    from lyrics_translation_validator import (
+        LyricsTranslationValidator,
+        ValidationStatus,
+        print_validation_result
+    )
+    VALIDATOR_AVAILABLE = True
+except ImportError:
+    VALIDATOR_AVAILABLE = False
+    print("警告: 未找到 lyrics_translation_validator.py，将跳过格式验证")
+
 
 # ============================================================================
 # 数据模型
@@ -43,6 +55,9 @@ class TranslationResult:
     style: str
     language: str
     missing_lines: List[int]
+    validation_status: Optional[str] = None  # 验证状态: success, auto_fixed, error
+    validation_issues: List[str] = None  # 验证问题列表
+    success_rate: float = 0.0  # 翻译成功率
 
 
 class TranslationStyle(Enum):
@@ -554,14 +569,49 @@ __L0003__ <<<
             result.style = style.value
             result.language = target_language
 
-            # 5. 统计信息
-            total_lines = len([line for line in original_lines if line.strip()])
-            translated_lines = len(result.line_translations)
-            missing_count = len(result.missing_lines)
+            # 5. 使用验证器验证格式（如果可用）
+            if VALIDATOR_AVAILABLE:
+                validator = LyricsTranslationValidator()
+                validation_result = validator.validate(response_text, original_lines)
 
-            print(f"  ✓ 翻译完成：{translated_lines}/{total_lines} 行")
-            if missing_count > 0:
-                print(f"  ⚠ 缺失 {missing_count} 行翻译")
+                result.validation_status = validation_result.status.value
+                result.validation_issues = [
+                    f"{issue.severity}: {issue.message}"
+                    for issue in validation_result.issues
+                ]
+                result.success_rate = validation_result.success_rate
+
+                # 使用验证器的统计（更准确）
+                total_lines = validation_result.original_line_count
+                translated_lines = validation_result.translated_line_count
+                missing_count = len(validation_result.missing_line_indices)
+
+                # 打印验证状态
+                status_symbols = {
+                    'success': '✓',
+                    'auto_fixed': '⚠',
+                    'error': '✗'
+                }
+                symbol = status_symbols.get(result.validation_status, '•')
+                print(f"  {symbol} 验证状态: {result.validation_status.upper()}")
+                print(f"  翻译完成：{translated_lines}/{total_lines} 行 ({result.success_rate*100:.1f}%)")
+
+                if validation_result.issues:
+                    print(f"  发现 {len(validation_result.issues)} 个问题:")
+                    for issue in validation_result.issues[:3]:  # 只显示前3个
+                        print(f"    - {issue.message}")
+                    if len(validation_result.issues) > 3:
+                        print(f"    ... 还有 {len(validation_result.issues)-3} 个问题")
+            else:
+                # 传统统计方式
+                total_lines = len([line for line in original_lines if line.strip()])
+                translated_lines = len(result.line_translations)
+                missing_count = len(result.missing_lines)
+                result.success_rate = translated_lines / total_lines if total_lines > 0 else 0
+
+                print(f"  ✓ 翻译完成：{translated_lines}/{total_lines} 行")
+                if missing_count > 0:
+                    print(f"  ⚠ 缺失 {missing_count} 行翻译")
 
             return result
 
@@ -668,7 +718,7 @@ def test_translation_quality(
 
     for style_name, result in results.items():
         if result:
-            output['translations'][style_name] = {
+            translation_data = {
                 'cleaned_text': result.cleaned_text,
                 'raw_response': result.translated_text,
                 'line_count': len(result.line_translations),
@@ -677,6 +727,16 @@ def test_translation_quality(
                     str(k): v for k, v in result.line_translations.items()
                 }
             }
+
+            # 添加验证信息（如果可用）
+            if VALIDATOR_AVAILABLE and result.validation_status:
+                translation_data['validation'] = {
+                    'status': result.validation_status,
+                    'success_rate': result.success_rate,
+                    'issues': result.validation_issues or []
+                }
+
+            output['translations'][style_name] = translation_data
 
     # 保存为 JSON
     output_file = f'translation_test_{track_id}_{int(time.time())}.json'
@@ -698,12 +758,39 @@ def test_translation_quality(
 
     for style_name, result in results.items():
         if result:
-            print(f"\n{style_name.upper()} 翻译（前5行）:")
+            # 显示验证状态
+            if VALIDATOR_AVAILABLE and result.validation_status:
+                status_symbols = {
+                    'success': '✓',
+                    'auto_fixed': '⚠',
+                    'error': '✗'
+                }
+                symbol = status_symbols.get(result.validation_status, '•')
+                print(f"\n{style_name.upper()} 翻译 [{symbol} {result.validation_status.upper()}] (成功率: {result.success_rate*100:.1f}%):")
+            else:
+                print(f"\n{style_name.upper()} 翻译（前5行）:")
+
+            # 显示前5行翻译
             for i in range(min(5, len(original_lines))):
                 if i in result.line_translations:
                     print(f"  {i+1}. {result.line_translations[i]}")
                 else:
                     print(f"  {i+1}. [缺失]")
+
+    # 打印验证统计
+    if VALIDATOR_AVAILABLE:
+        print("\n" + "=" * 80)
+        print("验证统计")
+        print("=" * 80)
+
+        validation_counts = {'success': 0, 'auto_fixed': 0, 'error': 0}
+        for result in results.values():
+            if result and result.validation_status:
+                validation_counts[result.validation_status] = validation_counts.get(result.validation_status, 0) + 1
+
+        print(f"✓ 成功: {validation_counts['success']}")
+        print(f"⚠ 自动修复: {validation_counts['auto_fixed']}")
+        print(f"✗ 错误: {validation_counts['error']}")
 
     print("\n" + "=" * 80)
     print("测试完成！")
