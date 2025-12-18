@@ -362,7 +362,11 @@ __L0003__ <<<
 
 def clean_translation(raw_response: str, original_lyrics: str) -> Dict:
     """
-    清洗翻译结果（模拟 App 中的 parseStructuredTranslation）
+    清洗翻译结果（完全模拟 App 中的 parseStructuredTranslation）
+
+    与 App 的差异：
+    - App 在 Dart 中，这是 Python 实现
+    - 但逻辑完全一致，包括 fallback、容错、防御性清理等
 
     返回:
     {
@@ -374,39 +378,124 @@ def clean_translation(raw_response: str, original_lyrics: str) -> Dict:
     import re
 
     original_lines = original_lyrics.strip().split('\n')
+    sanitized = raw_response.replace('\r\n', '\n')
+
+    # 支持两种分隔符（与 App 一致）
+    delimiter_pattern = r'(?:<<<|>>>)'
+
+    # 匹配标记（与 App 的 markerRegex 一致）
+    marker_regex = re.compile(
+        r'__L(\d{4})__\s*' + delimiter_pattern,
+        re.MULTILINE
+    )
+
+    matches = list(marker_regex.finditer(sanitized))
     line_translations = {}
-    missing_lines = []
 
-    # 匹配: __L0001__ <<< 翻译文本
-    pattern = r'__L(\d{4})__\s*<<<\s*(.*)$'
+    # Fallback 逻辑：如果找不到标记，尝试按行对齐（与 App 一致）
+    if not matches:
+        fallback_lines = [line.strip() for line in sanitized.split('\n') if line.strip()]
 
-    for match in re.finditer(pattern, raw_response, re.MULTILINE):
-        line_num = int(match.group(1))
-        translation = match.group(2).strip()
+        if len(fallback_lines) == len(original_lines):
+            for i, line in enumerate(fallback_lines):
+                line_translations[i] = line
 
-        if translation and translation != '[BLANK]':
-            line_translations[line_num - 1] = translation
+        # 构建清洗后的文本（去除标记）
+        cleaned = _clean_markers_from_text(sanitized).strip()
 
-    # 检查缺失
-    for i in range(len(original_lines)):
-        if original_lines[i].strip() and i not in line_translations:
-            missing_lines.append(i)
+        return {
+            'cleaned_text': cleaned if cleaned else '\n'.join(fallback_lines),
+            'line_translations': line_translations,
+            'missing_lines': _find_missing_indices(original_lines, line_translations)
+        }
 
-    # 构建清洗后的文本
+    # 提取每个标记对应的段落（与 App 一致）
+    for i, match in enumerate(matches):
+        idx = int(match.group(1))
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(sanitized)
+
+        segment = sanitized[start:end]
+
+        # 去除包裹的代码块标记（与 App 的 _stripWrappingDelimiters 一致）
+        segment = _strip_wrapping_delimiters(segment)
+
+        # 防御性清理：处理多余的分隔符（与 App 一致）
+        if '<<<' in segment:
+            segment = segment.split('<<<')[-1]
+        if '>>>' in segment:
+            segment = segment.split('>>>')[-1]
+
+        # 处理 [BLANK] 标记
+        if segment.strip() == '[BLANK]':
+            segment = ''
+
+        line_translations[idx - 1] = segment.strip()
+
+    # 构建清洗后的文本（与 App 的 _buildCleanedText 一致）
     cleaned_lines = []
     for i, original in enumerate(original_lines):
-        if i in line_translations:
-            cleaned_lines.append(line_translations[i])
-        elif original.strip():
-            cleaned_lines.append(f"[MISSING: {original}]")
+        translated = line_translations.get(i, '').strip()
+        if translated:
+            cleaned_lines.append(translated)
         else:
-            cleaned_lines.append('')
+            # 用原文替代（与 App 一致，不用 [MISSING] 标记）
+            cleaned_lines.append(original)
 
     return {
-        'cleaned_text': '\n'.join(cleaned_lines),
+        'cleaned_text': '\n'.join(cleaned_lines).strip(),
         'line_translations': line_translations,
-        'missing_lines': missing_lines
+        'missing_lines': _find_missing_indices(original_lines, line_translations)
     }
+
+
+def _strip_wrapping_delimiters(value: str) -> str:
+    """去除包裹标记（与 App 一致）"""
+    result = value.strip()
+
+    # 去除 ``` 包裹
+    if result.startswith('```') and result.endswith('```'):
+        result = result[3:-3].strip()
+
+    # 去除 ### 包裹
+    if result.startswith('###') and result.endswith('###'):
+        result = result[3:-3].strip()
+
+    return result
+
+
+def _find_missing_indices(original_lines: List[str], translations: Dict[int, str]) -> List[int]:
+    """查找缺失的行索引（与 App 一致）"""
+    missing = []
+    for i, original in enumerate(original_lines):
+        translated = translations.get(i, '').strip()
+        # 只检查非空原文行
+        if original.strip() and not translated:
+            missing.append(i)
+    return missing
+
+
+def _clean_markers_from_text(value: str) -> str:
+    """从文本中清除所有标记（与 App 一致）"""
+    import re
+
+    # 清除输入标记 __L0001__ >>>
+    value = re.sub(
+        r'__L\d{4}__\s*>>>\s*',
+        '',
+        value,
+        flags=re.IGNORECASE
+    )
+
+    # 清除输出标记 __L0001__ <<<
+    value = re.sub(
+        r'__L\d{4}__\s*<<<\s*',
+        '',
+        value,
+        flags=re.IGNORECASE
+    )
+
+    return value.strip()
 
 
 def validate_translation(raw_response: str, original_lyrics: str) -> Dict:
