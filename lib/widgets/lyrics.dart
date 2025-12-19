@@ -359,21 +359,65 @@ class _LyricsWidgetState extends State<LyricsWidget>
     return _extractArtistNames(trackItem);
   }
 
+  bool _isChineseLanguageCode(String code) {
+    final normalized = code.toLowerCase();
+    return normalized == 'zh' || normalized.startsWith('zh-');
+  }
+
+  Future<bool> _canUseNeteaseTranslation({
+    bool? hasNeteaseTranslation,
+    String? languageCode,
+  }) async {
+    final hasTranslation = hasNeteaseTranslation ?? _hasNeteaseTranslation;
+    if (!hasTranslation) {
+      return false;
+    }
+    final resolvedLanguage =
+        languageCode ?? await _settingsService.getTargetLanguage();
+    return _isChineseLanguageCode(resolvedLanguage);
+  }
+
+  Future<TranslationStyle> _resolveTranslationStyle({
+    TranslationStyle? requestedStyle,
+    bool? hasNeteaseTranslation,
+    String? languageCode,
+  }) async {
+    final desiredStyle =
+        requestedStyle ?? await _settingsService.getTranslationStyle();
+    if (desiredStyle != TranslationStyle.neteaseProvider) {
+      return desiredStyle;
+    }
+
+    final allowNetease = await _canUseNeteaseTranslation(
+      hasNeteaseTranslation: hasNeteaseTranslation,
+      languageCode: languageCode,
+    );
+    if (allowNetease) {
+      return TranslationStyle.neteaseProvider;
+    }
+
+    return await _settingsService.getLastAiTranslationStyle();
+  }
+
   Future<TranslationLoadResult> _loadTranslationForTrack({
     required String trackId,
     required List<String> originalLines,
     Map<String, dynamic>? trackItem,
     bool forceRefresh = false,
     TranslationStyle? style,
+    bool? hasNeteaseTranslation,
   }) async {
     final spotifyProvider =
         Provider.of<SpotifyProvider>(context, listen: false);
     final localDbProvider =
         Provider.of<LocalDatabaseProvider>(context, listen: false);
 
-    final effectiveStyle =
-        style ?? await _settingsService.getTranslationStyle();
     final currentLanguage = await _settingsService.getTargetLanguage();
+    final effectiveStyle = await _resolveTranslationStyle(
+      requestedStyle: style,
+      hasNeteaseTranslation: hasNeteaseTranslation,
+      languageCode: currentLanguage,
+    );
     final styleString = translationStyleToString(effectiveStyle);
 
     // 网易云翻译特殊处理：从缓存加载而非调用 Gemini
@@ -412,6 +456,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       targetLanguage: currentLanguage,
       forceRefresh: forceRefresh,
       originalLines: originalLines,
+      style: effectiveStyle,
     );
 
     final textPayload = translationData['text'];
@@ -512,6 +557,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       trackItem: trackItem is Map<String, dynamic> ? trackItem : null,
       forceRefresh: forceRefresh,
       style: style,
+      hasNeteaseTranslation: _hasNeteaseTranslation,
     );
   }
 
@@ -803,18 +849,27 @@ class _LyricsWidgetState extends State<LyricsWidget>
             await _settingsService.getAutoTranslateLyricsEnabled();
 
         if (shouldPreloadTranslation) {
-          // 如果歌词来自网易云且有翻译，使用网易云翻译
+          final targetLanguage = await _settingsService.getTargetLanguage();
+          final allowNeteaseTranslation = await _canUseNeteaseTranslation(
+            hasNeteaseTranslation: lyricsResult.hasNeteaseTranslation,
+            languageCode: targetLanguage,
+          );
+
           TranslationStyle? preferredStyle;
-          if (lyricsResult.isFromNetease && lyricsResult.hasNeteaseTranslation) {
+          if (lyricsResult.isFromNetease && allowNeteaseTranslation) {
             preferredStyle = TranslationStyle.neteaseProvider;
           }
-          await _loadTranslationForTrack(
-            trackId: trackId,
-            originalLines: originalLines,
-            trackItem: nextTrack,
-            style: preferredStyle,
-          );
-          debugPrint('Preloaded translation for next track: $trackId');
+
+          if (preferredStyle != TranslationStyle.neteaseProvider) {
+            await _loadTranslationForTrack(
+              trackId: trackId,
+              originalLines: originalLines,
+              trackItem: nextTrack,
+              style: preferredStyle,
+              hasNeteaseTranslation: lyricsResult.hasNeteaseTranslation,
+            );
+            debugPrint('Preloaded translation for next track: $trackId');
+          }
         }
 
         if (!mounted) return;
@@ -852,11 +907,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
     _autoTranslationRequestedForTrack = true;
 
     // 根据歌词来源决定翻译风格
-    // 如果歌词来自网易云且有翻译可用，优先使用网易云翻译（不修改用户设置）
+    // 仅在网易云翻译可用且目标语言为中文时使用网易云翻译
     TranslationStyle? preferredStyle;
-    if (_currentLyricsProvider == 'netease' && _hasNeteaseTranslation) {
+    final allowNeteaseTranslation = await _canUseNeteaseTranslation();
+    if (_currentLyricsProvider == 'netease' && allowNeteaseTranslation) {
       preferredStyle = TranslationStyle.neteaseProvider;
-      _activeTranslationStyle = TranslationStyle.neteaseProvider;
     }
 
     unawaited(_startTranslationPreload(
@@ -1009,7 +1064,15 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     final originalLines = _lyrics.map((line) => line.text).toList();
     final originalLyricsJoined = originalLines.join('\n');
-    final currentStyle = await _settingsService.getTranslationStyle();
+    final targetLanguage = await _settingsService.getTargetLanguage();
+    final allowNeteaseTranslation = await _canUseNeteaseTranslation(
+      languageCode: targetLanguage,
+    );
+    final currentStyle = await _resolveTranslationStyle(
+      requestedStyle: _activeTranslationStyle,
+      hasNeteaseTranslation: _hasNeteaseTranslation,
+      languageCode: targetLanguage,
+    );
     final wasAutoScrolling = _autoScroll;
     final spotifyProvider =
         Provider.of<SpotifyProvider>(context, listen: false);
@@ -1062,6 +1125,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       child: TranslationResultPage(
         originalLyrics: originalLyricsJoined,
         initialStyle: currentStyle,
+        allowNeteaseStyle: allowNeteaseTranslation,
         loadTranslation: ({
           bool forceRefresh = false,
           TranslationStyle? style,
@@ -1240,14 +1304,10 @@ class _LyricsWidgetState extends State<LyricsWidget>
         position.maxScrollExtent,
       );
 
-      final distance = (position.pixels - clampedOffset).abs();
-      final durationMs =
-          distance < 60 ? 160 : (220 + distance * 0.2).clamp(200, 600).toInt();
-
       _scrollController.animateTo(
         clampedOffset,
-        duration: Duration(milliseconds: durationMs),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.fastOutSlowIn,
       );
     } catch (_) {
       // Ignore scroll errors; they'll be retried on the next tick if needed.
@@ -1505,7 +1565,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                         }
                       },
                       child: AnimatedPadding(
-                        duration: const Duration(milliseconds: 550),
+                        duration: const Duration(milliseconds: 450),
                         curve: Curves.easeOutCubic,
                         padding: EdgeInsets.symmetric(
                           // Web端行间距增大30%
@@ -1515,10 +1575,10 @@ class _LyricsWidgetState extends State<LyricsWidget>
                           // Responsive horizontal padding
                           horizontal: isWideLyricLayout
                               ? 24.0
-                              : 40.0, // Reverted padding
+                              : 40.0,
                         ),
                         child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 550),
+                          duration: const Duration(milliseconds: 450),
                           curve: Curves.easeOutCubic,
                           style: TextStyle(
                             fontFamily: 'Spotify Mix',
@@ -1531,7 +1591,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                             height: isWeb ? 1.43 : 1.1,
                           ),
                           child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 550),
+                            duration: const Duration(milliseconds: 450),
                             curve: Curves.easeOutCubic,
                             opacity: lyricsSynced
                                 ? (isCurrentLine ? 1.0 : 0.8)
@@ -2122,8 +2182,15 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     final originalLines = _lyrics.map((line) => line.text).toList();
     final originalLyricsJoined = originalLines.join('\n');
-    final currentStyle =
-        _activeTranslationStyle ?? await _settingsService.getTranslationStyle();
+    final targetLanguage = await _settingsService.getTargetLanguage();
+    final allowNeteaseTranslation = await _canUseNeteaseTranslation(
+      languageCode: targetLanguage,
+    );
+    final currentStyle = await _resolveTranslationStyle(
+      requestedStyle: _activeTranslationStyle,
+      hasNeteaseTranslation: _hasNeteaseTranslation,
+      languageCode: targetLanguage,
+    );
 
     if (!mounted) return;
 
@@ -2155,7 +2222,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           );
         },
         originalLyrics: originalLyricsJoined,
-        hasNeteaseTranslation: _hasNeteaseTranslation,
+        canUseNeteaseTranslation: allowNeteaseTranslation,
       ),
       preferredMode: SecondaryPageMode.sideSheet,
       maxWidth: 520,

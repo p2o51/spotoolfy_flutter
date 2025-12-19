@@ -23,6 +23,7 @@ class TranslationService {
     String? targetLanguage,
     bool forceRefresh = false,
     List<String>? originalLines,
+    TranslationStyle? style,
   }) async {
     final apiKey = await _settingsService.getGeminiApiKey();
     if (apiKey == null || apiKey.isEmpty) {
@@ -35,8 +36,7 @@ class TranslationService {
     final languageCodeUsed = targetLanguage ??
         await _settingsService.getTargetLanguage(); // Capture the language used
     final languageName = _getLanguageName(languageCodeUsed);
-    final styleUsed =
-        await _settingsService.getTranslationStyle(); // Capture the style used
+    final styleUsed = style ?? await _settingsService.getTranslationStyle();
     final styleNameUsed = translationStyleToString(
         styleUsed); // Get style name for cache key and return value
 

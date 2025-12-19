@@ -408,6 +408,7 @@
   "useTranslation": "使用翻译",
   "translationStyleNetease": "网易云",
   "neteaseTranslationChineseOnly": "仅中文",
+  "neteaseTranslationUnavailable": "此歌曲不可用",
   "neteaseTranslationSaved": "网易云翻译已保存",
   "pressAgainToExit": "再按一次退出"
 }

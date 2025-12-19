@@ -48,8 +48,8 @@ class LyricsSelectionPage extends StatefulWidget {
     TranslationStyle? style,
   }) loadTranslation;
   final String originalLyrics;
-  /// 是否有网易云翻译可用（基于歌词来源）
-  final bool hasNeteaseTranslation;
+  /// 是否允许使用网易云翻译（需歌词包含网易云翻译且目标语言为中文）
+  final bool canUseNeteaseTranslation;
 
   const LyricsSelectionPage({
     super.key,
@@ -61,7 +61,7 @@ class LyricsSelectionPage extends StatefulWidget {
     required this.initialStyle,
     required this.loadTranslation,
     required this.originalLyrics,
-    this.hasNeteaseTranslation = false,
+    this.canUseNeteaseTranslation = false,
   });
 
   @override
@@ -219,15 +219,17 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
             l10n.translationStyleMachineClassic,
             _currentStyle == TranslationStyle.machineClassic,
           ),
-          // 只有当歌词来源有网易云翻译时才显示此选项
-          if (widget.hasNeteaseTranslation)
-            _buildStyleOption(
-              context,
-              TranslationStyle.neteaseProvider,
-              l10n.translationStyleNetease,
-              _currentStyle == TranslationStyle.neteaseProvider,
-              subtitle: l10n.neteaseTranslationChineseOnly,
-            ),
+          // 始终显示网易云翻译选项，不可用时灰色禁用
+          _buildStyleOption(
+            context,
+            TranslationStyle.neteaseProvider,
+            l10n.translationStyleNetease,
+            _currentStyle == TranslationStyle.neteaseProvider,
+            subtitle: widget.canUseNeteaseTranslation
+                ? l10n.neteaseTranslationChineseOnly
+                : l10n.neteaseTranslationUnavailable,
+            enabled: widget.canUseNeteaseTranslation,
+          ),
         ],
       ),
     );
@@ -244,13 +246,17 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     String title,
     bool isSelected, {
     String? subtitle,
+    bool enabled = true,
   }) {
+    final theme = Theme.of(context);
+    final disabledColor = theme.colorScheme.onSurface.withValues(alpha: 0.38);
+
     return SimpleDialogOption(
-      onPressed: () => Navigator.of(context).pop(style),
+      onPressed: enabled ? () => Navigator.of(context).pop(style) : null,
       child: Row(
         children: [
-          if (isSelected)
-            Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+          if (isSelected && enabled)
+            Icon(Icons.check, color: theme.colorScheme.primary)
           else
             const SizedBox(width: 24),
           const SizedBox(width: 12),
@@ -260,15 +266,16 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: isSelected ? FontWeight.bold : null,
+                    color: enabled ? null : disabledColor,
                   ),
                 ),
                 if (subtitle != null)
                   Text(
                     subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: enabled ? theme.colorScheme.outline : disabledColor,
                     ),
                   ),
               ],

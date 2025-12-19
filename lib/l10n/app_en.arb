@@ -824,6 +824,7 @@
   "useTranslation": "Include Translation",
   "translationStyleNetease": "NetEase Cloud",
   "neteaseTranslationChineseOnly": "Chinese only",
+  "neteaseTranslationUnavailable": "Not available for this track",
   "neteaseTranslationSaved": "NetEase translation saved",
   "pressAgainToExit": "Press again to exit"
 }

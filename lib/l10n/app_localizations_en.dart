@@ -1356,6 +1356,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get neteaseTranslationChineseOnly => 'Chinese only';
 
   @override
+  String get neteaseTranslationUnavailable => 'Not available for this track';
+
+  @override
   String get neteaseTranslationSaved => 'NetEase translation saved';
 
   @override

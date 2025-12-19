@@ -82,6 +82,7 @@ final logger = Logger();
 class TranslationResultPage extends StatefulWidget {
   final String originalLyrics;
   final TranslationStyle initialStyle;
+  final bool allowNeteaseStyle;
   final Future<TranslationLoadResult> Function({
     bool forceRefresh,
     TranslationStyle? style,
@@ -92,6 +93,7 @@ class TranslationResultPage extends StatefulWidget {
     super.key,
     required this.originalLyrics,
     required this.initialStyle,
+    this.allowNeteaseStyle = true,
     required this.loadTranslation,
     this.initialData,
   });
@@ -111,10 +113,30 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
 
   final SettingsService _settingsService = SettingsService();
 
+  TranslationStyle _nextStyle(TranslationStyle currentStyle) {
+    if (!widget.allowNeteaseStyle) {
+      switch (currentStyle) {
+        case TranslationStyle.faithful:
+          return TranslationStyle.melodramaticPoet;
+        case TranslationStyle.melodramaticPoet:
+          return TranslationStyle.machineClassic;
+        case TranslationStyle.machineClassic:
+          return TranslationStyle.faithful;
+        case TranslationStyle.neteaseProvider:
+          return TranslationStyle.faithful;
+      }
+    }
+    return _getNextTranslationStyle(currentStyle);
+  }
+
   @override
   void initState() {
     super.initState();
     _currentStyle = widget.initialStyle;
+    if (!widget.allowNeteaseStyle &&
+        _currentStyle == TranslationStyle.neteaseProvider) {
+      _currentStyle = TranslationStyle.faithful;
+    }
     _pendingInitialFuture = widget.initialData;
     _loadInitialTranslation();
   }
@@ -151,7 +173,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     if (_isTranslating || _isInitialLoading) return;
 
     final l10n = AppLocalizations.of(context)!;
-    final nextStyle = _getNextTranslationStyle(_currentStyle);
+    final nextStyle = _nextStyle(_currentStyle);
 
     setState(() {
       _isTranslating = true;

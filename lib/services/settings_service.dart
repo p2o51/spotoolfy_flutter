@@ -46,6 +46,7 @@ class SettingsService {
   static const _spotifyClientIdKey = 'spotify_client_id'; // Spotify Client ID
   static const _targetLanguageKey = 'target_translation_language';
   static const _translationStyleKey = 'translation_style'; // Key for style
+  static const _lastAiTranslationStyleKey = 'translation_style_last_ai';
   static const _copyLyricsAsSingleLineKey = 'copy_lyrics_single_line'; // Key for new setting
   static const _enableThinkingForInsightsKey = 'enable_thinking_for_insights';
   static const _autoTranslateLyricsKey = 'auto_translate_lyrics';
@@ -72,12 +73,30 @@ class SettingsService {
   // Method to save translation style
   Future<void> saveTranslationStyle(TranslationStyle style) async {
     await _secureStorage.write(key: _translationStyleKey, value: translationStyleToString(style));
+    if (style != TranslationStyle.neteaseProvider) {
+      await _secureStorage.write(
+        key: _lastAiTranslationStyleKey,
+        value: translationStyleToString(style),
+      );
+    }
   }
 
   // Method to get translation style
   Future<TranslationStyle> getTranslationStyle() async {
     final styleString = await _secureStorage.read(key: _translationStyleKey);
     return stringToTranslationStyle(styleString);
+  }
+
+  Future<TranslationStyle> getLastAiTranslationStyle() async {
+    final styleString = await _secureStorage.read(key: _lastAiTranslationStyleKey);
+    if (styleString == null) {
+      return _defaultStyle;
+    }
+    final style = stringToTranslationStyle(styleString);
+    if (style == TranslationStyle.neteaseProvider) {
+      return _defaultStyle;
+    }
+    return style;
   }
 
   // Method to save the copy format setting
@@ -162,6 +181,7 @@ class SettingsService {
     await _secureStorage.delete(key: _geminiApiKey);
     await _secureStorage.delete(key: _targetLanguageKey);
     await _secureStorage.delete(key: _translationStyleKey);
+    await _secureStorage.delete(key: _lastAiTranslationStyleKey);
     await _secureStorage.delete(key: _copyLyricsAsSingleLineKey);
     await _secureStorage.delete(key: _enableThinkingForInsightsKey);
     await _secureStorage.delete(key: _autoTranslateLyricsKey);

@@ -1308,6 +1308,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get neteaseTranslationChineseOnly => '網易雲翻訳は中国語のみ対応';
 
   @override
+  String get neteaseTranslationUnavailable => 'この曲には利用できません';
+
+  @override
   String get neteaseTranslationSaved => '網易雲翻訳を保存しました';
 
   @override

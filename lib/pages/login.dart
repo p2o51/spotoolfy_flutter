@@ -297,6 +297,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                     case TranslationStyle.faithful: styleDisplay = l10n.translationStyleFaithful; break;
                     case TranslationStyle.melodramaticPoet: styleDisplay = l10n.translationStyleMelodramaticPoet; break;
                     case TranslationStyle.machineClassic: styleDisplay = l10n.translationStyleMachineClassic; break;
+                    case TranslationStyle.neteaseProvider: styleDisplay = l10n.translationStyleNetease; break;
                     default: styleDisplay = "";
                   }
                 }
@@ -859,6 +860,9 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     final currentContext = context;
 
     final currentStyle = await settingsService.getTranslationStyle();
+    final currentLanguage = await settingsService.getTargetLanguage();
+    final allowNeteaseTranslation =
+        currentLanguage.toLowerCase().startsWith('zh');
     if (!currentContext.mounted) return; 
 
     showDialog(
@@ -930,6 +934,29 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                         }
                       },
                     ),
+                    if (allowNeteaseTranslation)
+                      RadioListTile<TranslationStyle>(
+                        title: Text(l10n.translationStyleNetease),
+                        subtitle: Text(l10n.neteaseTranslationChineseOnly),
+                        value: TranslationStyle.neteaseProvider,
+                        groupValue: currentStyle,
+                        onChanged: (TranslationStyle? value) async {
+                          if (value != null) {
+                            try {
+                              await settingsService.saveTranslationStyle(value);
+                              navigator.pop();
+                              notificationService.showSuccessSnackBar(
+                                  l10n.translationStyleSaved);
+                              onSuccess();
+                            } catch (e) {
+                              if (currentContext.mounted) {
+                                notificationService.showErrorSnackBar(
+                                    l10n.failedToChangeStyle(e.toString()));
+                              }
+                            }
+                          }
+                        },
+                      ),
                   ],
                 ),
               ),

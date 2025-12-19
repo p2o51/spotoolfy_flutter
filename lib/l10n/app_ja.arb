@@ -392,6 +392,7 @@
   "useTranslation": "翻訳を使用",
   "translationStyleNetease": "網易雲翻訳",
   "neteaseTranslationChineseOnly": "網易雲翻訳は中国語のみ対応",
+  "neteaseTranslationUnavailable": "この曲には利用できません",
   "neteaseTranslationSaved": "網易雲翻訳を保存しました",
   "pressAgainToExit": "もう一度押すと終了します",
   "addNoteHint": "メモを追加...",

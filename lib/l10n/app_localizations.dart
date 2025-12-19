@@ -2484,6 +2484,12 @@ abstract class AppLocalizations {
   /// **'Chinese only'**
   String get neteaseTranslationChineseOnly;
 
+  /// No description provided for @neteaseTranslationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available for this track'**
+  String get neteaseTranslationUnavailable;
+
   /// No description provided for @neteaseTranslationSaved.
   ///
   /// In en, this message translates to:

@@ -1304,6 +1304,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get neteaseTranslationChineseOnly => '仅中文';
 
   @override
+  String get neteaseTranslationUnavailable => '此歌曲不可用';
+
+  @override
   String get neteaseTranslationSaved => '网易云翻译已保存';
 
   @override
@@ -2608,6 +2611,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get neteaseTranslationChineseOnly => '網易雲翻譯僅提供中文';
+
+  @override
+  String get neteaseTranslationUnavailable => '此歌曲不可用';
 
   @override
   String get neteaseTranslationSaved => '網易雲翻譯已儲存';

@@ -118,6 +118,7 @@ class LyricsTranslationManager {
       targetLanguage: currentLanguage,
       forceRefresh: forceRefresh,
       originalLines: originalLines,
+      style: effectiveStyle,
     );
 
     final textPayload = translationData['text'];
