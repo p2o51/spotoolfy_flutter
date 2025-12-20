@@ -11,9 +11,6 @@ final logger = Logger();
 
 class TranslationService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiDefaultModel = 'gemini-flash-latest';
   static const String _cacheKeyPrefix =
       'translation_cache_'; // Cache key prefix
 
@@ -39,9 +36,6 @@ class TranslationService {
     final styleUsed = style ?? await _settingsService.getTranslationStyle();
     final styleNameUsed = translationStyleToString(
         styleUsed); // Get style name for cache key and return value
-
-    // 选择合适的模型
-    final modelUrl = '$_geminiBaseUrl$_geminiDefaultModel';
 
     // Generate cache key including language and style
     final cacheKey =
@@ -87,6 +81,10 @@ class TranslationService {
       logger.d('Forcing refresh: Removed cache for $cacheKey');
     }
 
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig();
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
 
     // Get the prompt based on the selected style
@@ -101,6 +99,8 @@ class TranslationService {
           ]
         }
       ],
+      // 翻译不需要 Google Search，使用统一的生成配置
+      'generationConfig': generationConfig,
     });
 
     try {

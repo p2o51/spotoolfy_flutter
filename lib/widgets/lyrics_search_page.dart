@@ -243,14 +243,14 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
 
     // 在异步调用前捕获 Navigator
     final navigator = Navigator.of(context);
+    final l10n = AppLocalizations.of(context)!;
 
     setState(() {
       _isFetchingLyric = true;
     });
 
     try {
-      _notificationService
-          .showSnackBar(AppLocalizations.of(context)!.lyricsFetching);
+      _notificationService.showSnackBar(l10n.lyricsFetching);
 
       // 网易云特殊处理：获取翻译并保存
       if (result.provider is NetEaseProvider) {
@@ -271,9 +271,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
             if (lyricResult.hasTranslation) {
               await _cacheNeteaseTranslation(
                   widget.trackId, lyricResult.translation!);
-              _notificationService.showSnackBar(
-                AppLocalizations.of(context)!.neteaseTranslationSaved,
-              );
+              _notificationService.showSnackBar(l10n.neteaseTranslationSaved);
             }
 
             debugPrint(

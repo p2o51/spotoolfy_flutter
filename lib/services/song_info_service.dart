@@ -8,9 +8,6 @@ final logger = Logger();
 
 class SongInfoService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiModel = 'gemini-flash-latest';
   static const String _songInfoCacheKeyPrefix = 'cached_song_info_'; // 缓存键前缀
   SharedPreferences? _prefsCache;
 
@@ -51,9 +48,11 @@ class SongInfoService {
     final String languageName = _getLanguageName(languageCode);
 
     final prompt = _buildPrompt(trackName, artistNames, albumName, releaseDate, languageName);
-    
-    // 构建完整的模型URL
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig();
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -67,12 +66,7 @@ class SongInfoService {
           'googleSearch': {}
         }
       ],
-      'generationConfig': {
-        'temperature': 0.8,
-        'thinkingConfig': {
-          'thinkingBudget': 0,
-        }
-      },
+      'generationConfig': generationConfig,
     });
 
     try {
@@ -294,7 +288,10 @@ ${contextInfo.isNotEmpty ? '已有的歌曲信息：\n$contextInfo' : ''}
 直接回答问题，不需要重复歌曲基本信息。
 ''';
 
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig();
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -306,12 +303,7 @@ ${contextInfo.isNotEmpty ? '已有的歌曲信息：\n$contextInfo' : ''}
       'tools': [
         {'googleSearch': {}}
       ],
-      'generationConfig': {
-        'temperature': 0.8,
-        'thinkingConfig': {
-          'thinkingBudget': 0,
-        }
-      },
+      'generationConfig': generationConfig,
     });
 
     try {

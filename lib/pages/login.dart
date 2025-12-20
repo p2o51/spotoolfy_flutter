@@ -326,6 +326,13 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               title: l10n.copyLyricsAsSingleLineTitle, // Use localization
               subtitle: l10n.copyLyricsAsSingleLineSubtitle, // Use localization
             ),
+            const SizedBox(height: kElementSpacing),
+            _buildGemini3SwitchMenuItem(
+              context,
+              icon: Icons.auto_awesome,
+              title: l10n.enableGemini3Title,
+              subtitle: l10n.enableGemini3Subtitle,
+            ),
             const SizedBox(height: kSectionSpacing),
             
             // 数据管理部分
@@ -531,7 +538,7 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
             if (snapshot.hasData) {
               copyAsSingleLine = snapshot.data!['copyLyricsAsSingleLine'] as bool? ?? false;
             }
-            
+
             return InkWell(
               onTap: () {
                 if (snapshot.hasData) {
@@ -593,6 +600,87 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
           }
         );
       }
+    );
+  }
+
+  Widget _buildGemini3SwitchMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final settingsService = Provider.of<SettingsService>(context, listen: false);
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return FutureBuilder<bool>(
+          future: settingsService.getEnableGemini3(),
+          builder: (context, snapshot) {
+            bool enableGemini3 = false;
+            if (snapshot.hasData) {
+              enableGemini3 = snapshot.data!;
+            }
+
+            return InkWell(
+              onTap: () {
+                if (snapshot.hasData) {
+                  HapticFeedback.lightImpact();
+                  final newValue = !enableGemini3;
+                  settingsService.saveEnableGemini3(newValue);
+                  setState(() {});
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(kSmallSpacing),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: kElementSpacing),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: enableGemini3,
+                      onChanged: (bool value) {
+                        HapticFeedback.lightImpact();
+                        settingsService.saveEnableGemini3(value);
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

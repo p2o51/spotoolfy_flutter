@@ -110,6 +110,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
   late TranslationStyle _currentStyle;
   Future<TranslationLoadResult>? _pendingInitialFuture;
   bool _showTranslated = true; // 默认显示翻译后的歌词 (窄屏模式下)
+  String _geminiVersion = '2.5 Flash'; // 默认版本
 
   final SettingsService _settingsService = SettingsService();
 
@@ -138,7 +139,17 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       _currentStyle = TranslationStyle.faithful;
     }
     _pendingInitialFuture = widget.initialData;
+    _loadGeminiVersion();
     _loadInitialTranslation();
+  }
+
+  Future<void> _loadGeminiVersion() async {
+    final config = await _settingsService.getGeminiModelConfig();
+    if (mounted) {
+      setState(() {
+        _geminiVersion = config.displayVersion;
+      });
+    }
   }
 
   Future<void> _loadInitialTranslation() async {
@@ -412,7 +423,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
         _getTranslationStyleDisplayName(_currentStyle, l10n);
     // 使用本地化的归因文本和风格标签
     final attributionText =
-        "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
+        "${l10n.translatedByAttribution(_geminiVersion)}\n${l10n.spiritLabel(styleDisplayName)}";
 
     return ListView(
       // 使用 ListView 保持可滚动性
@@ -468,7 +479,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
         _getTranslationStyleDisplayName(_currentStyle, l10n);
     // 使用本地化的归因文本和风格标签
     final attributionText =
-        "${l10n.translatedByAttribution}\n${l10n.spiritLabel(styleDisplayName)}";
+        "${l10n.translatedByAttribution(_geminiVersion)}\n${l10n.spiritLabel(styleDisplayName)}";
 
     const edgeInsets = EdgeInsets.symmetric(horizontal: 24, vertical: 16);
     const bottomPadding = SizedBox(height: 40);

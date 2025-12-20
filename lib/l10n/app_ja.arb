@@ -81,7 +81,14 @@
   "enterCopyLyricsMode": "歌詞コピー モードに入る（単曲リピート）",
   "translationTitle": "翻訳",
   "originalTitle": "原文",
-  "translatedByAttribution": "Gemini 2.5 Flashによって翻訳された",
+  "translatedByAttribution": "Gemini {version} によって翻訳された",
+  "@translatedByAttribution": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "spiritLabel": "スピリット: {style}",
   "copyToClipboard": "クリップボードにコピー",
   "copiedToClipboard": "クリップボードにコピーされた", 
@@ -126,6 +133,8 @@
   "autoTranslateLyricsSubtitle": "翻訳がないときは自動で翻訳を実行します",
   "copyLyricsAsSingleLineTitle": "歌詞を１行でコピー",
   "copyLyricsAsSingleLineSubtitle": "コピー時に改行をスペースに置き換える",
+  "enableGemini3Title": "Gemini 3 を有効にする",
+  "enableGemini3Subtitle": "Gemini 3 でより安定した構造を取得できますが、テストでは翻訳品質に大きな向上は見られませんでした",
   "dataManagementTitle": "データ管理",
   "exportDataTitle": "データのエクスポート",
   "exportDataSubtitle": "すべてのデータをJSONファイルとしてエクスポートする",
@@ -246,7 +255,14 @@
   "generateAIContent": "AI楽曲解析と背景情報を生成",
   "generatingAIContent": "生成中...",
   "deleteAIContent": "AI解析コンテンツを削除",
-  "generatedByGemini": "Gemini 2.5 Flash によって生成",
+  "generatedByGemini": "Gemini {version} によって生成",
+  "@generatedByGemini": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "poweredByGoogleSearch": "Google 検索グラウンディングによる",
   "creationTimeTitle": "作成時間",
   "creationLocationTitle": "作成場所",

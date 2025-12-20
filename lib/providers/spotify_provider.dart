@@ -13,7 +13,6 @@ import '../providers/local_database_provider.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
-import 'dart:convert';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
@@ -85,7 +84,6 @@ class SpotifyProvider extends ChangeNotifier {
   late final CategorizedNotifyThrottler _notifyThrottler;
 
   // 图片预加载管理器
-  final ImagePreloadManager _imagePreloadManager = ImagePreloadManager();
   final AlbumArtPreloadStrategy _albumArtPreloader = AlbumArtPreloadStrategy();
 
   // 持久化存储最后播放的歌曲信息（用于离线显示）
@@ -437,8 +435,9 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
       _notifyCategory('default'); // UI 马上刷新
-      if (_refreshTimer == null && username != null)
+      if (_refreshTimer == null && username != null) {
         startTrackRefresh(); // 仅在定时器未运行且用户已登录时启动
+      }
     } catch (_) {
       /* 忽略失败 */
     }
@@ -1014,7 +1013,8 @@ class SpotifyProvider extends ChangeNotifier {
                   currentTrack!['context'] = contextFromApi;
                 }
               }
-            } else if (contextFromApi != null) {
+            } else {
+              // hasContextName is true, so contextFromApi is guaranteed non-null
               currentTrack!['context'] = contextFromApi;
             }
           }
@@ -1859,12 +1859,18 @@ class SpotifyProvider extends ChangeNotifier {
     if (context == null || !context.mounted) return;
 
     // 异步执行预加载，不阻塞主流程
+    // 缓存当前的 track 数据以避免在 microtask 中使用 context
+    final trackData = currentTrack;
+    final nextTrackData = nextTrack;
+    final upcomingTracksData = upcomingTracks;
+
     Future.microtask(() {
+      if (!context.mounted) return;
       _albumArtPreloader.preloadForPlayback(
         context: context,
-        currentTrack: currentTrack,
-        nextTrack: nextTrack,
-        upcomingTracks: upcomingTracks,
+        currentTrack: trackData,
+        nextTrack: nextTrackData,
+        upcomingTracks: upcomingTracksData,
       );
     });
   }
@@ -2890,7 +2896,7 @@ class SpotifyProvider extends ChangeNotifier {
 
         if (refreshError.code == 'CONFIG_ERROR') {
           _notifyUser('Spotify SDK 配置异常，请检查客户端 ID / Redirect URI 设置。');
-          throw refreshError;
+          rethrow;
         }
 
         // 未知错误，回退到要求用户重新登录，但不立即清除状态
@@ -2956,9 +2962,8 @@ class SpotifyProvider extends ChangeNotifier {
             isHandledKnown403 = true;
           } else if (lowerCaseMessage.contains('restricted') ||
               lowerCaseMessage.contains('restriction violated')) {
-            final l10n = context != null ? AppLocalizations.of(context)! : null;
-            displayMessage = l10n?.deviceOperationNotSupported ??
-                '当前设备不支持此操作或受限。请尝试在其他设备上播放音乐，或检查您的账户类型。';
+            final l10n = AppLocalizations.of(context)!;
+            displayMessage = l10n.deviceOperationNotSupported;
             isHandledKnown403 = true;
           } else {
             displayMessage = '权限不足 (403): ${e.message}';

@@ -274,7 +274,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get originalTitle => '原文';
 
   @override
-  String get translatedByAttribution => '由 Gemini 2.5 Flash 翻译';
+  String translatedByAttribution(String version) {
+    return '由 Gemini $version 翻译';
+  }
 
   @override
   String spiritLabel(String style) {
@@ -411,6 +413,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get copyLyricsAsSingleLineSubtitle => '复制时将换行符替换为空格';
+
+  @override
+  String get enableGemini3Title => '启用 Gemini 3';
+
+  @override
+  String get enableGemini3Subtitle => '使用 Gemini 3 获得更稳定的结构性，但经过测试翻译质量没有大幅提升';
 
   @override
   String get dataManagementTitle => '数据管理';
@@ -778,7 +786,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deleteAIContent => '点击删除AI分析内容';
 
   @override
-  String get generatedByGemini => '由 Gemini 2.5 Flash 生成';
+  String generatedByGemini(String version) {
+    return '由 Gemini $version 生成';
+  }
 
   @override
   String get poweredByGoogleSearch => '由 Google 搜索基础提供支持';
@@ -1583,7 +1593,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get originalTitle => '原文';
 
   @override
-  String get translatedByAttribution => '由 Gemini 2.5 Flash 翻譯';
+  String translatedByAttribution(String version) {
+    return '由 Gemini $version 翻譯';
+  }
 
   @override
   String spiritLabel(String style) {
@@ -1720,6 +1732,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get copyLyricsAsSingleLineSubtitle => '複製時將換行符號替換為空格';
+
+  @override
+  String get enableGemini3Title => '啟用 Gemini 3';
+
+  @override
+  String get enableGemini3Subtitle => '使用 Gemini 3 獲得更穩定的結構性，但經過測試翻譯品質沒有大幅提升';
 
   @override
   String get dataManagementTitle => '資料管理';
@@ -2087,7 +2105,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get deleteAIContent => '點擊刪除AI分析內容';
 
   @override
-  String get generatedByGemini => '由 Gemini 2.5 Flash 產生';
+  String generatedByGemini(String version) {
+    return '由 Gemini $version 產生';
+  }
 
   @override
   String get poweredByGoogleSearch => '由 Google 搜尋基礎提供支援';

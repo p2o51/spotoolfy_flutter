@@ -193,9 +193,9 @@ class _MyThemedAppState extends State<MyThemedApp> {
             final themedChild = child ?? const SizedBox.shrink();
             final baseMediaQuery = MediaQuery.of(context);
             final double textScaleMultiplier = kIsWeb ? 1.12 : 1.0;
+            final baseScale = baseMediaQuery.textScaler.scale(1.0);
             final mediaData = baseMediaQuery.copyWith(
-              textScaleFactor:
-                  baseMediaQuery.textScaleFactor * textScaleMultiplier,
+              textScaler: TextScaler.linear(baseScale * textScaleMultiplier),
             );
 
             return AnnotatedRegion<SystemUiOverlayStyle>(

@@ -274,7 +274,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get originalTitle => '原文';
 
   @override
-  String get translatedByAttribution => 'Gemini 2.5 Flashによって翻訳された';
+  String translatedByAttribution(String version) {
+    return 'Gemini $version によって翻訳された';
+  }
 
   @override
   String spiritLabel(String style) {
@@ -412,6 +414,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get copyLyricsAsSingleLineSubtitle => 'コピー時に改行をスペースに置き換える';
+
+  @override
+  String get enableGemini3Title => 'Gemini 3 を有効にする';
+
+  @override
+  String get enableGemini3Subtitle =>
+      'Gemini 3 でより安定した構造を取得できますが、テストでは翻訳品質に大きな向上は見られませんでした';
 
   @override
   String get dataManagementTitle => 'データ管理';
@@ -780,7 +789,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get deleteAIContent => 'AI解析コンテンツを削除';
 
   @override
-  String get generatedByGemini => 'Gemini 2.5 Flash によって生成';
+  String generatedByGemini(String version) {
+    return 'Gemini $version によって生成';
+  }
 
   @override
   String get poweredByGoogleSearch => 'Google 検索グラウンディングによる';

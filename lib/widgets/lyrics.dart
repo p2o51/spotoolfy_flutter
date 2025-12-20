@@ -1072,6 +1072,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return;
     }
 
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     final originalLines = _lyrics.map((line) => line.text).toList();
     final originalLyricsJoined = originalLines.join('\n');
     final targetLanguage = await _settingsService.getTargetLanguage();
@@ -1084,8 +1086,6 @@ class _LyricsWidgetState extends State<LyricsWidget>
       languageCode: targetLanguage,
     );
     final wasAutoScrolling = _autoScroll;
-    final spotifyProvider =
-        Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
 
     if (_autoScroll) {

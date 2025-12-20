@@ -5,6 +5,7 @@ import 'dart:math';
 import '../services/song_info_service.dart';
 import '../services/gemini_chat_service.dart';
 import '../services/notification_service.dart';
+import '../services/settings_service.dart';
 import '../widgets/materialui.dart';
 import '../widgets/ai_chat_sheet.dart';
 import '../l10n/app_localizations.dart';
@@ -29,8 +30,10 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   bool _isRegenerating = false;
   String? _regenerationError;
   Map<String, dynamic>? _currentSongInfo;
+  String _geminiVersion = '2.5 Flash'; // 默认版本
 
   final SongInfoService _songInfoService = SongInfoService();
+  final SettingsService _settingsService = SettingsService();
 
   
   // 加载动画控制器
@@ -168,7 +171,18 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         _infoAnimationController.forward();
       });
     }
+    // 加载 Gemini 版本
+    _loadGeminiVersion();
     // Note: _loadSongInfo() will be called in didChangeDependencies() if needed
+  }
+
+  Future<void> _loadGeminiVersion() async {
+    final config = await _settingsService.getGeminiModelConfig();
+    if (mounted) {
+      setState(() {
+        _geminiVersion = config.displayVersion;
+      });
+    }
   }
 
   @override
@@ -861,7 +875,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       child: Column(
         children: [
           Text(
-            AppLocalizations.of(context)!.generatedByGemini,
+            AppLocalizations.of(context)!.generatedByGemini(_geminiVersion),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),

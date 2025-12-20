@@ -373,7 +373,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
 
     return PopScope(
       canPop: !_isBusy,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop && _isBusy) {
           HapticFeedback.mediumImpact();
         }

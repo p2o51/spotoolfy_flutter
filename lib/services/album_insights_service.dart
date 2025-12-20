@@ -12,9 +12,6 @@ class AlbumInsightsService {
   final SettingsService _settingsService = SettingsService();
   final Logger _logger = Logger();
 
-  static const String _geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiModel = 'gemini-flash-latest';
   static const String _cacheKeyPrefix = 'album_insights_';
 
   SharedPreferences? _prefsCache;
@@ -102,17 +99,15 @@ class AlbumInsightsService {
       topTracks: topTracks,
     );
 
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig(
+      temperature: 0.85,
+      enableThinking: enableThinking,
+    );
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
-
-    final thinkingBudget = enableThinking ? 8 : 0;
-    final generationConfig = <String, dynamic>{
-      'temperature': 0.85,
-      'thinkingConfig': {
-        'thinkingBudget': thinkingBudget,
-      },
-    };
 
     final body = jsonEncode({
       'contents': [

@@ -81,7 +81,14 @@
   "enterCopyLyricsMode": "進入歌詞複製模式（單曲循環）",
   "translationTitle": "翻譯",
   "originalTitle": "原文",
-  "translatedByAttribution": "由 Gemini 2.5 Flash 翻譯",
+  "translatedByAttribution": "由 Gemini {version} 翻譯",
+  "@translatedByAttribution": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "spiritLabel": "風格: {style}",
   "copyToClipboard": "複製到剪貼簿",
   "copiedToClipboard": "已複製到剪貼簿",
@@ -129,6 +136,8 @@
   "autoTranslateLyricsSubtitle": "當歌詞沒有翻譯時自動開始翻譯",
   "copyLyricsAsSingleLineTitle": "將歌詞複製為單行",
   "copyLyricsAsSingleLineSubtitle": "複製時將換行符號替換為空格",
+  "enableGemini3Title": "啟用 Gemini 3",
+  "enableGemini3Subtitle": "使用 Gemini 3 獲得更穩定的結構性，但經過測試翻譯品質沒有大幅提升",
   "dataManagementTitle": "資料管理",
   "exportDataTitle": "匯出資料",
   "exportDataSubtitle": "將所有資料匯出為 JSON 檔案",
@@ -246,7 +255,14 @@
   "generateAIContent": "點擊產生歌曲背景資訊和音樂解析",
   "generatingAIContent": "正在產生中...",
   "deleteAIContent": "點擊刪除AI分析內容",
-  "generatedByGemini": "由 Gemini 2.5 Flash 產生",
+  "generatedByGemini": "由 Gemini {version} 產生",
+  "@generatedByGemini": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "poweredByGoogleSearch": "由 Google 搜尋基礎提供支援",
   "creationTimeTitle": "創作時間",
   "creationLocationTitle": "創作地點",

@@ -7,9 +7,6 @@ final logger = Logger();
 
 class LyricsAnalysisService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiModel = 'gemini-flash-latest';
 
   Future<Map<String, dynamic>?> analyzeLyrics(
     String lyrics,
@@ -31,9 +28,11 @@ class LyricsAnalysisService {
     final String languageName = _getLanguageName(languageCode);
 
     final prompt = _buildPrompt(lyrics, trackTitle, artistName, languageName);
-    
-    // 构建完整的模型URL
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig();
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -47,12 +46,7 @@ class LyricsAnalysisService {
           'googleSearch': {}
         }
       ],
-      'generationConfig': {
-        'temperature': 0.8,
-        'thinkingConfig': {
-          'thinkingBudget': 0,
-        }
-      },
+      'generationConfig': generationConfig,
     });
 
     try {

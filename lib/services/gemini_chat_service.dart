@@ -59,9 +59,6 @@ class ChatContext {
 /// Unified Gemini chat service for AI conversations
 class GeminiChatService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiModel = 'gemini-flash-latest';
 
   /// Send a chat message with context
   Future<String> chat({
@@ -80,7 +77,10 @@ class GeminiChatService {
     final systemPrompt = _buildSystemPrompt(context, languageName);
     final contents = _buildContents(systemPrompt, message, conversationHistory);
 
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig();
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -88,12 +88,7 @@ class GeminiChatService {
       'tools': [
         {'googleSearch': {}}
       ],
-      'generationConfig': {
-        'temperature': 0.8,
-        'thinkingConfig': {
-          'thinkingBudget': 0,
-        }
-      },
+      'generationConfig': generationConfig,
     });
 
     try {
@@ -148,7 +143,10 @@ class GeminiChatService {
     final prompt = _buildLyricsAnalysisPrompt(
         lyrics, trackTitle, artistName, languageName);
 
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final generationConfig = await _settingsService.getGeminiGenerationConfig();
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -162,12 +160,7 @@ class GeminiChatService {
       'tools': [
         {'googleSearch': {}}
       ],
-      'generationConfig': {
-        'temperature': 0.8,
-        'thinkingConfig': {
-          'thinkingBudget': 0,
-        }
-      },
+      'generationConfig': generationConfig,
     });
 
     try {

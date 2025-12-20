@@ -24,6 +24,33 @@ TranslationStyle stringToTranslationStyle(String? styleString) {
       );
 }
 
+/// Gemini 模型配置
+class GeminiModelConfig {
+  final String modelName;
+  final Map<String, dynamic> thinkingConfig;
+  final String displayVersion;
+
+  const GeminiModelConfig({
+    required this.modelName,
+    required this.thinkingConfig,
+    required this.displayVersion,
+  });
+
+  /// Gemini 2.5 Flash 配置 (默认)
+  static const gemini2 = GeminiModelConfig(
+    modelName: 'gemini-flash-latest',
+    thinkingConfig: {'thinkingBudget': 0},
+    displayVersion: '2.5 Flash',
+  );
+
+  /// Gemini 3 Flash 配置
+  static const gemini3 = GeminiModelConfig(
+    modelName: 'gemini-3-flash-preview',
+    thinkingConfig: {'thinkingLevel': 'MINIMAL'},
+    displayVersion: '3 Flash',
+  );
+}
+
 class SettingsService {
   // Removing aOptions for now to resolve persistent linter errors.
   // Default secure storage mechanisms will still be used.
@@ -42,6 +69,10 @@ class SettingsService {
     // ),
   );
 
+  // Gemini API 相关常量
+  static const String geminiBaseUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models/';
+
   static const _geminiApiKey = 'gemini_api_key';
   static const _spotifyClientIdKey = 'spotify_client_id'; // Spotify Client ID
   static const _targetLanguageKey = 'target_translation_language';
@@ -50,6 +81,7 @@ class SettingsService {
   static const _copyLyricsAsSingleLineKey = 'copy_lyrics_single_line'; // Key for new setting
   static const _enableThinkingForInsightsKey = 'enable_thinking_for_insights';
   static const _autoTranslateLyricsKey = 'auto_translate_lyrics';
+  static const _enableGemini3Key = 'enable_gemini_3';
 
   static const _defaultLanguage = 'en'; // Default to English
   static const _defaultStyle = TranslationStyle.faithful; // Default style
@@ -132,6 +164,49 @@ class SettingsService {
     return valueString?.toLowerCase() == 'true';
   }
 
+  // Gemini 3 开关设置
+  Future<void> saveEnableGemini3(bool value) async {
+    await _secureStorage.write(key: _enableGemini3Key, value: value.toString());
+  }
+
+  Future<bool> getEnableGemini3() async {
+    final valueString = await _secureStorage.read(key: _enableGemini3Key);
+    return valueString?.toLowerCase() == 'true';
+  }
+
+  /// 获取当前 Gemini 模型配置（统一入口）
+  Future<GeminiModelConfig> getGeminiModelConfig() async {
+    final enableGemini3 = await getEnableGemini3();
+    return enableGemini3 ? GeminiModelConfig.gemini3 : GeminiModelConfig.gemini2;
+  }
+
+  /// 获取完整的 Gemini API URL
+  Future<String> getGeminiApiUrl() async {
+    final config = await getGeminiModelConfig();
+    return '$geminiBaseUrl${config.modelName}';
+  }
+
+  /// 获取 Gemini 生成配置（用于 API 请求）
+  /// [useGoogleSearch] - 是否启用 Google Search 工具
+  /// [enableThinking] - 是否启用思考模式（仅对 Gemini 2.5 有效）
+  Future<Map<String, dynamic>> getGeminiGenerationConfig({
+    double temperature = 0.8,
+    bool enableThinking = false,
+  }) async {
+    final modelConfig = await getGeminiModelConfig();
+    final thinkingConfig = Map<String, dynamic>.from(modelConfig.thinkingConfig);
+
+    // 对于 Gemini 2.5，如果启用思考模式则调整 thinkingBudget
+    if (!await getEnableGemini3() && enableThinking) {
+      thinkingConfig['thinkingBudget'] = 8;
+    }
+
+    return {
+      'temperature': temperature,
+      'thinkingConfig': thinkingConfig,
+    };
+  }
+
   // Method to save Spotify Client ID
   Future<void> saveSpotifyClientId(String clientId) async {
     await _secureStorage.write(key: _spotifyClientIdKey, value: clientId);
@@ -143,7 +218,7 @@ class SettingsService {
   }
 
   // Method to save both settings at once, potentially useful in the UI
-  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForInsights, bool? autoTranslateLyrics}) async {
+  Future<void> saveSettings({String? apiKey, String? languageCode, TranslationStyle? style, bool? copyAsSingleLine, bool? enableThinkingForInsights, bool? autoTranslateLyrics, bool? enableGemini3}) async {
     if (apiKey != null) {
       await saveGeminiApiKey(apiKey);
     }
@@ -162,6 +237,9 @@ class SettingsService {
     if (autoTranslateLyrics != null) {
       await saveAutoTranslateLyricsEnabled(autoTranslateLyrics);
     }
+    if (enableGemini3 != null) {
+      await saveEnableGemini3(enableGemini3);
+    }
   }
 
   // Method to get all settings, useful for initialization
@@ -173,6 +251,7 @@ class SettingsService {
       'copyLyricsAsSingleLine': await getCopyLyricsAsSingleLine(),
       'enableThinkingForInsights': await getEnableThinkingForInsights(),
       'autoTranslateLyrics': await getAutoTranslateLyricsEnabled(),
+      'enableGemini3': await getEnableGemini3(),
     };
   }
 
@@ -185,5 +264,6 @@ class SettingsService {
     await _secureStorage.delete(key: _copyLyricsAsSingleLineKey);
     await _secureStorage.delete(key: _enableThinkingForInsightsKey);
     await _secureStorage.delete(key: _autoTranslateLyricsKey);
+    await _secureStorage.delete(key: _enableGemini3Key);
   }
 }

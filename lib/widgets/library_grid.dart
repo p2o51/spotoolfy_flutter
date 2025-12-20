@@ -128,7 +128,6 @@ class LibraryGrid extends StatelessWidget {
       // First try to launch Spotify app
       if (spotifyUri != null) {
         final uri = Uri.parse(spotifyUri);
-        // print('Trying to open Spotify app: $uri');
 
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
@@ -139,7 +138,6 @@ class LibraryGrid extends StatelessWidget {
       // If can't open app, try web
       if (webUrl != null) {
         final uri = Uri.parse(webUrl);
-        // print('Trying to open web link: $uri');
 
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -152,8 +150,7 @@ class LibraryGrid extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(AppLocalizations.of(context)!.cannotOpenSpotify)));
     } catch (e) {
-      // print('Error opening Spotify: $e');
-      if (!context.mounted) return; // Check context before using
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(AppLocalizations.of(context)!
               .failedToOpenSpotify(e.toString()))));

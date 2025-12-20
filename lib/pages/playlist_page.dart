@@ -54,6 +54,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
 
     try {
       final spotify = context.read<SpotifyProvider>();
+      final localDb = context.read<LocalDatabaseProvider>();
       final playlist = await spotify.fetchPlaylistDetails(
         widget.playlistId,
         forceRefresh: forceRefresh,
@@ -72,7 +73,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
           .whereType<String>()
           .toList(growable: false);
 
-      final localDb = context.read<LocalDatabaseProvider>();
       final latestRatingsWithTimestamp =
           await localDb.getLatestRatingsWithTimestampForTracks(trackIds);
       final normalizedRatings = <String, int?>{};
@@ -238,10 +238,11 @@ class _PlaylistPageState extends State<PlaylistPage> {
         SnackBar(content: Text(l10n.failedToSaveRating(e.toString()))),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _updatingTracks.remove(trackId);
-      });
+      if (mounted) {
+        setState(() {
+          _updatingTracks.remove(trackId);
+        });
+      }
     }
   }
 
@@ -289,12 +290,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
         await _handleQuickRating(track, entry.value);
       }
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isSavingPendingRatings = false;
-        _pendingTrackRatings.clear();
-        _showQuickSelectors = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSavingPendingRatings = false;
+          _pendingTrackRatings.clear();
+          _showQuickSelectors = false;
+        });
+      }
     }
   }
 
@@ -458,7 +460,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   : Container(
                       width: 160,
                       height: 160,
-                      color: theme.colorScheme.surfaceVariant,
+                      color: theme.colorScheme.surfaceContainerHighest,
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.queue_music,
@@ -509,7 +511,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                         width: 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: theme.colorScheme.surfaceVariant,
+                          color: theme.colorScheme.surfaceContainerHighest,
                         ),
                         child: IconButton(
                           onPressed: _tracks.isEmpty
@@ -528,7 +530,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                           icon: Icon(
                             _showQuickSelectors ? Icons.close : Icons.edit,
                             color: _tracks.isEmpty
-                                ? theme.colorScheme.onSurface.withOpacity(0.38)
+                                ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
                                 : theme.colorScheme.onSurfaceVariant,
                           ),
                           tooltip: _showQuickSelectors

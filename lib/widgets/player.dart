@@ -246,16 +246,20 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         _isThemeUpdating = true;
         _lastImageUrl = currentImageUrl;
 
+        // 在异步操作前缓存 context 相关的值
+        final themeProvider = context.read<ThemeProvider>();
+        final screenWidth = MediaQuery.sizeOf(context).width.toInt();
+        final brightness = MediaQuery.platformBrightnessOf(context);
+
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted && currentImageUrl == _lastImageUrl) {
-            final themeProvider = context.read<ThemeProvider>();
             final imageProvider = CachedNetworkImageProvider(
               currentImageUrl,
-              maxWidth: MediaQuery.sizeOf(context).width.toInt(),
+              maxWidth: screenWidth,
             );
             themeProvider.updateThemeFromImage(
               imageProvider: imageProvider,
-              brightness: MediaQuery.platformBrightnessOf(context),
+              brightness: brightness,
               cacheKey: currentImageUrl,
             );
           }

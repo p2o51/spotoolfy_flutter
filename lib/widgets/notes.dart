@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -1126,7 +1125,7 @@ class _NotesDisplayState extends State<NotesDisplay>
     if (records.isNotEmpty) {
       // First Recorded
       final earliestRecordTimestamp =
-          records.map((r) => r.recordedAt).reduce(min);
+          records.map((r) => r.recordedAt).reduce(math.min);
       final firstRecordedMap = _formatTimeAgo(context, earliestRecordTimestamp);
       firstRecordedValue = firstRecordedMap['value']!;
       firstRecordedUnit = firstRecordedMap['unit']!;

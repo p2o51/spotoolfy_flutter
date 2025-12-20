@@ -12,9 +12,6 @@ final logger = Logger();
 
 class InsightsService {
   final SettingsService _settingsService = SettingsService();
-  static const String _geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/';
-  static const String _geminiModel = 'gemini-flash-latest';
   static const String _insightsCacheKey = 'cached_music_insights'; // 缓存键
 
   Future<Map<String, dynamic>?> generateMusicInsights(
@@ -39,8 +36,17 @@ class InsightsService {
     final String languageName = _getLanguageName(languageCode);
 
     final prompt = _buildPrompt(contextNames, languageName);
-    // 构建完整的模型URL
-    final modelUrl = '$_geminiBaseUrl$_geminiModel';
+
+    // 使用统一的模型配置
+    final modelUrl = await _settingsService.getGeminiApiUrl();
+    final baseGenerationConfig = await _settingsService.getGeminiGenerationConfig(
+      temperature: 0.9,
+    );
+
+    // 添加 JSON 输出格式要求
+    final generationConfig = Map<String, dynamic>.from(baseGenerationConfig);
+    generationConfig['response_mime_type'] = 'application/json';
+
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -49,17 +55,7 @@ class InsightsService {
           'parts': [{'text': prompt}]
         }
       ],
-      // 更新 generationConfig 以包含 thinkingConfig
-      'generationConfig': {
-        'response_mime_type': 'application/json', // 保持强制JSON输出
-        'temperature': 0.9, // 保留温度设置
-        'thinkingConfig': {
-          // 将思考预算硬编码为 0
-          'thinkingBudget': 0,
-        }
-      },
-      // Optional: Add safety settings if needed
-      // 'safetySettings': [ ... ]
+      'generationConfig': generationConfig,
     });
 
     try {
