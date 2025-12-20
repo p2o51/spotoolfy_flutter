@@ -35,6 +35,7 @@ class _SearchSectionState extends State<SearchSection> {
     return Consumer<SearchProvider>(
       builder: (context, searchProvider, child) {
         final gridCrossAxisCount = context.gridCrossAxisCount;
+        final results = searchProvider.filteredResults;
         
         return Column(
           children: [
@@ -83,7 +84,7 @@ class _SearchSectionState extends State<SearchSection> {
             Expanded(
               child: CustomScrollView(
                 slivers: [
-                  if (searchProvider.filteredResults.isEmpty && !searchProvider.isSearching)
+                  if (results.isEmpty && !searchProvider.isSearching)
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: _buildEmptyResultsView(),
@@ -92,7 +93,7 @@ class _SearchSectionState extends State<SearchSection> {
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: LibraryGrid(
-                        items: searchProvider.filteredResults,
+                        items: results,
                         gridCrossAxisCount: gridCrossAxisCount,
                         onItemTap: (item) => searchProvider.playItem(item),
                       ),

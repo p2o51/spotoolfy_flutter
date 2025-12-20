@@ -10,6 +10,8 @@ class SearchProvider extends ChangeNotifier {
   bool _isSearching = false;
   Map<String, List<Map<String, dynamic>>> _searchResults = {};
   String? _errorMessage;
+  List<Map<String, dynamic>> _filteredResultsCache = const [];
+  bool _filteredResultsDirty = true;
   
   // Debounce timer for search
   Timer? _debounceTimer;
@@ -29,6 +31,14 @@ class SearchProvider extends ChangeNotifier {
   
   // Get combined and filtered search results
   List<Map<String, dynamic>> get filteredResults {
+    if (_filteredResultsDirty) {
+      _filteredResultsCache = _buildFilteredResults();
+      _filteredResultsDirty = false;
+    }
+    return _filteredResultsCache;
+  }
+
+  List<Map<String, dynamic>> _buildFilteredResults() {
     final List<Map<String, dynamic>> result = [];
     
     if (_searchQuery.isEmpty) return result;
@@ -79,6 +89,10 @@ class SearchProvider extends ChangeNotifier {
     
     return result;
   }
+
+  void _markFilteredResultsDirty() {
+    _filteredResultsDirty = true;
+  }
   
   // Update search query with debounce
   void updateSearchQuery(String query) {
@@ -88,10 +102,12 @@ class SearchProvider extends ChangeNotifier {
     if (query == _searchQuery) return;
     
     _searchQuery = query;
+    _markFilteredResultsDirty();
     
     // Clear results if query is empty
     if (query.isEmpty) {
       _searchResults = {};
+      _markFilteredResultsDirty();
       notifyListeners();
       return;
     }
@@ -113,12 +129,14 @@ class SearchProvider extends ChangeNotifier {
     if (query.isEmpty) {
       _searchQuery = '';
       _searchResults = {};
+      _markFilteredResultsDirty();
       notifyListeners();
       return;
     }
     
     if (query != _searchQuery) {
       _searchQuery = query;
+      _markFilteredResultsDirty();
       notifyListeners();
     }
     
@@ -131,6 +149,7 @@ class SearchProvider extends ChangeNotifier {
     _searchQuery = '';
     _searchResults = {};
     _errorMessage = null;
+    _markFilteredResultsDirty();
     notifyListeners();
   }
   
@@ -147,6 +166,7 @@ class SearchProvider extends ChangeNotifier {
       final results = await _spotifyProvider.searchItems(query);
       
       _searchResults = results;
+      _markFilteredResultsDirty();
       _isSearching = false;
       notifyListeners();
     } catch (e) {

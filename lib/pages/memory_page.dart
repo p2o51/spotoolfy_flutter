@@ -276,6 +276,8 @@ class _MemoryPageState extends State<MemoryPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final thumbnailCacheSize =
+        (56 * MediaQuery.of(context).devicePixelRatio).round();
 
     final dateFormatter = DateFormat.yMMMd();
     final formattedDate = dateFormatter.format(memory.addedAt);
@@ -288,6 +290,8 @@ class _MemoryPageState extends State<MemoryPage> {
           imageUrl: memory.albumCoverUrl ?? '',
           width: 56,
           height: 56,
+          memCacheWidth: thumbnailCacheSize,
+          memCacheHeight: thumbnailCacheSize,
           fit: BoxFit.cover,
           placeholder: (context, url) => Container(
             width: 56,

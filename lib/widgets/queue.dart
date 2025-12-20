@@ -52,6 +52,12 @@ class QueueDisplay extends StatelessWidget {
                       height: 40,
                       child: CachedNetworkImage(
                         imageUrl: track['album']['images'][0]['url'],
+                        memCacheWidth:
+                            (40 * MediaQuery.of(context).devicePixelRatio)
+                                .round(),
+                        memCacheHeight:
+                            (40 * MediaQuery.of(context).devicePixelRatio)
+                                .round(),
                         fit: BoxFit.cover,
                       ),
                     ),

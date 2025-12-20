@@ -62,6 +62,8 @@ class _RandomReviewCardState extends State<RandomReviewCard> {
     final theme = Theme.of(context);
     final defaultColorScheme = theme.colorScheme;
     final cardColors = _cardColorScheme ?? defaultColorScheme;
+    final thumbnailCacheSize =
+        (80 * MediaQuery.of(context).devicePixelRatio).round();
 
     final trackName = widget.record['trackName'] as String? ?? 'Unknown Track';
     final artistName = widget.record['artistName'] as String? ?? 'Unknown Artist';
@@ -151,6 +153,8 @@ class _RandomReviewCardState extends State<RandomReviewCard> {
                           imageUrl: albumCoverUrl ?? '',
                           width: 80,
                           height: 80,
+                          memCacheWidth: thumbnailCacheSize,
+                          memCacheHeight: thumbnailCacheSize,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
                             width: 80,

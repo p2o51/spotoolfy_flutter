@@ -33,6 +33,16 @@ class LyricLine {
   LyricLine(this.timestamp, this.text, {this.translation});
 }
 
+class _LyricsPlaybackSnapshot {
+  final String? trackId;
+  final int progressMs;
+
+  const _LyricsPlaybackSnapshot({
+    required this.trackId,
+    required this.progressMs,
+  });
+}
+
 class LyricsWidget extends StatefulWidget {
   const LyricsWidget({super.key});
 
@@ -1347,13 +1357,26 @@ class _LyricsWidgetState extends State<LyricsWidget>
     //final provider = Provider.of<SpotifyProvider>(context); // Get provider once
     final l10n = AppLocalizations.of(context)!;
 
-    // Use Consumer to react to provider changes efficiently
-    return Consumer<SpotifyProvider>(
-      builder: (context, provider, child) {
+    // Use Selector to react only to playback changes that affect lyrics
+    return Selector<SpotifyProvider, _LyricsPlaybackSnapshot>(
+      selector: (context, provider) {
+        final currentTrack = provider.currentTrack;
+        final trackId = currentTrack?['item']?['id']?.toString();
+        final rawProgress = currentTrack?['progress_ms'];
+        final progressMs = rawProgress is int
+            ? rawProgress
+            : int.tryParse(rawProgress?.toString() ?? '') ?? 0;
+        return _LyricsPlaybackSnapshot(
+          trackId: trackId,
+          progressMs: progressMs,
+        );
+      },
+      shouldRebuild: (previous, next) =>
+          previous.trackId != next.trackId ||
+          previous.progressMs != next.progressMs,
+      builder: (context, playbackSnapshot, child) {
         // debugPrint('[LyricsBuilder] Build Start - PrevIdx: $_previousLineIndex'); // Log builder start
-        final currentTrackData =
-            provider.currentTrack; // Get current track data
-        final currentTrackId = currentTrackData?['item']?['id'];
+        final currentTrackId = playbackSnapshot.trackId;
         final bool trackJustChanged = (currentTrackId != _lastTrackId);
 
         // 1. Handle track change: Load lyrics if track ID changes
@@ -1372,9 +1395,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
         _scheduleScrollabilityCheck();
 
         // 2. Calculate latest position and index based on provider state
-        final currentProgressMs = currentTrackData?['progress_ms'] ?? 0;
-        final latestPosition = Duration(milliseconds: currentProgressMs);
+        final latestPosition =
+            Duration(milliseconds: playbackSnapshot.progressMs);
         final currentLineIndex = _getCurrentLineIndex(latestPosition);
+        final spotifyProvider =
+            Provider.of<SpotifyProvider>(context, listen: false);
         // debugPrint('[LyricsBuilder] Calculated Idx: $currentLineIndex (from ${currentProgressMs}ms)'); // Log calculated index
 
         if (_autoScroll &&
@@ -1532,7 +1557,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
                         // Seek Spotify to the tapped line's timestamp
                         final tappedTimestamp = _lyrics[index].timestamp;
-                        provider.seekToPosition(tappedTimestamp.inMilliseconds);
+                        spotifyProvider
+                            .seekToPosition(tappedTimestamp.inMilliseconds);
 
                         // If in copy mode, exit it. Otherwise, ensure auto-scroll is enabled.
                         bool needsScrollTrigger = false;
@@ -1838,10 +1864,21 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return -1; // Before the first line starts
     }
 
-    // Find the last line whose timestamp is less than or equal to the current position
-    for (int i = _lyrics.length - 1; i >= 0; i--) {
-      if (_lyrics[i].timestamp <= currentPosition) {
-        return i;
+    // Binary search for the last line whose timestamp <= current position.
+    int low = 0;
+    int high = _lyrics.length - 1;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      final midTimestamp = _lyrics[mid].timestamp;
+      if (midTimestamp <= currentPosition) {
+        final isLastMatch = mid == _lyrics.length - 1 ||
+            _lyrics[mid + 1].timestamp > currentPosition;
+        if (isLastMatch) {
+          return mid;
+        }
+        low = mid + 1;
+      } else {
+        high = mid - 1;
       }
     }
 

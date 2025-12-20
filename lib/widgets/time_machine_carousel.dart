@@ -392,6 +392,8 @@ class _TimeMachineCarouselState extends State<TimeMachineCarousel> {
   }) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
+    final thumbnailCacheSize =
+        (80 * MediaQuery.of(context).devicePixelRatio).round();
 
     // 计算该回忆是几年前的
     final yearsAgo = DateTime.now().year - memory.addedAt.year;
@@ -407,6 +409,8 @@ class _TimeMachineCarouselState extends State<TimeMachineCarousel> {
             imageUrl: memory.albumCoverUrl ?? '',
             width: 80,
             height: 80,
+            memCacheWidth: thumbnailCacheSize,
+            memCacheHeight: thumbnailCacheSize,
             fit: BoxFit.cover,
             placeholder: (context, url) => Container(
               width: 80,
