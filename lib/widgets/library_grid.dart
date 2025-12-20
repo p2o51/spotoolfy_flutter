@@ -193,21 +193,34 @@ class _LibraryGridItem extends StatelessWidget {
               aspectRatio: 1,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: CachedNetworkImage(
-                  imageUrl: item['images'][0]['url'],
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => DecoratedBox(
-                    decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Icon(Icons.error),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final pixelRatio =
+                        MediaQuery.of(context).devicePixelRatio;
+                    final cacheSize = constraints.maxWidth > 0
+                        ? (constraints.maxWidth * pixelRatio).round()
+                        : null;
+                    return CachedNetworkImage(
+                      imageUrl: item['images'][0]['url'],
+                      width: double.infinity,
+                      memCacheWidth: cacheSize,
+                      memCacheHeight: cacheSize,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        child: const Icon(Icons.error),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

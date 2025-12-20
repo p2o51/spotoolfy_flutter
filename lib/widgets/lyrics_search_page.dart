@@ -26,6 +26,36 @@ enum ProviderSearchState {
   error,
 }
 
+enum _LyricsSearchEntryType {
+  header,
+  result,
+  loadingPlaceholder,
+  divider,
+}
+
+class _LyricsSearchEntry {
+  final _LyricsSearchEntryType type;
+  final LyricProvider? provider;
+  final LyricsSearchResult? result;
+
+  const _LyricsSearchEntry.header(this.provider)
+      : type = _LyricsSearchEntryType.header,
+        result = null;
+
+  const _LyricsSearchEntry.result(this.result)
+      : type = _LyricsSearchEntryType.result,
+        provider = null;
+
+  const _LyricsSearchEntry.loadingPlaceholder(this.provider)
+      : type = _LyricsSearchEntryType.loadingPlaceholder,
+        result = null;
+
+  const _LyricsSearchEntry.divider()
+      : type = _LyricsSearchEntryType.divider,
+        provider = null,
+        result = null;
+}
+
 class LyricsSearchPage extends StatefulWidget {
   final String initialTrackTitle;
   final String initialArtistName;
@@ -112,6 +142,35 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       results.addAll(_providerResults[provider.name] ?? []);
     }
     return results;
+  }
+
+  List<_LyricsSearchEntry> _buildSearchEntries() {
+    final entries = <_LyricsSearchEntry>[];
+    for (final provider in _providers) {
+      final state = _providerStates[provider.name] ?? ProviderSearchState.idle;
+      final results = _providerResults[provider.name] ?? [];
+
+      if (state == ProviderSearchState.idle && _currentQuery.isEmpty) {
+        continue;
+      }
+
+      entries.add(_LyricsSearchEntry.header(provider));
+
+      if (results.isNotEmpty) {
+        for (final result in results) {
+          entries.add(_LyricsSearchEntry.result(result));
+        }
+      }
+
+      if (state == ProviderSearchState.loading && results.isEmpty) {
+        entries.add(_LyricsSearchEntry.loadingPlaceholder(provider));
+      }
+
+      if (_currentQuery.isNotEmpty) {
+        entries.add(const _LyricsSearchEntry.divider());
+      }
+    }
+    return entries;
   }
 
   Future<void> _performSearch(String query) async {
@@ -305,6 +364,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final allResults = _allResults;
+    final searchEntries = _buildSearchEntries();
 
     return Scaffold(
       appBar: AppBar(
@@ -381,14 +441,22 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
             )
           // 显示搜索结果（分组显示）
           else if (allResults.isNotEmpty || _isAnyProviderLoading)
-            ListView(
+            ListView.builder(
               padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-              children: [
-                // 按提供者分组显示
-                for (final provider in _providers) ...[
-                  _buildProviderSection(provider),
-                ],
-              ],
+              itemCount: searchEntries.length,
+              itemBuilder: (context, index) {
+                final entry = searchEntries[index];
+                switch (entry.type) {
+                  case _LyricsSearchEntryType.header:
+                    return _buildProviderHeader(entry.provider!);
+                  case _LyricsSearchEntryType.result:
+                    return _buildResultTile(entry.result!);
+                  case _LyricsSearchEntryType.loadingPlaceholder:
+                    return _buildLoadingPlaceholder();
+                  case _LyricsSearchEntryType.divider:
+                    return _buildSectionDivider();
+                }
+              },
             )
           // 无结果状态（所有提供者都加载完成但没有结果）
           else if (!_isAnyProviderLoading &&
@@ -422,107 +490,100 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     );
   }
 
-  /// 构建单个提供者的搜索结果区域
-  Widget _buildProviderSection(LyricProvider provider) {
+  Widget _buildProviderHeader(LyricProvider provider) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final state = _providerStates[provider.name] ?? ProviderSearchState.idle;
     final results = _providerResults[provider.name] ?? [];
     final providerDisplayName = _providerDisplayName(context, provider.name);
 
-    // 如果是空闲状态且没有当前查询，不显示
-    if (state == ProviderSearchState.idle && _currentQuery.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 提供者标题栏
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  providerDisplayName,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              providerDisplayName,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(width: 8),
-              // 加载状态指示
-              if (state == ProviderSearchState.loading)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: theme.colorScheme.primary,
-                  ),
-                )
-              else if (state == ProviderSearchState.loaded && results.isEmpty)
-                Text(
-                  l10n.noResultsFound,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                )
-              else if (state == ProviderSearchState.error)
-                Icon(
-                  Icons.error_outline,
-                  size: 16,
-                  color: theme.colorScheme.error,
-                ),
-            ],
-          ),
-        ),
-        // 搜索结果列表
-        if (results.isNotEmpty)
-          ...results.map((result) => ListTile(
-                title: Text(result.match.title),
-                subtitle: Text(result.match.artist),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: theme.colorScheme.outline,
-                ),
-                onTap: _isFetchingLyric ? null : () => _selectResult(result),
-                enabled: !_isFetchingLyric,
-              )),
-        // 加载中的占位
-        if (state == ProviderSearchState.loading && results.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 200,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
             ),
           ),
-        // 分隔线
-        if (_currentQuery.isNotEmpty)
-          Divider(
-            height: 1,
-            indent: 16,
-            endIndent: 16,
-            color: theme.colorScheme.outlineVariant.withAlpha(80),
+          const SizedBox(width: 8),
+          // 加载状态指示
+          if (state == ProviderSearchState.loading)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: theme.colorScheme.primary,
+              ),
+            )
+          else if (state == ProviderSearchState.loaded && results.isEmpty)
+            Text(
+              l10n.noResultsFound,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            )
+          else if (state == ProviderSearchState.error)
+            Icon(
+              Icons.error_outline,
+              size: 16,
+              color: theme.colorScheme.error,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultTile(LyricsSearchResult result) {
+    final theme = Theme.of(context);
+    return ListTile(
+      title: Text(result.match.title),
+      subtitle: Text(result.match.artist),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: theme.colorScheme.outline,
+      ),
+      onTap: _isFetchingLyric ? null : () => _selectResult(result),
+      enabled: !_isFetchingLyric,
+    );
+  }
+
+  Widget _buildLoadingPlaceholder() {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 200,
+            height: 16,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionDivider() {
+    final theme = Theme.of(context);
+    return Divider(
+      height: 1,
+      indent: 16,
+      endIndent: 16,
+      color: theme.colorScheme.outlineVariant.withAlpha(80),
     );
   }
 
