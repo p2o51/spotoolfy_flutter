@@ -354,8 +354,11 @@ class SpotifyAuthService {
       }
     } catch (e) {
       logger.w('读取token时出错，可能是Keystore未解锁: $e');
-      // 读取失败时避免立即拉起授权，保持静默失败
-      return null;
+      if (!interactive) {
+        // 读取失败时避免立即拉起授权，保持静默失败
+        return null;
+      }
+      // 允许在交互式流程中继续走 SDK 授权，避免后台恢复后无法刷新。
     }
 
     // 非交互模式下不主动唤起 SDK 登录，返回 null 由上层决定是否弹出授权

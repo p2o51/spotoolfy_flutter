@@ -463,16 +463,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clientIdLabel => '客户端 ID';
 
   @override
-  String get clientSecretLabel => '客户端 Secret';
-
-  @override
-  String get emptyCredentialsError => '客户端 ID 和 Secret 均不能为空。';
+  String get emptyCredentialsError => '客户端 ID 不能为空。';
 
   @override
   String get invalidClientIdError => '客户端 ID 必须是 32 位的十六进制字符串。';
-
-  @override
-  String get invalidClientSecretError => '客户端 Secret 必须是 32 位的十六进制字符串。';
 
   @override
   String get credentialsSaved => 'Spotify 凭证已保存';
@@ -1782,16 +1776,10 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get clientIdLabel => '用戶端 ID';
 
   @override
-  String get clientSecretLabel => '用戶端密鑰';
-
-  @override
-  String get emptyCredentialsError => '用戶端 ID 和密鑰皆不可為空。';
+  String get emptyCredentialsError => '用戶端 ID 不可為空。';
 
   @override
   String get invalidClientIdError => '用戶端 ID 必須是 32 位元的十六進位字串。';
-
-  @override
-  String get invalidClientSecretError => '用戶端 Secret 必須是 32 位元的十六進位字串。';
 
   @override
   String get credentialsSaved => 'Spotify 憑證已儲存';

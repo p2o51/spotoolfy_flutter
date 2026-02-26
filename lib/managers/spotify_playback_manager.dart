@@ -3,17 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../services/spotify_service.dart';
 import '../main.dart';
-
-/// 播放模式枚举
-enum PlayMode {
-  singleRepeat, // 单曲循环（曲循环+顺序播放）
-  sequential, // 顺序播放（列表循环+顺序播放）
-  shuffle // 随机播放（列表循环+随机播放）
-}
+import '../models/play_mode.dart';
+import 'spotify_cache_manager.dart';
 
 /// 播放控制管理器 - 负责播放相关操作
 ///
@@ -26,7 +20,8 @@ class SpotifyPlaybackManager {
   final Logger logger;
   final Future<T> Function<T>(Future<T> Function() job) guard;
   final SpotifyAuthService Function() getService;
-  final VoidCallback notifyListeners;
+  final void Function(String category) notifyCategory;
+  final SpotifyCacheManager cacheManager;
 
   // 播放状态
   Map<String, dynamic>? currentTrack;
@@ -48,9 +43,6 @@ class SpotifyPlaybackManager {
   bool _isQueuePrefetchRunning = false;
   PlayMode _currentMode = PlayMode.sequential;
 
-  // 图片缓存
-  final Map<String, String> _imageCache = {};
-
   // 常量
   static const Duration _progressTimerInterval = Duration(milliseconds: 500);
   static const Duration _refreshTickInterval = Duration(seconds: 3);
@@ -61,13 +53,18 @@ class SpotifyPlaybackManager {
     required this.logger,
     required this.guard,
     required this.getService,
-    required this.notifyListeners,
+    required this.notifyCategory,
+    required this.cacheManager,
   });
 
   // Getters
   PlayMode get currentMode => _currentMode;
   bool get isSkipping => _isSkipping;
   DateTime? get lastQueueRefresh => _lastQueueRefresh;
+  bool get hasActiveTimers =>
+      (_refreshTimer?.isActive ?? false) || (_progressTimer?.isActive ?? false);
+  bool get isRefreshTimerActive => _refreshTimer?.isActive ?? false;
+  bool get isProgressTimerActive => _progressTimer?.isActive ?? false;
 
   /// 检查是否应该刷新队列
   bool shouldRefreshQueue() {
@@ -87,6 +84,7 @@ class SpotifyPlaybackManager {
     required Future<void> Function() onRefreshQueue,
     required bool Function() shouldRefreshDevices,
     required VoidCallback markDevicesRefreshed,
+    bool Function()? shouldSkipRefresh,
   }) {
     logger.d('startTrackRefresh: 启动定时器');
 
@@ -111,6 +109,10 @@ class SpotifyPlaybackManager {
 
         _refreshTimer?.cancel();
         _refreshTimer = Timer.periodic(_refreshTickInterval, (_) {
+          if (shouldSkipRefresh?.call() ?? false) {
+            logger.t('_refreshTimer tick: 跳过 (custom skip check).');
+            return;
+          }
           if (_isSkipping) {
             logger.t('_refreshTimer tick: 跳过 (_isSkipping=true)');
             return;
@@ -178,7 +180,7 @@ class SpotifyPlaybackManager {
                 now.difference(_lastProgressNotify!).inMilliseconds >=
                     _progressNotifyIntervalMs;
             if (shouldNotify) {
-              notifyListeners();
+              notifyCategory('progress');
               _lastProgressNotify = now;
             }
           }
@@ -198,15 +200,25 @@ class SpotifyPlaybackManager {
     _progressTimer = null;
   }
 
+  /// 停止刷新定时器（保留进度更新）
+  void stopRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
   /// 刷新当前曲目
-  Future<void> refreshCurrentTrack({
+  Future<bool> refreshCurrentTrack({
     required Future<Map<String, dynamic>?> Function() fetchTrack,
     required Future<bool> Function(String trackId) checkTrackSaved,
     required Future<Map<String, dynamic>> Function(Map<String, dynamic> context)
         enrichContext,
     required Future<void> Function(Map<String, dynamic> enrichedContext)
         savePlayContext,
+    void Function(Map<String, dynamic> track)? onTrackChanged,
+    VoidCallback? onTrackUpdated,
+    VoidCallback? onTrackCleared,
   }) async {
+    var didUpdate = false;
     try {
       final track = await fetchTrack();
 
@@ -277,6 +289,7 @@ class SpotifyPlaybackManager {
 
           if (newId != oldId && newId != null) {
             try {
+              onTrackChanged?.call(track);
               isCurrentTrackSaved = await checkTrackSaved(newId);
               if (track['context'] != null) {
                 final enrichedContext = await enrichContext(
@@ -306,19 +319,24 @@ class SpotifyPlaybackManager {
         }
 
         if (needsNotify) {
-          notifyListeners();
+          notifyCategory('track');
           _lastProgressNotify = DateTime.now();
+          onTrackUpdated?.call();
+          didUpdate = true;
         }
       } else if (currentTrack != null) {
         currentTrack = null;
         isCurrentTrackSaved = null;
         _lastProgressNotify = null;
-        notifyListeners();
+        notifyCategory('track');
+        onTrackCleared?.call();
+        didUpdate = true;
       }
     } catch (e) {
       logger.e('Error in refreshCurrentTrack: $e');
       rethrow;
     }
+    return didUpdate;
   }
 
   Future<void> _handleContextEnrichment({
@@ -364,14 +382,14 @@ class SpotifyPlaybackManager {
   }
 
   /// 刷新播放队列
-  Future<void> refreshPlaybackQueue() async {
+  Future<bool> refreshPlaybackQueue({VoidCallback? onQueueUpdated}) async {
     try {
       final queue = await guard(() => getService().getPlaybackQueue());
       final rawQueue = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
 
       final queueChanged = _queuesDiffer(rawQueue);
       if (!queueChanged) {
-        return;
+        return false;
       }
 
       upcomingTracks = rawQueue;
@@ -389,12 +407,14 @@ class SpotifyPlaybackManager {
       }
 
       markQueueRefreshed();
-      notifyListeners();
+      notifyCategory('queue');
+      onQueueUpdated?.call();
+      return true;
     } catch (e) {
       logger.e('刷新播放队列失败: $e');
       upcomingTracks = [];
       nextTrack = null;
-      notifyListeners();
+      notifyCategory('queue');
       rethrow;
     }
   }
@@ -419,7 +439,7 @@ class SpotifyPlaybackManager {
       final imagesToCache = upcomingTracks
           .map((track) => track['album']?['images']?[0]?['url'] as String?)
           .whereType<String>()
-          .where((url) => !_imageCache.containsKey(url))
+          .where((url) => !cacheManager.isImageCached(url))
           .take(6)
           .toList();
 
@@ -432,16 +452,11 @@ class SpotifyPlaybackManager {
   }
 
   Future<void> _preloadImage(String? imageUrl) async {
-    if (imageUrl == null || _imageCache.containsKey(imageUrl)) return;
-    if (navigatorKey.currentContext == null) return;
+    if (imageUrl == null || cacheManager.isImageCached(imageUrl)) return;
+    final context = navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
 
-    try {
-      final imageProvider = CachedNetworkImageProvider(imageUrl);
-      await precacheImage(imageProvider, navigatorKey.currentContext!);
-      _imageCache[imageUrl] = imageUrl;
-    } catch (e) {
-      logger.w('预加载图片失败: $e');
-    }
+    await cacheManager.preloadImage(imageUrl, context);
   }
 
   /// 播放/暂停切换
@@ -457,7 +472,7 @@ class SpotifyPlaybackManager {
         currentTrack!['is_playing'] = !isCurrentlyPlaying;
       }
 
-      notifyListeners();
+      notifyCategory('track');
     } catch (e) {
       logger.e('togglePlayPause: 捕获错误', error: e);
       rethrow;
@@ -511,7 +526,7 @@ class SpotifyPlaybackManager {
     try {
       // 乐观更新 UI
       isCurrentTrackSaved = !(isCurrentTrackSaved ?? false);
-      notifyListeners();
+      notifyCategory('track');
 
       // 调用 API
       await guard(() => getService().toggleTrackSave(trackId));
@@ -520,13 +535,13 @@ class SpotifyPlaybackManager {
       final actualState = await guard(() => getService().isTrackSaved(trackId));
       if (isCurrentTrackSaved != actualState) {
         isCurrentTrackSaved = actualState;
-        notifyListeners();
+        notifyCategory('track');
       }
     } catch (e) {
       // 回滚状态
       if (isCurrentTrackSaved != originalState) {
         isCurrentTrackSaved = originalState;
-        notifyListeners();
+        notifyCategory('track');
       }
       rethrow;
     }
@@ -548,7 +563,7 @@ class SpotifyPlaybackManager {
       } else {
         await setPlayMode(PlayMode.sequential);
       }
-      notifyListeners();
+      notifyCategory('track');
     } catch (e) {
       logger.e('同步播放模式失败: $e');
       rethrow;
@@ -556,7 +571,7 @@ class SpotifyPlaybackManager {
   }
 
   /// 设置播放模式
-  Future<void> setPlayMode(PlayMode mode) async {
+  Future<void> setPlayMode(PlayMode mode, {VoidCallback? onQueueUpdated}) async {
     try {
       switch (mode) {
         case PlayMode.singleRepeat:
@@ -573,8 +588,8 @@ class SpotifyPlaybackManager {
           break;
       }
       _currentMode = mode;
-      await refreshPlaybackQueue();
-      notifyListeners();
+      await refreshPlaybackQueue(onQueueUpdated: onQueueUpdated);
+      notifyCategory('track');
     } catch (e) {
       logger.e('设置播放模式失败: $e');
       rethrow;
@@ -582,9 +597,10 @@ class SpotifyPlaybackManager {
   }
 
   /// 循环切换播放模式
-  Future<void> togglePlayMode() async {
-    final nextMode = PlayMode.values[(currentMode.index + 1) % PlayMode.values.length];
-    await setPlayMode(nextMode);
+  Future<void> togglePlayMode({VoidCallback? onQueueUpdated}) async {
+    final nextMode =
+        PlayMode.values[(currentMode.index + 1) % PlayMode.values.length];
+    await setPlayMode(nextMode, onQueueUpdated: onQueueUpdated);
   }
 
   /// 清除状态
@@ -602,12 +618,12 @@ class SpotifyPlaybackManager {
 
   /// 清除图片缓存
   void clearImageCache() {
-    _imageCache.clear();
+    cacheManager.clearImageCache();
   }
 
   /// 检查图片是否已缓存
   bool isImageCached(String? imageUrl) {
     if (imageUrl == null) return false;
-    return _imageCache.containsKey(imageUrl);
+    return cacheManager.isImageCached(imageUrl);
   }
 }

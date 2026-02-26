@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import '../services/lyrics/lyric_provider.dart';
 import '../services/lyrics/qq_provider.dart';
@@ -11,11 +12,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 // 在页面中使用自己的数据结构表示搜索结果
+final _logger = Logger();
+
 class LyricsSearchResult {
   final SongMatch match;
   final LyricProvider provider;
 
   LyricsSearchResult({required this.match, required this.provider});
+}
+
+class LyricsSearchSelection {
+  final String lyrics;
+  final String provider;
+  final bool hasNeteaseTranslation;
+
+  const LyricsSearchSelection({
+    required this.lyrics,
+    required this.provider,
+    this.hasNeteaseTranslation = false,
+  });
 }
 
 /// 每个提供者的搜索状态
@@ -225,7 +240,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
         _providerStates[provider.name] = ProviderSearchState.loaded;
       });
     } catch (e) {
-      debugPrint('Provider ${provider.name} search error: $e');
+      _logger.d('Provider ${provider.name} search error: $e');
 
       if (!mounted) return;
       if (query != _currentQuery) return;
@@ -274,9 +289,13 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
               _notificationService.showSnackBar(l10n.neteaseTranslationSaved);
             }
 
-            debugPrint(
+            _logger.d(
                 "手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
-            navigator.pop(normalizedLyric);
+            navigator.pop(LyricsSearchSelection(
+              lyrics: normalizedLyric,
+              provider: result.provider.name,
+              hasNeteaseTranslation: lyricResult.hasTranslation,
+            ));
             return;
           }
         }
@@ -292,9 +311,12 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
           if (normalizedLyric.isNotEmpty) {
             await _cacheLyric(
                 widget.trackId, normalizedLyric, result.provider.name);
-            debugPrint(
+            _logger.d(
                 "手动获取的歌词已缓存，曲目ID：${widget.trackId}，提供者：${result.provider.name}");
-            navigator.pop(normalizedLyric);
+            navigator.pop(LyricsSearchSelection(
+              lyrics: normalizedLyric,
+              provider: result.provider.name,
+            ));
             return;
           }
         }
@@ -325,9 +347,9 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'netease_translation_$trackId';
       await prefs.setString(cacheKey, translation);
-      debugPrint("网易云翻译已缓存: $trackId");
+      _logger.d("网易云翻译已缓存: $trackId");
     } catch (e) {
-      debugPrint('缓存网易云翻译失败: $e');
+      _logger.d('缓存网易云翻译失败: $e');
     }
   }
 
@@ -353,7 +375,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       final regularCacheKey = 'lyrics_cache_$trackId'; // 使用插值
       await prefs.setString(regularCacheKey, json.encode(cacheData.toJson()));
     } catch (e) {
-      debugPrint('缓存歌词失败: $e');
+      _logger.d('缓存歌词失败: $e');
     }
   }
 

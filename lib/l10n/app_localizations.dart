@@ -947,16 +947,10 @@ abstract class AppLocalizations {
   /// **'Client ID'**
   String get clientIdLabel;
 
-  /// No description provided for @clientSecretLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Client Secret'**
-  String get clientSecretLabel;
-
   /// No description provided for @emptyCredentialsError.
   ///
   /// In en, this message translates to:
-  /// **'Both Client ID and Secret are required.'**
+  /// **'Client ID is required.'**
   String get emptyCredentialsError;
 
   /// No description provided for @invalidClientIdError.
@@ -964,12 +958,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Client ID must be a 32-character hex string.'**
   String get invalidClientIdError;
-
-  /// No description provided for @invalidClientSecretError.
-  ///
-  /// In en, this message translates to:
-  /// **'Client Secret must be a 32-character hex string.'**
-  String get invalidClientSecretError;
 
   /// No description provided for @credentialsSaved.
   ///

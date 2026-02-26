@@ -114,10 +114,22 @@ class _LibraryState extends State<Library> {
                 // Use a simple Column, no Stack needed now
                 child: Column(
                   children: [
-                    // Common search bar
+                    // Common search bar with gradient fade
                     RepaintBoundary(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Theme.of(context).colorScheme.surface,
+                              Theme.of(context).colorScheme.surface,
+                              Theme.of(context).colorScheme.surface.withValues(alpha: 0),
+                            ],
+                            stops: const [0.0, 0.7, 1.0],
+                          ),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 24.0),
                         // 使用 TextField 替换 SearchBar
                         child: TextField(
                           controller: _searchController,

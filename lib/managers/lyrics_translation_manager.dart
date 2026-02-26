@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/lyric_line.dart';
@@ -16,6 +16,8 @@ import '../utils/structured_translation.dart';
 /// - 管理歌词翻译的加载和缓存
 /// - 处理翻译预加载
 /// - 管理翻译状态
+final _logger = Logger();
+
 class LyricsTranslationManager {
   final TranslationService _translationService;
   final SettingsService _settingsService;
@@ -183,7 +185,7 @@ class LyricsTranslationManager {
       );
       await saveTranslation(translationToSave);
     } catch (e) {
-      debugPrint('Error saving translation to DB: $e');
+      _logger.d('Error saving translation to DB: $e');
     }
 
     _activeTranslationStyle = resolvedStyle;
@@ -230,7 +232,7 @@ class LyricsTranslationManager {
         _preloadedTranslationResult = result;
         return result;
       } catch (e) {
-        debugPrint('Translation preload failed: $e');
+        _logger.d('Translation preload failed: $e');
         return null;
       }
     }
@@ -251,7 +253,7 @@ class LyricsTranslationManager {
     } catch (e) {
       _translationPreloadFuture = null;
       _preloadingTrackId = null;
-      debugPrint('Translation preload failed: $e');
+      _logger.d('Translation preload failed: $e');
       return null;
     }
   }
@@ -282,11 +284,11 @@ class LyricsTranslationManager {
         // 始终预加载歌词（会自动缓存）
         final rawLyrics = await getLyrics(songName, artistName, trackId);
         if (rawLyrics == null) {
-          debugPrint('Preloaded lyrics for next track: $trackId (no lyrics found)');
+          _logger.d('Preloaded lyrics for next track: $trackId (no lyrics found)');
           return;
         }
 
-        debugPrint('Preloaded lyrics for next track: $trackId');
+        _logger.d('Preloaded lyrics for next track: $trackId');
 
         var lyricLines = parseLyrics(rawLyrics);
         List<String> originalLines =
@@ -310,12 +312,12 @@ class LyricsTranslationManager {
 
         if (shouldPreloadTranslation && loadTranslation != null) {
           await loadTranslation(trackId, originalLines, trackData);
-          debugPrint('Preloaded translation for next track: $trackId');
+          _logger.d('Preloaded translation for next track: $trackId');
         }
 
         _nextTrackPreloadedId = trackId;
       } catch (e) {
-        debugPrint('Failed to preload next track resources: $e');
+        _logger.d('Failed to preload next track resources: $e');
       } finally {
         if (_nextTrackPreloadingId == trackId) {
           _nextTrackPreloadingId = null;

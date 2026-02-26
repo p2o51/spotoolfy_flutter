@@ -47,7 +47,8 @@ class LyricsService {
           if (now - cacheData.timestamp < _cacheTtlDays * 24 * 60 * 60) {
             _logger.i('从缓存获取歌词: $trackId (来源: ${cacheData.provider})');
             // 检查是否有网易云翻译缓存
-            final hasNeteaseTranslation = prefs.getString(translationCacheKey) != null;
+            final hasNeteaseTranslation = cacheData.provider == 'netease' &&
+                prefs.getString(translationCacheKey) != null;
             return LyricsResult(
               lyric: cacheData.lyric,
               provider: cacheData.provider,

@@ -752,6 +752,7 @@ class _RoamState extends State<Roam> with AutomaticKeepAliveClientMixin {
 
     return Column(
       children: [
+        const SizedBox(height: 16), // Top spacing
         SizedBox(
           height: 200, // Fixed height for the carousel
           child: PageView(
@@ -770,10 +771,10 @@ class _RoamState extends State<Roam> with AutomaticKeepAliveClientMixin {
             ],
           ),
         ),
-        // Page indicators
+        // Page indicators or bottom spacing
         if (pageCount > 1)
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(pageCount, (index) {
@@ -790,7 +791,9 @@ class _RoamState extends State<Roam> with AutomaticKeepAliveClientMixin {
                 );
               }),
             ),
-          ),
+          )
+        else
+          const SizedBox(height: 16), // Bottom spacing when no indicator
       ],
     );
   }

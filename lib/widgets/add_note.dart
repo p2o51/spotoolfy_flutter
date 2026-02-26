@@ -1,3 +1,4 @@
+import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
@@ -7,6 +8,8 @@ import 'package:flutter/services.dart';
 import './materialui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
+
+final _logger = Logger();
 
 class AddNoteSheet extends StatefulWidget {
   final String? prefilledContent;
@@ -63,7 +66,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       }
     } catch (e) {
       // 获取失败时保持默认评分，不需要额外处理
-      debugPrint('Failed to load last used rating: $e');
+      _logger.d('Failed to load last used rating: $e');
     }
   }
 
@@ -74,7 +77,7 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       await prefs.setInt(_lastUsedRatingKey, rating);
     } catch (e) {
       // 保存失败不影响应用功能，仅记录日志
-      debugPrint('Failed to save last used rating: $e');
+      _logger.d('Failed to save last used rating: $e');
     }
   }
 

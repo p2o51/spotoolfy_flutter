@@ -1,7 +1,9 @@
 /// Represents a user's record or note about a specific track.
 library;
 
-import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
+
+final _logger = Logger();
 
 class Record {
   final int? id; // Nullable for new records not yet saved
@@ -31,7 +33,7 @@ class Record {
     // Basic validation or default values can be added here if needed
     // For example, ensuring required fields are present
     if (map['trackId'] == null || map['recordedAt'] == null) {
-       debugPrint('Error creating Record from map: $map');
+       _logger.d('Error creating Record from map: $map');
       throw ArgumentError('Required fields trackId or recordedAt missing in map');
     }
 

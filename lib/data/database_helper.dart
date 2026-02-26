@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -221,7 +220,7 @@ class DatabaseHelper {
       whereArgs: [trackId],
     );
     if (rowsAffected == 0) {
-      debugPrint(
+      logger.d(
           'Warning: updateTrackLastRecordedAt did not affect any rows for trackId: $trackId');
       // This might happen if the trackId doesn't exist, though addRecord logic should prevent this call then.
     }
@@ -641,7 +640,7 @@ class DatabaseHelper {
     final count = Sqflite.firstIntValue(countResult);
 
     if (count == 0) {
-      debugPrint('Database appears empty, inserting sample data...');
+      logger.d('Database appears empty, inserting sample data...');
       try {
         await db.transaction((txn) async {
           // Sample Track 1
@@ -662,7 +661,7 @@ class DatabaseHelper {
             ).toMap(),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
-          debugPrint(
+          logger.d(
               'Inserted sample track 1 with DB ID: $track1Id'); // track1Id here is the DB row id
 
           // Sample Track 2
@@ -728,12 +727,12 @@ class DatabaseHelper {
                 .replace, // Use replace as defined in insertTranslation
           );
         });
-        debugPrint('Sample data inserted successfully.');
+        logger.d('Sample data inserted successfully.');
       } catch (e) {
-        debugPrint('Error inserting sample data: $e');
+        logger.d('Error inserting sample data: $e');
       }
     } else {
-      debugPrint(
+      logger.d(
           'Database already contains data, skipping sample data insertion.');
     }
   }

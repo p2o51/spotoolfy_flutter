@@ -67,12 +67,11 @@ void main() async {
             if (context != null) {
               final spotifyProvider =
                   Provider.of<SpotifyProvider>(context, listen: false);
+              // handleCallbackToken 已经保存 token 并刷新用户资料
+              // 不需要再调用 autoLogin()，避免重复刷新和潜在的交互式授权
               await spotifyProvider.handleCallbackToken(accessToken, expiresIn);
-
-              // 重要：触发用户资料刷新和状态更新
-              await spotifyProvider.autoLogin();
               logger.d(
-                  'iOS回调处理完成，已触发状态更新'); // Reverted: Replaced print with logger
+                  'iOS回调处理完成'); // Reverted: Replaced print with logger
             }
           }
         }
@@ -81,7 +80,6 @@ void main() async {
   }
 
   final spotifyProvider = SpotifyProvider();
-  await spotifyProvider.autoLogin();
 
   runApp(
     MultiProvider(
@@ -113,6 +111,11 @@ void main() async {
       child: const MyThemedApp(),
     ),
   );
+
+  // 启动后执行静默自动登录，避免阻塞首帧
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    spotifyProvider.autoLogin();
+  });
 }
 
 class MyThemedApp extends StatefulWidget {

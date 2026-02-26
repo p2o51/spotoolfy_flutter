@@ -1,6 +1,9 @@
+import 'package:logger/logger.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'spotify_provider.dart';
+
+final _logger = Logger();
 
 class SearchProvider extends ChangeNotifier {
   final SpotifyProvider _spotifyProvider;
@@ -12,6 +15,9 @@ class SearchProvider extends ChangeNotifier {
   String? _errorMessage;
   List<Map<String, dynamic>> _filteredResultsCache = const [];
   bool _filteredResultsDirty = true;
+
+  // Track search requests to avoid applying stale results.
+  int _searchRequestId = 0;
   
   // Debounce timer for search
   Timer? _debounceTimer;
@@ -96,25 +102,29 @@ class SearchProvider extends ChangeNotifier {
   
   // Update search query with debounce
   void updateSearchQuery(String query) {
-    // Cancel previous timer
+    if (query == _searchQuery) return;
+
+    // Cancel previous timer only when query changes.
     _debounceTimer?.cancel();
     
-    if (query == _searchQuery) return;
-    
     _searchQuery = query;
+    _errorMessage = null;
     _markFilteredResultsDirty();
     
     // Clear results if query is empty
     if (query.isEmpty) {
       _searchResults = {};
+      _isSearching = false;
+      _searchRequestId++;
       _markFilteredResultsDirty();
       notifyListeners();
       return;
     }
     
     // Set new timer for search
+    final requestId = ++_searchRequestId;
     _debounceTimer = Timer(_debounceTime, () {
-      performSearch(query);
+      performSearch(query, requestId: requestId);
     });
     
     // Notify listeners immediately about query change
@@ -129,6 +139,9 @@ class SearchProvider extends ChangeNotifier {
     if (query.isEmpty) {
       _searchQuery = '';
       _searchResults = {};
+      _errorMessage = null;
+      _isSearching = false;
+      _searchRequestId++;
       _markFilteredResultsDirty();
       notifyListeners();
       return;
@@ -136,11 +149,13 @@ class SearchProvider extends ChangeNotifier {
     
     if (query != _searchQuery) {
       _searchQuery = query;
+      _errorMessage = null;
       _markFilteredResultsDirty();
       notifyListeners();
     }
     
-    performSearch(query);
+    final requestId = ++_searchRequestId;
+    performSearch(query, requestId: requestId);
   }
   
   // Clear search
@@ -149,14 +164,17 @@ class SearchProvider extends ChangeNotifier {
     _searchQuery = '';
     _searchResults = {};
     _errorMessage = null;
+    _isSearching = false;
+    _searchRequestId++;
     _markFilteredResultsDirty();
     notifyListeners();
   }
   
   // Perform the actual search
-  Future<void> performSearch(String query) async {
+  Future<void> performSearch(String query, {int? requestId}) async {
     if (query.trim().isEmpty) return;
     
+    final activeRequestId = requestId ?? ++_searchRequestId;
     _isSearching = true;
     _errorMessage = null;
     notifyListeners();
@@ -165,16 +183,24 @@ class SearchProvider extends ChangeNotifier {
       // Use default types: track, album, artist, playlist
       final results = await _spotifyProvider.searchItems(query);
       
+      if (!_isLatestRequest(activeRequestId, query)) return;
+
       _searchResults = results;
       _markFilteredResultsDirty();
-      _isSearching = false;
-      notifyListeners();
     } catch (e) {
-      debugPrint('Search failed: $e');
+      _logger.d('Search failed: $e');
+      if (!_isLatestRequest(activeRequestId, query)) return;
       _errorMessage = 'Search failed: $e';
-      _isSearching = false;
-      notifyListeners();
+    } finally {
+      if (_isLatestRequest(activeRequestId, query)) {
+        _isSearching = false;
+        notifyListeners();
+      }
     }
+  }
+
+  bool _isLatestRequest(int requestId, String query) {
+    return requestId == _searchRequestId && query == _searchQuery;
   }
   
   // Play a search result item based on its type
@@ -184,25 +210,25 @@ class SearchProvider extends ChangeNotifier {
     final uri = item['uri']; // Get the URI
 
     if (type == null || (id == null && uri == null)) {
-      debugPrint('Error: Search item missing type or identifier (id/uri).');
+      _logger.d('Error: Search item missing type or identifier (id/uri).');
       return;
     }
 
-    debugPrint('Playing item: type=$type, id=$id, uri=$uri');
+    _logger.d('Playing item: type=$type, id=$id, uri=$uri');
 
     try {
       if (type == 'track' && uri != null) {
-        debugPrint('[SearchProvider.playItem] Calling playTrack for URI: $uri');
+        _logger.d('[SearchProvider.playItem] Calling playTrack for URI: $uri');
         _spotifyProvider.playTrack(trackUri: uri);
       } else if ((type == 'album' || type == 'playlist' || type == 'artist') && id != null) {
-        debugPrint('[SearchProvider.playItem] Calling playContext for type: $type, id: $id');
+        _logger.d('[SearchProvider.playItem] Calling playContext for type: $type, id: $id');
         // For artist, playContext might play top tracks or fail gracefully
         _spotifyProvider.playContext(type: type, id: id);
       } else {
-        debugPrint('Error: Unsupported type ($type) or missing identifier for playback.');
+        _logger.d('Error: Unsupported type ($type) or missing identifier for playback.');
       }
     } catch (e) {
-      debugPrint('Error initiating playback: $e');
+      _logger.d('Error initiating playback: $e');
       // Optionally show a user-facing error message
       _errorMessage = 'Failed to play item: $e';
       notifyListeners();

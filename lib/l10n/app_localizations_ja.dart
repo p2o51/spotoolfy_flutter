@@ -465,16 +465,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get clientIdLabel => 'クライアントID';
 
   @override
-  String get clientSecretLabel => 'クライアントSecret';
-
-  @override
-  String get emptyCredentialsError => 'クライアントIDと Secret の両方が必要だ。';
+  String get emptyCredentialsError => 'クライアントIDが必要だ。';
 
   @override
   String get invalidClientIdError => 'クライアントIDは32文字の16進文字列である必要がある。';
-
-  @override
-  String get invalidClientSecretError => 'クライアントSecretは32文字の16進文字列である必要がある。';
 
   @override
   String get credentialsSaved => 'Spotify 資格情報が保存された';

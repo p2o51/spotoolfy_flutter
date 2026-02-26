@@ -111,6 +111,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
   Future<TranslationLoadResult>? _pendingInitialFuture;
   bool _showTranslated = true; // 默认显示翻译后的歌词 (窄屏模式下)
   String _geminiVersion = '2.5 Flash'; // 默认版本
+  TranslationLoadResult? _latestResult; // 保存最新的完整翻译结果，用于返回给调用者
 
   final SettingsService _settingsService = SettingsService();
 
@@ -167,6 +168,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       setState(() {
         _currentCleanTranslatedLyrics = result.cleanedTranslatedLyrics;
         _currentStyle = result.style;
+        _latestResult = result; // 保存完整结果
         _isInitialLoading = false;
       });
     } catch (e) {
@@ -199,6 +201,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       setState(() {
         _currentStyle = result.style;
         _currentCleanTranslatedLyrics = result.cleanedTranslatedLyrics;
+        _latestResult = result; // 保存完整结果
         _isTranslating = false;
       });
     } catch (e) {
@@ -230,6 +233,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
       if (!mounted) return;
       setState(() {
         _currentCleanTranslatedLyrics = result.cleanedTranslatedLyrics;
+        _latestResult = result; // 保存完整结果
         _translationError = null;
         _isTranslating = false;
       });
@@ -319,17 +323,24 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     // titleLabel variable removed as unused
     // final titleLabel = _showTranslated ? l10n.translationTitle : l10n.originalTitle;
 
-    // 使用 Scaffold 替换
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isWideScreen
-            ? l10n.lyricsTitle
-            : (_showTranslated ? l10n.translationTitle : l10n.originalTitle)),
-        leading: IconButton(
-          // 添加返回按钮
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+    // 使用 Scaffold 替换，并用 PopScope 包裹以在关闭时返回翻译结果
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // 返回最新的翻译结果给调用者
+        Navigator.of(context).pop(_latestResult);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(isWideScreen
+              ? l10n.lyricsTitle
+              : (_showTranslated ? l10n.translationTitle : l10n.originalTitle)),
+          leading: IconButton(
+            // 添加返回按钮
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(_latestResult),
+          ),
         actions: [
           // 翻译风格按钮 - Tooltip 使用本地化字符串
           if (isBusy)
@@ -407,6 +418,7 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
           : isWideScreen
               ? _buildWideLayout(context, l10n, theme) // 移除 scrollController
               : _buildNarrowLayout(context, l10n, theme), // 移除 scrollController
+      ),
     );
   }
 

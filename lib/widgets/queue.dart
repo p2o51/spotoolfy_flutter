@@ -1,9 +1,12 @@
+import 'package:logger/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/spotify_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../l10n/app_localizations.dart';
+
+final _logger = Logger();
 
 class QueueDisplay extends StatelessWidget {
   const QueueDisplay({super.key});
@@ -166,7 +169,7 @@ class QueueDisplay extends StatelessWidget {
       // 先尝试使用URI启动Spotify应用
       if (spotifyUri != null) {
         final uri = Uri.parse(spotifyUri);
-        debugPrint('尝试打开Spotify应用：$uri');
+        _logger.d('尝试打开Spotify应用：$uri');
 
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
@@ -177,7 +180,7 @@ class QueueDisplay extends StatelessWidget {
       // 如果无法打开应用，尝试打开网页
       if (webUrl != null) {
         final uri = Uri.parse(webUrl);
-        debugPrint('尝试打开网页链接：$uri');
+        _logger.d('尝试打开网页链接：$uri');
 
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -189,7 +192,7 @@ class QueueDisplay extends StatelessWidget {
       scaffoldMessenger.showSnackBar(
           SnackBar(content: Text(localizations.cannotOpenSpotify)));
     } catch (e) {
-      debugPrint('打开Spotify出错: $e');
+      _logger.d('打开Spotify出错: $e');
       scaffoldMessenger.showSnackBar(SnackBar(
           content: Text(localizations.failedToOpenSpotify(e.toString()))));
     }

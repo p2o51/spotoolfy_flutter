@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -24,6 +25,8 @@ import '../utils/structured_translation.dart';
 import 'lyrics_search_page.dart';
 import 'lyrics_selection_page.dart';
 import 'translation_result_page.dart';
+
+final _logger = Logger();
 
 class LyricLine {
   final Duration timestamp;
@@ -81,7 +84,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
   Future<TranslationLoadResult>? _translationPreloadFuture;
   TranslationLoadResult? _preloadedTranslationResult;
   String? _preloadedTrackId;
+  String? _preloadedLyricsProvider;
   String? _preloadingTrackId;
+  String? _preloadingLyricsProvider;
   Future<void>? _nextTrackPreloadFuture;
   String? _nextTrackPreloadedId;
   String? _nextTrackPreloadingId;
@@ -129,7 +134,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _translationPreloadFuture = null;
       _preloadedTranslationResult = null;
       _preloadedTrackId = null;
+      _preloadedLyricsProvider = null;
       _preloadingTrackId = null;
+      _preloadingLyricsProvider = null;
       _nextTrackPreloadFuture = null;
       _activeTranslationStyle = null;
       _currentLyricsProvider = null;
@@ -187,14 +194,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _isTranslationLoading = false;
       _syncLineKeys(0);
       _currentTrackDurationMs = trackDurationMs;
-      _preloadedTrackId = null;
-      _preloadedTranslationResult = null;
-      _translationPreloadFuture = null;
-      _preloadingTrackId = null;
-      _activeTranslationStyle = null;
-      _lyricsAreSynced = true;
-      _manualQuickActionsVisible = false;
-      _isLyricsLoading = true;
+          _preloadedTrackId = null;
+          _preloadedTranslationResult = null;
+          _preloadedLyricsProvider = null;
+          _translationPreloadFuture = null;
+          _preloadingTrackId = null;
+          _preloadingLyricsProvider = null;
+          _activeTranslationStyle = null;
+          _lyricsAreSynced = true;
+          _manualQuickActionsVisible = false;
+          _isLyricsLoading = true;
       _currentLyricsProvider = null;
       _hasNeteaseTranslation = false;
     });
@@ -377,9 +386,14 @@ class _LyricsWidgetState extends State<LyricsWidget>
   Future<bool> _canUseNeteaseTranslation({
     bool? hasNeteaseTranslation,
     String? languageCode,
+    String? provider,
   }) async {
     final hasTranslation = hasNeteaseTranslation ?? _hasNeteaseTranslation;
     if (!hasTranslation) {
+      return false;
+    }
+    final resolvedProvider = provider ?? _currentLyricsProvider;
+    if (resolvedProvider != 'netease') {
       return false;
     }
     final resolvedLanguage =
@@ -391,6 +405,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     TranslationStyle? requestedStyle,
     bool? hasNeteaseTranslation,
     String? languageCode,
+    String? provider,
   }) async {
     final desiredStyle =
         requestedStyle ?? await _settingsService.getTranslationStyle();
@@ -401,6 +416,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final allowNetease = await _canUseNeteaseTranslation(
       hasNeteaseTranslation: hasNeteaseTranslation,
       languageCode: languageCode,
+      provider: provider,
     );
     if (allowNetease) {
       return TranslationStyle.neteaseProvider;
@@ -416,6 +432,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     bool forceRefresh = false,
     TranslationStyle? style,
     bool? hasNeteaseTranslation,
+    String? lyricsProvider,
   }) async {
     final spotifyProvider =
         Provider.of<SpotifyProvider>(context, listen: false);
@@ -427,6 +444,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       requestedStyle: style,
       hasNeteaseTranslation: hasNeteaseTranslation,
       languageCode: currentLanguage,
+      provider: lyricsProvider,
     );
     final styleString = translationStyleToString(effectiveStyle);
 
@@ -532,7 +550,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       );
       await localDbProvider.saveTranslation(translationToSave);
     } catch (e) {
-      debugPrint('Error saving translation to DB: $e');
+      _logger.d('Error saving translation to DB: $e');
     }
 
     return TranslationLoadResult(
@@ -568,6 +586,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       forceRefresh: forceRefresh,
       style: style,
       hasNeteaseTranslation: _hasNeteaseTranslation,
+      lyricsProvider: _currentLyricsProvider,
     );
   }
 
@@ -677,6 +696,25 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return;
     }
 
+    final currentLyricsProvider = _currentLyricsProvider;
+    if (!forceRefresh &&
+        _preloadedTrackId == currentTrackId &&
+        _preloadedTranslationResult != null &&
+        _preloadedLyricsProvider != currentLyricsProvider) {
+      _preloadedTrackId = null;
+      _preloadedTranslationResult = null;
+      _preloadedLyricsProvider = null;
+    }
+
+    if (!forceRefresh &&
+        _translationPreloadFuture != null &&
+        _preloadingTrackId == currentTrackId &&
+        _preloadingLyricsProvider != currentLyricsProvider) {
+      _translationPreloadFuture = null;
+      _preloadingTrackId = null;
+      _preloadingLyricsProvider = null;
+    }
+
     if (!forceRefresh &&
         _preloadedTrackId == currentTrackId &&
         _preloadedTranslationResult != null) {
@@ -704,8 +742,17 @@ class _LyricsWidgetState extends State<LyricsWidget>
       try {
         final result = await _translationPreloadFuture!;
         if (!mounted) return;
+        if (_preloadingLyricsProvider != _currentLyricsProvider) {
+          if (triggerDisplayWhenReady) {
+            setState(() {
+              _isTranslationLoading = false;
+            });
+          }
+          return;
+        }
         _preloadedTrackId = currentTrackId;
         _preloadedTranslationResult = result;
+        _preloadedLyricsProvider = _preloadingLyricsProvider;
         if (triggerDisplayWhenReady && !_translationsVisible) {
           setState(() {
             _applyTranslationToLyrics(result.perLineTranslations);
@@ -731,7 +778,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
             l10n.translationFailed(e.toString()),
           );
         } else {
-          debugPrint('Translation preload failed: $e');
+          _logger.d('Translation preload failed: $e');
         }
       }
       return;
@@ -744,6 +791,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     }
 
     _preloadingTrackId = currentTrackId;
+    _preloadingLyricsProvider = _currentLyricsProvider;
     final future = _loadTranslationData(
       forceRefresh: forceRefresh,
       style: overrideStyle,
@@ -753,10 +801,23 @@ class _LyricsWidgetState extends State<LyricsWidget>
     try {
       final result = await future;
       if (!mounted) return;
+      if (_preloadingLyricsProvider != _currentLyricsProvider) {
+        _translationPreloadFuture = null;
+        _preloadingTrackId = null;
+        _preloadingLyricsProvider = null;
+        if (triggerDisplayWhenReady) {
+          setState(() {
+            _isTranslationLoading = false;
+          });
+        }
+        return;
+      }
       _preloadedTrackId = currentTrackId;
       _preloadedTranslationResult = result;
+      _preloadedLyricsProvider = _preloadingLyricsProvider;
       _translationPreloadFuture = null;
       _preloadingTrackId = null;
+      _preloadingLyricsProvider = null;
 
       if (triggerDisplayWhenReady) {
         setState(() {
@@ -771,6 +832,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       if (!mounted) return;
       _translationPreloadFuture = null;
       _preloadingTrackId = null;
+      _preloadingLyricsProvider = null;
       if (triggerDisplayWhenReady) {
         setState(() {
           _isTranslationLoading = false;
@@ -780,7 +842,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           l10n.translationFailed(e.toString()),
         );
       } else {
-        debugPrint('Translation preload failed: $e');
+        _logger.d('Translation preload failed: $e');
       }
     }
   }
@@ -831,11 +893,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final lyricsResult =
             await _lyricsService.getLyrics(songName, artistName, trackId);
         if (lyricsResult == null || !mounted) {
-          debugPrint('Preloaded lyrics for next track: $trackId (no lyrics found)');
+          _logger.d('Preloaded lyrics for next track: $trackId (no lyrics found)');
           return;
         }
 
-        debugPrint('Preloaded lyrics for next track: $trackId (provider: ${lyricsResult.provider})');
+        _logger.d('Preloaded lyrics for next track: $trackId (provider: ${lyricsResult.provider})');
 
         final rawLyrics = lyricsResult.lyric;
         var lyricLines = _parseLyrics(rawLyrics);
@@ -863,6 +925,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           final allowNeteaseTranslation = await _canUseNeteaseTranslation(
             hasNeteaseTranslation: lyricsResult.hasNeteaseTranslation,
             languageCode: targetLanguage,
+            provider: lyricsResult.provider,
           );
 
           TranslationStyle? preferredStyle;
@@ -877,15 +940,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
               trackItem: nextTrack,
               style: preferredStyle,
               hasNeteaseTranslation: lyricsResult.hasNeteaseTranslation,
+              lyricsProvider: lyricsResult.provider,
             );
-            debugPrint('Preloaded translation for next track: $trackId');
+            _logger.d('Preloaded translation for next track: $trackId');
           }
         }
 
         if (!mounted) return;
         _nextTrackPreloadedId = trackId;
       } catch (e) {
-        debugPrint('Failed to preload next track resources: $e');
+        _logger.d('Failed to preload next track resources: $e');
       } finally {
         if (_nextTrackPreloadingId == trackId) {
           _nextTrackPreloadingId = null;
@@ -1049,7 +1113,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     if (currentTrackId != null &&
         _preloadedTrackId == currentTrackId &&
-        _preloadedTranslationResult != null) {
+        _preloadedTranslationResult != null &&
+        _preloadedLyricsProvider == _currentLyricsProvider) {
       setState(() {
         _applyTranslationToLyrics(
             _preloadedTranslationResult!.perLineTranslations);
@@ -1079,11 +1144,13 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final targetLanguage = await _settingsService.getTargetLanguage();
     final allowNeteaseTranslation = await _canUseNeteaseTranslation(
       languageCode: targetLanguage,
+      provider: _currentLyricsProvider,
     );
     final currentStyle = await _resolveTranslationStyle(
       requestedStyle: _activeTranslationStyle,
       hasNeteaseTranslation: _hasNeteaseTranslation,
       languageCode: targetLanguage,
+      provider: _currentLyricsProvider,
     );
     final wasAutoScrolling = _autoScroll;
     final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
@@ -1102,7 +1169,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _preloadingTrackId == currentTrackId) {
         initialFuture = _translationPreloadFuture!;
       } else if (_preloadedTrackId == currentTrackId &&
-          _preloadedTranslationResult != null) {
+          _preloadedTranslationResult != null &&
+          _preloadedLyricsProvider == _currentLyricsProvider) {
         initialFuture = Future.value(_preloadedTranslationResult!);
       } else {
         initialFuture = _loadTranslationData(
@@ -1130,7 +1198,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     if (!mounted) return;
 
-    await ResponsiveNavigation.showSecondaryPage(
+    final returnedResult =
+        await ResponsiveNavigation.showSecondaryPage<TranslationLoadResult>(
       context: context,
       child: TranslationResultPage(
         originalLyrics: originalLyricsJoined,
@@ -1153,6 +1222,17 @@ class _LyricsWidgetState extends State<LyricsWidget>
     );
 
     if (!mounted) return;
+
+    // 如果用户在翻译页面更改了风格或重新翻译，应用最新结果到歌词页面
+    if (returnedResult != null) {
+      setState(() {
+        _applyTranslationToLyrics(returnedResult.perLineTranslations);
+        _activeTranslationStyle = returnedResult.style;
+      });
+      if (_translationsVisible) {
+        _scheduleRealignScroll();
+      }
+    }
 
     if (wasAutoScrolling) {
       _enableAutoScrollWithSuppression();
@@ -1375,7 +1455,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           previous.trackId != next.trackId ||
           previous.progressMs != next.progressMs,
       builder: (context, playbackSnapshot, child) {
-        // debugPrint('[LyricsBuilder] Build Start - PrevIdx: $_previousLineIndex'); // Log builder start
+        // _logger.d('[LyricsBuilder] Build Start - PrevIdx: $_previousLineIndex'); // Log builder start
         final currentTrackId = playbackSnapshot.trackId;
         final bool trackJustChanged = (currentTrackId != _lastTrackId);
 
@@ -1400,7 +1480,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final currentLineIndex = _getCurrentLineIndex(latestPosition);
         final spotifyProvider =
             Provider.of<SpotifyProvider>(context, listen: false);
-        // debugPrint('[LyricsBuilder] Calculated Idx: $currentLineIndex (from ${currentProgressMs}ms)'); // Log calculated index
+        // _logger.d('[LyricsBuilder] Calculated Idx: $currentLineIndex (from ${currentProgressMs}ms)'); // Log calculated index
 
         if (_autoScroll &&
             _lyrics.isNotEmpty &&
@@ -1946,7 +2026,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           }
         } catch (e) {
           // Log parsing errors for specific lines if needed
-          // debugPrint('Failed to parse lyric line: $line, Error: $e');
+          // _logger.d('Failed to parse lyric line: $line, Error: $e');
         }
       } else if (line.trim().isNotEmpty && !line.trim().startsWith('[')) {
         // Handle lines without timestamps (e.g., for unsynced lyrics)
@@ -2090,13 +2170,29 @@ class _LyricsWidgetState extends State<LyricsWidget>
       // This block executes when the search page is popped
       if (!mounted) return; // Check if widget is still mounted
 
+      LyricsSearchSelection? selection;
+      if (result is LyricsSearchSelection) {
+        selection = result;
+      } else if (result is String && result.isNotEmpty) {
+        selection = LyricsSearchSelection(
+          lyrics: result,
+          provider: _currentLyricsProvider ?? '',
+        );
+      }
+
       // If lyrics were returned from the search page
-      if (result != null && result is String && result.isNotEmpty) {
-        final summary = LyricTimingUtils.summarize(result);
-        final parsed = _parseLyrics(result);
+      if (selection != null && selection.lyrics.isNotEmpty) {
+        final summary = LyricTimingUtils.summarize(selection.lyrics);
+        final parsed = _parseLyrics(selection.lyrics);
         final bool synced = summary.hasTimestamps && parsed.isNotEmpty;
-        final newLyrics = synced ? parsed : _buildUnsyncedLyrics(result);
+        final newLyrics =
+            synced ? parsed : _buildUnsyncedLyrics(selection.lyrics);
+        final resolvedProvider =
+            selection.provider.isNotEmpty ? selection.provider : null;
+        final hasNeteaseTranslation = resolvedProvider == 'netease' &&
+            selection.hasNeteaseTranslation;
         _quickActionsHideTimer?.cancel();
+        _autoTranslationRequestedForTrack = false;
         setState(() {
           _lyrics = newLyrics;
           _lyricsAreSynced = synced;
@@ -2105,8 +2201,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _previousLineIndex = -1; // Reset previous index
           _translationsVisible = false;
           _isTranslationLoading = false;
+          _translationPreloadFuture = null;
+          _preloadedTranslationResult = null;
+          _preloadedTrackId = null;
+          _preloadingTrackId = null;
+          _preloadedLyricsProvider = null;
+          _preloadingLyricsProvider = null;
           _syncLineKeys(_lyrics.length);
           _manualQuickActionsVisible = false;
+          _currentLyricsProvider = resolvedProvider;
+          _hasNeteaseTranslation = hasNeteaseTranslation;
 
           // Restore auto-scroll if it was enabled before searching
           if (wasAutoScrollEnabled && synced) {
@@ -2202,6 +2306,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
             ?.map((artist) => artist['name'] as String)
             .join(', ') ??
         '';
+    final openedTrackId = currentTrack['id']?.toString();
     final albumCoverUrl =
         (currentTrack['album']?['images'] as List?)?.isNotEmpty == true
             ? currentTrack['album']['images'][0]['url']
@@ -2222,11 +2327,13 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final targetLanguage = await _settingsService.getTargetLanguage();
     final allowNeteaseTranslation = await _canUseNeteaseTranslation(
       languageCode: targetLanguage,
+      provider: _currentLyricsProvider,
     );
     final currentStyle = await _resolveTranslationStyle(
       requestedStyle: _activeTranslationStyle,
       hasNeteaseTranslation: _hasNeteaseTranslation,
       languageCode: targetLanguage,
+      provider: _currentLyricsProvider,
     );
 
     if (!mounted) return;
@@ -2239,7 +2346,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
             })
         .toList();
 
-    await ResponsiveNavigation.showSecondaryPage(
+    final returnedResult =
+        await ResponsiveNavigation.showSecondaryPage<TranslationLoadResult>(
       context: context,
       child: LyricsSelectionPage(
         lyrics: lyricsData,
@@ -2263,25 +2371,25 @@ class _LyricsWidgetState extends State<LyricsWidget>
       ),
       preferredMode: SecondaryPageMode.sideSheet,
       maxWidth: 520,
+      showCloseButton: false,
+      barrierDismissible: false,
     );
 
     if (!mounted) return;
 
-    if (_translationsVisible) {
-      try {
-        final result = await _loadTranslationData(
-          overrideOriginalLines: originalLines,
-          style: _activeTranslationStyle,
-        );
-        if (mounted) {
-          setState(() {
-            _applyTranslationToLyrics(result.perLineTranslations);
-            _activeTranslationStyle = result.style;
-          });
-          _scheduleRealignScroll();
-        }
-      } catch (_) {
-        // Ignore refresh errors; UI will keep existing translations.
+    if (returnedResult != null &&
+        openedTrackId != null &&
+        openedTrackId ==
+            spotifyProvider.currentTrack?['item']?['id']?.toString()) {
+      setState(() {
+        _applyTranslationToLyrics(returnedResult.perLineTranslations);
+        _activeTranslationStyle = returnedResult.style;
+        _preloadedTrackId = openedTrackId;
+        _preloadedTranslationResult = returnedResult;
+        _preloadedLyricsProvider = _currentLyricsProvider;
+      });
+      if (_translationsVisible) {
+        _scheduleRealignScroll();
       }
     }
 

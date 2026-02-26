@@ -478,18 +478,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clientIdLabel => 'Client ID';
 
   @override
-  String get clientSecretLabel => 'Client Secret';
-
-  @override
-  String get emptyCredentialsError => 'Both Client ID and Secret are required.';
+  String get emptyCredentialsError => 'Client ID is required.';
 
   @override
   String get invalidClientIdError =>
       'Client ID must be a 32-character hex string.';
-
-  @override
-  String get invalidClientSecretError =>
-      'Client Secret must be a 32-character hex string.';
 
   @override
   String get credentialsSaved => 'Spotify credentials saved';

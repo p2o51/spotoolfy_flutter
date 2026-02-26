@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import '../services/spotify_service.dart'
     show SpotifyAuthService, SpotifyAuthException;
+import '../models/play_mode.dart';
 import '../models/spotify_device.dart';
 import 'package:collection/collection.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../main.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
@@ -18,14 +18,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
 import '../utils/notify_throttler.dart';
 import '../managers/image_preload_manager.dart';
+import '../managers/spotify_cache_manager.dart';
+import '../managers/spotify_playback_manager.dart';
+export '../models/play_mode.dart';
 
 final logger = Logger();
-
-enum PlayMode {
-  singleRepeat, // 单曲循环（曲循环+顺序播放）
-  sequential, // 顺序播放（列表循环+顺序播放）
-  shuffle // 随机播放（列表循环+随机播放）
-}
 
 class SpotifyProvider extends ChangeNotifier {
   late SpotifyAuthService _spotifyService;
@@ -47,24 +44,11 @@ class SpotifyProvider extends ChangeNotifier {
   int _consecutiveNetworkErrors = 0;
 
   String? username;
-  Map<String, dynamic>? currentTrack;
-  bool? isCurrentTrackSaved;
-  Timer? _refreshTimer;
-  Timer? _progressTimer;
-  DateTime? _lastProgressUpdate;
-  DateTime? _lastProgressNotify;
   bool isLoading = false;
   bool _isBootstrapping = false; // 防止并发bootstrap
-  Map<String, dynamic>? previousTrack;
-  Map<String, dynamic>? nextTrack;
-  PlayMode _currentMode = PlayMode.sequential;
-  PlayMode get currentMode => _currentMode;
-  bool _isSkipping = false;
   bool _isInitialized = false;
-  bool _isRefreshTickRunning = false;
-  bool _isQueuePrefetchRunning = false;
   DateTime? _lastDeviceRefresh;
-  DateTime? _lastQueueRefresh;
+  late final SpotifyPlaybackManager _playbackManager;
 
   // 授权失败防护 - 防止授权失败后持续刷新导致闪屏
   bool _isAuthFailed = false;
@@ -75,10 +59,8 @@ class SpotifyProvider extends ChangeNotifier {
   int _authFailureCount = 0;
   static const int _maxAuthRetries = 3;
 
-  // 添加图片预加载缓存 - 持久化跨登录会话
-  final Map<String, String> _imageCache = {};
-  final Map<String, Map<String, dynamic>> _albumCache = {};
-  final Map<String, Map<String, dynamic>> _playlistCache = {};
+  // 缓存管理器
+  final SpotifyCacheManager _cacheManager = SpotifyCacheManager();
 
   // 通知节流器 - 减少不必要的 UI 重建
   late final CategorizedNotifyThrottler _notifyThrottler;
@@ -91,21 +73,40 @@ class SpotifyProvider extends ChangeNotifier {
   String? _lastPlayedTrackName;
   String? _lastPlayedArtists;
 
-  static const Duration _progressTimerInterval = Duration(milliseconds: 500);
-  static const Duration _refreshTickInterval = Duration(seconds: 3);
   static const Duration _deviceRefreshInterval = Duration(seconds: 15);
-  static const Duration _queueRefreshInterval = Duration(seconds: 9);
-  static const int _progressNotifyIntervalMs = 500;
+
+  Map<String, dynamic>? get currentTrack => _playbackManager.currentTrack;
+  set currentTrack(Map<String, dynamic>? value) =>
+      _playbackManager.currentTrack = value;
+
+  bool? get isCurrentTrackSaved => _playbackManager.isCurrentTrackSaved;
+  set isCurrentTrackSaved(bool? value) =>
+      _playbackManager.isCurrentTrackSaved = value;
+
+  Map<String, dynamic>? get previousTrack => _playbackManager.previousTrack;
+  set previousTrack(Map<String, dynamic>? value) =>
+      _playbackManager.previousTrack = value;
+
+  Map<String, dynamic>? get nextTrack => _playbackManager.nextTrack;
+  set nextTrack(Map<String, dynamic>? value) =>
+      _playbackManager.nextTrack = value;
+
+  List<Map<String, dynamic>> get upcomingTracks =>
+      _playbackManager.upcomingTracks;
+  set upcomingTracks(List<Map<String, dynamic>> value) =>
+      _playbackManager.upcomingTracks = value;
+
+  PlayMode get currentMode => _playbackManager.currentMode;
 
   // 添加图片缓存管理方法
   void clearImageCache() {
-    _imageCache.clear();
+    _cacheManager.clearImageCache();
   }
 
   // 获取缓存状态
   bool isImageCached(String? imageUrl) {
     if (imageUrl == null) return false;
-    return _imageCache.containsKey(imageUrl);
+    return _cacheManager.isImageCached(imageUrl);
   }
 
   // 获取最后播放的歌曲信息（用于离线默认显示）
@@ -155,6 +156,66 @@ class SpotifyProvider extends ChangeNotifier {
       logger.d('已保存最后播放歌曲信息: $trackName - $artists');
     } catch (e) {
       logger.e('保存最后播放歌曲信息失败', error: e);
+    }
+  }
+
+  void _persistLastPlayedTrackInfo(Map<String, dynamic> track) {
+    final item = track['item'];
+    if (item is! Map<String, dynamic>) return;
+
+    String? albumImageUrl;
+    final album = item['album'];
+    if (album is Map<String, dynamic>) {
+      final images = album['images'];
+      if (images is List && images.isNotEmpty) {
+        final image = images.first;
+        if (image is Map<String, dynamic>) {
+          albumImageUrl = image['url'] as String?;
+        }
+      }
+    }
+
+    final trackName = item['name'] as String?;
+    final artistsList = item['artists'];
+    final artists = (artistsList is List)
+        ? artistsList
+            .whereType<Map<String, dynamic>>()
+            .map((artist) => artist['name'])
+            .whereType<String>()
+            .join(', ')
+        : null;
+
+    _saveLastPlayedTrackInfo(
+      imageUrl: albumImageUrl,
+      trackName: trackName,
+      artists: artists,
+    );
+  }
+
+  Future<void> _savePlayContextToDatabase(
+      Map<String, dynamic> enrichedContext) async {
+    try {
+      final context = navigatorKey.currentContext;
+      if (context == null || !context.mounted) {
+        return;
+      }
+      final localDbProvider =
+          Provider.of<LocalDatabaseProvider>(context, listen: false);
+      await localDbProvider.insertOrUpdatePlayContext(
+        contextUri: enrichedContext['uri'] as String,
+        contextType: enrichedContext['type'] as String,
+        contextName: enrichedContext['name'] as String,
+        imageUrl: (enrichedContext['images'] as List?)?.isNotEmpty == true
+            ? enrichedContext['images'][0]['url'] as String?
+            : null,
+        lastPlayedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      logger.d(
+          'refreshCurrentTrack: Saved play context to local database: ${enrichedContext['uri']}');
+    } catch (dbError) {
+      logger.e(
+          'refreshCurrentTrack: Failed to save play context to database',
+          error: dbError);
     }
   }
 
@@ -264,6 +325,13 @@ class SpotifyProvider extends ChangeNotifier {
       },
       defaultInterval: const Duration(milliseconds: 50),
     );
+    _playbackManager = SpotifyPlaybackManager(
+      logger: logger,
+      guard: _guard,
+      getService: () => _spotifyService,
+      notifyCategory: _notifyCategory,
+      cacheManager: _cacheManager,
+    );
     _bootstrap();
   }
 
@@ -282,8 +350,9 @@ class SpotifyProvider extends ChangeNotifier {
 
     _isBootstrapping = true;
     try {
-      // 确保在设备解锁后再读取存储
-      await WidgetsBinding.instance.endOfFrame;
+      // 注意：移除了 await WidgetsBinding.instance.endOfFrame
+      // 因为 autoLogin 可能在 runApp 之前调用，此时还没有首帧
+      // SharedPreferences 不需要等待首帧即可读取
 
       // 使用SharedPreferences读取Client ID，避免KeyStore的限制
       final sp = await SharedPreferences.getInstance();
@@ -324,7 +393,9 @@ class SpotifyProvider extends ChangeNotifier {
       };
 
       _isInitialized = true;
-      _initDone.complete(); // 标记初始化完成
+      if (!_initDone.isCompleted) {
+        _initDone.complete(); // 标记初始化完成
+      }
 
       logger.d('Bootstrap: SpotifyService初始化完成');
 
@@ -358,6 +429,22 @@ class SpotifyProvider extends ChangeNotifier {
     return job();
   }
 
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      _bootstrap();
+    }
+    await _initDone.future;
+  }
+
+  Future<bool> _ensureInitializedSafe() async {
+    try {
+      await _ensureInitialized();
+    } catch (e) {
+      logger.w('初始化失败: $e');
+    }
+    return _isInitialized;
+  }
+
   void _initLifecycleObserver() {
     // 先移除旧的监听器（如果存在）
     if (_lifecycleObserver != null) {
@@ -381,65 +468,108 @@ class SpotifyProvider extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // 检查认证状态
-      if (await _guard(() => _spotifyService.isAuthenticated())) {
-        // 刷新token和用户信息
-        await _refreshUserProfile();
+      final isAuth = await _guard(() => _spotifyService.isAuthenticated());
 
-        // 重新启动定时器
-        if (username != null && _refreshTimer == null) {
-          startTrackRefresh();
+      if (isAuth) {
+        // 刷新token和用户信息，检查返回值判断是否成功
+        final profileSuccess = await _refreshUserProfile();
+
+        if (profileSuccess) {
+          // 重新启动定时器（_refreshUserProfile 内部已启动，这里确保）
+          if (!_playbackManager.isRefreshTimerActive) {
+            startTrackRefresh();
+          }
+
+          // 分阶段恢复功能，减少同时发起的网络请求
+          Future.delayed(const Duration(milliseconds: 1000), () async {
+            try {
+              await refreshCurrentTrack();
+            } catch (e) {
+              logger.w('恢复后刷新当前播放状态失败: $e');
+            }
+          });
+
+          Future.delayed(const Duration(milliseconds: 2000), () async {
+            try {
+              await refreshAvailableDevices();
+            } catch (e) {
+              logger.w('恢复后刷新设备列表失败: $e');
+            }
+          });
+        } else {
+          // _refreshUserProfile 失败（可能 token 已过期），尝试重新授权
+          logger.w('恢复时 _refreshUserProfile 失败，尝试重新授权');
+          await _tryReauthorizeOnResume();
         }
-
-        // 分阶段恢复功能，减少同时发起的网络请求
-        Future.delayed(const Duration(milliseconds: 1000), () async {
-          try {
-            await refreshCurrentTrack();
-          } catch (e) {
-            logger.w('恢复后刷新当前播放状态失败: $e');
-          }
-        });
-
-        Future.delayed(const Duration(milliseconds: 2000), () async {
-          try {
-            await refreshAvailableDevices();
-          } catch (e) {
-            logger.w('恢复后刷新设备列表失败: $e');
-          }
-        });
+      } else {
+        // 未认证状态，尝试重新授权
+        logger.i('恢复时检测到未认证状态，尝试重新授权');
+        await _tryReauthorizeOnResume();
       }
     } catch (e) {
       logger.w('应用恢复时重新初始化失败: $e');
+      // 即使出错也尝试重新授权
+      await _tryReauthorizeOnResume();
     }
   }
 
   /// 应用进入后台时的处理
   Future<void> _onAppPause() async {
     logger.i('应用进入后台，暂停定时器');
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-    _progressTimer?.cancel();
-    _progressTimer = null;
+    _playbackManager.stopTimers();
     // 可以在这里添加一些清理工作，比如暂停一些不必要的网络请求
   }
 
-  Future<void> _refreshUserProfile() async {
+  /// 应用恢复时尝试重新授权（复用 autoLogin 的防死循环机制）
+  Future<void> _tryReauthorizeOnResume() async {
+    // 检查是否允许重试（复用 autoLogin 的防护逻辑）
+    if (_isAuthFailed) {
+      if (_lastAuthFailure != null &&
+          DateTime.now().difference(_lastAuthFailure!) < _authFailureCooldown) {
+        logger.d('恢复时跳过授权：处于冷却期');
+        return;
+      }
+      if (_authFailureCount >= _maxAuthRetries) {
+        logger.w('恢复时跳过授权：失败次数已达上限 ($_maxAuthRetries)');
+        _notifyAuthFailureExceeded();
+        return;
+      }
+    }
+
+    logger.i('应用恢复时尝试重新授权');
+    try {
+      await autoLogin();
+    } catch (e) {
+      logger.w('恢复时重新授权失败: $e');
+    }
+  }
+
+  /// 刷新用户资料
+  ///
+  /// 返回 true 表示成功获取到用户名，false 表示失败
+  Future<bool> _refreshUserProfile() async {
     try {
       final user = await _guard(() => _spotifyService.getUserProfile());
-      username = user['display_name'];
+      final newUsername = user['display_name'] as String?;
 
-      // 登录成功，重置授权失败标记和计数器
-      if (username != null) {
+      if (newUsername != null) {
+        username = newUsername;
+
+        // 登录成功，重置授权失败标记和计数器
         _isAuthFailed = false;
         _lastAuthFailure = null;
         _authFailureCount = 0;
-      }
 
-      _notifyCategory('default'); // UI 马上刷新
-      if (_refreshTimer == null && username != null) {
-        startTrackRefresh(); // 仅在定时器未运行且用户已登录时启动
+        _notifyCategory('default'); // UI 马上刷新
+        if (!_playbackManager.isRefreshTimerActive) {
+          startTrackRefresh(); // 仅在定时器未运行且用户已登录时启动
+        }
+        return true;
       }
-    } catch (_) {
-      /* 忽略失败 */
+      return false;
+    } catch (e) {
+      logger.w('刷新用户资料失败: $e');
+      return false;
     }
   }
 
@@ -456,10 +586,7 @@ class SpotifyProvider extends ChangeNotifier {
 
       // 清除现有状态
       username = null;
-      currentTrack = null;
-      previousTrack = null;
-      nextTrack = null;
-      isCurrentTrackSaved = null;
+      _playbackManager.clear();
       _availableDevices.clear();
       _activeDeviceId = null;
       _isInitialized = false; // Set to false before re-init
@@ -469,12 +596,6 @@ class SpotifyProvider extends ChangeNotifier {
       _lastAuthFailure = null;
       _authFailureCount = 0;
       logger.d('已重置授权失败计数器');
-
-      // 停止所有计时器
-      _refreshTimer?.cancel();
-      _refreshTimer = null;
-      _progressTimer?.cancel();
-      _progressTimer = null;
 
       // 如果之前已初始化并且已登录，先注销
       if (wasInitialized) {
@@ -526,10 +647,7 @@ class SpotifyProvider extends ChangeNotifier {
     final bool wasInitialized = _isInitialized; // Store original state
 
     username = null;
-    currentTrack = null;
-    previousTrack = null;
-    nextTrack = null;
-    isCurrentTrackSaved = null;
+    _playbackManager.clear();
     _availableDevices.clear();
     _activeDeviceId = null;
     _isInitialized = false; // Set to false before re-init
@@ -538,11 +656,6 @@ class SpotifyProvider extends ChangeNotifier {
     _isAuthFailed = false;
     _lastAuthFailure = null;
     _authFailureCount = 0;
-
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
-    _progressTimer?.cancel();
-    _progressTimer = null;
 
     if (wasInitialized) {
       try {
@@ -675,151 +788,53 @@ class SpotifyProvider extends ChangeNotifier {
 
   void startTrackRefresh() {
     logger.d(
-        'startTrackRefresh: User: $username, Initialized: $_isInitialized, IsSkipping: $_isSkipping');
+        'startTrackRefresh: User: $username, Initialized: $_isInitialized');
     if (username == null || !_isInitialized) {
       logger.w(
           'startTrackRefresh: Aborted. Username is null or service not initialized.');
-      _refreshTimer?.cancel();
-      _progressTimer?.cancel();
-      _refreshTimer = null;
-      _progressTimer = null;
+      _playbackManager.stopTimers();
       return;
     }
 
-    Future.microtask(() async {
-      // 使用 microtask 异步执行初始刷新
-      try {
-        logger.d(
-            'startTrackRefresh (microtask): Fetching initial track and device data...');
-        await refreshCurrentTrack(); // 使用恢复后的 refreshCurrentTrack
-        await refreshAvailableDevices();
-        await refreshPlaybackQueue(); // 初始化时也刷新播放队列
+    _playbackManager.startTrackRefresh(
+      onRefreshTrack: refreshCurrentTrack,
+      onRefreshDevices: refreshAvailableDevices,
+      onRefreshQueue: refreshPlaybackQueue,
+      shouldRefreshDevices: () {
         final now = DateTime.now();
-        _lastDeviceRefresh = now;
-        _lastQueueRefresh = now;
-        logger.i(
-            'startTrackRefresh (microtask): Initial data fetched. Current progress: ${currentTrack?['progress_ms']}, isPlaying: ${currentTrack?['is_playing']}');
-      } catch (e) {
-        logger.e(
-            'startTrackRefresh (microtask): Failed to fetch initial data, timers will still start.',
-            error: e);
-      } finally {
-        // 确保 _lastProgressUpdate 在 _progressTimer 启动前有合理的值
-        if (currentTrack != null &&
-            currentTrack!['is_playing'] == true &&
-            _lastProgressUpdate == null) {
-          _lastProgressUpdate = DateTime.now();
-        }
+        return _lastDeviceRefresh == null ||
+            now.difference(_lastDeviceRefresh!) >= _deviceRefreshInterval;
+      },
+      markDevicesRefreshed: () {
+        _lastDeviceRefresh = DateTime.now();
+      },
+      shouldSkipRefresh: _shouldSkipRefreshTick,
+    );
+  }
 
-        _refreshTimer?.cancel();
-        _refreshTimer = Timer.periodic(_refreshTickInterval, (_) {
-          // 授权失败防护：如果授权失败且在冷却期内，跳过刷新
-          if (_isAuthFailed) {
-            if (_lastAuthFailure != null &&
-                DateTime.now().difference(_lastAuthFailure!) < _authFailureCooldown) {
-              logger.t('_refreshTimer tick: Skipped due to auth failure cooldown.');
-              return;
-            }
-            // 冷却期已过，检查重试次数
-            if (_authFailureCount >= _maxAuthRetries) {
-              logger.w('_refreshTimer tick: 授权失败次数已达上限 ($_maxAuthRetries 次)，停止自动重试。请检查 Client ID 配置。');
-              // 显示用户提示
-              _notifyAuthFailureExceeded();
-              return;
-            }
-            // 冷却期已过且未达上限，重置标记允许重试
-            _isAuthFailed = false;
-            _lastAuthFailure = null;
-          }
-          if (_isSkipping) {
-            logger.t('_refreshTimer tick: Skipped due to _isSkipping=true.');
-            return;
-          }
-          if (_isRefreshTickRunning) {
-            logger.t(
-                '_refreshTimer tick: Previous refresh still running, skipping.');
-            return;
-          }
-          _isRefreshTickRunning = true;
-          Future(() async {
-            try {
-              logger.t(
-                  '_refreshTimer tick. Refreshing current track, devices, and queue.');
-              await refreshCurrentTrack();
-
-              final now = DateTime.now();
-
-              final shouldRefreshDevices = _lastDeviceRefresh == null ||
-                  now.difference(_lastDeviceRefresh!) >= _deviceRefreshInterval;
-              if (shouldRefreshDevices) {
-                await refreshAvailableDevices();
-                _lastDeviceRefresh = now;
-              }
-
-              final shouldRefreshQueue = _lastQueueRefresh == null ||
-                  now.difference(_lastQueueRefresh!) >= _queueRefreshInterval;
-              if (shouldRefreshQueue) {
-                await refreshPlaybackQueue();
-                _lastQueueRefresh = now;
-              }
-            } finally {
-              _isRefreshTickRunning = false;
-            }
-          });
-        });
-
-        _progressTimer?.cancel();
-        _progressTimer = Timer.periodic(_progressTimerInterval, (_) {
-          if (_isSkipping || currentTrack == null) {
-            return;
-          }
-
-          if (currentTrack!['is_playing'] == true) {
-            final now = DateTime.now();
-            if (_lastProgressUpdate != null) {
-              final elapsed =
-                  now.difference(_lastProgressUpdate!).inMilliseconds;
-              if (elapsed > 0) {
-                final oldProgress = currentTrack!['progress_ms'] as int;
-                final duration = currentTrack!['item']?['duration_ms'] as int?;
-                int newProgressValue = oldProgress + elapsed;
-
-                if (duration != null) {
-                  newProgressValue = newProgressValue.clamp(0, duration);
-                } else {
-                  newProgressValue =
-                      newProgressValue > 0 ? newProgressValue : 0;
-                }
-
-                if (currentTrack!['progress_ms'] != newProgressValue) {
-                  currentTrack!['progress_ms'] = newProgressValue;
-
-                  final shouldNotify = _lastProgressNotify == null ||
-                      now.difference(_lastProgressNotify!).inMilliseconds >=
-                          _progressNotifyIntervalMs;
-                  if (shouldNotify) {
-                    _notifyCategory('progress');
-                    _lastProgressNotify = now;
-                  }
-                }
-              }
-            }
-            _lastProgressUpdate = now;
-          } else if (currentTrack!['is_playing'] == false) {
-            _lastProgressUpdate = DateTime
-                .now(); // Also update if paused, to have a fresh start when resuming
-          }
-        });
-        logger.d(
-            'startTrackRefresh: Timers (re)started. _refreshTimer active: ${_refreshTimer?.isActive}, _progressTimer active: ${_progressTimer?.isActive}');
-      }
-    });
+  bool _shouldSkipRefreshTick() {
+    if (!_isAuthFailed) {
+      return false;
+    }
+    if (_lastAuthFailure != null &&
+        DateTime.now().difference(_lastAuthFailure!) < _authFailureCooldown) {
+      logger.t('_refreshTimer tick: Skipped due to auth failure cooldown.');
+      return true;
+    }
+    if (_authFailureCount >= _maxAuthRetries) {
+      logger.w(
+          '_refreshTimer tick: 授权失败次数已达上限 ($_maxAuthRetries 次)，停止自动重试。请检查 Client ID 配置。');
+      _notifyAuthFailureExceeded();
+      return true;
+    }
+    _isAuthFailed = false;
+    _lastAuthFailure = null;
+    return false;
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
-    _progressTimer?.cancel();
+    _playbackManager.stopTimers();
     // 清理节流器
     _notifyThrottler.dispose();
     // 清理生命周期观察者
@@ -837,215 +852,16 @@ class SpotifyProvider extends ChangeNotifier {
       // 成功获取数据，检查并重置网络错误状态
       _isNetworkError(Exception('success')); // 调用以重置计数（传入非网络错误）
 
-      final debugTrackName = track?['item']?['name'];
-      final debugArtist = (track?['item']?['artists'] is List &&
-              track!['item']['artists'].isNotEmpty)
-          ? track['item']['artists'][0]['name']
-          : null;
-      logger.d(
-          'refreshCurrentTrack: received ${debugTrackName ?? 'unknown track'} by ${debugArtist ?? 'unknown'} (progress ${track?['progress_ms'] ?? 'n/a'})');
-
-      if (track != null) {
-        final isPlayingFromApi = track['is_playing'] as bool?;
-        final progressFromApi = track['progress_ms'] as int?;
-        final newId = track['item']?['id'];
-        final newContextUri = track['context']?['uri'];
-
-        final oldId = currentTrack?['item']?['id'];
-        final oldIsPlaying = currentTrack?['is_playing'] as bool?;
-        final oldContextUri = currentTrack?['context']?['uri'];
-        final oldProgressMs = currentTrack?['progress_ms'] as int?;
-
-        logger.d(
-            'refreshCurrentTrack: API data -> isPlaying: $isPlayingFromApi, progress: $progressFromApi, id: $newId, context: $newContextUri');
-        logger.d(
-            'refreshCurrentTrack: Provider state BEFORE update -> isPlaying: $oldIsPlaying, progress: $oldProgressMs, id: $oldId, context: $oldContextUri, _lastProgressUpdate: $_lastProgressUpdate');
-
-        bool needsNotify = false;
-        const int kProgressJumpThreshold = 1500; // 1.5 seconds
-
-        final bool coreTrackInfoChanged = currentTrack == null ||
-            newId != oldId ||
-            (isPlayingFromApi != null && isPlayingFromApi != oldIsPlaying) ||
-            newContextUri != oldContextUri;
-
-        bool significantProgressJump = false;
-        if (progressFromApi != null && oldProgressMs != null) {
-          significantProgressJump =
-              (progressFromApi - oldProgressMs).abs() > kProgressJumpThreshold;
-        } else if (progressFromApi != null &&
-            oldProgressMs == null &&
-            currentTrack != null) {
-          significantProgressJump = true;
-        } else if (progressFromApi != null && currentTrack == null) {
-          significantProgressJump = true;
-        }
-
-        if (coreTrackInfoChanged || significantProgressJump) {
-          Map<String, dynamic>? previousContext;
-          if (currentTrack != null &&
-              currentTrack!['context'] is Map<String, dynamic>) {
-            previousContext = Map<String, dynamic>.from(
-                currentTrack!['context'] as Map<String, dynamic>);
-          }
-
-          currentTrack = Map<String, dynamic>.from(track);
-          currentTrack!['progress_ms'] = progressFromApi ?? oldProgressMs ?? 0;
-
-          if (newContextUri == null &&
-              previousContext != null &&
-              oldContextUri != null &&
-              newId == oldId) {
-            currentTrack!['context'] = previousContext;
-            logger.t(
-                'refreshCurrentTrack: Preserved previous context for track $newId because API response omitted context data.');
-          }
-
-          if (newId != oldId ||
-              (currentTrack!['is_playing'] == true &&
-                  progressFromApi != null) ||
-              significantProgressJump) {
-            _lastProgressUpdate = DateTime.now();
-            _lastProgressNotify = null;
-          }
-          needsNotify = true;
-          logger.i(
-              'refreshCurrentTrack: Updated currentTrack due to coreChange ($coreTrackInfoChanged) or progressJump ($significantProgressJump). New progress: ${currentTrack!['progress_ms']}, isPlaying: ${currentTrack!['is_playing']}. Reset _lastProgressUpdate: $_lastProgressUpdate');
-
-          if (newId != oldId && newId != null) {
-            // 保存当前歌曲信息到持久化存储（用于离线显示）
-            final item = track['item'];
-            final albumImageUrl =
-                item?['album']?['images']?[0]?['url'] as String?;
-            final trackName = item?['name'] as String?;
-            final artistsList = item?['artists'] as List?;
-            final artists = artistsList
-                ?.map((artist) => artist['name'] as String)
-                .join(', ');
-            _saveLastPlayedTrackInfo(
-              imageUrl: albumImageUrl,
-              trackName: trackName,
-              artists: artists,
-            );
-
-            try {
-              isCurrentTrackSaved =
-                  await _guard(() => _spotifyService.isTrackSaved(newId));
-              logger.d(
-                  'refreshCurrentTrack: Fetched save state for new track $newId: $isCurrentTrackSaved');
-              if (track['context'] != null) {
-                final enrichedContext = await _enrichPlayContext(
-                    Map<String, dynamic>.from(track['context']));
-                currentTrack!['context'] = enrichedContext;
-                logger.d(
-                    'refreshCurrentTrack: Enriched context for new track $newId.');
-
-                // 保存播放上下文到本地数据库
-                try {
-                  final context = navigatorKey.currentContext;
-                  if (context != null && context.mounted) {
-                    final localDbProvider = Provider.of<LocalDatabaseProvider>(
-                        context,
-                        listen: false);
-                    await localDbProvider.insertOrUpdatePlayContext(
-                      contextUri: enrichedContext['uri'] as String,
-                      contextType: enrichedContext['type'] as String,
-                      contextName: enrichedContext['name'] as String,
-                      imageUrl:
-                          (enrichedContext['images'] as List?)?.isNotEmpty ==
-                                  true
-                              ? enrichedContext['images'][0]['url'] as String?
-                              : null,
-                      lastPlayedAt: DateTime.now().millisecondsSinceEpoch,
-                    );
-                    logger.d(
-                        'refreshCurrentTrack: Saved play context to local database: ${enrichedContext['uri']}');
-                  }
-                } catch (dbError) {
-                  logger.e(
-                      'refreshCurrentTrack: Failed to save play context to database',
-                      error: dbError);
-                  // 不重新抛出错误，以免影响其他功能
-                }
-              }
-            } catch (e) {
-              logger.e(
-                  'refreshCurrentTrack: Failed to fetch save state or enrich context for new track $newId',
-                  error: e);
-            }
-          } else if (newContextUri != null) {
-            Map<String, dynamic>? contextFromApi;
-            if (currentTrack!['context'] is Map<String, dynamic>) {
-              contextFromApi = Map<String, dynamic>.from(
-                  currentTrack!['context'] as Map<String, dynamic>);
-            }
-
-            final hasContextName = contextFromApi != null &&
-                (contextFromApi['name'] is String) &&
-                (contextFromApi['name'] as String).trim().isNotEmpty;
-
-            if (!hasContextName) {
-              Map<String, dynamic>? enrichedContext;
-              if (track['context'] is Map<String, dynamic>) {
-                try {
-                  enrichedContext = await _enrichPlayContext(
-                      Map<String, dynamic>.from(
-                          track['context'] as Map<String, dynamic>));
-                  currentTrack!['context'] = enrichedContext;
-                  logger.d(
-                      'refreshCurrentTrack: Enriched missing context metadata for $newContextUri.');
-                } catch (e) {
-                  logger.w(
-                      'refreshCurrentTrack: Failed to enrich missing context metadata for $newContextUri',
-                      error: e);
-                }
-              }
-
-              if ((currentTrack!['context']?['name'] as String?)?.isEmpty ??
-                  true) {
-                if (previousContext != null &&
-                    previousContext['uri'] == newContextUri &&
-                    (previousContext['name'] as String?)?.isNotEmpty == true) {
-                  currentTrack!['context'] = previousContext;
-                  logger.t(
-                      'refreshCurrentTrack: Reused cached context metadata for $newContextUri.');
-                } else if (contextFromApi != null) {
-                  currentTrack!['context'] = contextFromApi;
-                }
-              }
-            } else {
-              // hasContextName is true, so contextFromApi is guaranteed non-null
-              currentTrack!['context'] = contextFromApi;
-            }
-          }
-        } else if (currentTrack != null &&
-            progressFromApi != null &&
-            progressFromApi != oldProgressMs) {
-          currentTrack!['progress_ms'] = progressFromApi;
-          if (currentTrack!['is_playing'] == true) {
-            _lastProgressUpdate = DateTime.now();
-          }
-          needsNotify = true;
-          logger.d(
-              'refreshCurrentTrack: Calibrated progress_ms from API to $progressFromApi. Reset _lastProgressUpdate: $_lastProgressUpdate');
-        }
-
-        if (needsNotify) {
-          logger.d('refreshCurrentTrack: Calling notifyListeners()');
-          _notifyCategory('track');
-          _lastProgressNotify = DateTime.now();
-
-          // 预加载播放相关的封面图片
-          _triggerImagePreload();
-        }
-      } else if (currentTrack != null) {
-        logger.d(
-            'refreshCurrentTrack: API returned null, clearing currentTrack.');
-        currentTrack = null;
-        isCurrentTrackSaved = null;
-        _lastProgressNotify = null;
-        _notifyCategory('track');
-      }
+      await _playbackManager.refreshCurrentTrack(
+        fetchTrack: () async => track,
+        checkTrackSaved: (trackId) async {
+          return _guard(() => _spotifyService.isTrackSaved(trackId));
+        },
+        enrichContext: _enrichPlayContext,
+        savePlayContext: _savePlayContextToDatabase,
+        onTrackChanged: _persistLastPlayedTrackInfo,
+        onTrackUpdated: _triggerImagePreload,
+      );
     } catch (e) {
       logger.e('Error in refreshCurrentTrack: $e');
 
@@ -1169,21 +985,12 @@ class SpotifyProvider extends ChangeNotifier {
       logger.d('iOS回调：token已保存到安全存储');
 
       // 立即获取用户资料并更新状态
-      try {
-        final userProfile =
-            await _guard(() => _spotifyService.getUserProfile());
-        username = userProfile['display_name'];
+      final refreshed = await _refreshUserProfile();
+      if (refreshed) {
         logger.d('iOS回调：成功获取用户资料: $username');
-
-        // 启动定时器
-        startTrackRefresh();
-
-        // 触发UI更新
-        _notifyCategory('default');
-
         logger.i('iOS回调：成功保存access token并更新用户状态');
-      } catch (profileError) {
-        logger.e('iOS回调：获取用户资料失败: $profileError');
+      } else {
+        logger.e('iOS回调：获取用户资料失败');
         // 即使获取用户资料失败，也要触发token刷新回调
         try {
           await _guard(() async => _spotifyService.onTokenRefreshed?.call());
@@ -1232,23 +1039,27 @@ class SpotifyProvider extends ChangeNotifier {
     _notifyCategory('default');
 
     try {
-      if (!_isInitialized) {
-        _bootstrap();
-      }
-      // It's possible _bootstrap failed if not handled well,
-      // but let's assume it sets _isInitialized correctly or throws.
-      if (!_isInitialized) {
-        // This case should ideally not be reached if _bootstrap is robust
+      final initialized = await _ensureInitializedSafe();
+      if (!initialized) {
         return;
       }
 
-      // 自动登录允许一次交互式获取 token（可能会拉起 Spotify 授权界面）
+      // 自动登录允许通过 SDK 刷新 token
+      // Spotify SDK 的 getAccessToken() 在用户之前授权过的情况下通常是静默的
+      // 只有首次授权或用户撤销授权时才会弹出 UI
       final token =
           await _guard(() => _spotifyService.ensureFreshToken(interactive: true));
       if (token != null) {
         logger.d('自动登录：使用现有token成功');
-        await _refreshUserProfile();
-        await updateWidget();
+        final refreshed = await _refreshUserProfile();
+        if (refreshed) {
+          await updateWidget();
+        } else {
+          logger.w('自动登录：token存在但刷新资料失败，保持登出状态');
+          if (username != null) {
+            username = null;
+          }
+        }
       } else {
         // No token, ensure user is in a logged-out state if they weren't already
         logger.d('自动登录：未找到有效token，保持登出状态');
@@ -1259,12 +1070,20 @@ class SpotifyProvider extends ChangeNotifier {
       }
     } catch (e) {
       logger.w('自动登录失败: $e');
-      if (e is SpotifyAuthException && e.code != 'AUTH_CANCELLED') {
-        // 标记授权失败，触发冷却，避免反复弹窗
-        _isAuthFailed = true;
-        _lastAuthFailure = DateTime.now();
-        _authFailureCount++;
-        logger.w('自动登录授权失败计数: $_authFailureCount / $_maxAuthRetries');
+      if (e is SpotifyAuthException) {
+        if (e.code == 'AUTH_CANCELLED') {
+          // 用户取消也设置短冷却期，避免频繁切换应用时反复弹窗
+          _isAuthFailed = true;
+          _lastAuthFailure = DateTime.now();
+          // 但不增加失败计数，用户主动登录时可以重试
+          logger.d('用户取消授权，设置冷却期');
+        } else {
+          // 其他错误，标记授权失败，触发冷却
+          _isAuthFailed = true;
+          _lastAuthFailure = DateTime.now();
+          _authFailureCount++;
+          logger.w('自动登录授权失败计数: $_authFailureCount / $_maxAuthRetries');
+        }
       }
       if (username != null) {
         username = null;
@@ -1286,11 +1105,9 @@ class SpotifyProvider extends ChangeNotifier {
     _notifyCategory('default');
 
     try {
+      await _ensureInitialized();
       if (!_isInitialized) {
-        _bootstrap();
-        if (!_isInitialized) {
-          throw SpotifyAuthException('SpotifyService 初始化失败');
-        }
+        throw SpotifyAuthException('SpotifyService 初始化失败');
       }
 
       logger.d('开始Spotify登录流程');
@@ -1593,17 +1410,13 @@ class SpotifyProvider extends ChangeNotifier {
       return;
     }
     try {
-      _isSkipping = true;
-      logger.d('seekToPosition: 调用 _spotifyService.seekToPosition()');
-      await _guard(() =>
-          _spotifyService.seekToPosition(Duration(milliseconds: positionMs)));
-      logger.d('seekToPosition: _spotifyService.seekToPosition() 调用成功');
+      logger.d('seekToPosition: 调用播放控制器');
+      await _playbackManager.seekToPosition(positionMs);
     } catch (e) {
       logger.e('seekToPosition: 捕获错误', error: e);
       await _handleApiError(e,
           contextMessage: '跳转到指定位置', isUserInitiated: true);
     } finally {
-      _isSkipping = false;
       logger.d('seekToPosition: 刷新当前曲目信息');
       await refreshCurrentTrack();
       logger.d('seekToPosition: 成功完成，当前进度: ${currentTrack?['progress_ms']}');
@@ -1617,15 +1430,12 @@ class SpotifyProvider extends ChangeNotifier {
       return;
     }
     try {
-      _isSkipping = true;
-      logger.d('skipToNext: 调用 _spotifyService.skipToNext()');
-      await _guard(() => _spotifyService.skipToNext());
-      logger.d('skipToNext: _spotifyService.skipToNext() 调用成功');
+      logger.d('skipToNext: 调用播放控制器');
+      await _playbackManager.skipToNext();
     } catch (e) {
       logger.e('skipToNext: 捕获错误', error: e);
       await _handleApiError(e, contextMessage: '播放下一首', isUserInitiated: true);
     } finally {
-      _isSkipping = false;
       logger.d('skipToNext: 刷新当前曲目信息');
       await refreshCurrentTrack();
       logger.d('skipToNext: 成功完成');
@@ -1639,15 +1449,12 @@ class SpotifyProvider extends ChangeNotifier {
       return;
     }
     try {
-      _isSkipping = true;
-      logger.d('skipToPrevious: 调用 _spotifyService.skipToPrevious()');
-      await _guard(() => _spotifyService.skipToPrevious());
-      logger.d('skipToPrevious: _spotifyService.skipToPrevious() 调用成功');
+      logger.d('skipToPrevious: 调用播放控制器');
+      await _playbackManager.skipToPrevious();
     } catch (e) {
       logger.e('skipToPrevious: 捕获错误', error: e);
       await _handleApiError(e, contextMessage: '播放上一首', isUserInitiated: true);
     } finally {
-      _isSkipping = false;
       logger.d('skipToPrevious: 刷新当前曲目信息');
       await refreshCurrentTrack();
       logger.d('skipToPrevious: 成功完成');
@@ -1655,149 +1462,28 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   Future<void> toggleTrackSave() async {
-    if (currentTrack == null || currentTrack!['item'] == null) return;
-
-    final trackId = currentTrack!['item']['id'];
-    final originalState = isCurrentTrackSaved; // 记录原始状态以便出错时恢复
-
     try {
-      // Optimistically update UI first for responsiveness
-      isCurrentTrackSaved = !(isCurrentTrackSaved ?? false);
-      _notifyCategory('track');
-
-      // Call the API to toggle the save state
-      await _guard(() => _spotifyService.toggleTrackSave(trackId));
-
-      // Immediately fetch the actual state from Spotify to confirm
-      final actualState =
-          await _guard(() => _spotifyService.isTrackSaved(trackId));
-
-      // If the actual state differs from the optimistic update, correct it
-      if (isCurrentTrackSaved != actualState) {
-        isCurrentTrackSaved = actualState;
-        _notifyCategory('track');
-      }
-
-      // Optional: Add a very short delay ONLY if needed due to API eventual consistency
-      // await Future.delayed(const Duration(milliseconds: 200));
-      // final finalState = await _spotifyService.isTrackSaved(trackId);
-      // if (finalState != isCurrentTrackSaved) {
-      //   isCurrentTrackSaved = finalState;
-      //   notifyListeners();
-      // }
+      await _playbackManager.toggleTrackSave();
     } catch (e) {
-      // debugPrint('切换收藏状态失败: $e');
-      // Revert to the original state on error
-      if (isCurrentTrackSaved != originalState) {
-        isCurrentTrackSaved = originalState;
-        _notifyCategory('track');
-      }
-      // Optionally re-check the state after error
-      // try {
-      //   isCurrentTrackSaved = await _spotifyService.isTrackSaved(trackId);
-      //   _notifyCategory('track');
-      // } catch (recheckError) {
-      //   print('重新检查收藏状态失败: $recheckError');
-      // }
       await _handleApiError(e, contextMessage: '切换收藏状态', isUserInitiated: true);
     }
   }
 
-  List<Map<String, dynamic>> upcomingTracks = [];
-
-  bool _queuesDiffer(List<Map<String, dynamic>> newQueue) {
-    if (newQueue.length != upcomingTracks.length) {
-      return true;
-    }
-
-    for (var i = 0; i < math.min(newQueue.length, upcomingTracks.length); i++) {
-      final newUri = newQueue[i]['uri'];
-      final oldUri = upcomingTracks[i]['uri'];
-      if (newUri != oldUri) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   Future<void> refreshPlaybackQueue() async {
     try {
-      final queue = await _guard(() => _spotifyService.getPlaybackQueue());
-      final rawQueue = List<Map<String, dynamic>>.from(queue['queue'] ?? []);
-
-      final queueChanged = _queuesDiffer(rawQueue);
-
-      if (!queueChanged) {
-        return;
-      }
-
-      // 移除队列长度限制
-      upcomingTracks = rawQueue;
-
-      // 更安全地获取下一首歌曲
-      nextTrack = upcomingTracks.isNotEmpty ? upcomingTracks.first : null;
-
-      if (!_isQueuePrefetchRunning) {
-        _isQueuePrefetchRunning = true;
-        Future(() async {
-          try {
-            await _cacheQueueImages();
-          } finally {
-            _isQueuePrefetchRunning = false;
-          }
-        });
-      }
-
-      _notifyCategory('queue');
-
-      // 队列更新后触发图片预加载
-      _triggerImagePreload();
+      await _playbackManager.refreshPlaybackQueue(
+        onQueueUpdated: _triggerImagePreload,
+      );
     } catch (e) {
       // debugPrint('刷新播放队列失败: $e');
       await _handleApiError(e, contextMessage: '刷新播放队列');
-      upcomingTracks = [];
-      nextTrack = null;
-      _notifyCategory('queue');
-    }
-  }
-
-  // 批量缓存队列图片
-  Future<void> _cacheQueueImages() async {
-    try {
-      final imagesToCache = upcomingTracks
-          .map((track) => track['album']?['images']?[0]?['url'] as String?)
-          .whereType<String>()
-          .where((url) => !_imageCache.containsKey(url))
-          .take(6)
-          .toList();
-
-      for (final imageUrl in imagesToCache) {
-        await _preloadImage(imageUrl);
-      }
-    } catch (e) {
-      // debugPrint('批量缓存队列图片失败: $e');
     }
   }
 
   // 获取当前播放模式
   Future<void> syncPlaybackMode() async {
     try {
-      final state = await _guard(() => _spotifyService.getPlaybackState());
-      final repeatMode = state['repeat_state'];
-      final isShuffling = state['shuffle_state'] ?? false;
-
-      // 如果用户设置了其他模式组合，默认转为顺序播放
-      if (repeatMode == 'track' && !isShuffling) {
-        _currentMode = PlayMode.singleRepeat;
-      } else if (repeatMode == 'context' && !isShuffling) {
-        _currentMode = PlayMode.sequential;
-      } else if (repeatMode == 'context' && isShuffling) {
-        _currentMode = PlayMode.shuffle;
-      } else {
-        // 其他情况默认设置为顺序播放
-        await setPlayMode(PlayMode.sequential);
-      }
-      _notifyCategory('track');
+      await _playbackManager.syncPlaybackMode();
     } catch (e) {
       // debugPrint('同步播放模式失败: $e');
       await _handleApiError(e, contextMessage: '同步播放模式');
@@ -1807,23 +1493,10 @@ class SpotifyProvider extends ChangeNotifier {
   // 设置播放模式
   Future<void> setPlayMode(PlayMode mode) async {
     try {
-      switch (mode) {
-        case PlayMode.singleRepeat:
-          await _guard(() => _spotifyService.setRepeatMode('track'));
-          await _guard(() => _spotifyService.setShuffle(false));
-          break;
-        case PlayMode.sequential:
-          await _guard(() => _spotifyService.setRepeatMode('context'));
-          await _guard(() => _spotifyService.setShuffle(false));
-          break;
-        case PlayMode.shuffle:
-          await _guard(() => _spotifyService.setRepeatMode('context'));
-          await _guard(() => _spotifyService.setShuffle(true));
-          break;
-      }
-      _currentMode = mode;
-      await refreshPlaybackQueue();
-      _notifyCategory('track');
+      await _playbackManager.setPlayMode(
+        mode,
+        onQueueUpdated: _triggerImagePreload,
+      );
     } catch (e) {
       // debugPrint('设置播放模式失败: $e');
       await _handleApiError(e, contextMessage: '设置播放模式', isUserInitiated: true);
@@ -1832,22 +1505,12 @@ class SpotifyProvider extends ChangeNotifier {
 
   // 循环切换播放模式
   Future<void> togglePlayMode() async {
-    final nextMode =
-        PlayMode.values[(currentMode.index + 1) % PlayMode.values.length];
-    await setPlayMode(nextMode);
-  }
-
-  // 预加载图片的方法 (旧版保留用于兼容)
-  Future<void> _preloadImage(String? imageUrl) async {
-    if (imageUrl == null || _imageCache.containsKey(imageUrl)) return;
-    if (navigatorKey.currentContext == null) return; // Add null check
-
     try {
-      final imageProvider = CachedNetworkImageProvider(imageUrl);
-      await precacheImage(imageProvider, navigatorKey.currentContext!);
-      _imageCache[imageUrl] = imageUrl;
+      await _playbackManager.togglePlayMode(
+        onQueueUpdated: _triggerImagePreload,
+      );
     } catch (e) {
-      // debugPrint('预加载图片失败: $e');
+      await _handleApiError(e, contextMessage: '设置播放模式', isUserInitiated: true);
     }
   }
 
@@ -1877,8 +1540,8 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<Map<String, dynamic>> fetchAlbumDetails(String albumId,
       {bool forceRefresh = false}) async {
-    if (!forceRefresh && _albumCache.containsKey(albumId)) {
-      return _albumCache[albumId]!;
+    if (!forceRefresh && _cacheManager.isAlbumCached(albumId)) {
+      return _cacheManager.getCachedAlbum(albumId)!;
     }
 
     final albumRaw = await _guard(() => _spotifyService.getAlbum(albumId));
@@ -1917,14 +1580,14 @@ class SpotifyProvider extends ChangeNotifier {
     tracksSection['total'] = allTracks.length;
     albumData['tracks'] = tracksSection;
 
-    _albumCache[albumId] = albumData;
+    _cacheManager.cacheAlbum(albumId, albumData);
     return albumData;
   }
 
   Future<Map<String, dynamic>> fetchPlaylistDetails(String playlistId,
       {bool forceRefresh = false}) async {
-    if (!forceRefresh && _playlistCache.containsKey(playlistId)) {
-      return _playlistCache[playlistId]!;
+    if (!forceRefresh && _cacheManager.isPlaylistCached(playlistId)) {
+      return _cacheManager.getCachedPlaylist(playlistId)!;
     }
 
     final playlistRaw =
@@ -1979,7 +1642,7 @@ class SpotifyProvider extends ChangeNotifier {
     tracksSection['total'] = allTracks.length;
     playlistData['tracks'] = tracksSection;
 
-    _playlistCache[playlistId] = playlistData;
+    _cacheManager.cachePlaylist(playlistId, playlistData);
     return playlistData;
   }
 
@@ -2092,10 +1755,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     try {
-      _refreshTimer?.cancel();
-      _refreshTimer = null;
-      _progressTimer?.cancel();
-      _progressTimer = null;
+      _playbackManager.clear();
 
       // 注销时重置loading状态
       if (isLoading) {
@@ -2104,22 +1764,15 @@ class SpotifyProvider extends ChangeNotifier {
       }
 
       username = null;
-      currentTrack = null;
-      previousTrack = null;
-      nextTrack = null;
-      isCurrentTrackSaved = null;
       _availableDevices.clear();
       _activeDeviceId = null;
-      upcomingTracks.clear();
-      // Keep image cache across login sessions to avoid reloading
-      // _imageCache.clear(); // OPTIMIZATION: Don't clear image cache on logout
       _recentAlbums.clear();
       _recentPlaylists.clear();
-      _albumCache.clear();
-      _playlistCache.clear();
+      // 清除专辑和播放列表缓存，但保留图片缓存以便跨会话复用
+      _cacheManager.clearAllCaches();
 
-      if (!_isInitialized) _bootstrap();
-      if (_isInitialized) {
+      final initialized = await _ensureInitializedSafe();
+      if (initialized) {
         await _guard(() => _spotifyService.logout());
       }
 
@@ -2352,7 +2005,7 @@ class SpotifyProvider extends ChangeNotifier {
   /// Get authenticated headers from the Spotify service
   Future<Map<String, String>> getAuthenticatedHeaders() async {
     // Ensure service is initialized
-    if (!_isInitialized) _bootstrap();
+    await _ensureInitialized();
     if (!_isInitialized) throw Exception('Spotify Service not initialized.');
     return await _guard(() => _spotifyService.getAuthenticatedHeaders());
   }
@@ -2551,16 +2204,14 @@ class SpotifyProvider extends ChangeNotifier {
   Future<Map<String, List<Map<String, dynamic>>>> searchItems(String query,
       {List<String> types = const ['track', 'album', 'artist', 'playlist'],
       int limit = 20}) async {
-    if (!_isInitialized) {
-      _bootstrap();
-    }
+    if (query.trim().isEmpty) return {};
+
+    await _ensureInitialized();
     if (!_isInitialized) {
       throw Exception('Spotify service could not be initialized.');
     }
 
     try {
-      if (query.trim().isEmpty) return {};
-
       // Call the search method in SpotifyAuthService
       // Pass types as the second argument, and limit as a named argument
       final response = await _guard(
@@ -2700,7 +2351,8 @@ class SpotifyProvider extends ChangeNotifier {
       logger.w('检测到网络错误 (连续第 $_consecutiveNetworkErrors 次): $errorString');
 
       // 如果连续网络错误超过3次，暂停定时刷新一段时间
-      if (_consecutiveNetworkErrors >= 3 && _refreshTimer != null) {
+      if (_consecutiveNetworkErrors >= 3 &&
+          _playbackManager.isRefreshTimerActive) {
         // 仅当定时器存在时才操作
         logger.w('连续网络错误过多，暂停定时刷新30秒');
         _pauseRefreshTimerTemporarily();
@@ -2719,11 +2371,11 @@ class SpotifyProvider extends ChangeNotifier {
 
   /// 暂时暂停刷新定时器
   void _pauseRefreshTimerTemporarily() {
-    _refreshTimer?.cancel();
+    _playbackManager.stopRefreshTimer();
 
     // 30秒后重新启动定时器
     Future.delayed(const Duration(seconds: 30), () {
-      if (username != null && _refreshTimer == null) {
+      if (username != null && !_playbackManager.isRefreshTimerActive) {
         logger.i('网络错误恢复期结束，重新启动定时刷新');
         startTrackRefresh();
       }
@@ -2777,8 +2429,7 @@ class SpotifyProvider extends ChangeNotifier {
             textColor: Colors.white,
             onPressed: () {
               // 停止定时器，避免继续重试
-              _refreshTimer?.cancel();
-              _refreshTimer = null;
+              _playbackManager.stopRefreshTimer();
             },
           ),
         ),
@@ -2832,6 +2483,9 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  /// 处理 API 错误的主入口方法
+  ///
+  /// 根据错误类型分发到对应的处理方法
   Future<void> _handleApiError(dynamic e,
       {String? contextMessage, bool isUserInitiated = false}) async {
     final message = contextMessage ?? 'API 调用';
@@ -2841,162 +2495,230 @@ class SpotifyProvider extends ChangeNotifier {
 
     // 检查是否为网络连接错误
     if (_isNetworkError(e)) {
-      logger.w('$message 遇到网络连接错误: $e');
-      _showNetworkSnackBarIfNeeded(isUserInitiated);
+      _handleNetworkError(e, message, isUserInitiated);
       return;
     }
 
-    if (e is SpotifyAuthException && e.code == '401') {
-      logger.w('检测到401认证错误，尝试智能恢复...');
-      logger.i('$message 遇到 401，尝试静默续约/重连...');
-      try {
-        final token = await _guard(() => _spotifyService.getAccessToken());
-        if (token != null) {
-          try {
-            // Re-fetch user profile and re-initialize session state
-            final userProfile =
-                await _guard(() => _spotifyService.getUserProfile());
-            username = userProfile['display_name'];
-            _notifyCategory('default');
-            startTrackRefresh();
-          } catch (profileError) {
-            await logout();
-            throw SpotifyAuthException('会话已恢复但无法获取用户信息，请重新登录。',
-                code: 'PROFILE_FETCH_ERROR_AFTER_REFRESH');
-          }
-          return; // Silent refresh succeeded
-        }
-        // Token 为 null，视为真正过期
-        _isAuthFailed = true;
-        _lastAuthFailure = DateTime.now();
-        _authFailureCount++;
-        logger.w('授权失败计数: $_authFailureCount / $_maxAuthRetries');
-        await logout();
-        throw SpotifyAuthException('会话已过期，请重新登录', code: 'SESSION_EXPIRED');
-      } on SpotifyAuthException catch (refreshError) {
-        // 针对刷新阶段的特定错误进行细分处理
-        if (refreshError.code == 'TOKEN_REFRESH_FAILED_NETWORK') {
-          logger.w('静默刷新失败：网络异常，保持当前登录状态');
-          _showNetworkSnackBarIfNeeded(isUserInitiated);
+    // 根据错误类型分发处理
+    if (e is SpotifyAuthException) {
+      switch (e.code) {
+        case '401':
+          await _handle401AuthError(e, message, isUserInitiated);
           return;
-        }
-
-        if (refreshError.code == 'AUTH_CANCELLED') {
-          logger.i('静默刷新被取消，保持当前状态');
+        case '403':
+          await _handle403PermissionError(e, message);
           return;
-        }
-
-        if (refreshError.code == 'IOS_CONNECTION_FAILED') {
-          _notifyUser(
-            '无法连接 Spotify，请确认已安装并登录 Spotify 应用后重试。',
-            severityColor: Colors.orange,
-          );
+        case '415':
+          _handle415BadRequestError(e);
           return;
-        }
+      }
+    }
 
-        if (refreshError.code == 'CONFIG_ERROR') {
-          _notifyUser('Spotify SDK 配置异常，请检查客户端 ID / Redirect URI 设置。');
-          rethrow;
-        }
+    // 其他未知错误
+    _handleUnknownError(e, message);
+  }
 
-        // 未知错误，回退到要求用户重新登录，但不立即清除状态
+  /// 处理网络连接错误
+  void _handleNetworkError(dynamic e, String message, bool isUserInitiated) {
+    logger.w('$message 遇到网络连接错误: $e');
+    _showNetworkSnackBarIfNeeded(isUserInitiated);
+  }
+
+  /// 处理 401 认证错误
+  ///
+  /// 尝试静默刷新 token，失败则要求重新登录
+  Future<void> _handle401AuthError(
+      SpotifyAuthException e, String message, bool isUserInitiated) async {
+    logger.w('检测到401认证错误，尝试智能恢复...');
+    logger.i('$message 遇到 401，尝试静默续约/重连...');
+
+    try {
+      final token = await _guard(() => _spotifyService.getAccessToken());
+      if (token != null) {
+        await _restoreSessionAfterTokenRefresh();
+        return; // Silent refresh succeeded
+      }
+      // Token 为 null，视为真正过期
+      await _handleSessionExpired();
+      throw SpotifyAuthException('会话已过期，请重新登录', code: 'SESSION_EXPIRED');
+    } on SpotifyAuthException catch (refreshError) {
+      await _handleTokenRefreshError(refreshError, isUserInitiated);
+    }
+  }
+
+  /// Token 刷新成功后恢复会话状态
+  Future<void> _restoreSessionAfterTokenRefresh() async {
+    try {
+      final userProfile =
+          await _guard(() => _spotifyService.getUserProfile());
+      username = userProfile['display_name'];
+      _notifyCategory('default');
+      startTrackRefresh();
+    } catch (profileError) {
+      await logout();
+      throw SpotifyAuthException('会话已恢复但无法获取用户信息，请重新登录。',
+          code: 'PROFILE_FETCH_ERROR_AFTER_REFRESH');
+    }
+  }
+
+  /// 处理会话过期
+  Future<void> _handleSessionExpired() async {
+    _isAuthFailed = true;
+    _lastAuthFailure = DateTime.now();
+    _authFailureCount++;
+    logger.w('授权失败计数: $_authFailureCount / $_maxAuthRetries');
+    await logout();
+  }
+
+  /// 处理 Token 刷新过程中的错误
+  Future<void> _handleTokenRefreshError(
+      SpotifyAuthException refreshError, bool isUserInitiated) async {
+    switch (refreshError.code) {
+      case 'TOKEN_REFRESH_FAILED_NETWORK':
+        logger.w('静默刷新失败：网络异常，保持当前登录状态');
+        _showNetworkSnackBarIfNeeded(isUserInitiated);
+        return;
+
+      case 'AUTH_CANCELLED':
+        logger.i('静默刷新被取消，保持当前状态');
+        return;
+
+      case 'IOS_CONNECTION_FAILED':
+        _notifyUser(
+          '无法连接 Spotify，请确认已安装并登录 Spotify 应用后重试。',
+          severityColor: Colors.orange,
+        );
+        return;
+
+      case 'CONFIG_ERROR':
+        _notifyUser('Spotify SDK 配置异常，请检查客户端 ID / Redirect URI 设置。');
+        throw refreshError;
+
+      default:
+        // 未知错误，回退到要求用户重新登录
         _isAuthFailed = true;
         _lastAuthFailure = DateTime.now();
         _authFailureCount++;
         logger.w('授权失败计数: $_authFailureCount / $_maxAuthRetries');
         throw SpotifyAuthException('无法刷新会话，请重新登录', code: 'SESSION_EXPIRED');
+    }
+  }
+
+  /// 处理 403 权限错误
+  Future<void> _handle403PermissionError(
+      SpotifyAuthException e, String message) async {
+    logger.w('$message 遇到 403: ${e.message}');
+    final context = navigatorKey.currentContext;
+    final lowerCaseMessage = e.message.toLowerCase();
+
+    // 处理 insufficient_client_scope 错误
+    if (_isInsufficientScopeError(lowerCaseMessage)) {
+      await _handleInsufficientScopeError(context);
+      return;
+    }
+
+    // 处理其他 403 错误
+    if (context != null && context.mounted) {
+      final handled = _showKnown403ErrorMessage(context, lowerCaseMessage, e);
+      if (handled) return;
+    }
+
+    throw e;
+  }
+
+  /// 检查是否为权限范围不足错误
+  bool _isInsufficientScopeError(String lowerCaseMessage) {
+    return lowerCaseMessage.contains('insufficient') &&
+        (lowerCaseMessage.contains('scope') ||
+            lowerCaseMessage.contains('client'));
+  }
+
+  /// 处理权限范围不足错误，尝试重新登录
+  Future<void> _handleInsufficientScopeError(BuildContext? context) async {
+    logger.w('检测到 insufficient_client_scope 错误，触发重新登录');
+
+    if (context != null && context.mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.insufficientPermissionsReauth),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    try {
+      await login();
+      logger.i('insufficient_client_scope: 重新登录成功，返回允许重试');
+    } catch (loginError) {
+      logger.e('insufficient_client_scope: 重新登录失败: $loginError');
+      if (context != null && context.mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.reauthFailedManualLogin),
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
-    } else if (e is SpotifyAuthException &&
-        (e.code == '403' || e.code == '415')) {
-      logger.w('$message 遇到 ${e.code}: ${e.message}');
-      final context = navigatorKey.currentContext;
+      throw SpotifyAuthException('权限范围不足且重新登录失败，请手动重新登录',
+          code: 'SESSION_EXPIRED');
+    }
+  }
 
-      if (e.code == '403') {
-        final lowerCaseMessage = e.message.toLowerCase();
+  /// 显示已知的 403 错误消息
+  ///
+  /// 返回 true 表示错误已处理，不需要重新抛出
+  bool _showKnown403ErrorMessage(
+      BuildContext context, String lowerCaseMessage, SpotifyAuthException e) {
+    String displayMessage;
+    bool isHandledKnown403 = false;
 
-        // 特别处理 insufficient_client_scope 错误
-        if (lowerCaseMessage.contains('insufficient') &&
-            (lowerCaseMessage.contains('scope') ||
-                lowerCaseMessage.contains('client'))) {
-          logger.w('检测到 insufficient_client_scope 错误，触发重新登录: ${e.message}');
+    if (lowerCaseMessage.contains('premium')) {
+      displayMessage = '此操作需要 Spotify Premium 会员。';
+      isHandledKnown403 = true;
+    } else if (lowerCaseMessage.contains('restricted') ||
+        lowerCaseMessage.contains('restriction violated')) {
+      final l10n = AppLocalizations.of(context)!;
+      displayMessage = l10n.deviceOperationNotSupported;
+      isHandledKnown403 = true;
+    } else {
+      displayMessage = '权限不足 (403): ${e.message}';
+    }
 
-          if (context != null && context.mounted) {
-            final l10n = AppLocalizations.of(context)!;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(l10n.insufficientPermissionsReauth),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(displayMessage)),
+    );
 
-          try {
-            // 强制重新登录以获取完整的scope
-            await login();
-            logger.i('insufficient_client_scope: 重新登录成功，返回允许重试');
-            return; // 允许调用方重试原始操作
-          } catch (loginError) {
-            logger.e('insufficient_client_scope: 重新登录失败: $loginError');
-            if (context != null && context.mounted) {
-              final l10n = AppLocalizations.of(context)!;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.reauthFailedManualLogin),
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
-            // 重新登录失败，抛出会话过期错误
-            throw SpotifyAuthException('权限范围不足且重新登录失败，请手动重新登录',
-                code: 'SESSION_EXPIRED');
-          }
-        }
+    if (isHandledKnown403) {
+      logger.i('已处理的403错误 (${e.message})，不再重新抛出。');
+    }
 
-        // 处理其他已知的403错误
-        if (context != null && context.mounted) {
-          String displayMessage;
-          bool isHandledKnown403 = false;
+    return isHandledKnown403;
+  }
 
-          if (lowerCaseMessage.contains('premium')) {
-            displayMessage = '此操作需要 Spotify Premium 会员。';
-            isHandledKnown403 = true;
-          } else if (lowerCaseMessage.contains('restricted') ||
-              lowerCaseMessage.contains('restriction violated')) {
-            final l10n = AppLocalizations.of(context)!;
-            displayMessage = l10n.deviceOperationNotSupported;
-            isHandledKnown403 = true;
-          } else {
-            displayMessage = '权限不足 (403): ${e.message}';
-          }
+  /// 处理 415 错误请求
+  void _handle415BadRequestError(SpotifyAuthException e) {
+    logger.w('遇到 415 错误: ${e.message}');
+    final context = navigatorKey.currentContext;
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(displayMessage)),
-          );
+    if (context != null && context.mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.badRequestError(e.code ?? 'UNKNOWN'))),
+      );
+    }
 
-          // 对于已知的403错误，不重新抛出
-          if (isHandledKnown403) {
-            logger.i('已处理的403错误 (${e.message})，不再重新抛出。');
-            return;
-          }
-        }
-      } else {
-        // 415 或其他错误码
-        if (context != null && context.mounted) {
-          final l10n = AppLocalizations.of(context)!;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.badRequestError(e.code ?? 'UNKNOWN'))),
-          );
-        }
-      }
+    throw e;
+  }
 
+  /// 处理未知错误
+  void _handleUnknownError(dynamic e, String message) {
+    logger.e('$message 遇到其他错误，将重新抛出: $e');
+    if (e is Exception) {
       throw e;
     } else {
-      logger.e('$message 遇到其他错误，将重新抛出: $e');
-      if (e is Exception) {
-        throw e;
-      } else {
-        throw Exception('$message 发生未知错误: $e');
-      }
+      throw Exception('$message 发生未知错误: $e');
     }
   }
 }
