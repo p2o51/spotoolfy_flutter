@@ -36,14 +36,25 @@ class LyricLine {
   LyricLine(this.timestamp, this.text, {this.translation});
 }
 
-class _LyricsPlaybackSnapshot {
+class _LyricsStateSnapshot {
   final String? trackId;
-  final int progressMs;
+  final int currentLineIndex;
 
-  const _LyricsPlaybackSnapshot({
+  const _LyricsStateSnapshot({
     required this.trackId,
-    required this.progressMs,
+    required this.currentLineIndex,
   });
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _LyricsStateSnapshot &&
+        other.trackId == trackId &&
+        other.currentLineIndex == currentLineIndex;
+  }
+
+  @override
+  int get hashCode => Object.hash(trackId, currentLineIndex);
 }
 
 class LyricsWidget extends StatefulWidget {
@@ -1438,7 +1449,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final l10n = AppLocalizations.of(context)!;
 
     // Use Selector to react only to playback changes that affect lyrics
-    return Selector<SpotifyProvider, _LyricsPlaybackSnapshot>(
+    return Selector<SpotifyProvider, _LyricsStateSnapshot>(
       selector: (context, provider) {
         final currentTrack = provider.currentTrack;
         final trackId = currentTrack?['item']?['id']?.toString();
@@ -1446,17 +1457,23 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final progressMs = rawProgress is int
             ? rawProgress
             : int.tryParse(rawProgress?.toString() ?? '') ?? 0;
-        return _LyricsPlaybackSnapshot(
+
+        // Use the method on the STATE object, not the widget/snapshot
+        // _getCurrentLineIndex is an instance method of _LyricsWidgetState
+        final currentPosition = Duration(milliseconds: progressMs);
+        final lineIndex = _getCurrentLineIndex(currentPosition);
+
+        return _LyricsStateSnapshot(
           trackId: trackId,
-          progressMs: progressMs,
+          currentLineIndex: lineIndex,
         );
       },
       shouldRebuild: (previous, next) =>
           previous.trackId != next.trackId ||
-          previous.progressMs != next.progressMs,
-      builder: (context, playbackSnapshot, child) {
+          previous.currentLineIndex != next.currentLineIndex,
+      builder: (context, snapshot, child) {
         // _logger.d('[LyricsBuilder] Build Start - PrevIdx: $_previousLineIndex'); // Log builder start
-        final currentTrackId = playbackSnapshot.trackId;
+        final currentTrackId = snapshot.trackId;
         final bool trackJustChanged = (currentTrackId != _lastTrackId);
 
         // 1. Handle track change: Load lyrics if track ID changes
@@ -1474,13 +1491,11 @@ class _LyricsWidgetState extends State<LyricsWidget>
         _syncLineKeys(_lyrics.length);
         _scheduleScrollabilityCheck();
 
-        // 2. Calculate latest position and index based on provider state
-        final latestPosition =
-            Duration(milliseconds: playbackSnapshot.progressMs);
-        final currentLineIndex = _getCurrentLineIndex(latestPosition);
+        // 2. Get latest index from snapshot
+        final currentLineIndex = snapshot.currentLineIndex;
         final spotifyProvider =
             Provider.of<SpotifyProvider>(context, listen: false);
-        // _logger.d('[LyricsBuilder] Calculated Idx: $currentLineIndex (from ${currentProgressMs}ms)'); // Log calculated index
+        // _logger.d('[LyricsBuilder] Calculated Idx: $currentLineIndex'); // Log calculated index
 
         if (_autoScroll &&
             _lyrics.isNotEmpty &&
