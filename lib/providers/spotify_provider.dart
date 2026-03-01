@@ -141,18 +141,27 @@ class SpotifyProvider extends ChangeNotifier {
     if (imageUrl == null && trackName == null && artists == null) return;
     try {
       final sp = await SharedPreferences.getInstance();
+
+      // ⚡ Bolt Optimization: Use Future.wait to parallelize independent asynchronous SharedPreferences writes
+      final List<Future<bool>> futures = [];
+
       if (imageUrl != null && imageUrl != _lastPlayedImageUrl) {
-        await sp.setString(_lastPlayedImageKey, imageUrl);
+        futures.add(sp.setString(_lastPlayedImageKey, imageUrl));
         _lastPlayedImageUrl = imageUrl;
       }
       if (trackName != null && trackName != _lastPlayedTrackName) {
-        await sp.setString(_lastPlayedTrackNameKey, trackName);
+        futures.add(sp.setString(_lastPlayedTrackNameKey, trackName));
         _lastPlayedTrackName = trackName;
       }
       if (artists != null && artists != _lastPlayedArtists) {
-        await sp.setString(_lastPlayedArtistsKey, artists);
+        futures.add(sp.setString(_lastPlayedArtistsKey, artists));
         _lastPlayedArtists = artists;
       }
+
+      if (futures.isNotEmpty) {
+        await Future.wait(futures);
+      }
+
       logger.d('已保存最后播放歌曲信息: $trackName - $artists');
     } catch (e) {
       logger.e('保存最后播放歌曲信息失败', error: e);
