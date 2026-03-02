@@ -162,9 +162,8 @@ class SongInfoService {
       final keys = prefs.getKeys();
       final songInfoKeys = keys.where((key) => key.startsWith(_songInfoCacheKeyPrefix));
       
-      for (final key in songInfoKeys) {
-        await prefs.remove(key);
-      }
+      final futures = songInfoKeys.map((key) => prefs.remove(key));
+      await Future.wait(futures);
       logger.d('Cached song info cleared');
     } catch (e) {
       logger.e('Error clearing cached song info: $e');
