@@ -255,11 +255,10 @@ $lyricsText
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
 
-      for (var key in keys) {
-        if (key.startsWith(_cacheKeyPrefix)) {
-          await prefs.remove(key);
-        }
-      }
+      final futures = keys
+          .where((key) => key.startsWith(_cacheKeyPrefix))
+          .map((key) => prefs.remove(key));
+      await Future.wait(futures);
     } catch (e) {
       logger.d('Failed to clear translation cache: $e');
     }
