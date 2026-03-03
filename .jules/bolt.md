@@ -1,0 +1,4 @@
+
+## 2026-03-03 - [Selector Rebuild Optimization]
+**Learning:** Provider `Selector` widgets will rebuild their entire subtree whenever the returned selector value changes. In `LyricsWidget`, listening directly to the raw, rapidly changing `progressMs` from `SpotifyProvider` caused continuous rebuilds several times a second during normal playback, severely impacting performance as the list of lyrics was constantly being re-rendered even when the active lyric line had not changed.
+**Action:** When using `Selector` with high-frequency streams (like playback progress), always compute the stable, derived state (e.g. `currentLineIndex`) *inside* the selector callback, and only return that stable state. This ensures the widget tree only rebuilds when the derived visual state actually changes (e.g. when moving to the next line), vastly reducing frame drops and CPU usage.

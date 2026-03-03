@@ -37,8 +37,8 @@ void main() {
               },
             },
           };
-          return http.Response(jsonEncode(response), 200,
-              headers: {'content-type': 'application/json'});
+          return http.Response.bytes(utf8.encode(jsonEncode(response)), 200,
+              headers: {'content-type': 'application/json; charset=utf-8'});
         }
 
         if (path.contains('fcg_query_lyric_new')) {
