@@ -1,0 +1,3 @@
+## 2024-05-24 - [Parallelize SharedPreferences Batch Removals]
+**Learning:** Sequential `await` calls in a loop for removing multiple keys from `SharedPreferences` can be slow. `SharedPreferences.remove` returns a `Future<bool>`, which allows us to collect these futures and run them concurrently using `Future.wait`.
+**Action:** When performing batch operations on `SharedPreferences` (like clearing a cache by key prefix), collect the `Future`s returned by `remove` (or `set`) into a list and await them all at once using `Future.wait(futures)` to optimize performance.

@@ -195,11 +195,17 @@ class LyricsService {
       final keys = prefs.getKeys();
 
       // 只清除歌词缓存的键
+      // ⚡ Bolt: 使用 Future.wait 并行处理清除操作以提高性能
+      final futures = <Future<bool>>[];
       for (var key in keys) {
         if (key.startsWith(_cacheKeyPrefix)) {
-          await prefs.remove(key);
+          futures.add(prefs.remove(key));
         }
       }
+      if (futures.isNotEmpty) {
+        await Future.wait(futures);
+      }
+
       _logger.i('歌词缓存已清除');
     } catch (e) {
       _logger.e('清除缓存失败: $e');
