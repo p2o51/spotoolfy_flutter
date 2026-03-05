@@ -194,12 +194,9 @@ class LyricsService {
       final prefs = await _getPrefs();
       final keys = prefs.getKeys();
 
-      // 只清除歌词缓存的键
-      for (var key in keys) {
-        if (key.startsWith(_cacheKeyPrefix)) {
-          await prefs.remove(key);
-        }
-      }
+      // 只清除歌词缓存的键，使用 Future.wait 并行删除以提高性能
+      final keysToRemove = keys.where((key) => key.startsWith(_cacheKeyPrefix));
+      await Future.wait(keysToRemove.map((key) => prefs.remove(key)));
       _logger.i('歌词缓存已清除');
     } catch (e) {
       _logger.e('清除缓存失败: $e');

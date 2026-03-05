@@ -255,11 +255,9 @@ $lyricsText
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
 
-      for (var key in keys) {
-        if (key.startsWith(_cacheKeyPrefix)) {
-          await prefs.remove(key);
-        }
-      }
+      // Use Future.wait to parallelize removal and improve performance
+      final keysToRemove = keys.where((key) => key.startsWith(_cacheKeyPrefix));
+      await Future.wait(keysToRemove.map((key) => prefs.remove(key)));
     } catch (e) {
       logger.d('Failed to clear translation cache: $e');
     }
