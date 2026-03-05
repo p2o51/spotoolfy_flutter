@@ -1,0 +1,3 @@
+## 2024-05-24 - SharedPreferences Batch Removals
+**Learning:** Sequential `await prefs.remove(key)` calls within loops can significantly slow down clearing caches, especially when the cache contains many items.
+**Action:** Always prefer `Future.wait` to parallelize multiple independent asynchronous operations (e.g., `await Future.wait(keysToRemove.map((key) => prefs.remove(key)))`) to optimize performance over sequential `await` calls.
