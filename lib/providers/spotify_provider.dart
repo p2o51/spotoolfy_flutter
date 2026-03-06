@@ -124,13 +124,11 @@ class SpotifyProvider extends ChangeNotifier {
       _lastPlayedImageUrl = sp.getString(_lastPlayedImageKey);
       _lastPlayedTrackName = sp.getString(_lastPlayedTrackNameKey);
       _lastPlayedArtists = sp.getString(_lastPlayedArtistsKey);
-      logger.d(
-          '已加载最后播放歌曲信息: $_lastPlayedTrackName - $_lastPlayedArtists');
+      logger.d('已加载最后播放歌曲信息: $_lastPlayedTrackName - $_lastPlayedArtists');
     } catch (e) {
       logger.e('加载最后播放歌曲信息失败', error: e);
     }
   }
-
 
   // 保存最后播放的歌曲信息到持久化存储
   Future<void> _saveLastPlayedTrackInfo({
@@ -213,12 +211,10 @@ class SpotifyProvider extends ChangeNotifier {
       logger.d(
           'refreshCurrentTrack: Saved play context to local database: ${enrichedContext['uri']}');
     } catch (dbError) {
-      logger.e(
-          'refreshCurrentTrack: Failed to save play context to database',
+      logger.e('refreshCurrentTrack: Failed to save play context to database',
           error: dbError);
     }
   }
-
 
   /// 验证 Access Token 格式的有效性
   bool _isValidAccessToken(String token) {
@@ -787,8 +783,8 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   void startTrackRefresh() {
-    logger.d(
-        'startTrackRefresh: User: $username, Initialized: $_isInitialized');
+    logger
+        .d('startTrackRefresh: User: $username, Initialized: $_isInitialized');
     if (username == null || !_isInitialized) {
       logger.w(
           'startTrackRefresh: Aborted. Username is null or service not initialized.');
@@ -1047,8 +1043,8 @@ class SpotifyProvider extends ChangeNotifier {
       // 自动登录允许通过 SDK 刷新 token
       // Spotify SDK 的 getAccessToken() 在用户之前授权过的情况下通常是静默的
       // 只有首次授权或用户撤销授权时才会弹出 UI
-      final token =
-          await _guard(() => _spotifyService.ensureFreshToken(interactive: true));
+      final token = await _guard(
+          () => _spotifyService.ensureFreshToken(interactive: true));
       if (token != null) {
         logger.d('自动登录：使用现有token成功');
         final refreshed = await _refreshUserProfile();
@@ -1662,8 +1658,6 @@ class SpotifyProvider extends ChangeNotifier {
 
       final playlistUris = <String>{};
       final albumUris = <String>{};
-      final List<Map<String, dynamic>> uniquePlaylists = [];
-      final List<Map<String, dynamic>> uniqueAlbums = [];
 
       // 获取 LocalDatabaseProvider 实例用于保存播放上下文
       LocalDatabaseProvider? localDbProvider;
@@ -1677,6 +1671,9 @@ class SpotifyProvider extends ChangeNotifier {
         logger.w(
             'refreshRecentlyPlayed: Failed to get LocalDatabaseProvider: $e');
       }
+
+      final List<String> playlistIdsToFetch = [];
+      final List<String> albumIdsToFetch = [];
 
       for (var item in items) {
         final context = item['context'];
@@ -1702,42 +1699,52 @@ class SpotifyProvider extends ChangeNotifier {
             }
           }
 
-          // 处理播放列表
+          // 收集播放列表 ID
           if (type == 'playlist' && !playlistUris.contains(uri)) {
             playlistUris.add(uri);
-            final playlistId = uri.split(':').last;
-            try {
-              final playlist =
-                  await _guard(() => _spotifyService.getPlaylist(playlistId));
-              uniquePlaylists.add(playlist);
-              if (uniquePlaylists.length >= 10) break;
-            } catch (e) {
-              // debugPrint('获取播放列表 $playlistId 详情失败: $e');
+            if (playlistIdsToFetch.length < 10) {
+              playlistIdsToFetch.add(uri.split(':').last);
             }
           }
 
-          // 处理专辑
+          // 收集专辑 ID
           else if (type == 'album' && !albumUris.contains(uri)) {
             albumUris.add(uri);
-            final albumId = uri.split(':').last;
-            try {
-              final album =
-                  await _guard(() => _spotifyService.getAlbum(albumId));
-              uniqueAlbums.add(album);
-              if (uniqueAlbums.length >= 10) break;
-            } catch (e) {
-              // debugPrint('获取专辑 $albumId 详情失败: $e');
+            if (albumIdsToFetch.length < 10) {
+              albumIdsToFetch.add(uri.split(':').last);
             }
           }
         }
       }
 
+      // 并行获取播放列表详情
+      final playlistFutures = playlistIdsToFetch.map((id) async {
+        try {
+          return await _guard(() => _spotifyService.getPlaylist(id));
+        } catch (e) {
+          return null; // Ignore errors for individual playlists
+        }
+      });
+
+      // 并行获取专辑详情
+      final albumFutures = albumIdsToFetch.map((id) async {
+        try {
+          return await _guard(() => _spotifyService.getAlbum(id));
+        } catch (e) {
+          return null; // Ignore errors for individual albums
+        }
+      });
+
+      // 等待所有请求完成
+      final resolvedPlaylists = await Future.wait(playlistFutures);
+      final resolvedAlbums = await Future.wait(albumFutures);
+
       _recentPlaylists
         ..clear()
-        ..addAll(uniquePlaylists);
+        ..addAll(resolvedPlaylists.whereType<Map<String, dynamic>>());
       _recentAlbums
         ..clear()
-        ..addAll(uniqueAlbums);
+        ..addAll(resolvedAlbums.whereType<Map<String, dynamic>>());
 
       _notifyCategory('default');
     } catch (e) {
@@ -2408,7 +2415,8 @@ class SpotifyProvider extends ChangeNotifier {
   void _notifyAuthFailureExceeded() {
     // 防止短时间内重复显示
     if (_lastAuthFailureNotification != null &&
-        DateTime.now().difference(_lastAuthFailureNotification!) < _authFailureNotificationCooldown) {
+        DateTime.now().difference(_lastAuthFailureNotification!) <
+            _authFailureNotificationCooldown) {
       return;
     }
     _lastAuthFailureNotification = DateTime.now();
@@ -2420,7 +2428,7 @@ class SpotifyProvider extends ChangeNotifier {
         SnackBar(
           content: Text(
             l10n?.authFailureExceeded ??
-            '授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置',
+                '授权失败次数已达上限，请检查 Spotify Client ID 是否正确配置',
           ),
           duration: const Duration(seconds: 5),
           backgroundColor: Colors.red[700],
@@ -2549,8 +2557,7 @@ class SpotifyProvider extends ChangeNotifier {
   /// Token 刷新成功后恢复会话状态
   Future<void> _restoreSessionAfterTokenRefresh() async {
     try {
-      final userProfile =
-          await _guard(() => _spotifyService.getUserProfile());
+      final userProfile = await _guard(() => _spotifyService.getUserProfile());
       username = userProfile['display_name'];
       _notifyCategory('default');
       startTrackRefresh();
