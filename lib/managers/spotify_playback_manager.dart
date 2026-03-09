@@ -91,9 +91,11 @@ class SpotifyPlaybackManager {
     Future.microtask(() async {
       try {
         logger.d('startTrackRefresh (microtask): 获取初始数据...');
-        await onRefreshTrack();
-        await onRefreshDevices();
-        await onRefreshQueue();
+        await Future.wait([
+          onRefreshTrack(),
+          onRefreshDevices(),
+          onRefreshQueue(),
+        ]);
         markQueueRefreshed();
         markDevicesRefreshed();
         logger.i('startTrackRefresh (microtask): 初始数据获取完成');
@@ -125,15 +127,26 @@ class SpotifyPlaybackManager {
           Future(() async {
             try {
               logger.t('_refreshTimer tick: 刷新曲目、设备和队列');
-              await onRefreshTrack();
+              final refreshTasks = <Future<void>>[
+                onRefreshTrack(),
+              ];
 
-              if (shouldRefreshDevices()) {
-                await onRefreshDevices();
-                markDevicesRefreshed();
+              final refreshDevices = shouldRefreshDevices();
+              if (refreshDevices) {
+                refreshTasks.add(onRefreshDevices());
               }
 
-              if (shouldRefreshQueue()) {
-                await onRefreshQueue();
+              final refreshQueue = shouldRefreshQueue();
+              if (refreshQueue) {
+                refreshTasks.add(onRefreshQueue());
+              }
+
+              await Future.wait(refreshTasks);
+
+              if (refreshDevices) {
+                markDevicesRefreshed();
+              }
+              if (refreshQueue) {
                 markQueueRefreshed();
               }
             } finally {
@@ -575,16 +588,22 @@ class SpotifyPlaybackManager {
     try {
       switch (mode) {
         case PlayMode.singleRepeat:
-          await guard(() => getService().setRepeatMode('track'));
-          await guard(() => getService().setShuffle(false));
+          await Future.wait([
+            guard(() => getService().setRepeatMode('track')),
+            guard(() => getService().setShuffle(false)),
+          ]);
           break;
         case PlayMode.sequential:
-          await guard(() => getService().setRepeatMode('context'));
-          await guard(() => getService().setShuffle(false));
+          await Future.wait([
+            guard(() => getService().setRepeatMode('context')),
+            guard(() => getService().setShuffle(false)),
+          ]);
           break;
         case PlayMode.shuffle:
-          await guard(() => getService().setRepeatMode('context'));
-          await guard(() => getService().setShuffle(true));
+          await Future.wait([
+            guard(() => getService().setRepeatMode('context')),
+            guard(() => getService().setShuffle(true)),
+          ]);
           break;
       }
       _currentMode = mode;
