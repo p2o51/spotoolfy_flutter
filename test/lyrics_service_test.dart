@@ -37,8 +37,10 @@ void main() {
               },
             },
           };
-          return http.Response(jsonEncode(response), 200,
-              headers: {'content-type': 'application/json'});
+          // Encode properly to avoid invalid characters for `utf8.decode` in QQProvider
+          final bodyBytes = utf8.encode(jsonEncode(response));
+          return http.Response.bytes(bodyBytes, 200,
+              headers: {'content-type': 'application/json; charset=utf-8'});
         }
 
         if (path.contains('fcg_query_lyric_new')) {

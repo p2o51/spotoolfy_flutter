@@ -559,11 +559,10 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
         Navigator.of(context).pop(_latestTranslationResult);
         return false;
       },
-      child: Consumer<SpotifyProvider>(
-        builder: (context, spotifyProvider, child) {
+      child: Selector<SpotifyProvider, int>(
+        selector: (context, provider) => provider.currentTrack?['progress_ms'] as int? ?? 0,
+        builder: (context, currentProgressMs, child) {
           // 获取当前播放进度
-          final currentProgressMs =
-              spotifyProvider.currentTrack?['progress_ms'] ?? 0;
           final currentPosition = Duration(milliseconds: currentProgressMs);
           final currentLineIndex = _getCurrentLineIndex(currentPosition);
 
