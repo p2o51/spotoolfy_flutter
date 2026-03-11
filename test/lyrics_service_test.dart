@@ -37,7 +37,8 @@ void main() {
               },
             },
           };
-          return http.Response(jsonEncode(response), 200,
+          final bodyBytes = utf8.encode(jsonEncode(response));
+          return http.Response.bytes(bodyBytes, 200,
               headers: {'content-type': 'application/json'});
         }
 

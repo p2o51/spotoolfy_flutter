@@ -2049,16 +2049,17 @@ class SpotifyProvider extends ChangeNotifier {
         final int pages = ((total - limit) / limit).ceil();
         final int requestCount = pages > maxRequests ? maxRequests : pages;
 
-        List<Map<String, dynamic>> additionalPlaylists = [];
+        final futures = <Future<List<Map<String, dynamic>>>>[];
 
         for (int i = 1; i <= requestCount; i++) {
           final nextOffset = offset + (limit * i);
-          final nextPlaylists =
-              await getUserPlaylists(limit: limit, offset: nextOffset);
-          additionalPlaylists.addAll(nextPlaylists);
+          futures.add(getUserPlaylists(limit: limit, offset: nextOffset));
         }
 
-        playlists.addAll(additionalPlaylists);
+        final additionalPlaylistsLists = await Future.wait(futures);
+        for (final nextPlaylists in additionalPlaylistsLists) {
+          playlists.addAll(nextPlaylists);
+        }
       }
 
       return playlists;
@@ -2108,16 +2109,17 @@ class SpotifyProvider extends ChangeNotifier {
         final int pages = ((total - limit) / limit).ceil();
         final int requestCount = pages > maxRequests ? maxRequests : pages;
 
-        List<Map<String, dynamic>> additionalAlbums = [];
+        final futures = <Future<List<Map<String, dynamic>>>>[];
 
         for (int i = 1; i <= requestCount; i++) {
           final nextOffset = offset + (limit * i);
-          final nextAlbums =
-              await getUserSavedAlbums(limit: limit, offset: nextOffset);
-          additionalAlbums.addAll(nextAlbums);
+          futures.add(getUserSavedAlbums(limit: limit, offset: nextOffset));
         }
 
-        albums.addAll(additionalAlbums);
+        final additionalAlbumsLists = await Future.wait(futures);
+        for (final nextAlbums in additionalAlbumsLists) {
+          albums.addAll(nextAlbums);
+        }
       }
 
       return albums;
