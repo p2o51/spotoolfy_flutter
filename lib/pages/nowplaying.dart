@@ -21,7 +21,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
   late final PageController _pageController;
 
   bool _isExpanded = false;
-  int _currentPageIndex = 2; // 默认显示 LYRICS 页面
+  final int _currentPageIndex = 2; // 默认显示 LYRICS 页面
   
   // 缓存变量
   List<PageData>? _cachedPages;
@@ -35,9 +35,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     // Initialize PageController with the correct starting page
     _pageController = PageController(initialPage: _currentPageIndex); 
     
-    // 监听页面变化
-    _pageController.addListener(_onPageChanged);
-    
     // No longer need jumpToPage here as initialPage is set
     // WidgetsBinding.instance.addPostFrameCallback((_) {
     //   if (_pageController.hasClients) { // Check if controller is attached
@@ -48,7 +45,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
   @override
   void dispose() {
-    _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
     super.dispose();
   }
@@ -67,26 +63,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         _pageController.jumpToPage(currentPage);
       }
     });
-  }
-
-  void _onPageChanged() {
-    if (_pageController.hasClients && _pageController.page != null) {
-      final newPage = _pageController.page!.round();
-      if (newPage != _currentPageIndex) {
-        setState(() {
-          _currentPageIndex = newPage;
-        });
-      }
-    }
-  }
-
-  // 优化的页面变化处理，减少不必要的setState调用
-  void _onPageChangedOptimized(int index) {
-    if (index != _currentPageIndex) {
-      setState(() {
-        _currentPageIndex = index;
-      });
-    }
   }
 
   List<PageData> _buildPages(BuildContext context) {
@@ -215,7 +191,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                   child: RepaintBoundary(
                     child: PageView(
                       controller: _pageController,
-                      onPageChanged: _onPageChangedOptimized,
                       children: _buildPages(context).map((page) => page.page).toList(),
                     ),
                   ),
@@ -290,7 +265,6 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
               child: RepaintBoundary(
                 child: PageView(
                   controller: _pageController,
-                  onPageChanged: _onPageChangedOptimized,
                   children: _buildPages(context).map((page) => page.page).toList(),
                 ),
               ),
