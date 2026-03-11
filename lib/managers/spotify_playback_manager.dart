@@ -91,9 +91,14 @@ class SpotifyPlaybackManager {
     Future.microtask(() async {
       try {
         logger.d('startTrackRefresh (microtask): 获取初始数据...');
-        await onRefreshTrack();
-        await onRefreshDevices();
-        await onRefreshQueue();
+
+        // ⚡ Bolt: 性能优化 - 并发初始化轨道、设备和队列，显著减少启动和恢复时的延迟
+        await Future.wait([
+          onRefreshTrack(),
+          onRefreshDevices(),
+          onRefreshQueue(),
+        ]);
+
         markQueueRefreshed();
         markDevicesRefreshed();
         logger.i('startTrackRefresh (microtask): 初始数据获取完成');
@@ -125,17 +130,20 @@ class SpotifyPlaybackManager {
           Future(() async {
             try {
               logger.t('_refreshTimer tick: 刷新曲目、设备和队列');
-              await onRefreshTrack();
+
+              // ⚡ Bolt: 性能优化 - 并发执行定期轮询任务，显著降低每次 tick 的整体耗时，减少卡顿
+              final List<Future<void>> tasks = [onRefreshTrack()];
 
               if (shouldRefreshDevices()) {
-                await onRefreshDevices();
-                markDevicesRefreshed();
+                tasks.add(
+                    onRefreshDevices().then((_) => markDevicesRefreshed()));
               }
 
               if (shouldRefreshQueue()) {
-                await onRefreshQueue();
-                markQueueRefreshed();
+                tasks.add(onRefreshQueue().then((_) => markQueueRefreshed()));
               }
+
+              await Future.wait(tasks);
             } finally {
               _isRefreshTickRunning = false;
             }
@@ -223,10 +231,10 @@ class SpotifyPlaybackManager {
       final track = await fetchTrack();
 
       final debugTrackName = track?['item']?['name'];
-      final debugArtist =
-          (track?['item']?['artists'] is List && track!['item']['artists'].isNotEmpty)
-              ? track['item']['artists'][0]['name']
-              : null;
+      final debugArtist = (track?['item']?['artists'] is List &&
+              track!['item']['artists'].isNotEmpty)
+          ? track['item']['artists'][0]['name']
+          : null;
       logger.d(
           'refreshCurrentTrack: received ${debugTrackName ?? 'unknown track'} by ${debugArtist ?? 'unknown'} (progress ${track?['progress_ms'] ?? 'n/a'})');
 
@@ -280,7 +288,8 @@ class SpotifyPlaybackManager {
           }
 
           if (newId != oldId ||
-              (currentTrack!['is_playing'] == true && progressFromApi != null) ||
+              (currentTrack!['is_playing'] == true &&
+                  progressFromApi != null) ||
               significantProgressJump) {
             _lastProgressUpdate = DateTime.now();
             _lastProgressNotify = null;
@@ -359,8 +368,8 @@ class SpotifyPlaybackManager {
     if (!hasContextName) {
       if (track['context'] is Map<String, dynamic>) {
         try {
-          final enrichedContext = await enrichContext(
-              Map<String, dynamic>.from(track['context'] as Map<String, dynamic>));
+          final enrichedContext = await enrichContext(Map<String, dynamic>.from(
+              track['context'] as Map<String, dynamic>));
           currentTrack!['context'] = enrichedContext;
         } catch (e) {
           logger.w('refreshCurrentTrack: 丰富上下文元数据失败', error: e);
@@ -443,9 +452,9 @@ class SpotifyPlaybackManager {
           .take(6)
           .toList();
 
-      for (final imageUrl in imagesToCache) {
-        await _preloadImage(imageUrl);
-      }
+      // ⚡ Bolt: 性能优化 - 并发预加载队列图片，减少缓存过程的整体耗时，避免阻塞主线程
+      await Future.wait(
+          imagesToCache.map((imageUrl) => _preloadImage(imageUrl)));
     } catch (e) {
       logger.w('批量缓存队列图片失败: $e');
     }
@@ -485,8 +494,8 @@ class SpotifyPlaybackManager {
 
     try {
       _isSkipping = true;
-      await guard(
-          () => getService().seekToPosition(Duration(milliseconds: positionMs)));
+      await guard(() =>
+          getService().seekToPosition(Duration(milliseconds: positionMs)));
     } finally {
       _isSkipping = false;
     }
@@ -571,7 +580,8 @@ class SpotifyPlaybackManager {
   }
 
   /// 设置播放模式
-  Future<void> setPlayMode(PlayMode mode, {VoidCallback? onQueueUpdated}) async {
+  Future<void> setPlayMode(PlayMode mode,
+      {VoidCallback? onQueueUpdated}) async {
     try {
       switch (mode) {
         case PlayMode.singleRepeat:
