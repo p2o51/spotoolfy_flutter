@@ -59,8 +59,13 @@ class QQProvider extends LyricProvider {
         return [];
       }
 
-      final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
-      final data = json.decode(decodedBody);
+      // 提取响应体中的 JSON 部分（处理可能存在的 callback 包装）
+      String bodyString = utf8.decode(response.bodyBytes, allowMalformed: true);
+
+      if (bodyString.startsWith('callback(') && bodyString.endsWith(')')) {
+        bodyString = bodyString.substring(9, bodyString.length - 1);
+      }
+      final data = json.decode(bodyString);
       final songList = data['data']?['song']?['list'];
       if (songList is! List || songList.isEmpty) {
         return [];
