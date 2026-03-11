@@ -1,3 +1,7 @@
+## 2025-02-12 - [Performance: Provider Selectors in List Views]
+**Learning:** Rebuilding an entire screen (especially with list views, like `LyricsSelectionPage`) using `Consumer<Provider>` can cause significant UI jank, especially when listening to high-frequency state updates like `progress_ms`.
+**Action:** Always prefer `Selector` to `Consumer` when dependent on a small subset of properties from a large provider state to scope rebuilds effectively and avoid unnecessary re-renders.
+
 ## 2026-03-08 - SpotifyPlaybackManager Sequential API Awaits
 **Learning:** Background polling operations in Flutter/Dart, especially inside timers or microtasks, can introduce noticeable lag if multiple independent API calls (like fetching tracks, devices, and queues) are awaited sequentially. The delay compounds and increases the tick processing time.
 **Action:** When performing periodic polling of multiple independent endpoints, always use `Future.wait()` to execute the calls concurrently, significantly reducing the overall duration of the tick and preventing UI/framework blockage.
