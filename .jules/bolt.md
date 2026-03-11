@@ -1,3 +1,7 @@
+## 2026-03-08 - SpotifyPlaybackManager Sequential API Awaits
+**Learning:** Background polling operations in Flutter/Dart, especially inside timers or microtasks, can introduce noticeable lag if multiple independent API calls (like fetching tracks, devices, and queues) are awaited sequentially. The delay compounds and increases the tick processing time.
+**Action:** When performing periodic polling of multiple independent endpoints, always use `Future.wait()` to execute the calls concurrently, significantly reducing the overall duration of the tick and preventing UI/framework blockage.
+
 ## 2024-05-19 - Use `Future.wait` for independent API pagination requests
 **Learning:** In Flutter, using sequential `await` calls in `for` loops to fetch independent API pages (like Spotify pagination) causes a waterfall effect, significantly increasing load times.
 **Action:** Always batch independent asynchronous API calls using `Future.wait` when fetching multiple pages or independent datasets concurrently, provided the API rate limits (like Spotify's) permit it.

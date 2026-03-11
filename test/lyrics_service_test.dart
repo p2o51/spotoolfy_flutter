@@ -39,7 +39,7 @@ void main() {
           };
           final bodyBytes = utf8.encode(jsonEncode(response));
           return http.Response.bytes(bodyBytes, 200,
-              headers: {'content-type': 'application/json'});
+              headers: {'content-type': 'application/json; charset=utf-8'});
         }
 
         if (path.contains('fcg_query_lyric_new')) {
