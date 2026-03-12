@@ -1555,21 +1555,35 @@ class SpotifyProvider extends ChangeNotifier {
     var offset = allTracks.length;
 
     while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getAlbumTracks(albumId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      final extracted = <Map<String, dynamic>>[
-        for (final item in pageItems)
-          if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
-      ];
-      if (extracted.isEmpty) {
-        break;
+      final int limit = 50;
+      final int pagesRemaining = ((total - offset) / limit).ceil();
+      final int batchSize = pagesRemaining > 5 ? 5 : pagesRemaining;
+
+      final futures = <Future<Map<String, dynamic>?>>[];
+      for (int i = 0; i < batchSize; i++) {
+        final currentOffset = offset + (i * limit);
+        futures.add(_guard(
+          () => _spotifyService.getAlbumTracks(albumId, offset: currentOffset)
+        ).catchError((e) {
+          logger.w('Failed to fetch album tracks at offset $currentOffset: $e');
+          return <String, dynamic>{}; // Return empty map on error to not fail Future.wait
+        }));
       }
-      allTracks.addAll(extracted);
-      offset = allTracks.length;
-      if (page['next'] == null) {
-        break;
+
+      final results = await Future.wait(futures);
+
+
+      for (final page in results) {
+        if (page == null || page.isEmpty) continue;
+        final pageItems = page['items'] as List? ?? const [];
+        final extracted = <Map<String, dynamic>>[
+          for (final item in pageItems)
+            if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
+        ];
+        allTracks.addAll(extracted);
       }
+
+      offset += batchSize * limit;
     }
 
     tracksSection['items'] = allTracks;
@@ -1617,21 +1631,35 @@ class SpotifyProvider extends ChangeNotifier {
     var offset = initialItems.length;
 
     while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getPlaylistTracks(playlistId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      if (pageItems.isEmpty) {
-        break;
+      final int limit = 100; // spotify playlist tracks limit
+      final int pagesRemaining = ((total - offset) / limit).ceil();
+      // Spotify rate limits can be tricky, limit concurrent connections to 5 to be safe
+      final int batchSize = pagesRemaining > 5 ? 5 : pagesRemaining;
+
+      final futures = <Future<Map<String, dynamic>?>>[];
+      for (int i = 0; i < batchSize; i++) {
+        final currentOffset = offset + (i * limit);
+        futures.add(_guard(
+          () => _spotifyService.getPlaylistTracks(playlistId, offset: currentOffset)
+        ).catchError((e) {
+          logger.w('Failed to fetch playlist tracks at offset $currentOffset: $e');
+          return <String, dynamic>{}; // Return empty map on error to not fail Future.wait
+        }));
       }
-      for (final item in pageItems) {
-        if (item is Map<String, dynamic>) {
-          addTrackFromContainer(item);
+
+      final results = await Future.wait(futures);
+
+      for (final page in results) {
+        if (page == null || page.isEmpty) continue;
+        final pageItems = page['items'] as List? ?? const [];
+        for (final item in pageItems) {
+          if (item is Map<String, dynamic>) {
+            addTrackFromContainer(item);
+          }
         }
       }
-      offset += pageItems.length;
-      if (page['next'] == null) {
-        break;
-      }
+
+      offset += batchSize * limit;
     }
 
     tracksSection['items'] = allTracks;
