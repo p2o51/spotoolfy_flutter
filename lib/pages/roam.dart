@@ -887,11 +887,12 @@ class _RoamState extends State<Roam> with AutomaticKeepAliveClientMixin {
 
     // 获取 SpotifyProvider
     final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
-    // Consume the LocalDatabaseProvider
-    return Consumer<LocalDatabaseProvider>(
-      builder: (context, localDbProvider, child) {
+    // Consume the LocalDatabaseProvider using Selector to prevent unnecessary rebuilds
+    return Selector<LocalDatabaseProvider, ({List<Map<String, dynamic>> records, bool isLoading})>(
+      selector: (context, provider) => (records: provider.allRecordsOrdered, isLoading: provider.isLoading),
+      builder: (context, data, child) {
         // Single-pass categorization for performance
-        final allRecords = localDbProvider.allRecordsOrdered;
+        final allRecords = data.records;
         final allNotesRecords = <Map<String, dynamic>>[];
         final allRatedOnlyRecords = <Map<String, dynamic>>[];
         int fireCount = 0, neutralCount = 0, downCount = 0;
@@ -1078,7 +1079,7 @@ class _RoamState extends State<Roam> with AutomaticKeepAliveClientMixin {
                   ),
                 ),
                 // Use the provider's loading state AND check the filtered records list
-                if (localDbProvider.isLoading && filteredRecords.isEmpty) // Show loading only if filtered list is empty
+                if (data.isLoading && filteredRecords.isEmpty) // Show loading only if filtered list is empty
                   const SliverFillRemaining(
                     child: Center(
                       child: CircularProgressIndicator(),
