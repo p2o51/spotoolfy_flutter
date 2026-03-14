@@ -57,9 +57,10 @@ class SpotifyCacheManager {
     final uncachedUrls =
         imageUrls.where((url) => !isImageCached(url)).toList();
 
-    for (final url in uncachedUrls) {
-      await preloadImage(url, context);
-    }
+    // ⚡ Bolt: 性能优化 - 并发预加载图片，减少整体等待时间
+    await Future.wait(
+      uncachedUrls.map((url) => preloadImage(url, context)),
+    );
   }
 
   /// 清除图片缓存
