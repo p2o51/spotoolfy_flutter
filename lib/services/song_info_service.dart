@@ -162,9 +162,8 @@ class SongInfoService {
       final keys = prefs.getKeys();
       final songInfoKeys = keys.where((key) => key.startsWith(_songInfoCacheKeyPrefix));
       
-      for (final key in songInfoKeys) {
-        await prefs.remove(key);
-      }
+      // ⚡ Bolt: 性能优化 - 并发清除缓存，减少阻塞时间
+      await Future.wait(songInfoKeys.map((key) => prefs.remove(key)));
       logger.d('Cached song info cleared');
     } catch (e) {
       logger.e('Error clearing cached song info: $e');
