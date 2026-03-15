@@ -363,10 +363,21 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
       return -1;
     }
 
-    // 找到最后一行其时间戳小于等于当前位置的行
-    for (int i = _lyricLines.length - 1; i >= 0; i--) {
-      if (_lyricLines[i].timestamp <= currentPosition) {
-        return i;
+    // 二分查找最后一行其时间戳小于等于当前位置的行
+    int low = 0;
+    int high = _lyricLines.length - 1;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      final midTimestamp = _lyricLines[mid].timestamp;
+      if (midTimestamp <= currentPosition) {
+        final isLastMatch = mid == _lyricLines.length - 1 ||
+            _lyricLines[mid + 1].timestamp > currentPosition;
+        if (isLastMatch) {
+          return mid;
+        }
+        low = mid + 1;
+      } else {
+        high = mid - 1;
       }
     }
 
