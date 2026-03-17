@@ -21,19 +21,23 @@ void main() {
     test('QQ Provider can search and fetch lyrics', () async {
       final mockClient = MockClient((request) async {
         final path = request.url.path;
-        if (path.contains('client_search_cp')) {
+        if (path.contains('musicu.fcg')) {
           final response = {
-            'data': {
-              'song': {
-                'list': [
-                  {
-                    'songmid': 'mock-song-id',
-                    'songname': '你瞒我瞒',
-                    'singer': [
-                      {'name': '陈柏宇'}
+            'req': {
+              'data': {
+                'body': {
+                  'song': {
+                    'list': [
+                      {
+                        'mid': 'mock-song-id',
+                        'title': '你瞒我瞒',
+                        'singer': [
+                          {'name': '陈柏宇'}
+                        ],
+                      }
                     ],
-                  }
-                ],
+                  },
+                },
               },
             },
           };
@@ -94,7 +98,8 @@ void main() {
 
     test('LyricsService can get lyrics from multiple providers', () async {
       final service = LyricsService(providers: [_FakeLyricProvider()]);
-      final result = await service.getLyrics('Bohemian Rhapsody', 'Queen', 'test_track_id');
+      final result = await service.getLyrics(
+          'Bohemian Rhapsody', 'Queen', 'test_track_id');
 
       expect(result, isNotNull);
       if (result != null) {
@@ -123,7 +128,8 @@ class _FakeLyricProvider extends LyricProvider {
   }
 
   @override
-  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
+  Future<List<SongMatch>> searchMultiple(String title, String artist,
+      {int limit = 3}) async {
     return [SongMatch(songId: 'fake-id', title: title, artist: artist)];
   }
 }

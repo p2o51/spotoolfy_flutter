@@ -7,7 +7,7 @@ import 'lyric_provider.dart';
 /// 基于第三方代理 API 的网易云歌词提供者
 class NetEaseProvider extends LyricProvider {
   /// 第三方代理服务基础 URL
-  static const String _baseUrl = 'https://163api.qijieya.cn';
+  static const String _baseUrl = 'https://api.spotoolfy.gojyuplus.com';
 
   final Logger _logger = Logger();
   final http.Client _client;

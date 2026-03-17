@@ -8,8 +8,7 @@ import 'qq_encoding.dart';
 
 /// QQ音乐歌词提供者
 class QQProvider extends LyricProvider {
-  static const String _baseSearchUrl =
-      'https://c.y.qq.com/soso/fcgi-bin/client_search_cp';
+  static const String _baseSearchUrl = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
   static const String _baseLyricUrl =
       'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg';
   static const String _backupLyricUrl =
@@ -25,6 +24,11 @@ class QQProvider extends LyricProvider {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
   };
 
+  Map<String, String> get _searchHeaders => {
+        ..._headers,
+        'content-type': 'application/json;charset=utf-8',
+      };
+
   QQProvider({http.Client? httpClient}) : _client = httpClient ?? http.Client();
 
   @override
@@ -37,17 +41,36 @@ class QQProvider extends LyricProvider {
   }
 
   @override
-  Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
+  Future<List<SongMatch>> searchMultiple(String title, String artist,
+      {int limit = 3}) async {
     try {
       final keyword = '$title $artist';
-      final url = Uri.parse(_baseSearchUrl).replace(queryParameters: {
-        'w': keyword,
-        'p': '1',
-        'n': limit.toString(),
-        'format': 'json'
+      final requestBody = jsonEncode({
+        'comm': {
+          'ct': '19',
+          'cv': '1859',
+          'uin': '0',
+        },
+        'req': {
+          'method': 'DoSearchForQQMusicDesktop',
+          'module': 'music.search.SearchCgiService',
+          'param': {
+            'grp': 1,
+            'num_per_page': limit,
+            'page_num': 1,
+            'query': keyword,
+            'search_type': 0,
+          },
+        },
       });
 
-      final response = await _client.get(url, headers: _headers).timeout(
+      final response = await _client
+          .post(
+        Uri.parse(_baseSearchUrl),
+        headers: _searchHeaders,
+        body: requestBody,
+      )
+          .timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw TimeoutException('搜索请求超时');
@@ -59,14 +82,9 @@ class QQProvider extends LyricProvider {
         return [];
       }
 
-      // 提取响应体中的 JSON 部分（处理可能存在的 callback 包装）
       String bodyString = utf8.decode(response.bodyBytes, allowMalformed: true);
-
-      if (bodyString.startsWith('callback(') && bodyString.endsWith(')')) {
-        bodyString = bodyString.substring(9, bodyString.length - 1);
-      }
       final data = json.decode(bodyString);
-      final songList = data['data']?['song']?['list'];
+      final songList = data['req']?['data']?['body']?['song']?['list'];
       if (songList is! List || songList.isEmpty) {
         return [];
       }
@@ -86,12 +104,15 @@ class QQProvider extends LyricProvider {
           }
         }
 
-        final songmid = songData['songmid'];
+        final songmid = songData['mid'];
         if (songmid == null) continue;
 
         results.add(SongMatch(
           songId: songmid as String,
-          title: _normalizeTextField(songData['songname'] as String?, title),
+          title: _normalizeTextField(
+            songData['title'] as String? ?? songData['name'] as String?,
+            title,
+          ),
           artist: _normalizeTextField(primaryArtist, artist),
         ));
       }
