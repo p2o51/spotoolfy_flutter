@@ -501,7 +501,8 @@ class SpotifyAuthService {
                 sdkError.message
                         ?.contains('AUTHENTICATION_SERVICE_UNAVAILABLE') ==
                     true ||
-                '${sdkError.details}'.contains('AUTHENTICATION_SERVICE_UNAVAILABLE') ||
+                '${sdkError.details}'
+                    .contains('AUTHENTICATION_SERVICE_UNAVAILABLE') ||
                 errorString.contains('AUTHENTICATION_SERVICE_UNAVAILABLE'))) {
           throw SpotifyAuthException(
               'Spotify 授权服务暂时不可用，请稍后重试或检查是否安装/登录最新版本的 Spotify 应用。',
@@ -1571,46 +1572,103 @@ class SpotifyAuthService {
     void Function(int loaded, int? total)? onProgress,
   }) async {
     final allTracks = <Map<String, dynamic>>[];
-    int offset = 0;
     const limit = 50;
     int? totalTracks;
 
-    while (true) {
-      try {
-        final headers = await _authHeaders(hasBody: false);
-        final response = await http.get(
-          Uri.parse(
-              'https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit'),
-          headers: headers,
-        );
+    try {
+      // ⚡ Bolt: Fetch first page to get total
+      final firstPageHeaders = await _authHeaders(hasBody: false);
+      final firstPageResponse = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me/tracks?offset=0&limit=$limit'),
+        headers: firstPageHeaders,
+      );
 
-        if (response.statusCode != 200) {
-          throw SpotifyAuthException(
-            '获取收藏曲目失败: ${response.body}',
-            code: response.statusCode.toString(),
+      if (firstPageResponse.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取收藏曲目失败: ${firstPageResponse.body}',
+          code: firstPageResponse.statusCode.toString(),
+        );
+      }
+
+      final firstPageData = json.decode(firstPageResponse.body);
+      totalTracks = firstPageData['total'] as int?;
+      final firstPageItems =
+          List<Map<String, dynamic>>.from(firstPageData['items'] ?? []);
+
+      allTracks.addAll(firstPageItems);
+      onProgress?.call(allTracks.length, totalTracks);
+
+      if (firstPageItems.isEmpty ||
+          firstPageData['next'] == null ||
+          allTracks.length >= maxTracks) {
+        return allTracks.length > maxTracks
+            ? allTracks.sublist(0, maxTracks)
+            : allTracks;
+      }
+
+      // Calculate remaining offsets
+      final remainingOffsets = <int>[];
+      int currentOffset = limit;
+      final targetTotal = totalTracks != null && totalTracks < maxTracks
+          ? totalTracks
+          : maxTracks;
+
+      while (currentOffset < targetTotal) {
+        remainingOffsets.add(currentOffset);
+        currentOffset += limit;
+      }
+
+      // ⚡ Bolt: Batch concurrent requests
+      const batchSize = 5;
+      for (int i = 0; i < remainingOffsets.length; i += batchSize) {
+        final batchOffsets = remainingOffsets.skip(i).take(batchSize).toList();
+        final batchFutures = batchOffsets.map((offset) async {
+          final headers = await _authHeaders(hasBody: false);
+          final response = await http.get(
+            Uri.parse(
+                'https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit'),
+            headers: headers,
           );
+
+          if (response.statusCode != 200) {
+            throw SpotifyAuthException(
+              '获取收藏曲目失败: ${response.body}',
+              code: response.statusCode.toString(),
+            );
+          }
+
+          final data = json.decode(response.body);
+          return List<Map<String, dynamic>>.from(data['items'] ?? []);
+        });
+
+        final batchResults = await Future.wait(batchFutures);
+
+        bool earlyExit = false;
+        for (final items in batchResults) {
+          if (items.isEmpty) {
+            earlyExit = true;
+            break;
+          }
+          allTracks.addAll(items);
         }
 
-        final data = json.decode(response.body);
-        totalTracks ??= data['total'] as int?;
-        final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-
-        if (items.isEmpty) break;
-
-        allTracks.addAll(items);
         onProgress?.call(allTracks.length, totalTracks);
 
-        if (allTracks.length >= maxTracks || data['next'] == null) break;
+        if (earlyExit || allTracks.length >= maxTracks) {
+          break;
+        }
 
-        offset += limit;
-
-        // 添加延迟防止触发 Spotify API 速率限制（180次/30秒）
-        // 每次请求后等待 200ms，确保不会超过限额
-        await Future.delayed(const Duration(milliseconds: 200));
-      } catch (e) {
-        if (e is SpotifyAuthException) rethrow;
-        throw SpotifyAuthException('获取收藏曲目时出错: $e');
+        // Scale delay based on batch size to respect rate limits
+        await Future.delayed(Duration(milliseconds: 200 * batchOffsets.length));
       }
+    } catch (e) {
+      if (e is SpotifyAuthException) rethrow;
+      throw SpotifyAuthException('获取收藏曲目时出错: $e');
+    }
+
+    // Trim to maxTracks if we fetched too many due to batching
+    if (allTracks.length > maxTracks) {
+      return allTracks.sublist(0, maxTracks);
     }
 
     return allTracks;
