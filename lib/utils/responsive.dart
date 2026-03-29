@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// 响应式设计断点常量
@@ -18,46 +20,81 @@ abstract class Breakpoints {
 
 /// 设备类型枚举
 enum DeviceType {
-  /// 极窄设备 (< 350px)
   compact,
-
-  /// 手机 (350px - 600px)
   mobile,
-
-  /// 平板 (600px - 900px)
   tablet,
-
-  /// 桌面 (> 900px)
   desktop,
 }
 
-/// 响应式设计工具扩展
+/// 页面布局分类
+enum ResponsivePageType {
+  shell,
+  browse,
+  detail,
+  modal,
+  preview,
+}
+
+/// 二级页面显示模式
+enum SecondaryPageMode {
+  fullScreen,
+  sideSheet,
+  centerDialog,
+  bottomSheet,
+}
+
+enum AdaptiveModalContentLayout {
+  wrapContent,
+  fillHeight,
+}
+
+/// 统一的页面布局规格
+class ResponsiveLayoutSpec {
+  const ResponsiveLayoutSpec({
+    required this.type,
+    required this.maxWidth,
+    required this.horizontalPadding,
+    required this.preferTwoPane,
+    required this.modalWidth,
+    required this.modalMaxHeightFactor,
+    required this.defaultMinTileWidth,
+  });
+
+  final ResponsivePageType type;
+  final double maxWidth;
+  final double horizontalPadding;
+  final bool preferTwoPane;
+  final double modalWidth;
+  final double modalMaxHeightFactor;
+  final double defaultMinTileWidth;
+
+  EdgeInsets pagePadding({
+    double vertical = 0,
+  }) {
+    return EdgeInsets.symmetric(
+      horizontal: horizontalPadding,
+      vertical: vertical,
+    );
+  }
+}
+
 extension ResponsiveExtension on BuildContext {
-  /// 获取屏幕宽度
-  double get screenWidth => MediaQuery.of(this).size.width;
+  double get screenWidth => MediaQuery.sizeOf(this).width;
 
-  /// 获取屏幕高度
-  double get screenHeight => MediaQuery.of(this).size.height;
+  double get screenHeight => MediaQuery.sizeOf(this).height;
 
-  /// 获取屏幕尺寸
-  Size get screenSize => MediaQuery.of(this).size;
+  Size get screenSize => MediaQuery.sizeOf(this);
 
-  /// 判断是否为极窄屏幕 (< 350px)
   bool get isCompact => screenWidth < Breakpoints.compact;
 
-  /// 判断是否为窄屏幕 (< 400px)
   bool get isNarrow => screenWidth < Breakpoints.mobile;
 
-  /// 判断是否为大屏幕 (>= 600px)
   bool get isLargeScreen => screenWidth >= Breakpoints.tablet;
 
-  /// 判断是否为超大屏幕 (>= 900px)
   bool get isDesktop => screenWidth >= Breakpoints.desktop;
 
-  /// 判断是否为移动设备 (< 600px)
   bool get isMobile => screenWidth < Breakpoints.tablet;
 
-  /// 获取当前设备类型
   DeviceType get deviceType {
     if (screenWidth < Breakpoints.compact) return DeviceType.compact;
     if (screenWidth < Breakpoints.tablet) return DeviceType.mobile;
@@ -65,26 +102,18 @@ extension ResponsiveExtension on BuildContext {
     return DeviceType.desktop;
   }
 
-  /// 根据屏幕宽度返回网格列数
-  /// - compact/mobile: 3列
-  /// - tablet: 5列
-  /// - desktop: 6列
   int get gridCrossAxisCount {
-    return switch (screenWidth) {
-      > Breakpoints.desktop => 6,
-      > Breakpoints.tablet => 5,
-      _ => 3,
-    };
+    return adaptiveColumns(
+      minTileWidth: layoutType(ResponsivePageType.browse).defaultMinTileWidth,
+      min: 3,
+      max: 6,
+    );
   }
 
-  /// 根据屏幕宽度返回水平内边距
   double get horizontalPadding {
-    if (isCompact) return 8;
-    if (isNarrow) return 12;
-    return 16;
+    return layoutType(ResponsivePageType.browse).horizontalPadding;
   }
 
-  /// 根据设备类型选择值
   T responsive<T>({
     required T mobile,
     T? compact,
@@ -98,10 +127,133 @@ extension ResponsiveExtension on BuildContext {
       DeviceType.desktop => desktop ?? tablet ?? mobile,
     };
   }
+
+  ResponsiveLayoutSpec layoutType(ResponsivePageType type) {
+    final padding = responsive<double>(
+      compact: 12,
+      mobile: 16,
+      tablet: 24,
+      desktop: 32,
+    );
+
+    switch (type) {
+      case ResponsivePageType.shell:
+        return ResponsiveLayoutSpec(
+          type: type,
+          maxWidth: double.infinity,
+          horizontalPadding: padding,
+          preferTwoPane: isLargeScreen,
+          modalWidth: responsive(
+            mobile: 420,
+            tablet: 520,
+            desktop: 560,
+          ),
+          modalMaxHeightFactor: isLargeScreen ? 0.88 : 0.92,
+          defaultMinTileWidth: 220,
+        );
+      case ResponsivePageType.browse:
+        return ResponsiveLayoutSpec(
+          type: type,
+          maxWidth: responsive(
+            mobile: double.infinity,
+            tablet: 1040,
+            desktop: 1280,
+          ),
+          horizontalPadding: padding,
+          preferTwoPane: isLargeScreen,
+          modalWidth: responsive(
+            mobile: 420,
+            tablet: 520,
+            desktop: 560,
+          ),
+          modalMaxHeightFactor: isLargeScreen ? 0.88 : 0.92,
+          defaultMinTileWidth: responsive(
+            compact: 112,
+            mobile: 132,
+            tablet: 164,
+            desktop: 176,
+          ),
+        );
+      case ResponsivePageType.detail:
+        return ResponsiveLayoutSpec(
+          type: type,
+          maxWidth: responsive(
+            mobile: double.infinity,
+            tablet: 960,
+            desktop: 1080,
+          ),
+          horizontalPadding: padding,
+          preferTwoPane: isLargeScreen,
+          modalWidth: responsive(
+            mobile: 420,
+            tablet: 520,
+            desktop: 560,
+          ),
+          modalMaxHeightFactor: isLargeScreen ? 0.9 : 0.94,
+          defaultMinTileWidth: 260,
+        );
+      case ResponsivePageType.modal:
+        return ResponsiveLayoutSpec(
+          type: type,
+          maxWidth: responsive(
+            mobile: 560,
+            tablet: 560,
+            desktop: 620,
+          ),
+          horizontalPadding: responsive(
+            compact: 12,
+            mobile: 16,
+            tablet: 20,
+            desktop: 24,
+          ),
+          preferTwoPane: false,
+          modalWidth: responsive(
+            mobile: 420,
+            tablet: 500,
+            desktop: 560,
+          ),
+          modalMaxHeightFactor: isLargeScreen ? 0.86 : 0.92,
+          defaultMinTileWidth: 220,
+        );
+      case ResponsivePageType.preview:
+        return ResponsiveLayoutSpec(
+          type: type,
+          maxWidth: responsive(
+            mobile: double.infinity,
+            tablet: 980,
+            desktop: 1120,
+          ),
+          horizontalPadding: padding,
+          preferTwoPane: false,
+          modalWidth: responsive(
+            mobile: 420,
+            tablet: 560,
+            desktop: 620,
+          ),
+          modalMaxHeightFactor: isLargeScreen ? 0.9 : 0.94,
+          defaultMinTileWidth: 180,
+        );
+    }
+  }
+
+  int adaptiveColumns({
+    required double minTileWidth,
+    int min = 1,
+    int max = 6,
+  }) {
+    final availableWidth = math.max(
+      0,
+      screenWidth -
+          (layoutType(ResponsivePageType.browse).horizontalPadding * 2),
+    );
+    if (availableWidth <= 0) {
+      return min;
+    }
+    final columns = (availableWidth / minTileWidth).floor();
+    return columns.clamp(min, max);
+  }
 }
 
-/// 响应式布局构建器
-/// 根据屏幕宽度自动选择合适的布局
 class ResponsiveBuilder extends StatelessWidget {
   const ResponsiveBuilder({
     super.key,
@@ -111,16 +263,9 @@ class ResponsiveBuilder extends StatelessWidget {
     this.desktop,
   });
 
-  /// 移动端布局 (必需，作为默认回退)
   final Widget mobile;
-
-  /// 极窄屏幕布局 (可选)
   final Widget? compact;
-
-  /// 平板布局 (可选)
   final Widget? tablet;
-
-  /// 桌面布局 (可选)
   final Widget? desktop;
 
   @override
@@ -128,7 +273,6 @@ class ResponsiveBuilder extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-
         if (width >= Breakpoints.desktop && desktop != null) {
           return desktop!;
         }
@@ -144,8 +288,6 @@ class ResponsiveBuilder extends StatelessWidget {
   }
 }
 
-/// 响应式值选择器
-/// 根据屏幕宽度返回不同的值
 class ResponsiveValue<T> extends StatelessWidget {
   const ResponsiveValue({
     super.key,
@@ -174,8 +316,6 @@ class ResponsiveValue<T> extends StatelessWidget {
   }
 }
 
-/// 响应式 SizedBox
-/// 根据屏幕宽度自动调整间距
 class ResponsiveGap extends StatelessWidget {
   const ResponsiveGap({
     super.key,
@@ -207,24 +347,26 @@ class ResponsiveGap extends StatelessWidget {
   }
 }
 
-/// 响应式 EdgeInsets
-/// 提供常用的响应式内边距
 class ResponsivePadding {
-  /// 水平内边距
-  static EdgeInsets horizontal(BuildContext context) {
-    final padding = context.horizontalPadding;
+  static EdgeInsets horizontal(
+    BuildContext context, {
+    ResponsivePageType pageType = ResponsivePageType.browse,
+  }) {
+    final padding = context.layoutType(pageType).horizontalPadding;
     return EdgeInsets.symmetric(horizontal: padding);
   }
 
-  /// 全部内边距
-  static EdgeInsets all(BuildContext context) {
-    final padding = context.horizontalPadding;
+  static EdgeInsets all(
+    BuildContext context, {
+    ResponsivePageType pageType = ResponsivePageType.browse,
+  }) {
+    final padding = context.layoutType(pageType).horizontalPadding;
     return EdgeInsets.all(padding);
   }
 
-  /// 自定义响应式内边距
   static EdgeInsets symmetric(
     BuildContext context, {
+    ResponsivePageType pageType = ResponsivePageType.browse,
     double? horizontalCompact,
     double? horizontalMobile,
     double? horizontalTablet,
@@ -232,60 +374,39 @@ class ResponsivePadding {
     double? verticalMobile,
     double? verticalTablet,
   }) {
-    return EdgeInsets.symmetric(
-      horizontal: context.responsive<double>(
-        compact: horizontalCompact ?? 8,
-        mobile: horizontalMobile ?? 12,
-        tablet: horizontalTablet ?? 16,
-      ),
-      vertical: context.responsive<double>(
-        compact: verticalCompact ?? 8,
-        mobile: verticalMobile ?? 12,
-        tablet: verticalTablet ?? 16,
-      ),
+    final horizontal = context.responsive<double>(
+      compact: horizontalCompact ?? 8,
+      mobile:
+          horizontalMobile ?? context.layoutType(pageType).horizontalPadding,
+      tablet:
+          horizontalTablet ?? context.layoutType(pageType).horizontalPadding,
+      desktop:
+          horizontalTablet ?? context.layoutType(pageType).horizontalPadding,
     );
+    final vertical = context.responsive<double>(
+      compact: verticalCompact ?? 8,
+      mobile: verticalMobile ?? 12,
+      tablet: verticalTablet ?? 16,
+      desktop: verticalTablet ?? 20,
+    );
+    return EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
   }
 }
 
-/// 二级页面显示模式
-enum SecondaryPageMode {
-  /// 全屏显示
-  fullScreen,
-
-  /// 侧边Sheet (大屏幕推荐)
-  sideSheet,
-
-  /// 居中Dialog (表单/简单操作推荐)
-  centerDialog,
-
-  /// 底部Sheet
-  bottomSheet,
-}
-
-/// 响应式导航工具类
-/// 用于处理二级页面在不同屏幕尺寸下的显示方式
 class ResponsiveNavigation {
-  /// 显示二级页面
-  /// 根据屏幕尺寸和页面类型自动选择最佳显示方式
-  ///
-  /// - [context] 当前 BuildContext
-  /// - [child] 要显示的页面内容
-  /// - [preferredMode] 首选显示模式（大屏幕使用）
-  /// - [title] 页面标题（用于AppBar）
-  /// - [maxWidth] 侧边Sheet/Dialog的最大宽度
-  /// - [showCloseButton] 是否显示关闭按钮
   static Future<T?> showSecondaryPage<T>({
     required BuildContext context,
     required Widget child,
     SecondaryPageMode preferredMode = SecondaryPageMode.sideSheet,
     String? title,
-    double maxWidth = 480,
+    double? maxWidth,
     bool showCloseButton = true,
     bool barrierDismissible = true,
   }) {
-    final isLarge = context.isLargeScreen;
+    final spec = context.layoutType(ResponsivePageType.detail);
+    final resolvedMaxWidth = maxWidth ?? spec.modalWidth;
+    final isLarge = spec.preferTwoPane;
 
-    // 移动端始终使用全屏或底部Sheet
     if (!isLarge) {
       if (preferredMode == SecondaryPageMode.bottomSheet) {
         return _showBottomSheet<T>(
@@ -293,6 +414,7 @@ class ResponsiveNavigation {
           child: child,
           title: title,
           showCloseButton: showCloseButton,
+          pageType: ResponsivePageType.detail,
         );
       }
       return _showFullScreen<T>(
@@ -302,7 +424,6 @@ class ResponsiveNavigation {
       );
     }
 
-    // 大屏幕根据首选模式选择
     return switch (preferredMode) {
       SecondaryPageMode.fullScreen => _showFullScreen<T>(
           context: context,
@@ -313,28 +434,101 @@ class ResponsiveNavigation {
           context: context,
           child: child,
           title: title,
-          maxWidth: maxWidth,
+          maxWidth: resolvedMaxWidth,
           showCloseButton: showCloseButton,
           barrierDismissible: barrierDismissible,
+          pageType: ResponsivePageType.detail,
         ),
       SecondaryPageMode.centerDialog => _showCenterDialog<T>(
           context: context,
           child: child,
           title: title,
-          maxWidth: maxWidth,
+          maxWidth: resolvedMaxWidth,
           showCloseButton: showCloseButton,
           barrierDismissible: barrierDismissible,
+          pageType: ResponsivePageType.detail,
         ),
       SecondaryPageMode.bottomSheet => _showBottomSheet<T>(
           context: context,
           child: child,
           title: title,
           showCloseButton: showCloseButton,
+          pageType: ResponsivePageType.detail,
         ),
     };
   }
 
-  /// 全屏导航
+  static Future<T?> showAdaptiveModalPage<T>({
+    required BuildContext context,
+    required Widget child,
+    String? title,
+    double? maxWidth,
+    bool showCloseButton = true,
+    bool showDragHandle = true,
+    bool barrierDismissible = true,
+    SecondaryPageMode largeScreenMode = SecondaryPageMode.centerDialog,
+    AdaptiveModalContentLayout contentLayout =
+        AdaptiveModalContentLayout.wrapContent,
+  }) {
+    final spec = context.layoutType(ResponsivePageType.modal);
+    final resolvedMaxWidth = maxWidth ?? spec.modalWidth;
+
+    if (!context.isLargeScreen) {
+      return _showBottomSheet<T>(
+        context: context,
+        child: child,
+        title: title,
+        showCloseButton: showCloseButton,
+        showDragHandle: showDragHandle,
+        contentLayout: contentLayout,
+        pageType: ResponsivePageType.modal,
+      );
+    }
+
+    if (largeScreenMode == SecondaryPageMode.sideSheet) {
+      return _showSideSheet<T>(
+        context: context,
+        child: child,
+        title: title,
+        maxWidth: resolvedMaxWidth,
+        showCloseButton: showCloseButton,
+        barrierDismissible: barrierDismissible,
+        contentLayout: contentLayout,
+        pageType: ResponsivePageType.modal,
+      );
+    }
+
+    return _showCenterDialog<T>(
+      context: context,
+      child: child,
+      title: title,
+      maxWidth: resolvedMaxWidth,
+      showCloseButton: showCloseButton,
+      barrierDismissible: barrierDismissible,
+      contentLayout: contentLayout,
+      pageType: ResponsivePageType.modal,
+    );
+  }
+
+  static Future<T?> showAdaptiveDialog<T>({
+    required BuildContext context,
+    required Widget child,
+    String? title,
+    double? maxWidth,
+    bool showCloseButton = false,
+    bool barrierDismissible = true,
+  }) {
+    return showAdaptiveModalPage<T>(
+      context: context,
+      child: child,
+      title: title,
+      maxWidth: maxWidth,
+      showCloseButton: showCloseButton,
+      barrierDismissible: barrierDismissible,
+      largeScreenMode: SecondaryPageMode.centerDialog,
+    );
+  }
+
   static Future<T?> _showFullScreen<T>({
     required BuildContext context,
     required Widget child,
@@ -352,14 +546,16 @@ class ResponsiveNavigation {
     );
   }
 
-  /// 侧边Sheet (从右侧滑入)
   static Future<T?> _showSideSheet<T>({
     required BuildContext context,
     required Widget child,
+    required ResponsivePageType pageType,
     String? title,
-    double maxWidth = 480,
+    required double maxWidth,
     bool showCloseButton = true,
     bool barrierDismissible = true,
+    AdaptiveModalContentLayout contentLayout =
+        AdaptiveModalContentLayout.fillHeight,
   }) {
     return showGeneralDialog<T>(
       context: context,
@@ -372,16 +568,16 @@ class ResponsiveNavigation {
           alignment: Alignment.centerRight,
           child: Material(
             elevation: 16,
-            child: Container(
-              width: maxWidth,
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8,
-              ),
+            color: Theme.of(context).colorScheme.surface,
+            child: SizedBox(
+              width:
+                  math.min(maxWidth, MediaQuery.sizeOf(context).width * 0.82),
               child: _buildSheetContent(
                 context: context,
                 child: child,
                 title: title,
                 showCloseButton: showCloseButton,
+                contentLayout: contentLayout,
               ),
             ),
           ),
@@ -392,83 +588,126 @@ class ResponsiveNavigation {
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          )),
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+          ),
           child: child,
         );
       },
     );
   }
 
-  /// 居中Dialog
   static Future<T?> _showCenterDialog<T>({
     required BuildContext context,
     required Widget child,
+    required ResponsivePageType pageType,
     String? title,
-    double maxWidth = 480,
+    required double maxWidth,
     bool showCloseButton = true,
     bool barrierDismissible = true,
+    AdaptiveModalContentLayout contentLayout =
+        AdaptiveModalContentLayout.fillHeight,
   }) {
+    final spec = context.layoutType(pageType);
     return showDialog<T>(
       context: context,
       barrierDismissible: barrierDismissible,
       builder: (context) => Dialog(
-        child: Container(
-          width: maxWidth,
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.9,
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-          ),
-          child: _buildSheetContent(
-            context: context,
-            child: child,
-            title: title,
-            showCloseButton: showCloseButton,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: SizedBox(
+          width: math.min(maxWidth, MediaQuery.sizeOf(context).width * 0.9),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight:
+                  MediaQuery.sizeOf(context).height * spec.modalMaxHeightFactor,
+            ),
+            child: _buildSheetContent(
+              context: context,
+              child: child,
+              title: title,
+              showCloseButton: showCloseButton,
+              contentLayout: contentLayout,
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// 底部Sheet
   static Future<T?> _showBottomSheet<T>({
     required BuildContext context,
     required Widget child,
+    required ResponsivePageType pageType,
     String? title,
     bool showCloseButton = true,
+    bool showDragHandle = true,
+    AdaptiveModalContentLayout contentLayout =
+        AdaptiveModalContentLayout.fillHeight,
   }) {
+    final spec = context.layoutType(pageType);
     return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: Colors.transparent,
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+        maxHeight:
+            MediaQuery.sizeOf(context).height * spec.modalMaxHeightFactor,
       ),
-      builder: (context) => _buildSheetContent(
-        context: context,
-        child: child,
-        title: title,
-        showCloseButton: showCloseButton,
+      builder: (context) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: _buildSheetContent(
+          context: context,
+          child: child,
+          title: title,
+          showCloseButton: showCloseButton,
+          showDragHandle: showDragHandle,
+          contentLayout: contentLayout,
+        ),
       ),
     );
   }
 
-  /// 构建Sheet内容（带可选标题栏）
   static Widget _buildSheetContent({
     required BuildContext context,
     required Widget child,
     String? title,
     bool showCloseButton = true,
+    bool showDragHandle = false,
+    AdaptiveModalContentLayout contentLayout =
+        AdaptiveModalContentLayout.fillHeight,
   }) {
-    if (title == null && !showCloseButton) {
+    if (title == null && !showCloseButton && !showDragHandle) {
       return child;
     }
+
+    final body = switch (contentLayout) {
+      AdaptiveModalContentLayout.wrapContent =>
+        Flexible(fit: FlexFit.loose, child: child),
+      AdaptiveModalContentLayout.fillHeight => Expanded(child: child),
+    };
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (showDragHandle)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
         if (title != null || showCloseButton)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -499,34 +738,44 @@ class ResponsiveNavigation {
               ],
             ),
           ),
-        Expanded(child: child),
+        body,
       ],
     );
   }
 }
 
-/// 响应式页面容器
-/// 自动限制内容最大宽度，使大屏幕上的内容居中显示
 class ResponsivePageContainer extends StatelessWidget {
   const ResponsivePageContainer({
     super.key,
     required this.child,
-    this.maxWidth = 1200,
+    this.pageType = ResponsivePageType.browse,
+    this.maxWidth,
     this.padding,
+    this.alignment = Alignment.topCenter,
   });
 
   final Widget child;
-  final double maxWidth;
+  final ResponsivePageType pageType;
+  final double? maxWidth;
   final EdgeInsetsGeometry? padding;
+  final AlignmentGeometry alignment;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    final spec = context.layoutType(pageType);
+    final resolvedMaxWidth = maxWidth ?? spec.maxWidth;
+    final effectiveChild = padding != null
+        ? Padding(
+            padding: padding!,
+            child: child,
+          )
+        : child;
+
+    return Align(
+      alignment: alignment,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: padding != null
-            ? Padding(padding: padding!, child: child)
-            : child,
+        constraints: BoxConstraints(maxWidth: resolvedMaxWidth),
+        child: effectiveChild,
       ),
     );
   }

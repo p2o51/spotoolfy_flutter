@@ -11,6 +11,7 @@ import '../widgets/library_section.dart';
 import '../widgets/search_section.dart';
 import '../services/insights_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
 
 final logger = Logger();
 
@@ -29,7 +30,6 @@ class _LibraryState extends State<Library> {
 
   // 缓存变量
   Size? _cachedScreenSize;
-  bool? _cachedIsWideScreen;
   double? _cachedMaxContentWidth;
 
   @override
@@ -72,11 +72,11 @@ class _LibraryState extends State<Library> {
   }
 
   // 缓存屏幕尺寸计算
-  void _updateScreenSizeCache(Size newSize) {
+  void _updateScreenSizeCache(BuildContext context, Size newSize) {
     if (_cachedScreenSize != newSize) {
       _cachedScreenSize = newSize;
-      _cachedIsWideScreen = newSize.width > 600;
-      _cachedMaxContentWidth = _cachedIsWideScreen! ? 1200.0 : newSize.width;
+      final layout = context.layoutType(ResponsivePageType.browse);
+      _cachedMaxContentWidth = layout.maxWidth;
     }
   }
 
@@ -105,103 +105,103 @@ class _LibraryState extends State<Library> {
         return LayoutBuilder(
           builder: (context, constraints) {
             // 使用缓存的屏幕尺寸计算
-            _updateScreenSizeCache(constraints.biggest);
+            _updateScreenSizeCache(context, constraints.biggest);
             final maxContentWidth = _cachedMaxContentWidth!;
+            final contentPadding =
+                context.layoutType(ResponsivePageType.browse).horizontalPadding;
 
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxContentWidth),
-                // Use a simple Column, no Stack needed now
-                child: Column(
-                  children: [
-                    // Common search bar with gradient fade
-                    RepaintBoundary(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Theme.of(context).colorScheme.surface,
-                              Theme.of(context).colorScheme.surface,
-                              Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-                            ],
-                            stops: const [0.0, 0.7, 1.0],
-                          ),
-                        ),
-                        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 24.0),
-                        // 使用 TextField 替换 SearchBar
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          decoration: InputDecoration(
-                            hintText: AppLocalizations.of(context)!.searchHint,
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    tooltip: AppLocalizations.of(context)!
-                                        .clearSearch,
-                                    onPressed: () {
-                                      HapticFeedback.lightImpact();
-                                      // Clear controller and provider
-                                      _searchController.clear();
-                                      searchProvider.clearSearch();
-                                      _searchFocusNode.unfocus();
-                                    },
-                                  )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30.0),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            // 使用与 lyrics 页面一致的颜色
-                            fillColor: Theme.of(context)
+            return ResponsivePageContainer(
+              pageType: ResponsivePageType.browse,
+              maxWidth: maxContentWidth,
+              alignment: Alignment.topCenter,
+              child: Column(
+                children: [
+                  RepaintBoundary(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Theme.of(context).colorScheme.surface,
+                            Theme.of(context).colorScheme.surface,
+                            Theme.of(context)
                                 .colorScheme
-                                .surfaceContainerHighest,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 0),
-                          ),
-                          onChanged: (value) {
-                            // Update UI immediately when text changes
-                            setState(() {});
-                            // Listener already handles provider update
-                          },
-                          onSubmitted: (value) {
-                            searchProvider.submitSearch(value);
-                            _searchFocusNode.unfocus();
-                          },
-                          textInputAction: TextInputAction.search,
+                                .surface
+                                .withValues(alpha: 0),
+                          ],
+                          stops: const [0.0, 0.7, 1.0],
                         ),
                       ),
-                    ),
-
-                    // Main content - either search results or library
-                    Expanded(
-                      child: RepaintBoundary(
-                        child: isSearchActive
-                            ? SearchSection(
-                                onBackPressed: () {
-                                  _searchController.clear();
-                                  searchProvider.clearSearch();
-                                  _searchFocusNode.unfocus();
-                                },
-                              )
-                            : Consumer<LibraryProvider>(
-                                builder: (context, libraryProvider, child) {
-                                  return LibrarySection(
-                                    // Register callbacks to allow LibrarySection to trigger actions
-                                    registerRefreshCallback: (callback) {
-                                      _refreshLibraryCallback = callback;
-                                    },
-                                  );
-                                },
-                              ),
+                      padding: EdgeInsets.fromLTRB(
+                        contentPadding,
+                        16,
+                        contentPadding,
+                        24,
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        decoration: InputDecoration(
+                          hintText: AppLocalizations.of(context)!.searchHint,
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  tooltip:
+                                      AppLocalizations.of(context)!.clearSearch,
+                                  onPressed: () {
+                                    HapticFeedback.lightImpact();
+                                    _searchController.clear();
+                                    searchProvider.clearSearch();
+                                    _searchFocusNode.unfocus();
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 0),
+                        ),
+                        onChanged: (value) {
+                          setState(() {});
+                        },
+                        onSubmitted: (value) {
+                          searchProvider.submitSearch(value);
+                          _searchFocusNode.unfocus();
+                        },
+                        textInputAction: TextInputAction.search,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  Expanded(
+                    child: RepaintBoundary(
+                      child: isSearchActive
+                          ? SearchSection(
+                              onBackPressed: () {
+                                _searchController.clear();
+                                searchProvider.clearSearch();
+                                _searchFocusNode.unfocus();
+                              },
+                            )
+                          : Consumer<LibraryProvider>(
+                              builder: (context, libraryProvider, child) {
+                                return LibrarySection(
+                                  registerRefreshCallback: (callback) {
+                                    _refreshLibraryCallback = callback;
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                ],
               ),
             );
           },
@@ -267,11 +267,12 @@ class _MyCarouselViewState extends State<MyCarouselView> {
       _cachedScreenSize = newSize;
       final screenWidth = newSize.width;
 
-      _cachedCarouselHeight = screenWidth > 900 ? 300.0 : 190.0;
+      _cachedCarouselHeight =
+          screenWidth >= Breakpoints.desktop ? 300.0 : 190.0;
 
-      _cachedFlexWeights = screenWidth > 900
+      _cachedFlexWeights = screenWidth >= Breakpoints.desktop
           ? [2, 7, 6, 5, 4, 3, 2]
-          : screenWidth > 600
+          : screenWidth >= Breakpoints.tablet
               ? [2, 6, 5, 4, 3, 2]
               : [3, 6, 3, 2];
     }
@@ -714,8 +715,9 @@ class _MyCarouselViewState extends State<MyCarouselView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
-        final carouselHeight = screenWidth > 900 ? 300.0 : 190.0;
-        final itemExtent = screenWidth > 900 ? 300.0 : 190.0;
+        final carouselHeight =
+            screenWidth >= Breakpoints.desktop ? 300.0 : 190.0;
+        final itemExtent = screenWidth >= Breakpoints.desktop ? 300.0 : 190.0;
 
         return Center(
           child: ConstrainedBox(

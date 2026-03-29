@@ -94,3 +94,4 @@ lib/config/secrets.dart
 AGENTS.md
 CLAUDE.md
 .gitignore
+.claude/

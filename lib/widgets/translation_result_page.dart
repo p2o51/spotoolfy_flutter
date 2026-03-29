@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // For Clipboard and HapticFeedback
 import 'package:logger/logger.dart';
 import '../services/settings_service.dart'; // Import TranslationStyle and SettingsService
 import '../models/translation_load_result.dart';
+import '../utils/responsive.dart';
 // import '../models/translation.dart'; // Unused import
 // 导入 AppLocalizations 类，用于访问本地化字符串
 import '../l10n/app_localizations.dart';
@@ -308,8 +309,8 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context); // 获取 Theme
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
+    final detailLayout = context.layoutType(ResponsivePageType.detail);
+    final isWideScreen = detailLayout.preferTwoPane;
     final bool translationAvailable = _currentCleanTranslatedLyrics != null;
     final bool hasError = _translationError != null;
     final bool isBusy = _isInitialLoading || _isTranslating;
@@ -341,83 +342,86 @@ class _TranslationResultPageState extends State<TranslationResultPage> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(_latestResult),
           ),
-        actions: [
-          // 翻译风格按钮 - Tooltip 使用本地化字符串
-          if (isBusy)
-            const Padding(
-              // 保持加载指示器
-              padding: EdgeInsets.all(14.0), // 调整 padding
-              child: SizedBox(
-                width: 20, // 调整大小
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+          actions: [
+            // 翻译风格按钮 - Tooltip 使用本地化字符串
+            if (isBusy)
+              const Padding(
+                // 保持加载指示器
+                padding: EdgeInsets.all(14.0), // 调整 padding
+                child: SizedBox(
+                  width: 20, // 调整大小
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              IconButton(
+                // 改为普通 IconButton 可能更合适在 AppBar
+                icon: Icon(_getTranslationStyleIcon(_currentStyle), size: 20),
+                // 调用辅助函数获取本地化的 Tooltip
+                tooltip: _getTranslationStyleTooltip(_currentStyle, l10n),
+                onPressed: _toggleTranslationStyle,
               ),
-            )
-          else
+            if (!isBusy)
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                // 使用 l10n 获取 Tooltip
+                tooltip: l10n.retranslateButton,
+                onPressed: _handleReTranslate,
+              ),
+            // 复制按钮 - Tooltip 使用本地化字符串
             IconButton(
-              // 改为普通 IconButton 可能更合适在 AppBar
-              icon: Icon(_getTranslationStyleIcon(_currentStyle), size: 20),
-              // 调用辅助函数获取本地化的 Tooltip
-              tooltip: _getTranslationStyleTooltip(_currentStyle, l10n),
-              onPressed: _toggleTranslationStyle,
-            ),
-          if (!isBusy)
-            IconButton(
-              icon: const Icon(Icons.refresh, size: 20),
+              icon: const Icon(Icons.copy, size: 20),
               // 使用 l10n 获取 Tooltip
-              tooltip: l10n.retranslateButton,
-              onPressed: _handleReTranslate,
+              tooltip: l10n.copyToClipboard, // copyToClipboard key 似乎更通用
+              onPressed: canCopy ? () => _copyToClipboard(isWideScreen) : null,
             ),
-          // 复制按钮 - Tooltip 使用本地化字符串
-          IconButton(
-            icon: const Icon(Icons.copy, size: 20),
-            // 使用 l10n 获取 Tooltip
-            tooltip: l10n.copyToClipboard, // copyToClipboard key 似乎更通用
-            onPressed: canCopy ? () => _copyToClipboard(isWideScreen) : null,
-          ),
-          // 窄屏模式下的切换按钮 - Tooltip 使用本地化字符串
-          if (!isWideScreen)
-            _showTranslated
-                ? IconButton(
-                    key: const ValueKey('toggle_button_selected'),
-                    icon: const Icon(Icons.translate, size: 20),
-                    // 使用 l10n 获取 Tooltip
-                    tooltip: l10n.showOriginal,
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _showTranslated = !_showTranslated);
-                    },
-                    // style: IconButton.styleFrom( // 移除 filledTonal 样式
-                    //   padding: const EdgeInsets.all(8),
-                    //   // 保留视觉区分可能仍然有用，但可能不需要背景色
-                    //   // backgroundColor: theme.colorScheme.secondaryContainer,
-                    //   // foregroundColor: theme.colorScheme.onSecondaryContainer,
-                    //   color: theme.colorScheme.primary, // 突出显示选中的状态
-                    // ),
-                  )
-                : IconButton(
-                    key: const ValueKey('toggle_button_unselected'),
-                    icon: const Icon(Icons.translate, size: 20),
-                    // 使用 l10n 获取 Tooltip
-                    tooltip: l10n.showTranslation,
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _showTranslated = !_showTranslated);
-                    },
-                    // style: IconButton.styleFrom( // 移除 filledTonal 样式
-                    //   padding: const EdgeInsets.all(8),
-                    //   foregroundColor: theme.colorScheme.onSurfaceVariant, // 使用 theme
-                    // ),
-                  ),
-          const SizedBox(width: 8), // 添加一点右边距
-        ],
-      ),
-      // Body 使用原有的布局逻辑，但不再需要 ScrollController
-      body: _isInitialLoading
-          ? const Center(child: CircularProgressIndicator())
-          : isWideScreen
-              ? _buildWideLayout(context, l10n, theme) // 移除 scrollController
-              : _buildNarrowLayout(context, l10n, theme), // 移除 scrollController
+            // 窄屏模式下的切换按钮 - Tooltip 使用本地化字符串
+            if (!isWideScreen)
+              _showTranslated
+                  ? IconButton(
+                      key: const ValueKey('toggle_button_selected'),
+                      icon: const Icon(Icons.translate, size: 20),
+                      // 使用 l10n 获取 Tooltip
+                      tooltip: l10n.showOriginal,
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        setState(() => _showTranslated = !_showTranslated);
+                      },
+                      // style: IconButton.styleFrom( // 移除 filledTonal 样式
+                      //   padding: const EdgeInsets.all(8),
+                      //   // 保留视觉区分可能仍然有用，但可能不需要背景色
+                      //   // backgroundColor: theme.colorScheme.secondaryContainer,
+                      //   // foregroundColor: theme.colorScheme.onSecondaryContainer,
+                      //   color: theme.colorScheme.primary, // 突出显示选中的状态
+                      // ),
+                    )
+                  : IconButton(
+                      key: const ValueKey('toggle_button_unselected'),
+                      icon: const Icon(Icons.translate, size: 20),
+                      // 使用 l10n 获取 Tooltip
+                      tooltip: l10n.showTranslation,
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        setState(() => _showTranslated = !_showTranslated);
+                      },
+                      // style: IconButton.styleFrom( // 移除 filledTonal 样式
+                      //   padding: const EdgeInsets.all(8),
+                      //   foregroundColor: theme.colorScheme.onSurfaceVariant, // 使用 theme
+                      // ),
+                    ),
+            const SizedBox(width: 8), // 添加一点右边距
+          ],
+        ),
+        // Body 使用原有的布局逻辑，但不再需要 ScrollController
+        body: _isInitialLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ResponsivePageContainer(
+                pageType: ResponsivePageType.detail,
+                child: isWideScreen
+                    ? _buildWideLayout(context, l10n, theme)
+                    : _buildNarrowLayout(context, l10n, theme),
+              ),
       ),
     );
   }

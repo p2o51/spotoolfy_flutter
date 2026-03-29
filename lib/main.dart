@@ -70,8 +70,7 @@ void main() async {
               // handleCallbackToken 已经保存 token 并刷新用户资料
               // 不需要再调用 autoLogin()，避免重复刷新和潜在的交互式授权
               await spotifyProvider.handleCallbackToken(accessToken, expiresIn);
-              logger.d(
-                  'iOS回调处理完成'); // Reverted: Replaced print with logger
+              logger.d('iOS回调处理完成'); // Reverted: Replaced print with logger
             }
           }
         }
@@ -417,183 +416,133 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // 使用响应式工具检查屏幕宽度
-    final isLargeScreen = context.isLargeScreen;
+    final shellLayout = context.layoutType(ResponsivePageType.shell);
+    final isLargeScreen = shellLayout.preferTwoPane;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) => _handleBackPress(didPop),
       child: Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/icons/adaptive_icon_monochrome.png',
-              width: 40, // 设置合适的宽度
-              height: 40, // 设置合适的高度
-              color: Theme.of(context).colorScheme.onSurface, // 使图标颜色与主题匹配
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              // 使用 Expanded 防止文本溢出
-              child: PlaybackContextSelector(
-                builder: (context, state, child) {
-                  final contextDescription = state.contextName;
-                  final contextType = state.contextType;
-                  final isPlaying = state.isPlaying;
-
-                  // 检查是否正在播放且有上下文描述和类型
-                  if (isPlaying &&
-                      contextDescription != null &&
-                      contextDescription.isNotEmpty &&
-                      contextType != null) {
-                    final l10n = AppLocalizations.of(context)!;
-                    String playFromText = l10n.playingFrom; // Default
-                    if (contextType == 'album') {
-                      playFromText = l10n.playFromAlbum;
-                    } else if (contextType == 'playlist') {
-                      playFromText = l10n.playFromPlaylist;
-                    } // Add more types if needed (e.g., artist)
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          contextDescription, // 显示上下文名称
-                          style:
-                              Theme.of(context).textTheme.titleMedium, // 或合适的样式
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        Text(
-                          playFromText, // 显示大写的来源类型
-                          style: Theme.of(context).textTheme.labelSmall, // 小号加粗
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ],
-                    );
-                  } else {
-                    // 否则只显示应用名称
-                    return const Text('Spotoolfy');
-                  }
-                },
+        appBar: AppBar(
+          title: Row(
+            children: [
+              Image.asset(
+                'assets/icons/adaptive_icon_monochrome.png',
+                width: 40, // 设置合适的宽度
+                height: 40, // 设置合适的高度
+                color: Theme.of(context).colorScheme.onSurface, // 使图标颜色与主题匹配
               ),
-            ),
-          ],
-        ),
-        actions: [
-          if (isLargeScreen) ...[
-            IconButton(
-              onPressed: () {
-                // 添加更多的导航选项或信息
-              },
-              icon: const Icon(Icons.info_outline),
-            ),
-          ],
-          IconButton.filledTonal(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                useSafeArea: true,
-                constraints: const BoxConstraints(
-                  minWidth: 400,
-                ),
-                builder: (BuildContext context) {
-                  return const DevicesPage();
-                },
-              );
-            },
-            icon: const Icon(Icons.devices),
-          ),
-          const SizedBox(
-            width: 8,
-          ),
-          IconButton.filledTonal(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                useSafeArea: true,
-                constraints: const BoxConstraints(
-                  minWidth: 400,
-                ),
-                builder: (BuildContext context) {
-                  return const Login();
-                },
-              );
-            },
-            icon: const Icon(Icons.person_outlined),
-          ),
-          const SizedBox(
-            width: 8,
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4.0),
-          child: ProgressBarSelector(
-            builder: (context, state, child) {
-              if (!state.hasTrack) {
-                return const SizedBox.shrink();
-              }
+              const SizedBox(width: 8),
+              Expanded(
+                // 使用 Expanded 防止文本溢出
+                child: PlaybackContextSelector(
+                  builder: (context, state, child) {
+                    final contextDescription = state.contextName;
+                    final contextType = state.contextType;
+                    final isPlaying = state.isPlaying;
 
-              return ProgressIndicator(
-                progress: state.progress.toDouble(),
-                duration: state.duration.toDouble(),
-                isPlaying: state.isPlaying,
-              );
-            },
+                    // 检查是否正在播放且有上下文描述和类型
+                    if (isPlaying &&
+                        contextDescription != null &&
+                        contextDescription.isNotEmpty &&
+                        contextType != null) {
+                      final l10n = AppLocalizations.of(context)!;
+                      String playFromText = l10n.playingFrom; // Default
+                      if (contextType == 'album') {
+                        playFromText = l10n.playFromAlbum;
+                      } else if (contextType == 'playlist') {
+                        playFromText = l10n.playFromPlaylist;
+                      } // Add more types if needed (e.g., artist)
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            contextDescription, // 显示上下文名称
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium, // 或合适的样式
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          Text(
+                            playFromText, // 显示大写的来源类型
+                            style:
+                                Theme.of(context).textTheme.labelSmall, // 小号加粗
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ],
+                      );
+                    } else {
+                      // 否则只显示应用名称
+                      return const Text('Spotoolfy');
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            if (isLargeScreen) ...[
+              IconButton(
+                onPressed: () {
+                  // 添加更多的导航选项或信息
+                },
+                icon: const Icon(Icons.info_outline),
+              ),
+            ],
+            IconButton.filledTonal(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                ResponsiveNavigation.showAdaptiveModalPage(
+                  context: context,
+                  showCloseButton: false,
+                  child: const DevicesPage(),
+                );
+              },
+              icon: const Icon(Icons.devices),
+            ),
+            const SizedBox(
+              width: 8,
+            ),
+            IconButton.filledTonal(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                ResponsiveNavigation.showAdaptiveModalPage(
+                  context: context,
+                  showCloseButton: false,
+                  child: const Login(),
+                );
+              },
+              icon: const Icon(Icons.person_outlined),
+            ),
+            const SizedBox(
+              width: 8,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(4.0),
+            child: ProgressBarSelector(
+              builder: (context, state, child) {
+                if (!state.hasTrack) {
+                  return const SizedBox.shrink();
+                }
+
+                return ProgressIndicator(
+                  progress: state.progress.toDouble(),
+                  duration: state.duration.toDouble(),
+                  isPlaying: state.isPlaying,
+                );
+              },
+            ),
           ),
         ),
-      ),
-      body: Row(
-        children: [
-          if (isLargeScreen)
-            NavigationRail(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (int index) {
-                HapticFeedback.lightImpact();
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              destinations: [
-                NavigationRailDestination(
-                  icon: const Icon(Icons.music_note),
-                  label: Text(AppLocalizations.of(context)!.nowPlayingLabel),
-                ),
-                NavigationRailDestination(
-                  icon: const Icon(Icons.library_music_outlined),
-                  label: Text(AppLocalizations.of(context)!.libraryLabel),
-                ),
-                NavigationRailDestination(
-                  icon: const Icon(Icons.radio),
-                  label: Text(AppLocalizations.of(context)!.roamLabel),
-                ),
-              ],
-            ),
-          Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: _pages,
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: isLargeScreen
-          ? null
-          : SafeArea(
-              bottom: false,
-              child: NavigationBar(
-                height: defaultTargetPlatform == TargetPlatform.iOS
-                    ? 55
-                    : null, // 只在 iOS 平台设置固定高度
-                labelBehavior:
-                    NavigationDestinationLabelBehavior.onlyShowSelected,
+        body: Row(
+          children: [
+            if (isLargeScreen)
+              NavigationRail(
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: (int index) {
                   HapticFeedback.lightImpact();
@@ -602,21 +551,61 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   });
                 },
                 destinations: [
-                  NavigationDestination(
+                  NavigationRailDestination(
                     icon: const Icon(Icons.music_note),
-                    label: AppLocalizations.of(context)!.nowPlayingLabel,
+                    label: Text(AppLocalizations.of(context)!.nowPlayingLabel),
                   ),
-                  NavigationDestination(
+                  NavigationRailDestination(
                     icon: const Icon(Icons.library_music_outlined),
-                    label: AppLocalizations.of(context)!.libraryLabel,
+                    label: Text(AppLocalizations.of(context)!.libraryLabel),
                   ),
-                  NavigationDestination(
+                  NavigationRailDestination(
                     icon: const Icon(Icons.radio),
-                    label: AppLocalizations.of(context)!.roamLabel,
+                    label: Text(AppLocalizations.of(context)!.roamLabel),
                   ),
                 ],
               ),
+            Expanded(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: _pages,
+              ),
             ),
+          ],
+        ),
+        bottomNavigationBar: isLargeScreen
+            ? null
+            : SafeArea(
+                bottom: false,
+                child: NavigationBar(
+                  height: defaultTargetPlatform == TargetPlatform.iOS
+                      ? 55
+                      : null, // 只在 iOS 平台设置固定高度
+                  labelBehavior:
+                      NavigationDestinationLabelBehavior.onlyShowSelected,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (int index) {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  destinations: [
+                    NavigationDestination(
+                      icon: const Icon(Icons.music_note),
+                      label: AppLocalizations.of(context)!.nowPlayingLabel,
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.library_music_outlined),
+                      label: AppLocalizations.of(context)!.libraryLabel,
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.radio),
+                      label: AppLocalizations.of(context)!.roamLabel,
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }

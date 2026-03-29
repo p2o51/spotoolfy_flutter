@@ -9,7 +9,7 @@ import 'materialui.dart' as custom_ui;
 
 class SearchSection extends StatefulWidget {
   final VoidCallback onBackPressed;
-  
+
   const SearchSection({
     super.key,
     required this.onBackPressed,
@@ -24,7 +24,7 @@ class _SearchSectionState extends State<SearchSection> {
   void initState() {
     super.initState();
   }
-  
+
   @override
   void dispose() {
     super.dispose();
@@ -34,14 +34,23 @@ class _SearchSectionState extends State<SearchSection> {
   Widget build(BuildContext context) {
     return Consumer<SearchProvider>(
       builder: (context, searchProvider, child) {
-        final gridCrossAxisCount = context.gridCrossAxisCount;
+        final browseLayout = context.layoutType(ResponsivePageType.browse);
+        final gridCrossAxisCount = context.adaptiveColumns(
+          minTileWidth: browseLayout.defaultMinTileWidth,
+          min: 3,
+          max: 6,
+        );
+        final horizontalPadding = browseLayout.horizontalPadding;
         final results = searchProvider.filteredResults;
-        
+
         return Column(
           children: [
             // Search results header with back button
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 8,
+              ),
               child: Row(
                 children: [
                   IconButton(
@@ -58,19 +67,19 @@ class _SearchSectionState extends State<SearchSection> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 48), 
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
-            
+
             // Loading indicator
             if (searchProvider.isSearching)
               const Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: LinearProgressIndicator(),
               ),
-              
-            // Error message  
+
+            // Error message
             if (searchProvider.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -79,34 +88,34 @@ class _SearchSectionState extends State<SearchSection> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
-              
+
             // Search results using CustomScrollView for potential future sliver integration
             Expanded(
-              child: CustomScrollView(
-                slivers: [
-                  if (results.isEmpty && !searchProvider.isSearching)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _buildEmptyResultsView(),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: LibraryGrid(
-                        items: results,
-                        gridCrossAxisCount: gridCrossAxisCount,
-                        onItemTap: (item) => searchProvider.playItem(item),
-                      ),
-                    )
-                ],
-              )
-            ),
+                child: CustomScrollView(
+              slivers: [
+                if (results.isEmpty && !searchProvider.isSearching)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _buildEmptyResultsView(),
+                  )
+                else
+                  SliverPadding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: horizontalPadding),
+                    sliver: LibraryGrid(
+                      items: results,
+                      gridCrossAxisCount: gridCrossAxisCount,
+                      onItemTap: (item) => searchProvider.playItem(item),
+                    ),
+                  )
+              ],
+            )),
           ],
         );
       },
     );
   }
-  
+
   Widget _buildEmptyResultsView() {
     return Center(
       child: Padding(
@@ -117,7 +126,10 @@ class _SearchSectionState extends State<SearchSection> {
             Icon(
               Icons.search_off,
               size: 48,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -129,12 +141,15 @@ class _SearchSectionState extends State<SearchSection> {
               AppLocalizations.of(context)!.tryDifferentKeywords,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7),
+                  ),
             ),
           ],
         ),
       ),
     );
   }
-} 
+}

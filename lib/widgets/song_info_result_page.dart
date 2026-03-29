@@ -6,6 +6,7 @@ import '../services/song_info_service.dart';
 import '../services/gemini_chat_service.dart';
 import '../services/notification_service.dart';
 import '../services/settings_service.dart';
+import '../utils/responsive.dart';
 import '../widgets/materialui.dart';
 import '../widgets/ai_chat_sheet.dart';
 import '../l10n/app_localizations.dart';
@@ -35,7 +36,6 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   final SongInfoService _songInfoService = SongInfoService();
   final SettingsService _settingsService = SettingsService();
 
-  
   // 加载动画控制器
   late AnimationController _pulseController;
   late AnimationController _rotationController;
@@ -49,20 +49,21 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   // 信息出现动画控制器
   late AnimationController _infoAnimationController;
   late List<Animation<double>> _infoAnimations;
-  
+
   int _dotCount = 0;
-  
+
   late String _currentFunnyText;
 
   String _getRandomFunnyText() {
     // Only call this method after the widget is fully built
     if (!mounted) return 'Loading...';
-    
+
     final l10n = AppLocalizations.of(context)!;
     final trackName = widget.trackData['name'] as String? ?? l10n.unknownTrack;
     final artistNames = (widget.trackData['artists'] as List?)
-        ?.map((artist) => artist['name'] as String)
-        .join(', ') ?? l10n.unknownArtist;
+            ?.map((artist) => artist['name'] as String)
+            .join(', ') ??
+        l10n.unknownArtist;
 
     final staticTexts = [
       l10n.loadingAnalyzing,
@@ -77,7 +78,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     ];
 
     // 60% 概率使用动态文本，40% 概率使用静态文本
-    if (Random().nextDouble() < 0.6 && trackName != l10n.unknownTrack && artistNames != l10n.unknownArtist) {
+    if (Random().nextDouble() < 0.6 &&
+        trackName != l10n.unknownTrack &&
+        artistNames != l10n.unknownArtist) {
       return l10n.loadingChatting(artistNames);
     } else {
       return staticTexts[Random().nextInt(staticTexts.length)];
@@ -87,10 +90,10 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize with a default text, will be set properly in didChangeDependencies
     _currentFunnyText = 'Loading...';
-    
+
     // 初始化动画控制器
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
@@ -149,11 +152,12 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       parent: _shimmerController,
       curve: Curves.easeInOut,
     ));
-    
+
     // 初始化信息动画列表（最多6个信息板块）
     _infoAnimations = List.generate(6, (index) {
       final startTime = (index * 0.15).clamp(0.0, 0.8); // 每个板块延迟150ms，确保不超过0.8
-      final endTime = (startTime + 0.4).clamp(startTime, 1.0); // 每个动画持续400ms，确保不超过1.0
+      final endTime =
+          (startTime + 0.4).clamp(startTime, 1.0); // 每个动画持续400ms，确保不超过1.0
       return Tween<double>(
         begin: 0.0,
         end: 1.0,
@@ -192,9 +196,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     if (_currentFunnyText == 'Loading...') {
       _currentFunnyText = _getRandomFunnyText();
     }
-    
+
     // Start loading if no initial data was provided
-    if (widget.initialSongInfo == null && _currentSongInfo == null && !_isLoading) {
+    if (widget.initialSongInfo == null &&
+        _currentSongInfo == null &&
+        !_isLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadSongInfo();
       });
@@ -268,16 +274,17 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     _startVibrationCycle();
 
     try {
-      final songInfo = await _songInfoService.generateSongInfo(widget.trackData);
-      
+      final songInfo =
+          await _songInfoService.generateSongInfo(widget.trackData);
+
       if (!mounted) return;
-      
+
       if (songInfo != null) {
         setState(() {
           _currentSongInfo = songInfo;
           _isLoading = false;
         });
-        
+
         // 停止加载动画
         _pulseController.stop();
         _rotationController.stop();
@@ -324,14 +331,15 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     _startVibrationCycle();
 
     try {
-      final newSongInfo = await _songInfoService.generateSongInfo(widget.trackData, skipCache: true);
-      
+      final newSongInfo = await _songInfoService
+          .generateSongInfo(widget.trackData, skipCache: true);
+
       if (mounted && newSongInfo != null) {
         setState(() {
           _currentSongInfo = newSongInfo;
           _isRegenerating = false;
         });
-        
+
         // 停止加载动画
         _pulseController.stop();
         _rotationController.stop();
@@ -341,7 +349,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         // 重置并启动信息出现动画
         _infoAnimationController.reset();
         _infoAnimationController.forward();
-        
+
         if (mounted) {
           final l10n = AppLocalizations.of(context)!;
           Provider.of<NotificationService>(context, listen: false)
@@ -428,8 +436,10 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   Widget build(BuildContext context) {
     final trackName = widget.trackData['name'] as String? ?? 'Unknown Track';
     final artistNames = (widget.trackData['artists'] as List?)
-        ?.map((artist) => artist['name'] as String)
-        .join(', ') ?? 'Unknown Artist';
+            ?.map((artist) => artist['name'] as String)
+            .join(', ') ??
+        'Unknown Artist';
+    final detailLayout = context.layoutType(ResponsivePageType.detail);
 
     return Scaffold(
       appBar: AppBar(
@@ -451,54 +461,55 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
         label: Text(AppLocalizations.of(context)!.askGemini),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 歌曲标题卡片 - 统一的封面位置
-            _buildHeaderCard(trackName, artistNames),
-            
-            // 在歌曲标题下方添加波浪线
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: _isLoading || _isRegenerating 
-                ? const AnimatedWavyDivider(
-                    height: 10.0,
-                    waveHeight: 5.0,
-                    waveFrequency: 0.02,
-                    animate: true,
-                    animationDuration: Duration(seconds: 2), // 从4秒改为2秒，动画更快
-                  )
-                : const WavyDivider(
-                    height: 10.0,
-                    waveHeight: 5.0,
-                    waveFrequency: 0.02,
-                  ),
-            ),
+        padding: EdgeInsets.all(detailLayout.horizontalPadding),
+        child: ResponsivePageContainer(
+          pageType: ResponsivePageType.detail,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 歌曲标题卡片 - 统一的封面位置
+              _buildHeaderCard(trackName, artistNames),
 
-            // 错误提示
-            if (_regenerationError != null && !_isLoading)
-              _buildErrorCard(),
+              // 在歌曲标题下方添加波浪线
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: _isLoading || _isRegenerating
+                    ? const AnimatedWavyDivider(
+                        height: 10.0,
+                        waveHeight: 5.0,
+                        waveFrequency: 0.02,
+                        animate: true,
+                        animationDuration: Duration(seconds: 2), // 从4秒改为2秒，动画更快
+                      )
+                    : const WavyDivider(
+                        height: 10.0,
+                        waveHeight: 5.0,
+                        waveFrequency: 0.02,
+                      ),
+              ),
 
-            if (_regenerationError != null && !_isLoading) 
+              // 错误提示
+              if (_regenerationError != null && !_isLoading) _buildErrorCard(),
+
+              if (_regenerationError != null && !_isLoading)
+                const SizedBox(height: 16),
+
+              // 主要内容区域
+              if (_isLoading || _isRegenerating)
+                _buildLoadingContent()
+              else if (_currentSongInfo != null)
+                ..._buildInfoCards()
+              else
+                _buildEmptyState(),
+
+              const SizedBox(height: 24),
+
+              // 底部信息
+              if (!_isLoading) _buildFooter(),
+
               const SizedBox(height: 16),
-
-            // 主要内容区域
-            if (_isLoading || _isRegenerating)
-              _buildLoadingContent()
-            else if (_currentSongInfo != null)
-              ..._buildInfoCards()
-            else
-              _buildEmptyState(),
-
-            const SizedBox(height: 24),
-
-            // 底部信息
-            if (!_isLoading)
-              _buildFooter(),
-
-            const SizedBox(height: 16),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -531,9 +542,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                   Text(
                     trackName,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -541,8 +552,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -567,7 +578,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
           children: [
             // 专辑封面图片
             widget.trackData['album']?['images'] != null &&
-                   (widget.trackData['album']['images'] as List).isNotEmpty
+                    (widget.trackData['album']['images'] as List).isNotEmpty
                 ? Image.network(
                     widget.trackData['album']['images'][0]['url'],
                     fit: BoxFit.cover,
@@ -575,7 +586,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                     height: coverSize,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         child: Icon(
                           Icons.music_note,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -585,7 +598,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                     },
                   )
                 : Container(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: Icon(
                       Icons.music_note,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -600,7 +614,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                 height: coverSize,
                 color: Colors.black.withValues(alpha: 0.6),
                 child: AnimatedBuilder(
-                  animation: Listenable.merge([_pulseController, _rotationController]),
+                  animation:
+                      Listenable.merge([_pulseController, _rotationController]),
                   builder: (context, child) {
                     return Transform.scale(
                       scale: _pulseAnimation.value,
@@ -655,7 +670,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                               color: Theme.of(context)
                                   .colorScheme
                                   .primary
-                                  .withValues(alpha: 0.3 * (1 - (_pulseAnimation.value - 0.85) / 0.3)),
+                                  .withValues(
+                                      alpha: 0.3 *
+                                          (1 -
+                                              (_pulseAnimation.value - 0.85) /
+                                                  0.3)),
                               width: 2,
                             ),
                           ),
@@ -679,9 +698,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                                     Theme.of(context).colorScheme.primary,
                                   ],
                                   stops: [
-                                    (_shimmerAnimation.value - 0.3).clamp(0.0, 1.0),
+                                    (_shimmerAnimation.value - 0.3)
+                                        .clamp(0.0, 1.0),
                                     _shimmerAnimation.value.clamp(0.0, 1.0),
-                                    (_shimmerAnimation.value + 0.3).clamp(0.0, 1.0),
+                                    (_shimmerAnimation.value + 0.3)
+                                        .clamp(0.0, 1.0),
                                   ],
                                 ).createShader(bounds);
                               },
@@ -696,7 +717,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                       ),
                       // 小星星装饰
                       ...List.generate(3, (index) {
-                        final angle = (index * 2.0944) + (_rotationAnimation.value * 3.14159);
+                        final angle = (index * 2.0944) +
+                            (_rotationAnimation.value * 3.14159);
                         final radius = 30.0 + (_bounceAnimation.value * 0.5);
                         return Positioned(
                           left: 40 + cos(angle) * radius - 6,
@@ -744,9 +766,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                   child: Text(
                     _currentFunnyText,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                 );
@@ -786,9 +808,11 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                                   Colors.transparent,
                                 ],
                                 stops: [
-                                  (_shimmerAnimation.value - 0.2).clamp(0.0, 1.0),
+                                  (_shimmerAnimation.value - 0.2)
+                                      .clamp(0.0, 1.0),
                                   _shimmerAnimation.value.clamp(0.0, 1.0),
-                                  (_shimmerAnimation.value + 0.2).clamp(0.0, 1.0),
+                                  (_shimmerAnimation.value + 0.2)
+                                      .clamp(0.0, 1.0),
                                 ],
                               ).createShader(bounds);
                             },
@@ -809,8 +833,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             Text(
               AppLocalizations.of(context)!.geminiGrounding,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -861,8 +885,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
             Text(
               AppLocalizations.of(context)!.noSongInfoAvailable,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),
@@ -877,15 +901,15 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
           Text(
             AppLocalizations.of(context)!.generatedByGemini(_geminiVersion),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 4),
           Text(
             AppLocalizations.of(context)!.poweredByGoogleSearch,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
         ],
       ),
@@ -901,7 +925,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
   }) {
     // 确保animationIndex在有效范围内
     final safeIndex = animationIndex.clamp(0, _infoAnimations.length - 1);
-    
+
     return AnimatedBuilder(
       animation: _infoAnimations[safeIndex],
       builder: (context, child) {
@@ -924,16 +948,18 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                       const SizedBox(width: 8),
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.copy_rounded, size: 18),
                         onPressed: () => _copyToClipboard(content, title),
-                        tooltip: '${AppLocalizations.of(context)!.copyButtonText} $title',
+                        tooltip:
+                            '${AppLocalizations.of(context)!.copyButtonText} $title',
                         visualDensity: VisualDensity.compact,
                       ),
                     ],
@@ -944,9 +970,9 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
                     child: Text(
                       content,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        height: 1.6,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                            height: 1.6,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                     ),
                   ),
                 ],
@@ -962,7 +988,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     List<Widget> cards = [];
     int animationIndex = 0;
 
-    if (_currentSongInfo!['creation_time'] != null && _currentSongInfo!['creation_time'] != '') {
+    if (_currentSongInfo!['creation_time'] != null &&
+        _currentSongInfo!['creation_time'] != '') {
       cards.add(_buildInfoSection(
         context,
         title: AppLocalizations.of(context)!.creationTimeTitle,
@@ -973,7 +1000,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       cards.add(const SizedBox(height: 8));
     }
 
-    if (_currentSongInfo!['creation_location'] != null && _currentSongInfo!['creation_location'] != '') {
+    if (_currentSongInfo!['creation_location'] != null &&
+        _currentSongInfo!['creation_location'] != '') {
       cards.add(_buildInfoSection(
         context,
         title: AppLocalizations.of(context)!.creationLocationTitle,
@@ -984,7 +1012,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       cards.add(const SizedBox(height: 8));
     }
 
-    if (_currentSongInfo!['lyricist'] != null && _currentSongInfo!['lyricist'] != '') {
+    if (_currentSongInfo!['lyricist'] != null &&
+        _currentSongInfo!['lyricist'] != '') {
       cards.add(_buildInfoSection(
         context,
         title: AppLocalizations.of(context)!.lyricistTitle,
@@ -995,7 +1024,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       cards.add(const SizedBox(height: 8));
     }
 
-    if (_currentSongInfo!['composer'] != null && _currentSongInfo!['composer'] != '') {
+    if (_currentSongInfo!['composer'] != null &&
+        _currentSongInfo!['composer'] != '') {
       cards.add(_buildInfoSection(
         context,
         title: AppLocalizations.of(context)!.composerTitle,
@@ -1006,7 +1036,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
       cards.add(const SizedBox(height: 8));
     }
 
-    if (_currentSongInfo!['producer'] != null && _currentSongInfo!['producer'] != '') {
+    if (_currentSongInfo!['producer'] != null &&
+        _currentSongInfo!['producer'] != '') {
       cards.add(_buildInfoSection(
         context,
         title: AppLocalizations.of(context)!.producerTitle,
@@ -1018,7 +1049,8 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
     }
 
     // 在Song Analysis之前添加波浪线
-    if (_currentSongInfo!['review'] != null && _currentSongInfo!['review'] != '') {
+    if (_currentSongInfo!['review'] != null &&
+        _currentSongInfo!['review'] != '') {
       // 添加波浪线分隔符
       cards.add(const Padding(
         padding: EdgeInsets.all(16.0),
@@ -1028,7 +1060,7 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
           waveFrequency: 0.02,
         ),
       ));
-      
+
       cards.add(_buildInfoSection(
         context,
         title: AppLocalizations.of(context)!.songAnalysisTitle,
@@ -1046,4 +1078,4 @@ class _SongInfoResultPageState extends State<SongInfoResultPage>
 
     return cards;
   }
-} 
+}

@@ -194,16 +194,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _isTranslationLoading = false;
       _syncLineKeys(0);
       _currentTrackDurationMs = trackDurationMs;
-          _preloadedTrackId = null;
-          _preloadedTranslationResult = null;
-          _preloadedLyricsProvider = null;
-          _translationPreloadFuture = null;
-          _preloadingTrackId = null;
-          _preloadingLyricsProvider = null;
-          _activeTranslationStyle = null;
-          _lyricsAreSynced = true;
-          _manualQuickActionsVisible = false;
-          _isLyricsLoading = true;
+      _preloadedTrackId = null;
+      _preloadedTranslationResult = null;
+      _preloadedLyricsProvider = null;
+      _translationPreloadFuture = null;
+      _preloadingTrackId = null;
+      _preloadingLyricsProvider = null;
+      _activeTranslationStyle = null;
+      _lyricsAreSynced = true;
+      _manualQuickActionsVisible = false;
+      _isLyricsLoading = true;
       _currentLyricsProvider = null;
       _hasNeteaseTranslation = false;
     });
@@ -893,11 +893,13 @@ class _LyricsWidgetState extends State<LyricsWidget>
         final lyricsResult =
             await _lyricsService.getLyrics(songName, artistName, trackId);
         if (lyricsResult == null || !mounted) {
-          _logger.d('Preloaded lyrics for next track: $trackId (no lyrics found)');
+          _logger
+              .d('Preloaded lyrics for next track: $trackId (no lyrics found)');
           return;
         }
 
-        _logger.d('Preloaded lyrics for next track: $trackId (provider: ${lyricsResult.provider})');
+        _logger.d(
+            'Preloaded lyrics for next track: $trackId (provider: ${lyricsResult.provider})');
 
         final rawLyrics = lyricsResult.lyric;
         var lyricLines = _parseLyrics(rawLyrics);
@@ -1599,7 +1601,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
                               _tailSpace()); // Spacer keeps final line centerable
                     }
                     final theme = Theme.of(context);
-                    final bool isWideLyricLayout = context.isLargeScreen;
+                    final bool isWideLyricLayout = context
+                        .layoutType(ResponsivePageType.detail)
+                        .preferTwoPane;
                     final bool isWeb = kIsWeb;
                     final line = _lyrics[index];
                     final bool showTranslationLine = _translationsVisible &&
@@ -1679,9 +1683,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
                               ? (isCurrentLine ? 15.6 : 10.4)
                               : (isCurrentLine ? 12.0 : 8.0),
                           // Responsive horizontal padding
-                          horizontal: isWideLyricLayout
-                              ? 24.0
-                              : 40.0,
+                          horizontal: isWideLyricLayout ? 24.0 : 40.0,
                         ),
                         child: AnimatedDefaultTextStyle(
                           duration: const Duration(milliseconds: 450),
@@ -1770,7 +1772,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
                 // Buttons overlay at the bottom
                 if (shouldShowQuickActions)
                   Positioned(
-                    left: context.isLargeScreen
+                    left: context
+                            .layoutType(ResponsivePageType.detail)
+                            .preferTwoPane
                         ? 24
                         : 16, // Reverted left positioning
                     bottom: 24 +
@@ -2189,8 +2193,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
             synced ? parsed : _buildUnsyncedLyrics(selection.lyrics);
         final resolvedProvider =
             selection.provider.isNotEmpty ? selection.provider : null;
-        final hasNeteaseTranslation = resolvedProvider == 'netease' &&
-            selection.hasNeteaseTranslation;
+        final hasNeteaseTranslation =
+            resolvedProvider == 'netease' && selection.hasNeteaseTranslation;
         _quickActionsHideTimer?.cancel();
         _autoTranslationRequestedForTrack = false;
         setState(() {

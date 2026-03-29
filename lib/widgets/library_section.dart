@@ -161,8 +161,13 @@ class _LibrarySectionState extends State<LibrarySection> {
           );
         }
 
-        // Calculate grid cross axis count using responsive utility
-        final gridCrossAxisCount = context.gridCrossAxisCount;
+        final browseLayout = context.layoutType(ResponsivePageType.browse);
+        final gridCrossAxisCount = context.adaptiveColumns(
+          minTileWidth: browseLayout.defaultMinTileWidth,
+          min: 3,
+          max: 6,
+        );
+        final horizontalPadding = browseLayout.horizontalPadding;
 
         return CustomScrollView(
           controller: _scrollController,
@@ -181,8 +186,7 @@ class _LibrarySectionState extends State<LibrarySection> {
             // Insert WavyDivider here
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0), // Added horizontal padding
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                 child: WavyDivider(
                   height: 10,
                   waveHeight: 3,
@@ -195,7 +199,7 @@ class _LibrarySectionState extends State<LibrarySection> {
             // "YOUR LIBRARY" header
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(horizontalPadding),
                 child: Center(
                   child: custom_ui.IconHeader(
                     icon: Icons.library_music,
@@ -207,7 +211,7 @@ class _LibrarySectionState extends State<LibrarySection> {
             // Filter chips
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                 child: Wrap(
                   spacing: 8,
                   children: [
@@ -239,7 +243,7 @@ class _LibrarySectionState extends State<LibrarySection> {
 
             // Add SliverPadding around the grid and loading states
             SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
               sliver: _buildContentSliver(
                   context, libraryProvider, gridCrossAxisCount),
             ),

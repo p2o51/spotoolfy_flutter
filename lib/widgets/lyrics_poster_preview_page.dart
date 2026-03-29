@@ -8,6 +8,7 @@ import '../services/notification_service.dart';
 import '../services/lyrics_poster_service.dart';
 import '../l10n/app_localizations.dart';
 import '../models/poster_lyric_line.dart';
+import '../utils/responsive.dart';
 
 // 海报样式枚举
 enum PosterStyle {
@@ -370,6 +371,7 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
     final l10n = AppLocalizations.of(
         context); // Keep for parts that work in _buildPosterContent
     final theme = Theme.of(context);
+    final previewLayout = context.layoutType(ResponsivePageType.preview);
 
     return PopScope(
       canPop: !_isBusy,
@@ -388,17 +390,20 @@ class _LyricsPosterPreviewPageState extends State<LyricsPosterPreviewPage> {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Center(
-                  child: _buildPosterContent(theme, l10n), // Pass l10n
+                padding: EdgeInsets.all(previewLayout.horizontalPadding),
+                child: ResponsivePageContainer(
+                  pageType: ResponsivePageType.preview,
+                  child: Center(
+                    child: _buildPosterContent(theme, l10n),
+                  ),
                 ),
               ),
             ),
             if (!_isLoading && _posterBytes != null)
               Container(
                 padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
+                  left: previewLayout.horizontalPadding,
+                  right: previewLayout.horizontalPadding,
                   top: 16,
                   bottom: 16 + MediaQuery.of(context).padding.bottom,
                 ),

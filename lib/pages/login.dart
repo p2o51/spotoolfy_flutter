@@ -9,6 +9,7 @@ import '../services/settings_service.dart';
 import '../services/lyrics_service.dart'; // Import LyricsService
 import '../services/translation_service.dart'; // Import TranslationService
 import '../services/notification_service.dart'; // Import NotificationService
+import '../utils/responsive.dart';
 import 'dart:math' as math; // Import dart:math
 import 'package:logger/logger.dart'; // Import logger
 
@@ -28,7 +29,7 @@ class Login extends StatelessWidget {
   Widget build(BuildContext context) {
     final spotifyProvider = Provider.of<SpotifyProvider>(context);
     final l10n = AppLocalizations.of(context)!; // Get AppLocalizations instance
-    
+
     // 设置edge to edge显示
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
@@ -40,8 +41,9 @@ class Login extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: kDefaultPadding,
+      padding: ResponsivePadding.horizontal(
+        context,
+        pageType: ResponsivePageType.modal,
       ),
       width: double.infinity,
       child: SingleChildScrollView(
@@ -49,80 +51,95 @@ class Login extends StatelessWidget {
           top: MediaQuery.of(context).padding.top + kDefaultPadding,
           bottom: MediaQuery.of(context).padding.bottom + kDefaultPadding,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: kSmallSpacing),
-                  child: Text(
-                    l10n.settingsTitle, // Use localization
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary.withAlpha((255 * 0.8).round()), // Use withAlpha as recommended alternative
+        child: ResponsivePageContainer(
+          pageType: ResponsivePageType.modal,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: kSmallSpacing),
+                    child: Text(
+                      l10n.settingsTitle, // Use localization
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withAlpha((255 * 0.8)
+                                        .round()), // Use withAlpha as recommended alternative
+                              ),
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        final Uri emailLaunchUri = Uri(
-                          scheme: 'mailto',
-                          path: 'lastnatsu51@gmail.com',
-                        );
-                        launchUrl(emailLaunchUri);
-                      },
-                      icon: const Icon(Icons.email),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: kSectionSpacing),
-            const SettingsMenuSection(),
-            const SizedBox(height: kSectionSpacing),
-            Row(
-              children: [
-                Expanded(child: _buildSpotifyButton(context, spotifyProvider)),
-              ],
-            ),
-            if (spotifyProvider.currentTrack != null && spotifyProvider.username != null)
-              Padding(
-                padding: const EdgeInsets.only(top: kElementSpacing),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (spotifyProvider.username != null)
-                      Flexible(
-                        child: Text(
-                          // Use localization with placeholder
-                          spotifyProvider.username != null ? l10n.loggedInAs(spotifyProvider.username!) : '', 
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          final Uri emailLaunchUri = Uri(
+                            scheme: 'mailto',
+                            path: 'lastnatsu51@gmail.com',
+                          );
+                          launchUrl(emailLaunchUri);
+                        },
+                        icon: const Icon(Icons.email),
                       ),
-                  ],
-                ),
+                      IconButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-          ],
+              const SizedBox(height: kSectionSpacing),
+              const SettingsMenuSection(),
+              const SizedBox(height: kSectionSpacing),
+              Row(
+                children: [
+                  Expanded(
+                      child: _buildSpotifyButton(context, spotifyProvider)),
+                ],
+              ),
+              if (spotifyProvider.currentTrack != null &&
+                  spotifyProvider.username != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: kElementSpacing),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (spotifyProvider.username != null)
+                        Flexible(
+                          child: Text(
+                            // Use localization with placeholder
+                            spotifyProvider.username != null
+                                ? l10n.loggedInAs(spotifyProvider.username!)
+                                : '',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSpotifyButton(BuildContext context, SpotifyProvider spotifyProvider) {
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
-    final l10n = AppLocalizations.of(context)!; // Get AppLocalizations instance here too
+  Widget _buildSpotifyButton(
+      BuildContext context, SpotifyProvider spotifyProvider) {
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+    final l10n =
+        AppLocalizations.of(context)!; // Get AppLocalizations instance here too
 
     return FilledButton(
       style: FilledButton.styleFrom(
@@ -138,38 +155,51 @@ class Login extends StatelessWidget {
                 if (spotifyProvider.currentTrack != null) {
                   await spotifyProvider.logout();
                   HapticFeedback.lightImpact();
-                  notificationService.showSuccessSnackBar(l10n.logoutSuccess); // Use localization
+                  notificationService.showSuccessSnackBar(
+                      l10n.logoutSuccess); // Use localization
                 } else {
                   await spotifyProvider.login();
                   HapticFeedback.lightImpact();
-                  notificationService.showSuccessSnackBar(l10n.loginSuccess); // Use localization
+                  notificationService.showSuccessSnackBar(
+                      l10n.loginSuccess); // Use localization
                   if (context.mounted) Navigator.pop(context);
                 }
               } catch (e) {
                 if (context.mounted) {
-                  String errorMessage = l10n.operationFailed; // Use localization
-                  
+                  String errorMessage =
+                      l10n.operationFailed; // Use localization
+
                   logger.e('登录/注销操作失败: $e');
                   logger.e('错误类型: ${e.runtimeType}');
-                  
-                  if (e.toString().contains('INVALID_CREDENTIALS') || e.toString().contains('客户端 ID 或密钥无效')) {
-                    errorMessage = l10n.invalidCredentialsError; // Use localization
+
+                  if (e.toString().contains('INVALID_CREDENTIALS') ||
+                      e.toString().contains('客户端 ID 或密钥无效')) {
+                    errorMessage =
+                        l10n.invalidCredentialsError; // Use localization
                   } else if (e.toString().contains('401')) {
                     errorMessage = l10n.authenticationError; // Use localization
-                  } else if (e.toString().contains('AUTH_SERVICE_UNAVAILABLE') ||
-                      e.toString().contains('AUTHENTICATION_SERVICE_UNAVAILABLE')) {
-                    errorMessage = l10n.authenticationError; // Map to existing auth error copy
+                  } else if (e
+                          .toString()
+                          .contains('AUTH_SERVICE_UNAVAILABLE') ||
+                      e
+                          .toString()
+                          .contains('AUTHENTICATION_SERVICE_UNAVAILABLE')) {
+                    errorMessage = l10n
+                        .authenticationError; // Map to existing auth error copy
                   } else if (e.toString().contains('429')) {
-                    errorMessage = l10n.tooManyRequestsError; // Use localization
+                    errorMessage =
+                        l10n.tooManyRequestsError; // Use localization
                   } else {
-                    errorMessage = l10n.loginLogoutFailed(e.toString()); // Use localization with error detail
+                    errorMessage = l10n.loginLogoutFailed(
+                        e.toString()); // Use localization with error detail
                   }
-                  
+
                   notificationService.showErrorSnackBar(
                     errorMessage,
                     actionLabel: l10n.helpAction, // Use localization
                     onActionPressed: () {
-                      launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy'));
+                      launchUrl(
+                          Uri.parse('https://51notepage.craft.me/spotoolfy'));
                     },
                   );
                 }
@@ -200,14 +230,24 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
   Key _languageKey = UniqueKey();
   Key _styleKey = UniqueKey();
 
+  double _dialogWidth(BuildContext context) {
+    return math.min(
+      MediaQuery.of(context).size.width * 0.9,
+      context.layoutType(ResponsivePageType.modal).modalWidth,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!; // Get AppLocalizations instance
-    
+
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha((255 * 0.3).round()),
+      color: Theme.of(context)
+          .colorScheme
+          .surfaceContainerHighest
+          .withAlpha((255 * 0.3).round()),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kDefaultPadding),
       ),
@@ -220,9 +260,9 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
             Text(
               l10n.setupTitle, // Use localization
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: kElementSpacing),
             _buildSettingMenuItem(
@@ -246,17 +286,18 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               icon: Icons.help_outline,
               title: l10n.tutorialTitle, // Use localization
               subtitle: l10n.tutorialSubtitle, // Use localization
-              onTap: () => launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy')),
+              onTap: () =>
+                  launchUrl(Uri.parse('https://51notepage.craft.me/spotoolfy')),
             ),
             const SizedBox(height: kSectionSpacing),
-            
+
             // 常规设置部分
             Text(
               l10n.generalTitle, // Use localization
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: kElementSpacing),
             FutureBuilder<String>(
@@ -264,23 +305,37 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               key: _languageKey,
               builder: (context, snapshot) {
                 String languageDisplay = "";
-                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData) {
                   // 显示语言名称
                   switch (snapshot.data) {
-                    case 'en': languageDisplay = l10n.languageEnglish; break;
-                    case 'zh-CN': languageDisplay = l10n.languageSimplifiedChinese; break;
-                    case 'zh-TW': languageDisplay = l10n.languageTraditionalChinese; break;
-                    case 'ja': languageDisplay = l10n.languageJapanese; break;
-                    default: languageDisplay = snapshot.data ?? "";
+                    case 'en':
+                      languageDisplay = l10n.languageEnglish;
+                      break;
+                    case 'zh-CN':
+                      languageDisplay = l10n.languageSimplifiedChinese;
+                      break;
+                    case 'zh-TW':
+                      languageDisplay = l10n.languageTraditionalChinese;
+                      break;
+                    case 'ja':
+                      languageDisplay = l10n.languageJapanese;
+                      break;
+                    default:
+                      languageDisplay = snapshot.data ?? "";
                   }
                 }
                 return _buildSettingMenuItem(
                   context,
                   icon: Icons.language,
                   title: l10n.translationLanguageTitle,
-                  subtitle: languageDisplay.isNotEmpty ? languageDisplay : l10n.translationLanguageSubtitle,
+                  subtitle: languageDisplay.isNotEmpty
+                      ? languageDisplay
+                      : l10n.translationLanguageSubtitle,
                   onTap: () => _showLanguageDialog(context, l10n, () {
-                    setState(() { _languageKey = UniqueKey(); });
+                    setState(() {
+                      _languageKey = UniqueKey();
+                    });
                   }),
                 );
               },
@@ -291,23 +346,37 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               key: _styleKey,
               builder: (context, snapshot) {
                 String styleDisplay = "";
-                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData) {
                   // 显示翻译样式名称
                   switch (snapshot.data) {
-                    case TranslationStyle.faithful: styleDisplay = l10n.translationStyleFaithful; break;
-                    case TranslationStyle.melodramaticPoet: styleDisplay = l10n.translationStyleMelodramaticPoet; break;
-                    case TranslationStyle.machineClassic: styleDisplay = l10n.translationStyleMachineClassic; break;
-                    case TranslationStyle.neteaseProvider: styleDisplay = l10n.translationStyleNetease; break;
-                    default: styleDisplay = "";
+                    case TranslationStyle.faithful:
+                      styleDisplay = l10n.translationStyleFaithful;
+                      break;
+                    case TranslationStyle.melodramaticPoet:
+                      styleDisplay = l10n.translationStyleMelodramaticPoet;
+                      break;
+                    case TranslationStyle.machineClassic:
+                      styleDisplay = l10n.translationStyleMachineClassic;
+                      break;
+                    case TranslationStyle.neteaseProvider:
+                      styleDisplay = l10n.translationStyleNetease;
+                      break;
+                    default:
+                      styleDisplay = "";
                   }
                 }
                 return _buildSettingMenuItem(
                   context,
                   icon: Icons.style,
                   title: l10n.translationStyleTitle,
-                  subtitle: styleDisplay.isNotEmpty ? styleDisplay : l10n.translationStyleSubtitle,
+                  subtitle: styleDisplay.isNotEmpty
+                      ? styleDisplay
+                      : l10n.translationStyleSubtitle,
                   onTap: () => _showTranslationStyleDialog(context, l10n, () {
-                    setState(() { _styleKey = UniqueKey(); });
+                    setState(() {
+                      _styleKey = UniqueKey();
+                    });
                   }),
                 );
               },
@@ -334,14 +403,14 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               subtitle: l10n.enableGemini3Subtitle,
             ),
             const SizedBox(height: kSectionSpacing),
-            
+
             // 数据管理部分
             Text(
               l10n.dataManagementTitle, // Use localization
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: kElementSpacing),
             _buildSettingMenuItem(
@@ -397,16 +466,19 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isDestructive 
-                  ? Theme.of(context).colorScheme.error.withAlpha((255 * 0.1).round())
-                  : Theme.of(context).colorScheme.secondaryContainer,
+                color: isDestructive
+                    ? Theme.of(context)
+                        .colorScheme
+                        .error
+                        .withAlpha((255 * 0.1).round())
+                    : Theme.of(context).colorScheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 icon,
-                color: isDestructive 
-                  ? Theme.of(context).colorScheme.error
-                  : Theme.of(context).colorScheme.onSecondaryContainer,
+                color: isDestructive
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.onSecondaryContainer,
               ),
             ),
             const SizedBox(width: kElementSpacing),
@@ -419,9 +491,9 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: isDestructive 
-                        ? Theme.of(context).colorScheme.error
-                        : Theme.of(context).colorScheme.onSurface,
+                      color: isDestructive
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   Text(
@@ -447,7 +519,8 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     required String title,
     required String subtitle,
   }) {
-    final settingsService = Provider.of<SettingsService>(context, listen: false);
+    final settingsService =
+        Provider.of<SettingsService>(context, listen: false);
     return StatefulBuilder(
       builder: (context, setState) {
         return FutureBuilder<bool>(
@@ -482,7 +555,8 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       ),
                       child: Icon(
                         icon,
-                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                        color:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
                       ),
                     ),
                     const SizedBox(width: kElementSpacing),
@@ -528,15 +602,16 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     required String title,
     required String subtitle,
   }) {
-    final settingsService = Provider.of<SettingsService>(context, listen: false);
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return FutureBuilder<Map<String, dynamic>>(
+    final settingsService =
+        Provider.of<SettingsService>(context, listen: false);
+    return StatefulBuilder(builder: (context, setState) {
+      return FutureBuilder<Map<String, dynamic>>(
           future: settingsService.getSettings(),
           builder: (context, snapshot) {
             bool copyAsSingleLine = false;
             if (snapshot.hasData) {
-              copyAsSingleLine = snapshot.data!['copyLyricsAsSingleLine'] as bool? ?? false;
+              copyAsSingleLine =
+                  snapshot.data!['copyLyricsAsSingleLine'] as bool? ?? false;
             }
 
             return InkWell(
@@ -563,7 +638,8 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       ),
                       child: Icon(
                         icon,
-                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                        color:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
                       ),
                     ),
                     const SizedBox(width: kElementSpacing),
@@ -597,10 +673,8 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                 ),
               ),
             );
-          }
-        );
-      }
-    );
+          });
+    });
   }
 
   Widget _buildGemini3SwitchMenuItem(
@@ -609,7 +683,8 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     required String title,
     required String subtitle,
   }) {
-    final settingsService = Provider.of<SettingsService>(context, listen: false);
+    final settingsService =
+        Provider.of<SettingsService>(context, listen: false);
     return StatefulBuilder(
       builder: (context, setState) {
         return FutureBuilder<bool>(
@@ -644,7 +719,8 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                       ),
                       child: Icon(
                         icon,
-                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                        color:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
                       ),
                     ),
                     const SizedBox(width: kElementSpacing),
@@ -685,49 +761,52 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
   }
 
   Future<void> _exportData(BuildContext context, AppLocalizations l10n) async {
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final localDbProvider =
+        Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     final currentContext = context;
 
     try {
       bool success = await localDbProvider.exportDataToJson();
-      if (!currentContext.mounted) return; 
+      if (!currentContext.mounted) return;
       if (success) {
-        notificationService.showSuccessSnackBar(l10n.exportSuccess); 
+        notificationService.showSuccessSnackBar(l10n.exportSuccess);
       } else {
         notificationService.showErrorSnackBar(l10n.exportFailed);
       }
     } catch (e) {
-      if (currentContext.mounted) { 
+      if (currentContext.mounted) {
         notificationService.showErrorSnackBar(l10n.exportFailed);
       }
     }
   }
 
-  Future<void> _showGeminiApiKeyDialog(BuildContext context, AppLocalizations l10n) async {
+  Future<void> _showGeminiApiKeyDialog(
+      BuildContext context, AppLocalizations l10n) async {
     final settingsService = context.read<SettingsService>();
     final notificationService = context.read<NotificationService>();
     final navigator = Navigator.of(context);
     final currentContext = context;
 
     final currentApiKey = await settingsService.getGeminiApiKey() ?? '';
-    if (!currentContext.mounted) return; 
+    if (!currentContext.mounted) return;
     final apiKeyController = TextEditingController(text: currentApiKey);
 
     showDialog(
-      context: currentContext, 
+      context: currentContext,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Text(l10n.geminiApiKeyDialogTitle), 
+          title: Text(l10n.geminiApiKeyDialogTitle),
           content: SizedBox(
-            width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+            width: _dialogWidth(context),
             child: TextField(
               controller: apiKeyController,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                hintText: l10n.geminiApiKeyDialogHint, 
+                hintText: l10n.geminiApiKeyDialogHint,
               ),
               obscureText: true,
             ),
@@ -735,17 +814,17 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancelButton), 
+              child: Text(l10n.cancelButton),
             ),
             TextButton(
               onPressed: () async {
                 final apiKey = apiKeyController.text.trim();
                 await settingsService.saveGeminiApiKey(apiKey);
-                if (!currentContext.mounted) return; 
+                if (!currentContext.mounted) return;
                 navigator.pop();
                 notificationService.showSuccessSnackBar(l10n.apiKeySaved);
               },
-              child: Text(l10n.okButton), 
+              child: Text(l10n.okButton),
             ),
           ],
         );
@@ -753,195 +832,208 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     );
   }
 
-  Future<void> _showSpotifyCredentialsDialog(BuildContext context, AppLocalizations l10n) async {
+  Future<void> _showSpotifyCredentialsDialog(
+      BuildContext context, AppLocalizations l10n) async {
     final spotifyProvider = context.read<SpotifyProvider>();
     final notificationService = context.read<NotificationService>();
     final navigator = Navigator.of(context);
     final currentContext = context;
 
     final credentials = await spotifyProvider.getClientCredentials();
-    if (!currentContext.mounted) return; 
-    final clientIdController = TextEditingController(text: credentials['clientId'] ?? '');
+    if (!currentContext.mounted) return;
+    final clientIdController =
+        TextEditingController(text: credentials['clientId'] ?? '');
 
     showDialog(
-      context: currentContext, 
+      context: currentContext,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(l10n.spotifyCredentialsDialogTitle), 
-              content: SizedBox(
-                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-                child: TextField(
-                  controller: clientIdController,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    labelText: l10n.clientIdLabel,
-                    hintText: '64103961829a42328a6634fb80574191', 
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: Text(l10n.spotifyCredentialsDialogTitle),
+            content: SizedBox(
+              width: _dialogWidth(context),
+              child: TextField(
+                controller: clientIdController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  labelText: l10n.clientIdLabel,
+                  hintText: '64103961829a42328a6634fb80574191',
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    launchUrl(Uri.parse('https://spotoolfy.gojyuplus.one/config'));
-                  },
-                  child: Text(l10n.tutorialButtonText),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(l10n.cancelButton), 
-                ),
-                TextButton(
-                  onPressed: () async {
-                    final clientId = clientIdController.text;
-                    if (clientId.isEmpty) {
-                      notificationService.showErrorSnackBar(l10n.emptyCredentialsError);
-                      return;
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  launchUrl(
+                      Uri.parse('https://spotoolfy.gojyuplus.one/config'));
+                },
+                child: Text(l10n.tutorialButtonText),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l10n.cancelButton),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final clientId = clientIdController.text;
+                  if (clientId.isEmpty) {
+                    notificationService
+                        .showErrorSnackBar(l10n.emptyCredentialsError);
+                    return;
+                  }
+                  final hexRegex = RegExp(r'^[0-9a-fA-F]{32}$');
+                  if (!hexRegex.hasMatch(clientId)) {
+                    notificationService
+                        .showErrorSnackBar(l10n.invalidClientIdError);
+                    return;
+                  }
+                  try {
+                    await spotifyProvider.setClientCredentials(
+                      clientId,
+                    );
+                    navigator.pop();
+                    notificationService
+                        .showSuccessSnackBar(l10n.credentialsSaved);
+                  } catch (e) {
+                    if (currentContext.mounted) {
+                      notificationService
+                          .showErrorSnackBar(l10n.credentialsSaveFailed);
                     }
-                    final hexRegex = RegExp(r'^[0-9a-fA-F]{32}$');
-                    if (!hexRegex.hasMatch(clientId)) {
-                      notificationService.showErrorSnackBar(l10n.invalidClientIdError);
-                      return;
-                    }
-                    try {
-                      await spotifyProvider.setClientCredentials(
-                        clientId,
-                      );
-                      navigator.pop();
-                      notificationService.showSuccessSnackBar(l10n.credentialsSaved);
-                    } catch (e) {
-                      if (currentContext.mounted) { 
-                        notificationService.showErrorSnackBar(l10n.credentialsSaveFailed);
-                      }
-                    }
-                  },
-                  child: Text(l10n.okButton), 
-                ),
-              ],
-            );
-          }
-        );
+                  }
+                },
+                child: Text(l10n.okButton),
+              ),
+            ],
+          );
+        });
       },
     );
   }
 
-  Future<void> _showLanguageDialog(BuildContext context, AppLocalizations l10n, VoidCallback onSuccess) async {
+  Future<void> _showLanguageDialog(BuildContext context, AppLocalizations l10n,
+      VoidCallback onSuccess) async {
     final settingsService = context.read<SettingsService>();
     final notificationService = context.read<NotificationService>();
     final navigator = Navigator.of(context);
     final currentContext = context;
 
     final currentLanguage = await settingsService.getTargetLanguage();
-    if (!currentContext.mounted) return; 
+    if (!currentContext.mounted) return;
 
     showDialog(
-      context: currentContext, 
+      context: currentContext,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(l10n.languageDialogTitle), 
-              content: SizedBox(
-                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RadioListTile<String>(
-                      title: Text(l10n.languageEnglish),
-                      value: 'en',
-                      groupValue: currentLanguage,
-                      onChanged: (value) async {
-                        if (value != null) {
-                          try {
-                            await settingsService.saveTargetLanguage(value);
-                            navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.languageSaved);
-                            onSuccess();
-                          } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
-                            }
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: Text(l10n.languageDialogTitle),
+            content: SizedBox(
+              width: _dialogWidth(context),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<String>(
+                    title: Text(l10n.languageEnglish),
+                    value: 'en',
+                    groupValue: currentLanguage,
+                    onChanged: (value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTargetLanguage(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.languageSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeLanguage(e.toString()));
                           }
                         }
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: Text(l10n.languageSimplifiedChinese),
-                      value: 'zh-CN',
-                      groupValue: currentLanguage,
-                      onChanged: (value) async {
-                        if (value != null) {
-                          try {
-                            await settingsService.saveTargetLanguage(value);
-                            navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.languageSaved);
-                            onSuccess();
-                          } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
-                            }
+                      }
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: Text(l10n.languageSimplifiedChinese),
+                    value: 'zh-CN',
+                    groupValue: currentLanguage,
+                    onChanged: (value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTargetLanguage(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.languageSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeLanguage(e.toString()));
                           }
                         }
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: Text(l10n.languageTraditionalChinese),
-                      value: 'zh-TW',
-                      groupValue: currentLanguage,
-                      onChanged: (value) async {
-                        if (value != null) {
-                          try {
-                            await settingsService.saveTargetLanguage(value);
-                            navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.languageSaved);
-                            onSuccess();
-                          } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
-                            }
+                      }
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: Text(l10n.languageTraditionalChinese),
+                    value: 'zh-TW',
+                    groupValue: currentLanguage,
+                    onChanged: (value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTargetLanguage(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.languageSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeLanguage(e.toString()));
                           }
                         }
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: Text(l10n.languageJapanese),
-                      value: 'ja',
-                      groupValue: currentLanguage,
-                      onChanged: (value) async {
-                        if (value != null) {
-                          try {
-                            await settingsService.saveTargetLanguage(value);
-                            navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.languageSaved);
-                            onSuccess();
-                          } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeLanguage(e.toString()));
-                            }
+                      }
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: Text(l10n.languageJapanese),
+                    value: 'ja',
+                    groupValue: currentLanguage,
+                    onChanged: (value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTargetLanguage(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.languageSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeLanguage(e.toString()));
                           }
                         }
-                      },
-                    ),
-                  ],
-                ),
+                      }
+                    },
+                  ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(l10n.cancelButton), 
-                ),
-              ],
-            );
-          }
-        );
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l10n.cancelButton),
+              ),
+            ],
+          );
+        });
       },
     );
   }
 
-  Future<void> _showTranslationStyleDialog(BuildContext context, AppLocalizations l10n, VoidCallback onSuccess) async {
+  Future<void> _showTranslationStyleDialog(BuildContext context,
+      AppLocalizations l10n, VoidCallback onSuccess) async {
     final settingsService = context.read<SettingsService>();
     final notificationService = context.read<NotificationService>();
     final navigator = Navigator.of(context);
@@ -951,156 +1043,163 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     final currentLanguage = await settingsService.getTargetLanguage();
     final allowNeteaseTranslation =
         currentLanguage.toLowerCase().startsWith('zh');
-    if (!currentContext.mounted) return; 
+    if (!currentContext.mounted) return;
 
     showDialog(
-      context: currentContext, 
+      context: currentContext,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(l10n.translationStyleDialogTitle), 
-              content: SizedBox(
-                width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: Text(l10n.translationStyleDialogTitle),
+            content: SizedBox(
+              width: _dialogWidth(context),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<TranslationStyle>(
+                    title: Text(l10n.translationStyleFaithful),
+                    value: TranslationStyle.faithful,
+                    groupValue: currentStyle,
+                    onChanged: (TranslationStyle? value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTranslationStyle(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.translationStyleSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeStyle(e.toString()));
+                          }
+                        }
+                      }
+                    },
+                  ),
+                  RadioListTile<TranslationStyle>(
+                    title: Text(l10n.translationStyleMelodramaticPoet),
+                    value: TranslationStyle.melodramaticPoet,
+                    groupValue: currentStyle,
+                    onChanged: (TranslationStyle? value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTranslationStyle(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.translationStyleSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeStyle(e.toString()));
+                          }
+                        }
+                      }
+                    },
+                  ),
+                  RadioListTile<TranslationStyle>(
+                    title: Text(l10n.translationStyleMachineClassic),
+                    value: TranslationStyle.machineClassic,
+                    groupValue: currentStyle,
+                    onChanged: (TranslationStyle? value) async {
+                      if (value != null) {
+                        try {
+                          await settingsService.saveTranslationStyle(value);
+                          navigator.pop();
+                          notificationService
+                              .showSuccessSnackBar(l10n.translationStyleSaved);
+                          onSuccess();
+                        } catch (e) {
+                          if (currentContext.mounted) {
+                            notificationService.showErrorSnackBar(
+                                l10n.failedToChangeStyle(e.toString()));
+                          }
+                        }
+                      }
+                    },
+                  ),
+                  if (allowNeteaseTranslation)
                     RadioListTile<TranslationStyle>(
-                      title: Text(l10n.translationStyleFaithful),
-                      value: TranslationStyle.faithful, 
+                      title: Text(l10n.translationStyleNetease),
+                      subtitle: Text(l10n.neteaseTranslationChineseOnly),
+                      value: TranslationStyle.neteaseProvider,
                       groupValue: currentStyle,
                       onChanged: (TranslationStyle? value) async {
                         if (value != null) {
                           try {
                             await settingsService.saveTranslationStyle(value);
                             navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
+                            notificationService.showSuccessSnackBar(
+                                l10n.translationStyleSaved);
                             onSuccess();
                           } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
+                            if (currentContext.mounted) {
+                              notificationService.showErrorSnackBar(
+                                  l10n.failedToChangeStyle(e.toString()));
                             }
                           }
                         }
                       },
                     ),
-                    RadioListTile<TranslationStyle>(
-                      title: Text(l10n.translationStyleMelodramaticPoet),
-                      value: TranslationStyle.melodramaticPoet, 
-                      groupValue: currentStyle,
-                      onChanged: (TranslationStyle? value) async {
-                        if (value != null) {
-                          try {
-                            await settingsService.saveTranslationStyle(value);
-                            navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
-                            onSuccess();
-                          } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
-                            }
-                          }
-                        }
-                      },
-                    ),
-                    RadioListTile<TranslationStyle>(
-                      title: Text(l10n.translationStyleMachineClassic),
-                      value: TranslationStyle.machineClassic, 
-                      groupValue: currentStyle,
-                      onChanged: (TranslationStyle? value) async {
-                        if (value != null) {
-                          try {
-                            await settingsService.saveTranslationStyle(value);
-                            navigator.pop();
-                            notificationService.showSuccessSnackBar(l10n.translationStyleSaved);
-                            onSuccess();
-                          } catch (e) {
-                            if (currentContext.mounted) { 
-                              notificationService.showErrorSnackBar(l10n.failedToChangeStyle(e.toString()));
-                            }
-                          }
-                        }
-                      },
-                    ),
-                    if (allowNeteaseTranslation)
-                      RadioListTile<TranslationStyle>(
-                        title: Text(l10n.translationStyleNetease),
-                        subtitle: Text(l10n.neteaseTranslationChineseOnly),
-                        value: TranslationStyle.neteaseProvider,
-                        groupValue: currentStyle,
-                        onChanged: (TranslationStyle? value) async {
-                          if (value != null) {
-                            try {
-                              await settingsService.saveTranslationStyle(value);
-                              navigator.pop();
-                              notificationService.showSuccessSnackBar(
-                                  l10n.translationStyleSaved);
-                              onSuccess();
-                            } catch (e) {
-                              if (currentContext.mounted) {
-                                notificationService.showErrorSnackBar(
-                                    l10n.failedToChangeStyle(e.toString()));
-                              }
-                            }
-                          }
-                        },
-                      ),
-                  ],
-                ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(l10n.cancelButton), 
-                ),
-              ],
-            );
-          }
-        );
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l10n.cancelButton),
+              ),
+            ],
+          );
+        });
       },
     );
   }
 
-  Future<void> _showImportDialog(BuildContext context, AppLocalizations l10n) async {
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(context, listen: false);
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+  Future<void> _showImportDialog(
+      BuildContext context, AppLocalizations l10n) async {
+    final localDbProvider =
+        Provider.of<LocalDatabaseProvider>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     final navigator = Navigator.of(context);
     final currentContext = context;
 
     showDialog(
-      context: currentContext, 
-      builder: (dialogContext) { 
+      context: currentContext,
+      builder: (dialogContext) {
         return AlertDialog(
-          title: Text(l10n.importDialogTitle), 
+          title: Text(l10n.importDialogTitle),
           content: SizedBox(
-            width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+            width: _dialogWidth(context),
             child: Text(
-              l10n.importDialogMessage, 
+              l10n.importDialogMessage,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancelButton), 
+              child: Text(l10n.cancelButton),
             ),
             TextButton(
               onPressed: () async {
-                navigator.pop(); 
+                navigator.pop();
                 try {
-                  bool success = await localDbProvider.importDataFromJson(); 
-                  if (!currentContext.mounted) return; 
+                  bool success = await localDbProvider.importDataFromJson();
+                  if (!currentContext.mounted) return;
                   if (success) {
-                    notificationService.showSuccessSnackBar(l10n.importSuccess); 
+                    notificationService.showSuccessSnackBar(l10n.importSuccess);
                   } else {
-                    notificationService.showErrorSnackBar(l10n.importFailed); 
+                    notificationService.showErrorSnackBar(l10n.importFailed);
                   }
                 } catch (e) {
-                  if (currentContext.mounted) { 
+                  if (currentContext.mounted) {
                     notificationService.showErrorSnackBar(l10n.importFailed);
                   }
                 }
               },
-              child: Text(l10n.importButton), 
+              child: Text(l10n.importButton),
             ),
           ],
         );
@@ -1108,41 +1207,44 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
     );
   }
 
-  Future<void> _showClearCacheDialog(BuildContext context, AppLocalizations l10n) async {
+  Future<void> _showClearCacheDialog(
+      BuildContext context, AppLocalizations l10n) async {
     final lyricsService = Provider.of<LyricsService>(context, listen: false);
-    final translationService = Provider.of<TranslationService>(context, listen: false);
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final translationService =
+        Provider.of<TranslationService>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
     final navigator = Navigator.of(context);
     final currentContext = context;
 
     showDialog(
-      context: currentContext, 
-      builder: (dialogContext) { 
+      context: currentContext,
+      builder: (dialogContext) {
         return AlertDialog(
-          title: Text(l10n.clearCacheDialogTitle), 
+          title: Text(l10n.clearCacheDialogTitle),
           content: SizedBox(
-            width: math.min(MediaQuery.of(context).size.width * 0.9, 500.0),
+            width: _dialogWidth(context),
             child: Text(
-              l10n.clearCacheDialogMessage, 
+              l10n.clearCacheDialogMessage,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancelButton), 
+              child: Text(l10n.cancelButton),
             ),
             TextButton(
               onPressed: () async {
-                navigator.pop(); 
+                navigator.pop();
                 showDialog(
-                  context: currentContext, 
+                  context: currentContext,
                   barrierDismissible: false,
                   builder: (progressContext) => AlertDialog(
                     content: Row(
                       children: [
                         const CircularProgressIndicator(),
-                        const SizedBox(width: 16), 
-                        Text(l10n.clearingCache), 
+                        const SizedBox(width: 16),
+                        Text(l10n.clearingCache),
                       ],
                     ),
                   ),
@@ -1152,20 +1254,21 @@ class _SettingsMenuSectionState extends State<SettingsMenuSection> {
                   await lyricsService.clearCache();
                   await translationService.clearTranslationCache();
 
-                  if (!currentContext.mounted) return; 
-                  navigator.pop(); 
-                  if (!currentContext.mounted) return; 
-                  notificationService.showSuccessSnackBar(l10n.cacheCleared); 
+                  if (!currentContext.mounted) return;
+                  navigator.pop();
+                  if (!currentContext.mounted) return;
+                  notificationService.showSuccessSnackBar(l10n.cacheCleared);
                 } catch (e) {
-                  if (currentContext.mounted) { 
-                    navigator.pop(); 
-                    if (currentContext.mounted) { 
-                      notificationService.showErrorSnackBar(l10n.cacheClearFailed); 
+                  if (currentContext.mounted) {
+                    navigator.pop();
+                    if (currentContext.mounted) {
+                      notificationService
+                          .showErrorSnackBar(l10n.cacheClearFailed);
                     }
                   }
                 }
               },
-              child: Text(l10n.clearCacheButton), 
+              child: Text(l10n.clearCacheButton),
             ),
           ],
         );

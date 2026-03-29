@@ -8,12 +8,14 @@ import 'package:flutter/services.dart';
 import './materialui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
 
 final _logger = Logger();
 
 class AddNoteSheet extends StatefulWidget {
   final String? prefilledContent;
-  final String? selectedLyrics; // Selected lyrics to save to lyricsSnapshot field
+  final String?
+      selectedLyrics; // Selected lyrics to save to lyricsSnapshot field
 
   const AddNoteSheet({super.key, this.prefilledContent, this.selectedLyrics});
 
@@ -37,7 +39,8 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
   void initState() {
     super.initState();
     // Capture the track info when the sheet is initialized
-    final spotifyProvider = Provider.of<SpotifyProvider>(context, listen: false);
+    final spotifyProvider =
+        Provider.of<SpotifyProvider>(context, listen: false);
     final currentTrackData = spotifyProvider.currentTrack;
     if (currentTrackData != null) {
       _initialTrackItem = currentTrackData['item'] as Map<String, dynamic>?;
@@ -91,7 +94,8 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
     HapticFeedback.lightImpact();
     // Capture the context before the async gap
     final currentContext = context;
-    final localDbProvider = Provider.of<LocalDatabaseProvider>(currentContext, listen: false);
+    final localDbProvider =
+        Provider.of<LocalDatabaseProvider>(currentContext, listen: false);
 
     // Use the initial track data stored in the state
     final trackItem = _initialTrackItem;
@@ -99,7 +103,9 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
     if (trackItem == null) {
       if (currentContext.mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(currentContext)!.noTrackOrEmptyNote)),
+          SnackBar(
+              content: Text(
+                  AppLocalizations.of(currentContext)!.noTrackOrEmptyNote)),
         );
       }
       return;
@@ -114,11 +120,14 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       final track = Track(
         trackId: trackId,
         trackName: trackItem['name'] as String,
-        artistName: (trackItem['artists'] as List).map((a) => a['name']).join(', '),
-        albumName: trackItem['album']?['name'] as String? ?? AppLocalizations.of(context)!.unknownAlbum,
-        albumCoverUrl: (trackItem['album']?['images'] as List?)?.isNotEmpty == true
-                       ? trackItem['album']['images'][0]['url']
-                       : null,
+        artistName:
+            (trackItem['artists'] as List).map((a) => a['name']).join(', '),
+        albumName: trackItem['album']?['name'] as String? ??
+            AppLocalizations.of(context)!.unknownAlbum,
+        albumCoverUrl:
+            (trackItem['album']?['images'] as List?)?.isNotEmpty == true
+                ? trackItem['album']['images'][0]['url']
+                : null,
       );
 
       // Use initial timestamp and context
@@ -126,8 +135,10 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
       final spotifyContext = _initialContext;
       final contextUri = spotifyContext?['uri'] as String?;
       // Use album name from initial track item or context name as fallback
-      final contextName = trackItem['album']?['name'] as String?
-                          ?? (spotifyContext?['type'] == 'playlist' ? AppLocalizations.of(context)!.playlist : AppLocalizations.of(context)!.unknownContext);
+      final contextName = trackItem['album']?['name'] as String? ??
+          (spotifyContext?['type'] == 'playlist'
+              ? AppLocalizations.of(context)!.playlist
+              : AppLocalizations.of(context)!.unknownContext);
 
       await localDbProvider.addRecord(
         track: track,
@@ -136,21 +147,26 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
         songTimestampMs: songTimestampMs,
         contextUri: contextUri,
         contextName: contextName,
-        lyricsSnapshot: widget.selectedLyrics, // Use selected lyrics if provided
+        lyricsSnapshot:
+            widget.selectedLyrics, // Use selected lyrics if provided
       );
 
       if (currentContext.mounted) {
         Navigator.pop(currentContext);
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(currentContext)!.noteSaved)),
+          SnackBar(
+              content: Text(AppLocalizations.of(currentContext)!.noteSaved)),
         );
       }
     } catch (e) {
       if (currentContext.mounted) {
         // Fetch localization string inside the mounted check
-        errorMsg = AppLocalizations.of(currentContext)!.errorSavingNote(e.toString());
+        errorMsg =
+            AppLocalizations.of(currentContext)!.errorSavingNote(e.toString());
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(content: Text(errorMsg)), // errorMsg already includes the e.toString()
+          SnackBar(
+              content:
+                  Text(errorMsg)), // errorMsg already includes the e.toString()
         );
       }
     } finally {
@@ -162,77 +178,89 @@ class _AddNoteSheetState extends State<AddNoteSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final modalLayout = context.layoutType(ResponsivePageType.modal);
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 200),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 16,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-              ),
-              Expanded(
-                child: Text(
-                  _initialTrackName ?? AppLocalizations.of(context)!.addNote,
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
+      child: ResponsivePageContainer(
+        pageType: ResponsivePageType.modal,
+        padding: EdgeInsets.fromLTRB(
+          modalLayout.horizontalPadding,
+          16,
+          modalLayout.horizontalPadding,
+          16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed:
+                      _isSubmitting ? null : () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
                 ),
-              ),
-              IconButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () => _handleSubmit(context),
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2.5),
-                      )
-                    : const Icon(Icons.check),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            maxLines: 5,
-            minLines: 3,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              hintText: AppLocalizations.of(context)!.noteHint,
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                Expanded(
+                  child: Text(
+                    _initialTrackName ?? AppLocalizations.of(context)!.addNote,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  onPressed:
+                      _isSubmitting ? null : () => _handleSubmit(context),
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        )
+                      : const Icon(Icons.check),
+                ),
+              ],
             ),
-            autofocus: true,
-            onChanged: (value) => setState(() {}),
-            enabled: !_isSubmitting,
-          ),
-          const SizedBox(height: 16),
-          // --- Add the Ratings Widget Here ---
-          Center(
-            child: Ratings(
-              initialRating: _selectedRatingValue, // Pass the current int rating
-              onRatingChanged: (newRating) { // Rename parameter for clarity
-                 // Directly use the passed rating value (0, 3, or 5)
-                setState(() {
-                  _selectedRatingValue = newRating;
-                  // 保存最后使用的评分
-                  _saveLastUsedRating(_selectedRatingValue!);
-                });
-              },
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              maxLines: 5,
+              minLines: 3,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: AppLocalizations.of(context)!.noteHint,
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              autofocus: true,
+              onChanged: (value) => setState(() {}),
+              enabled: !_isSubmitting,
             ),
-          ),
-          const SizedBox(height: 16),
-        ],
+            const SizedBox(height: 16),
+            // --- Add the Ratings Widget Here ---
+            Center(
+              child: Ratings(
+                initialRating:
+                    _selectedRatingValue, // Pass the current int rating
+                onRatingChanged: (newRating) {
+                  // Rename parameter for clarity
+                  // Directly use the passed rating value (0, 3, or 5)
+                  setState(() {
+                    _selectedRatingValue = newRating;
+                    // 保存最后使用的评分
+                    _saveLastUsedRating(_selectedRatingValue!);
+                  });
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }

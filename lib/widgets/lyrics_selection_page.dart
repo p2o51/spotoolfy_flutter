@@ -48,6 +48,7 @@ class LyricsSelectionPage extends StatefulWidget {
     TranslationStyle? style,
   }) loadTranslation;
   final String originalLyrics;
+
   /// 是否允许使用网易云翻译（需歌词包含网易云翻译且目标语言为中文）
   final bool canUseNeteaseTranslation;
 
@@ -198,42 +199,50 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
 
     if (!mounted) return;
 
-    final selectedStyle = await showDialog<TranslationStyle>(
+    final selectedStyle =
+        await ResponsiveNavigation.showAdaptiveDialog<TranslationStyle>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(l10n.translationStyleTitle),
-        children: [
-          _buildStyleOption(
-            context,
-            TranslationStyle.faithful,
-            l10n.translationStyleFaithful,
-            _currentStyle == TranslationStyle.faithful,
-          ),
-          _buildStyleOption(
-            context,
-            TranslationStyle.melodramaticPoet,
-            l10n.translationStyleMelodramaticPoet,
-            _currentStyle == TranslationStyle.melodramaticPoet,
-          ),
-          _buildStyleOption(
-            context,
-            TranslationStyle.machineClassic,
-            l10n.translationStyleMachineClassic,
-            _currentStyle == TranslationStyle.machineClassic,
-          ),
-          // 始终显示网易云翻译选项，不可用时灰色禁用
-          _buildStyleOption(
-            context,
-            TranslationStyle.neteaseProvider,
-            l10n.translationStyleNetease,
-            _currentStyle == TranslationStyle.neteaseProvider,
-            subtitle: widget.canUseNeteaseTranslation
-                ? l10n.neteaseTranslationChineseOnly
-                : l10n.neteaseTranslationUnavailable,
-            enabled: widget.canUseNeteaseTranslation,
-          ),
-        ],
+      title: l10n.translationStyleTitle,
+      child: SingleChildScrollView(
+        padding: ResponsivePadding.all(
+          context,
+          pageType: ResponsivePageType.modal,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildStyleOption(
+              context,
+              TranslationStyle.faithful,
+              l10n.translationStyleFaithful,
+              _currentStyle == TranslationStyle.faithful,
+            ),
+            _buildStyleOption(
+              context,
+              TranslationStyle.melodramaticPoet,
+              l10n.translationStyleMelodramaticPoet,
+              _currentStyle == TranslationStyle.melodramaticPoet,
+            ),
+            _buildStyleOption(
+              context,
+              TranslationStyle.machineClassic,
+              l10n.translationStyleMachineClassic,
+              _currentStyle == TranslationStyle.machineClassic,
+            ),
+            _buildStyleOption(
+              context,
+              TranslationStyle.neteaseProvider,
+              l10n.translationStyleNetease,
+              _currentStyle == TranslationStyle.neteaseProvider,
+              subtitle: widget.canUseNeteaseTranslation
+                  ? l10n.neteaseTranslationChineseOnly
+                  : l10n.neteaseTranslationUnavailable,
+              enabled: widget.canUseNeteaseTranslation,
+            ),
+          ],
+        ),
       ),
+      showCloseButton: true,
     );
 
     if (selectedStyle != null && selectedStyle != _currentStyle) {
@@ -277,7 +286,8 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                   Text(
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: enabled ? theme.colorScheme.outline : disabledColor,
+                      color:
+                          enabled ? theme.colorScheme.outline : disabledColor,
                     ),
                   ),
               ],
@@ -540,11 +550,11 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     final lyricsSnapshot = selectedLyrics.join('\n');
 
     // 弹出添加笔记对话框，传递选中的歌词
-    showModalBottomSheet(
+    ResponsiveNavigation.showAdaptiveModalPage(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => AddNoteSheet(
-        selectedLyrics: lyricsSnapshot, // Save to lyricsSnapshot field
+      showCloseButton: false,
+      child: AddNoteSheet(
+        selectedLyrics: lyricsSnapshot,
       ),
     );
   }
@@ -554,13 +564,17 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    return WillPopScope(
-      onWillPop: () async {
+    final detailLayout = context.layoutType(ResponsivePageType.detail);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
         Navigator.of(context).pop(_latestTranslationResult);
-        return false;
       },
       child: Selector<SpotifyProvider, int>(
-        selector: (context, provider) => provider.currentTrack?['progress_ms'] as int? ?? 0,
+        selector: (context, provider) =>
+            provider.currentTrack?['progress_ms'] as int? ?? 0,
         builder: (context, currentProgressMs, child) {
           // 获取当前播放进度
           final currentPosition = Duration(milliseconds: currentProgressMs);
@@ -571,9 +585,11 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
               title: Text(l10n.selectLyrics),
               actions: [
                 IconButton(
-                  onPressed: _isTranslating ? null : _toggleTranslationVisibility,
-                  tooltip:
-                      _showTranslation ? l10n.showOriginal : l10n.showTranslation,
+                  onPressed:
+                      _isTranslating ? null : _toggleTranslationVisibility,
+                  tooltip: _showTranslation
+                      ? l10n.showOriginal
+                      : l10n.showTranslation,
                   icon: _isTranslating
                       ? const SizedBox(
                           width: 20,
@@ -581,7 +597,9 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Icon(
-                          _showTranslation ? Icons.g_translate : Icons.translate,
+                          _showTranslation
+                              ? Icons.g_translate
+                              : Icons.translate,
                         ),
                 ),
                 PopupMenuButton<_TranslationMenuAction>(
@@ -674,139 +692,146 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
                   ),
                 // 歌词列表 - 包含歌曲信息的统一滚动
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount:
-                        _lyricLines.length + 1, // +1 for the song info header
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        // 第一项：歌曲信息卡片
-                        return Container(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              if (widget.albumCoverUrl != null)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    widget.albumCoverUrl!,
-                                    width: 60,
-                                    height: 60,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Container(
+                  child: ResponsivePageContainer(
+                    pageType: ResponsivePageType.detail,
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount:
+                          _lyricLines.length + 1, // +1 for the song info header
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          // 第一项：歌曲信息卡片
+                          return Container(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                if (widget.albumCoverUrl != null)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      widget.albumCoverUrl!,
                                       width: 60,
                                       height: 60,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainer,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.music_note,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainer,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.music_note,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                       ),
                                     ),
+                                  )
+                                else
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.music_note,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
                                   ),
-                                )
-                              else
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainer,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.music_note,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.trackTitle,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.artistName,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      widget.trackTitle,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                          ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      widget.artistName,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      } else {
-                        // 其余项：歌词行
-                        final lyricIndex = index - 1;
+                              ],
+                            ),
+                          );
+                        } else {
+                          // 其余项：歌词行
+                          final lyricIndex = index - 1;
 
-                        // 计算当前行是否为连续选中组的首尾
-                        bool isFirstInGroup = false;
-                        bool isLastInGroup = false;
+                          // 计算当前行是否为连续选中组的首尾
+                          bool isFirstInGroup = false;
+                          bool isLastInGroup = false;
 
-                        if (_lyricLines[lyricIndex].isSelected) {
-                          // 检查是否为组的第一行
-                          isFirstInGroup = lyricIndex == 0 ||
-                              !_lyricLines[lyricIndex - 1].isSelected;
+                          if (_lyricLines[lyricIndex].isSelected) {
+                            // 检查是否为组的第一行
+                            isFirstInGroup = lyricIndex == 0 ||
+                                !_lyricLines[lyricIndex - 1].isSelected;
 
-                          // 检查是否为组的最后一行
-                          isLastInGroup =
-                              lyricIndex == _lyricLines.length - 1 ||
-                                  !_lyricLines[lyricIndex + 1].isSelected;
+                            // 检查是否为组的最后一行
+                            isLastInGroup =
+                                lyricIndex == _lyricLines.length - 1 ||
+                                    !_lyricLines[lyricIndex + 1].isSelected;
+                          }
+
+                          return _LyricTile(
+                            index: lyricIndex,
+                            line: _lyricLines[lyricIndex],
+                            onTap: () => _toggleLineSelection(lyricIndex),
+                            isFirstInGroup: isFirstInGroup,
+                            isLastInGroup: isLastInGroup,
+                            isCurrentlyPlaying:
+                                lyricIndex == currentLineIndex, // 传递当前播放状态
+                            showTranslation: _showTranslation,
+                          );
                         }
-
-                        return _LyricTile(
-                          index: lyricIndex,
-                          line: _lyricLines[lyricIndex],
-                          onTap: () => _toggleLineSelection(lyricIndex),
-                          isFirstInGroup: isFirstInGroup,
-                          isLastInGroup: isLastInGroup,
-                          isCurrentlyPlaying:
-                              lyricIndex == currentLineIndex, // 传递当前播放状态
-                          showTranslation: _showTranslation,
-                        );
-                      }
-                    },
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -815,8 +840,8 @@ class _LyricsSelectionPageState extends State<LyricsSelectionPage> {
             // 底部操作栏
             bottomNavigationBar: Container(
               padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
+                left: detailLayout.horizontalPadding,
+                right: detailLayout.horizontalPadding,
                 top: 16,
                 bottom: 16 + MediaQuery.of(context).padding.bottom,
               ),

@@ -5,6 +5,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../services/gemini_chat_service.dart';
 import '../services/notification_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
 
 /// Chat message model
 class ChatMessage {
@@ -78,11 +79,13 @@ class AIChatSheet extends StatefulWidget {
     required ChatContext chatContext,
     String? initialAnalysis,
   }) {
-    return showModalBottomSheet(
+    return ResponsiveNavigation.showAdaptiveModalPage(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => AIChatSheet(
+      showCloseButton: false,
+      showDragHandle: false,
+      largeScreenMode: SecondaryPageMode.centerDialog,
+      contentLayout: AdaptiveModalContentLayout.fillHeight,
+      child: AIChatSheet(
         context: chatContext,
         initialAnalysis: initialAnalysis,
       ),
@@ -272,59 +275,65 @@ class _AIChatSheetState extends State<AIChatSheet>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxHeight = screenHeight * 0.85;
+    final modalLayout = context.layoutType(ResponsivePageType.modal);
 
-    return Container(
-      height: maxHeight,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height *
+            modalLayout.modalMaxHeightFactor,
       ),
-      child: Column(
-        children: [
-          // Handle bar
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: context.isLargeScreen
+              ? BorderRadius.circular(28)
+              : const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
 
-          // Header
-          _buildHeader(context, theme, l10n),
+            // Header
+            _buildHeader(context, theme, l10n),
 
-          const Divider(height: 1),
+            const Divider(height: 1),
 
-          // Chat area
-          Expanded(
-            child: _messages.isEmpty && !_isLoading
-                ? _buildEmptyState(context, theme, l10n)
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: _messages.length + (_isLoading ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length && _isLoading) {
-                        return _buildThinkingIndicator(context, theme, l10n);
-                      }
-                      return _buildMessageBubble(context, _messages[index]);
-                    },
-                  ),
-          ),
+            // Chat area
+            Expanded(
+              child: _messages.isEmpty && !_isLoading
+                  ? _buildEmptyState(context, theme, l10n)
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      itemCount: _messages.length + (_isLoading ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _messages.length && _isLoading) {
+                          return _buildThinkingIndicator(context, theme, l10n);
+                        }
+                        return _buildMessageBubble(context, _messages[index]);
+                      },
+                    ),
+            ),
 
-          // Error message
-          if (_error != null) _buildErrorMessage(context, theme),
+            // Error message
+            if (_error != null) _buildErrorMessage(context, theme),
 
-          // Input area
-          _buildInputArea(context, theme, l10n),
-        ],
+            // Input area
+            _buildInputArea(context, theme, l10n),
+          ],
+        ),
       ),
     );
   }
@@ -470,9 +479,11 @@ class _AIChatSheetState extends State<AIChatSheet>
             animation: Listenable.merge([_pulseController, _shimmerController]),
             builder: (context, child) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  color:
+                      theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Row(
@@ -721,8 +732,9 @@ class _AIChatSheetState extends State<AIChatSheet>
                       ? theme.colorScheme.outline
                       : theme.colorScheme.primary,
                 ),
-                onPressed:
-                    _isLoading ? null : () => _sendMessage(_controller.text.trim()),
+                onPressed: _isLoading
+                    ? null
+                    : () => _sendMessage(_controller.text.trim()),
               ),
             ),
             textInputAction: TextInputAction.send,

@@ -17,24 +17,25 @@ class NowPlaying extends StatefulWidget {
   State<NowPlaying> createState() => _NowPlayingState();
 }
 
-class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMixin {
+class _NowPlayingState extends State<NowPlaying>
+    with AutomaticKeepAliveClientMixin {
   late final PageController _pageController;
 
   bool _isExpanded = false;
   final int _currentPageIndex = 2; // 默认显示 LYRICS 页面
-  
+
   // 缓存变量
   List<PageData>? _cachedPages;
   bool? _cachedIsLargeScreen;
   Size? _cachedScreenSize;
-  
+
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize PageController with the correct starting page
-    _pageController = PageController(initialPage: _currentPageIndex); 
-    
+    _pageController = PageController(initialPage: _currentPageIndex);
+
     // No longer need jumpToPage here as initialPage is set
     // WidgetsBinding.instance.addPostFrameCallback((_) {
     //   if (_pageController.hasClients) { // Check if controller is attached
@@ -51,12 +52,14 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
 
   void _toggleExpand() {
     HapticFeedback.lightImpact();
-    final currentPage = _pageController.hasClients ? (_pageController.page?.round() ?? _currentPageIndex) : _currentPageIndex;
-    
+    final currentPage = _pageController.hasClients
+        ? (_pageController.page?.round() ?? _currentPageIndex)
+        : _currentPageIndex;
+
     setState(() {
       _isExpanded = !_isExpanded;
     });
-    
+
     // 确保页面切换后保持在当前页面
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_pageController.hasClients) {
@@ -70,7 +73,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
     if (_cachedPages != null) {
       return _cachedPages!;
     }
-    
+
     _cachedPages = [
       PageData(
         title: AppLocalizations.of(context)!.recordsTab,
@@ -117,7 +120,7 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         ),
       ),
     ];
-    
+
     return _cachedPages!;
   }
 
@@ -135,7 +138,8 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       _cachedPages = null; // 屏幕尺寸变化时也清除页面缓存
     }
 
-    _cachedIsLargeScreen ??= currentSize.width >= Breakpoints.tablet;
+    _cachedIsLargeScreen ??=
+        context.layoutType(ResponsivePageType.shell).preferTwoPane;
     return _cachedIsLargeScreen!;
   }
 
@@ -159,7 +163,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
               child: IconButton(
                 icon: Icon(_isExpanded ? Icons.expand_more : Icons.expand_less),
                 onPressed: _toggleExpand,
-                tooltip: _isExpanded ? AppLocalizations.of(context)!.collapseTooltip : AppLocalizations.of(context)!.expandTooltip,
+                tooltip: _isExpanded
+                    ? AppLocalizations.of(context)!.collapseTooltip
+                    : AppLocalizations.of(context)!.expandTooltip,
               ),
             ),
         ],
@@ -176,7 +182,8 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
             child: RepaintBoundary(
               child: SizedBox(
                 height: double.infinity, // 给Player提供明确的高度约束
-                child: const Center( // 添加Center组件使Player垂直居中
+                child: const Center(
+                  // 添加Center组件使Player垂直居中
                   child: Player(isLargeScreen: true),
                 ),
               ),
@@ -191,7 +198,9 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                   child: RepaintBoundary(
                     child: PageView(
                       controller: _pageController,
-                      children: _buildPages(context).map((page) => page.page).toList(),
+                      children: _buildPages(context)
+                          .map((page) => page.page)
+                          .toList(),
                     ),
                   ),
                 ),
@@ -203,10 +212,10 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           HapticFeedback.lightImpact();
-          showModalBottomSheet(
+          ResponsiveNavigation.showAdaptiveModalPage(
             context: context,
-            isScrollControlled: true,
-            builder: (context) => const AddNoteSheet(),
+            showCloseButton: false,
+            child: const AddNoteSheet(),
           );
         },
         child: const Icon(Icons.add),
@@ -240,22 +249,23 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
                   );
                 },
                 child: _isExpanded
-                  ? KeyedSubtree(
-                      key: const ValueKey('expanded_header'),
-                      child: GestureDetector(
-                        onTap: _toggleExpand,
-                        child: const Player(isLargeScreen: false, isMiniPlayer: true),
+                    ? KeyedSubtree(
+                        key: const ValueKey('expanded_header'),
+                        child: GestureDetector(
+                          onTap: _toggleExpand,
+                          child: const Player(
+                              isLargeScreen: false, isMiniPlayer: true),
+                        ),
+                      )
+                    : KeyedSubtree(
+                        key: const ValueKey('collapsed_header'),
+                        child: const Column(
+                          children: [
+                            Player(isLargeScreen: false),
+                            SizedBox(height: 16),
+                          ],
+                        ),
                       ),
-                    )
-                  : KeyedSubtree(
-                      key: const ValueKey('collapsed_header'),
-                      child: const Column(
-                        children: [
-                          Player(isLargeScreen: false),
-                          SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
               ),
             ),
             // Tab header stays consistent
@@ -265,7 +275,8 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
               child: RepaintBoundary(
                 child: PageView(
                   controller: _pageController,
-                  children: _buildPages(context).map((page) => page.page).toList(),
+                  children:
+                      _buildPages(context).map((page) => page.page).toList(),
                 ),
               ),
             ),
@@ -274,10 +285,10 @@ class _NowPlayingState extends State<NowPlaying> with AutomaticKeepAliveClientMi
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             HapticFeedback.lightImpact();
-            showModalBottomSheet(
+            ResponsiveNavigation.showAdaptiveModalPage(
               context: context,
-              isScrollControlled: true,
-              builder: (context) => const AddNoteSheet(),
+              showCloseButton: false,
+              child: const AddNoteSheet(),
             );
           },
           child: const Icon(Icons.add),

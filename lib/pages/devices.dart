@@ -5,14 +5,17 @@ import '../models/spotify_device.dart';
 import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/spotify_selectors.dart';
+import '../utils/responsive.dart';
 
 class DevicesPage extends StatelessWidget {
   const DevicesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
+    final modalLayout = context.layoutType(ResponsivePageType.modal);
+    return ResponsivePageContainer(
+      pageType: ResponsivePageType.modal,
+      padding: EdgeInsets.all(modalLayout.horizontalPadding),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -123,24 +126,32 @@ class DeviceListItem extends StatelessWidget {
           bottomRight: Radius.circular(isLast ? 24 : 8),
         ),
       ),
-      color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.6),
+      color: Theme.of(context)
+          .colorScheme
+          .secondaryContainer
+          .withValues(alpha: 0.6),
       child: InkWell(
-        onTap: isDisabled ? null : () async {
-          HapticFeedback.lightImpact();
-          try {
-            await spotify.transferPlaybackToDevice(device.id!, play: true);
-            spotify.startTrackRefresh();
-            if (context.mounted) {
-               Navigator.pop(context);
-            }
-          } catch (e) {
-             if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                   SnackBar(content: Text(AppLocalizations.of(context)!.failedToSwitchDevice(e.toString()))),
-                );
-             }
-          }
-        },
+        onTap: isDisabled
+            ? null
+            : () async {
+                HapticFeedback.lightImpact();
+                try {
+                  await spotify.transferPlaybackToDevice(device.id!,
+                      play: true);
+                  spotify.startTrackRefresh();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(AppLocalizations.of(context)!
+                              .failedToSwitchDevice(e.toString()))),
+                    );
+                  }
+                }
+              },
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -151,8 +162,8 @@ class DeviceListItem extends StatelessWidget {
                     _getDeviceIcon(),
                     size: 32,
                     color: isDisabled
-                      ? Theme.of(context).colorScheme.outline
-                      : Theme.of(context).colorScheme.primary,
+                        ? Theme.of(context).colorScheme.outline
+                        : Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -161,20 +172,24 @@ class DeviceListItem extends StatelessWidget {
                       children: [
                         Text(
                           device.name,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: isDisabled
-                              ? Theme.of(context).colorScheme.outline
-                              : null,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: isDisabled
+                                        ? Theme.of(context).colorScheme.outline
+                                        : null,
+                                  ),
                         ),
                         if (restriction != null)
                           Text(
                             restriction,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: isSonos 
-                                ? Theme.of(context).colorScheme.secondary
-                                : Theme.of(context).colorScheme.error,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: isSonos
+                                      ? Theme.of(context).colorScheme.secondary
+                                      : Theme.of(context).colorScheme.error,
+                                ),
                           )
                         else if (device.isPrivateSession)
                           Text(
@@ -197,7 +212,8 @@ class DeviceListItem extends StatelessWidget {
                       child: Text(
                         AppLocalizations.of(context)!.currentDevice,
                         style: TextStyle(
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
                           fontSize: 12,
                         ),
                       ),

@@ -173,8 +173,9 @@ class _NotesDisplayState extends State<NotesDisplay>
       logger.e('Error generating AI content: $e');
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-         SnackBar(
-            content: Text(AppLocalizations.of(context)!.failedToGenerateInsights(e.toString())),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!
+                .failedToGenerateInsights(e.toString())),
             backgroundColor: errorColor,
           ),
         );
@@ -535,110 +536,121 @@ class _NotesDisplayState extends State<NotesDisplay>
       formattedTimestamp = '$minutes:$seconds';
     }
 
-    showModalBottomSheet(
+    ResponsiveNavigation.showAdaptiveModalPage(
       context: context,
-      useRootNavigator: true,
-      builder: (BuildContext bottomSheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 32,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      showCloseButton: false,
+      showDragHandle: false,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Title
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  AppLocalizations.of(context)!.optionsTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
-                ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                AppLocalizations.of(context)!.optionsTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
               ),
-              const Divider(),
-              // Play from timestamp
-              if (songTimestampMs != null && songTimestampMs > 0)
-                ListTile(
-                  leading: const Icon(Icons.play_circle_outline),
-                  title: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
-                  onTap: () async {
-                    Navigator.pop(bottomSheetContext);
-                    final trackUri = 'spotify:track:$trackId';
-                    logger.i('Attempting to play URI: $trackUri from $songTimestampMs ms');
-                    try {
-                      await spotifyProvider.playTrack(trackUri: trackUri);
-                      final duration = Duration(milliseconds: songTimestampMs);
-                      await spotifyProvider.seekToPosition(duration.inMilliseconds);
-                    } catch (e) {
-                      logger.e('Error calling playTrack or seekToPosition: $e');
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
+            ),
+            const Divider(),
+            // Play from timestamp
+            if (songTimestampMs != null && songTimestampMs > 0)
+              ListTile(
+                leading: const Icon(Icons.play_circle_outline),
+                title: Text(AppLocalizations.of(context)!
+                    .playFromTimestamp(formattedTimestamp)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final trackUri = 'spotify:track:$trackId';
+                  logger.i(
+                      'Attempting to play URI: $trackUri from $songTimestampMs ms');
+                  try {
+                    await spotifyProvider.playTrack(trackUri: trackUri);
+                    final duration = Duration(milliseconds: songTimestampMs);
+                    await spotifyProvider
+                        .seekToPosition(duration.inMilliseconds);
+                  } catch (e) {
+                    logger.e('Error calling playTrack or seekToPosition: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)!
+                              .playbackFailed(e.toString())),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
                     }
-                  },
-                ),
-              // Share
-              ListTile(
-                leading: const Icon(Icons.share_outlined),
-                title: Text(AppLocalizations.of(context)!.shareNote),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  final currentTrack = spotifyProvider.currentTrack?['item'];
-                  ResponsiveNavigation.showSecondaryPage(
-                    context: context,
-                    child: NotePosterPreviewPage(
-                      noteContent: record.noteContent ?? '',
-                      lyricsSnapshot: record.lyricsSnapshot,
-                      trackTitle: currentTrack?['name'] as String? ?? '',
-                      artistName: (currentTrack?['artists'] as List?)?.map((a) => a['name']).join(', ') ?? '',
-                      albumName: currentTrack?['album']?['name'] as String? ?? '',
-                      rating: record.rating ?? 3,
-                      albumCoverUrl: (currentTrack?['album']?['images'] as List?)?.firstOrNull?['url'] as String?,
-                    ),
-                    preferredMode: SecondaryPageMode.fullScreen,
-                  );
+                  }
                 },
               ),
-              // Edit
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: Text(AppLocalizations.of(context)!.editNote),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _showEditDialogForRecord(context, record);
-                },
+            // Share
+            ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: Text(AppLocalizations.of(context)!.shareNote),
+              onTap: () {
+                Navigator.pop(context);
+                final currentTrack = spotifyProvider.currentTrack?['item'];
+                ResponsiveNavigation.showSecondaryPage(
+                  context: context,
+                  child: NotePosterPreviewPage(
+                    noteContent: record.noteContent ?? '',
+                    lyricsSnapshot: record.lyricsSnapshot,
+                    trackTitle: currentTrack?['name'] as String? ?? '',
+                    artistName: (currentTrack?['artists'] as List?)
+                            ?.map((a) => a['name'])
+                            .join(', ') ??
+                        '',
+                    albumName: currentTrack?['album']?['name'] as String? ?? '',
+                    rating: record.rating ?? 3,
+                    albumCoverUrl: (currentTrack?['album']?['images'] as List?)
+                        ?.firstOrNull?['url'] as String?,
+                  ),
+                  preferredMode: SecondaryPageMode.fullScreen,
+                );
+              },
+            ),
+            // Edit
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(AppLocalizations.of(context)!.editNote),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditDialogForRecord(context, record);
+              },
+            ),
+            // Delete
+            ListTile(
+              leading: Icon(Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text(
+                AppLocalizations.of(context)!.deleteNote,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              // Delete
-              ListTile(
-                leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                title: Text(
-                  AppLocalizations.of(context)!.deleteNote,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _confirmDeleteRecordForRecord(context, recordId, trackId);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDeleteRecordForRecord(context, recordId, trackId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -671,111 +683,120 @@ class _NotesDisplayState extends State<NotesDisplay>
       formattedTimestamp = '$minutes:$seconds';
     }
 
-    showModalBottomSheet(
+    ResponsiveNavigation.showAdaptiveModalPage(
       context: context,
-      useRootNavigator: true,
-      builder: (BuildContext bottomSheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 32,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      showCloseButton: false,
+      showDragHandle: false,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              // Title
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  record['trackName'] ?? AppLocalizations.of(context)!.optionsTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                record['trackName'] ??
+                    AppLocalizations.of(context)!.optionsTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              const Divider(),
-              // Play from timestamp
-              if (songTimestampMs != null && songTimestampMs > 0)
-                ListTile(
-                  leading: const Icon(Icons.play_circle_outline),
-                  title: Text(AppLocalizations.of(context)!.playFromTimestamp(formattedTimestamp)),
-                  onTap: () async {
-                    Navigator.pop(bottomSheetContext);
-                    final trackUri = 'spotify:track:$trackId';
-                    logger.i('Attempting to play URI: $trackUri from $songTimestampMs ms');
-                    try {
-                      await spotifyProvider.playTrack(trackUri: trackUri);
-                      final duration = Duration(milliseconds: songTimestampMs);
-                      await spotifyProvider.seekToPosition(duration.inMilliseconds);
-                    } catch (e) {
-                      logger.e('Error calling playTrack or seekToPosition: $e');
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(AppLocalizations.of(context)!.playbackFailed(e.toString())),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
+            ),
+            const Divider(),
+            // Play from timestamp
+            if (songTimestampMs != null && songTimestampMs > 0)
+              ListTile(
+                leading: const Icon(Icons.play_circle_outline),
+                title: Text(AppLocalizations.of(context)!
+                    .playFromTimestamp(formattedTimestamp)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final trackUri = 'spotify:track:$trackId';
+                  logger.i(
+                      'Attempting to play URI: $trackUri from $songTimestampMs ms');
+                  try {
+                    await spotifyProvider.playTrack(trackUri: trackUri);
+                    final duration = Duration(milliseconds: songTimestampMs);
+                    await spotifyProvider
+                        .seekToPosition(duration.inMilliseconds);
+                  } catch (e) {
+                    logger.e('Error calling playTrack or seekToPosition: $e');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)!
+                              .playbackFailed(e.toString())),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
                     }
-                  },
-                ),
-              // Share
-              ListTile(
-                leading: const Icon(Icons.share_outlined),
-                title: Text(AppLocalizations.of(context)!.shareNote),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  ResponsiveNavigation.showSecondaryPage(
-                    context: context,
-                    child: NotePosterPreviewPage(
-                      noteContent: record['noteContent'] as String? ?? '',
-                      lyricsSnapshot: record['lyricsSnapshot'] as String?,
-                      trackTitle: record['trackName'] as String? ?? '',
-                      artistName: record['artistName'] as String? ?? '',
-                      albumName: record['albumName'] as String? ?? '',
-                      rating: record['rating'] as int? ?? 3,
-                      albumCoverUrl: record['albumCoverUrl'] as String?,
-                    ),
-                    preferredMode: SecondaryPageMode.fullScreen,
-                  );
+                  }
                 },
               ),
-              // Edit
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: Text(AppLocalizations.of(context)!.editNote),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _showEditDialogForRelatedRecord(context, record);
-                },
+            // Share
+            ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: Text(AppLocalizations.of(context)!.shareNote),
+              onTap: () {
+                Navigator.pop(context);
+                ResponsiveNavigation.showSecondaryPage(
+                  context: context,
+                  child: NotePosterPreviewPage(
+                    noteContent: record['noteContent'] as String? ?? '',
+                    lyricsSnapshot: record['lyricsSnapshot'] as String?,
+                    trackTitle: record['trackName'] as String? ?? '',
+                    artistName: record['artistName'] as String? ?? '',
+                    albumName: record['albumName'] as String? ?? '',
+                    rating: record['rating'] as int? ?? 3,
+                    albumCoverUrl: record['albumCoverUrl'] as String?,
+                  ),
+                  preferredMode: SecondaryPageMode.fullScreen,
+                );
+              },
+            ),
+            // Edit
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(AppLocalizations.of(context)!.editNote),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditDialogForRelatedRecord(context, record);
+              },
+            ),
+            // Delete
+            ListTile(
+              leading: Icon(Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text(
+                AppLocalizations.of(context)!.deleteNote,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              // Delete
-              ListTile(
-                leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                title: Text(
-                  AppLocalizations.of(context)!.deleteNote,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _confirmDeleteRecordForRelatedRecord(context, recordId, trackId);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDeleteRecordForRelatedRecord(
+                    context, recordId, trackId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 

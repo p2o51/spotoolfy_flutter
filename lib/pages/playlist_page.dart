@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
 import '../services/spotify_service.dart';
+import '../utils/responsive.dart';
 import '../widgets/materialui.dart';
 import '../widgets/time_machine_carousel.dart'; // For AlbumColorExtractor
 
@@ -111,7 +112,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
     if (coverUrl == null) return;
 
     final brightness = Theme.of(context).brightness;
-    final colorScheme = await AlbumColorExtractor.extractFromUrl(coverUrl, brightness);
+    final colorScheme =
+        await AlbumColorExtractor.extractFromUrl(coverUrl, brightness);
 
     if (mounted && colorScheme != null) {
       setState(() {
@@ -322,6 +324,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
   }
 
   Widget _buildBody(ThemeData theme) {
+    final detailLayout = context.layoutType(ResponsivePageType.detail);
+    final horizontalPadding = detailLayout.horizontalPadding;
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -332,100 +337,111 @@ class _PlaylistPageState extends State<PlaylistPage> {
 
     return RefreshIndicator(
       onRefresh: () => _loadPlaylist(forceRefresh: true),
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: _buildHeader(theme),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              transitionBuilder: (child, animation) => SizeTransition(
-                sizeFactor: animation,
-                axisAlignment: -1.0,
-                child: child,
+      child: ResponsivePageContainer(
+        pageType: ResponsivePageType.detail,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(horizontalPadding),
+                child: _buildHeader(theme),
               ),
-              child: !_showQuickSelectors ||
-                      (_pendingTrackRatings.isEmpty && !_isSavingPendingRatings)
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      key: const ValueKey('pending-save-bar'),
-                      padding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 12.0),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton.icon(
-                          onPressed: _pendingTrackRatings.isEmpty ||
-                                  _isSavingPendingRatings
-                              ? null
-                              : _savePendingRatings,
-                          icon: _isSavingPendingRatings
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.save_rounded),
-                          label: Text(
-                            _isSavingPendingRatings
-                                ? AppLocalizations.of(context)!.savingChanges
-                                : AppLocalizations.of(context)!.saveAllChanges,
+            ),
+            SliverToBoxAdapter(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) => SizeTransition(
+                  sizeFactor: animation,
+                  axisAlignment: -1.0,
+                  child: child,
+                ),
+                child: !_showQuickSelectors ||
+                        (_pendingTrackRatings.isEmpty &&
+                            !_isSavingPendingRatings)
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        key: const ValueKey('pending-save-bar'),
+                        padding: EdgeInsets.fromLTRB(
+                          horizontalPadding,
+                          0,
+                          horizontalPadding,
+                          12,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: _pendingTrackRatings.isEmpty ||
+                                    _isSavingPendingRatings
+                                ? null
+                                : _savePendingRatings,
+                            icon: _isSavingPendingRatings
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_rounded),
+                            label: Text(
+                              _isSavingPendingRatings
+                                  ? AppLocalizations.of(context)!.savingChanges
+                                  : AppLocalizations.of(context)!
+                                      .saveAllChanges,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final track = _tracks[index];
-                  final trackId = track['id'] as String?;
-                  final currentRating =
-                      trackId != null ? _trackRatings[trackId] : null;
-                  final pendingRating =
-                      trackId != null ? _pendingTrackRatings[trackId] : null;
-                  final ratingTimestamp =
-                      trackId != null ? _trackRatingTimestamps[trackId] : null;
-                  final isUpdating =
-                      trackId != null && _updatingTracks.contains(trackId);
-                  return Column(
-                    children: [
-                      _PlaylistTrackTile(
-                        index: index,
-                        track: track,
-                        rating: currentRating,
-                        pendingRating: pendingRating,
-                        ratingTimestamp: ratingTimestamp,
-                        showQuickSelectors: _showQuickSelectors,
-                        isUpdating: isUpdating,
-                        onTap: () => _handlePlayTrack(track, index),
-                        onRate: (newRating) {
-                          if (trackId != null) {
-                            _handleRatingDraftChange(trackId, newRating);
-                          }
-                        },
-                      ),
-                      if (index != _tracks.length - 1)
-                        const SizedBox(height: 8),
-                    ],
-                  );
-                },
-                childCount: _tracks.length,
               ),
             ),
-          ),
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 32),
-          ),
-        ],
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final track = _tracks[index];
+                    final trackId = track['id'] as String?;
+                    final currentRating =
+                        trackId != null ? _trackRatings[trackId] : null;
+                    final pendingRating =
+                        trackId != null ? _pendingTrackRatings[trackId] : null;
+                    final ratingTimestamp = trackId != null
+                        ? _trackRatingTimestamps[trackId]
+                        : null;
+                    final isUpdating =
+                        trackId != null && _updatingTracks.contains(trackId);
+                    return Column(
+                      children: [
+                        _PlaylistTrackTile(
+                          index: index,
+                          track: track,
+                          rating: currentRating,
+                          pendingRating: pendingRating,
+                          ratingTimestamp: ratingTimestamp,
+                          showQuickSelectors: _showQuickSelectors,
+                          isUpdating: isUpdating,
+                          onTap: () => _handlePlayTrack(track, index),
+                          onRate: (newRating) {
+                            if (trackId != null) {
+                              _handleRatingDraftChange(trackId, newRating);
+                            }
+                          },
+                        ),
+                        if (index != _tracks.length - 1)
+                          const SizedBox(height: 8),
+                      ],
+                    );
+                  },
+                  childCount: _tracks.length,
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 32),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -440,113 +456,138 @@ class _PlaylistPageState extends State<PlaylistPage> {
 
     // 使用动态提取的颜色
     final playlistColors = _playlistColorScheme ?? theme.colorScheme;
+    final detailLayout = context.layoutType(ResponsivePageType.detail);
+    final isWide = detailLayout.preferTwoPane;
+    final coverSize = context.responsive<double>(
+      mobile: 220,
+      tablet: 176,
+      desktop: 192,
+    );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: coverUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: coverUrl,
-                      width: 160,
-                      height: 160,
-                      memCacheWidth: 320, // Optimize memory usage
-                      fit: BoxFit.cover,
-                    )
-                  : Container(
-                      width: 160,
-                      height: 160,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.queue_music,
-                        size: 64,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+    final cover = ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: coverUrl != null
+          ? CachedNetworkImage(
+              imageUrl: coverUrl,
+              width: coverSize,
+              height: coverSize,
+              memCacheWidth: (coverSize * 2).round(),
+              fit: BoxFit.cover,
+            )
+          : Container(
+              width: coverSize,
+              height: coverSize,
+              color: theme.colorScheme.surfaceContainerHighest,
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.queue_music,
+                size: 64,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-            const SizedBox(width: 24),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    playlistName,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-                  if (ownerName != null)
-                    Text(
-                      l10n.createdBy(ownerName),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _buildMetaLine(trackCount),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _handlePlayPlaylist,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: Text(l10n.playPlaylist),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        height: 40,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: theme.colorScheme.surfaceContainerHighest,
-                        ),
-                        child: IconButton(
-                          onPressed: _tracks.isEmpty
-                              ? null
-                              : () {
-                                  HapticFeedback.lightImpact();
-                                  setState(() {
-                                    if (_showQuickSelectors) {
-                                      _showQuickSelectors = false;
-                                      _pendingTrackRatings.clear();
-                                    } else {
-                                      _showQuickSelectors = true;
-                                    }
-                                  });
-                                },
-                          icon: Icon(
-                            _showQuickSelectors ? Icons.close : Icons.edit,
-                            color: _tracks.isEmpty
-                                ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
-                                : theme.colorScheme.onSurfaceVariant,
-                          ),
-                          tooltip: _showQuickSelectors
-                              ? l10n.hideQuickRating
-                              : l10n.showQuickRating,
-                          padding: EdgeInsets.zero,
-                          iconSize: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+    );
+
+    final metadata = Column(
+      crossAxisAlignment:
+          isWide ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        Text(
+          playlistName,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          textAlign: isWide ? TextAlign.start : TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        if (ownerName != null)
+          Text(
+            l10n.createdBy(ownerName),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: isWide ? TextAlign.start : TextAlign.center,
+          ),
+        const SizedBox(height: 12),
+        Text(
+          _buildMetaLine(trackCount),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: isWide ? TextAlign.start : TextAlign.center,
+        ),
+        const SizedBox(height: 20),
+        Wrap(
+          alignment: isWide ? WrapAlignment.start : WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            FilledButton.icon(
+              onPressed: _handlePlayPlaylist,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: Text(l10n.playPlaylist),
+            ),
+            Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.colorScheme.surfaceContainerHighest,
+              ),
+              child: IconButton(
+                onPressed: _tracks.isEmpty
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          if (_showQuickSelectors) {
+                            _showQuickSelectors = false;
+                            _pendingTrackRatings.clear();
+                          } else {
+                            _showQuickSelectors = true;
+                          }
+                        });
+                      },
+                icon: Icon(
+                  _showQuickSelectors ? Icons.close : Icons.edit,
+                  color: _tracks.isEmpty
+                      ? theme.colorScheme.onSurface.withValues(alpha: 0.38)
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                tooltip: _showQuickSelectors
+                    ? l10n.hideQuickRating
+                    : l10n.showQuickRating,
+                padding: EdgeInsets.zero,
+                iconSize: 20,
               ),
             ),
           ],
         ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              cover,
+              const SizedBox(width: 24),
+              Expanded(child: metadata),
+            ],
+          )
+        else
+          Column(
+            children: [
+              Center(child: cover),
+              const SizedBox(height: 20),
+              metadata,
+            ],
+          ),
         if (description != null && description.isNotEmpty)
           AnimatedContainer(
             duration: const Duration(milliseconds: 400),

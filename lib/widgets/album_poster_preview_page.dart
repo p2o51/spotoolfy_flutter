@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/notification_service.dart';
 import '../services/album_rating_poster_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
 
 // Poster style enum
 enum AlbumPosterStyle {
@@ -35,7 +36,8 @@ class AlbumPosterColorConfig {
     required this.watermarkColor,
   });
 
-  static AlbumPosterColorConfig getConfig(AlbumPosterStyle style, ColorScheme colorScheme) {
+  static AlbumPosterColorConfig getConfig(
+      AlbumPosterStyle style, ColorScheme colorScheme) {
     switch (style) {
       case AlbumPosterStyle.style1:
         // Style 1: Primary container based (dark bg)
@@ -142,7 +144,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
     if (!mounted) return;
     HapticFeedback.lightImpact();
     final theme = Theme.of(context);
-    final String uiFontFamily = theme.textTheme.bodyMedium?.fontFamily ?? 'Montserrat';
+    final String uiFontFamily =
+        theme.textTheme.bodyMedium?.fontFamily ?? 'Montserrat';
 
     setState(() {
       _isLoading = true;
@@ -152,7 +155,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
     });
 
     try {
-      final colorConfig = AlbumPosterColorConfig.getConfig(_currentStyle, theme.colorScheme);
+      final colorConfig =
+          AlbumPosterColorConfig.getConfig(_currentStyle, theme.colorScheme);
 
       final bytes = await _posterService.generatePosterData(
         albumName: widget.albumName,
@@ -176,7 +180,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
       );
 
       final tempDir = await getTemporaryDirectory();
-      final fileName = 'album_poster_preview_${DateTime.now().millisecondsSinceEpoch}.png';
+      final fileName =
+          'album_poster_preview_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsBytes(bytes);
 
@@ -215,7 +220,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
     } catch (e) {
       if (mounted) {
         Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: $e');
+            .showErrorSnackBar(
+                '${AppLocalizations.of(context)!.operationFailed}: $e');
       }
     } finally {
       if (mounted) {
@@ -242,7 +248,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
     } catch (e) {
       if (mounted) {
         Provider.of<NotificationService>(context, listen: false)
-            .showErrorSnackBar('${AppLocalizations.of(context)!.operationFailed}: $e');
+            .showErrorSnackBar(
+                '${AppLocalizations.of(context)!.operationFailed}: $e');
       }
     } finally {
       if (mounted) {
@@ -267,7 +274,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
   Widget _buildStyleButton(AlbumPosterStyle style, String label) {
     final isSelected = _currentStyle == style;
     final theme = Theme.of(context);
-    final colorConfig = AlbumPosterColorConfig.getConfig(style, theme.colorScheme);
+    final colorConfig =
+        AlbumPosterColorConfig.getConfig(style, theme.colorScheme);
 
     return Expanded(
       child: Container(
@@ -281,7 +289,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: _isLoading || _isOperating ? null : () => _changeStyle(style),
+              onTap:
+                  _isLoading || _isOperating ? null : () => _changeStyle(style),
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(
@@ -339,11 +348,13 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
                       bottom: 6,
                       right: 6,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.outline.withValues(alpha: 0.7),
+                              : theme.colorScheme.outline
+                                  .withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -371,6 +382,7 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final previewLayout = context.layoutType(ResponsivePageType.preview);
 
     return PopScope(
       canPop: !_isBusy,
@@ -389,17 +401,20 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Center(
-                  child: _buildPosterContent(theme),
+                padding: EdgeInsets.all(previewLayout.horizontalPadding),
+                child: ResponsivePageContainer(
+                  pageType: ResponsivePageType.preview,
+                  child: Center(
+                    child: _buildPosterContent(theme),
+                  ),
                 ),
               ),
             ),
             if (!_isLoading && _posterBytes != null)
               Container(
                 padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
+                  left: previewLayout.horizontalPadding,
+                  right: previewLayout.horizontalPadding,
                   top: 16,
                   bottom: 16 + MediaQuery.of(context).padding.bottom,
                 ),
@@ -479,7 +494,8 @@ class _AlbumPosterPreviewPageState extends State<AlbumPosterPreviewPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            AppLocalizations.of(context)!.posterGenerationFailed(_errorMessage!),
+            AppLocalizations.of(context)!
+                .posterGenerationFailed(_errorMessage!),
             style: theme.textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
