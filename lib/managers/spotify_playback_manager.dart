@@ -136,7 +136,8 @@ class SpotifyPlaybackManager {
 
               if (shouldRefreshDevices()) {
                 tasks.add(
-                    onRefreshDevices().then((_) => markDevicesRefreshed()));
+                  onRefreshDevices().then((_) => markDevicesRefreshed()),
+                );
               }
 
               if (shouldRefreshQueue()) {
@@ -184,7 +185,8 @@ class SpotifyPlaybackManager {
           if (currentTrack!['progress_ms'] != newProgressValue) {
             currentTrack!['progress_ms'] = newProgressValue;
 
-            final shouldNotify = _lastProgressNotify == null ||
+            final shouldNotify =
+                _lastProgressNotify == null ||
                 now.difference(_lastProgressNotify!).inMilliseconds >=
                     _progressNotifyIntervalMs;
             if (shouldNotify) {
@@ -219,9 +221,9 @@ class SpotifyPlaybackManager {
     required Future<Map<String, dynamic>?> Function() fetchTrack,
     required Future<bool> Function(String trackId) checkTrackSaved,
     required Future<Map<String, dynamic>> Function(Map<String, dynamic> context)
-        enrichContext,
+    enrichContext,
     required Future<void> Function(Map<String, dynamic> enrichedContext)
-        savePlayContext,
+    savePlayContext,
     void Function(Map<String, dynamic> track)? onTrackChanged,
     VoidCallback? onTrackUpdated,
     VoidCallback? onTrackCleared,
@@ -231,12 +233,14 @@ class SpotifyPlaybackManager {
       final track = await fetchTrack();
 
       final debugTrackName = track?['item']?['name'];
-      final debugArtist = (track?['item']?['artists'] is List &&
+      final debugArtist =
+          (track?['item']?['artists'] is List &&
               track!['item']['artists'].isNotEmpty)
           ? track['item']['artists'][0]['name']
           : null;
       logger.d(
-          'refreshCurrentTrack: received ${debugTrackName ?? 'unknown track'} by ${debugArtist ?? 'unknown'} (progress ${track?['progress_ms'] ?? 'n/a'})');
+        'refreshCurrentTrack: received ${debugTrackName ?? 'unknown track'} by ${debugArtist ?? 'unknown'} (progress ${track?['progress_ms'] ?? 'n/a'})',
+      );
 
       if (track != null) {
         final isPlayingFromApi = track['is_playing'] as bool?;
@@ -252,7 +256,8 @@ class SpotifyPlaybackManager {
         bool needsNotify = false;
         const int kProgressJumpThreshold = 1500;
 
-        final bool coreTrackInfoChanged = currentTrack == null ||
+        final bool coreTrackInfoChanged =
+            currentTrack == null ||
             newId != oldId ||
             (isPlayingFromApi != null && isPlayingFromApi != oldIsPlaying) ||
             newContextUri != oldContextUri;
@@ -274,7 +279,8 @@ class SpotifyPlaybackManager {
           if (currentTrack != null &&
               currentTrack!['context'] is Map<String, dynamic>) {
             previousContext = Map<String, dynamic>.from(
-                currentTrack!['context'] as Map<String, dynamic>);
+              currentTrack!['context'] as Map<String, dynamic>,
+            );
           }
 
           currentTrack = Map<String, dynamic>.from(track);
@@ -299,13 +305,28 @@ class SpotifyPlaybackManager {
           if (newId != oldId && newId != null) {
             try {
               onTrackChanged?.call(track);
-              isCurrentTrackSaved = await checkTrackSaved(newId);
+
+              // ⚡ Bolt: 性能优化 - 并发获取保存状态和丰富上下文，减少由于顺序 await 造成的网络延迟叠加
+              final checkSavedFuture = checkTrackSaved(newId).then((saved) {
+                isCurrentTrackSaved = saved;
+              });
+
+              Future<void>? contextFuture;
+
               if (track['context'] != null) {
-                final enrichedContext = await enrichContext(
-                    Map<String, dynamic>.from(track['context']));
-                currentTrack!['context'] = enrichedContext;
-                await savePlayContext(enrichedContext);
+                contextFuture =
+                    enrichContext(
+                      Map<String, dynamic>.from(track['context']),
+                    ).then((enrichedContext) async {
+                      currentTrack!['context'] = enrichedContext;
+                      await savePlayContext(enrichedContext);
+                    });
               }
+
+              await Future.wait([
+                checkSavedFuture,
+                if (contextFuture != null) contextFuture,
+              ]);
             } catch (e) {
               logger.e('refreshCurrentTrack: 获取保存状态或丰富上下文失败', error: e);
             }
@@ -353,23 +374,26 @@ class SpotifyPlaybackManager {
     required Map<String, dynamic>? previousContext,
     required String newContextUri,
     required Future<Map<String, dynamic>> Function(Map<String, dynamic> context)
-        enrichContext,
+    enrichContext,
   }) async {
     Map<String, dynamic>? contextFromApi;
     if (currentTrack!['context'] is Map<String, dynamic>) {
       contextFromApi = Map<String, dynamic>.from(
-          currentTrack!['context'] as Map<String, dynamic>);
+        currentTrack!['context'] as Map<String, dynamic>,
+      );
     }
 
-    final hasContextName = contextFromApi != null &&
+    final hasContextName =
+        contextFromApi != null &&
         (contextFromApi['name'] is String) &&
         (contextFromApi['name'] as String).trim().isNotEmpty;
 
     if (!hasContextName) {
       if (track['context'] is Map<String, dynamic>) {
         try {
-          final enrichedContext = await enrichContext(Map<String, dynamic>.from(
-              track['context'] as Map<String, dynamic>));
+          final enrichedContext = await enrichContext(
+            Map<String, dynamic>.from(track['context'] as Map<String, dynamic>),
+          );
           currentTrack!['context'] = enrichedContext;
         } catch (e) {
           logger.w('refreshCurrentTrack: 丰富上下文元数据失败', error: e);
@@ -454,7 +478,8 @@ class SpotifyPlaybackManager {
 
       // ⚡ Bolt: 性能优化 - 并发预加载队列图片，减少缓存过程的整体耗时，避免阻塞主线程
       await Future.wait(
-          imagesToCache.map((imageUrl) => _preloadImage(imageUrl)));
+        imagesToCache.map((imageUrl) => _preloadImage(imageUrl)),
+      );
     } catch (e) {
       logger.w('批量缓存队列图片失败: $e');
     }
@@ -494,8 +519,9 @@ class SpotifyPlaybackManager {
 
     try {
       _isSkipping = true;
-      await guard(() =>
-          getService().seekToPosition(Duration(milliseconds: positionMs)));
+      await guard(
+        () => getService().seekToPosition(Duration(milliseconds: positionMs)),
+      );
     } finally {
       _isSkipping = false;
     }
@@ -580,8 +606,10 @@ class SpotifyPlaybackManager {
   }
 
   /// 设置播放模式
-  Future<void> setPlayMode(PlayMode mode,
-      {VoidCallback? onQueueUpdated}) async {
+  Future<void> setPlayMode(
+    PlayMode mode, {
+    VoidCallback? onQueueUpdated,
+  }) async {
     try {
       switch (mode) {
         case PlayMode.singleRepeat:
