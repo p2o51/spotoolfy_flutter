@@ -1552,23 +1552,31 @@ class SpotifyProvider extends ChangeNotifier {
     ];
 
     final total = (tracksSection['total'] as int?) ?? allTracks.length;
-    var offset = allTracks.length;
+    final initialOffset = allTracks.length;
+    const limit = 50; // Spotify album tracks limit is 50
 
-    while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getAlbumTracks(albumId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      final extracted = <Map<String, dynamic>>[
-        for (final item in pageItems)
-          if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
-      ];
-      if (extracted.isEmpty) {
-        break;
-      }
-      allTracks.addAll(extracted);
-      offset = allTracks.length;
-      if (page['next'] == null) {
-        break;
+    if (initialOffset < total) {
+      // ⚡ Bolt: Use Future.wait to fetch independent pages concurrently in chunks of 5.
+      // This prevents the waterfall effect and reduces load time without hitting rate limits.
+      const chunkSize = 5;
+      for (int currentOffset = initialOffset; currentOffset < total; currentOffset += limit * chunkSize) {
+        final chunkFutures = <Future<Map<String, dynamic>>>[];
+        for (int i = 0; i < chunkSize; i++) {
+          final pageOffset = currentOffset + (i * limit);
+          if (pageOffset >= total) break;
+          chunkFutures.add(_guard(
+              () => _spotifyService.getAlbumTracks(albumId, offset: pageOffset, limit: limit)));
+        }
+
+        final chunkResults = await Future.wait(chunkFutures);
+        for (final page in chunkResults) {
+          final pageItems = page['items'] as List? ?? const [];
+          final extracted = <Map<String, dynamic>>[
+            for (final item in pageItems)
+              if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
+          ];
+          allTracks.addAll(extracted);
+        }
       }
     }
 
@@ -1614,23 +1622,31 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     final total = (tracksSection['total'] as int?) ?? allTracks.length;
-    var offset = initialItems.length;
+    final initialOffset = initialItems.length;
+    const limit = 100; // Spotify playlist tracks limit is 100
 
-    while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getPlaylistTracks(playlistId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      if (pageItems.isEmpty) {
-        break;
-      }
-      for (final item in pageItems) {
-        if (item is Map<String, dynamic>) {
-          addTrackFromContainer(item);
+    if (initialOffset < total) {
+      // ⚡ Bolt: Use Future.wait to fetch independent pages concurrently in chunks of 5.
+      // This prevents the waterfall effect and reduces load time without hitting rate limits.
+      const chunkSize = 5;
+      for (int currentOffset = initialOffset; currentOffset < total; currentOffset += limit * chunkSize) {
+        final chunkFutures = <Future<Map<String, dynamic>>>[];
+        for (int i = 0; i < chunkSize; i++) {
+          final pageOffset = currentOffset + (i * limit);
+          if (pageOffset >= total) break;
+          chunkFutures.add(_guard(() =>
+              _spotifyService.getPlaylistTracks(playlistId, offset: pageOffset, limit: limit)));
         }
-      }
-      offset += pageItems.length;
-      if (page['next'] == null) {
-        break;
+
+        final chunkResults = await Future.wait(chunkFutures);
+        for (final page in chunkResults) {
+          final pageItems = page['items'] as List? ?? const [];
+          for (final item in pageItems) {
+            if (item is Map<String, dynamic>) {
+              addTrackFromContainer(item);
+            }
+          }
+        }
       }
     }
 
