@@ -252,14 +252,16 @@ $lyricsText
   // Method to clear only the translation cache
   Future<void> clearTranslationCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       final keys = prefs.getKeys();
 
+      final futures = <Future<bool>>[];
       for (var key in keys) {
         if (key.startsWith(_cacheKeyPrefix)) {
-          await prefs.remove(key);
+          futures.add(prefs.remove(key));
         }
       }
+      await Future.wait(futures);
     } catch (e) {
       logger.d('Failed to clear translation cache: $e');
     }
