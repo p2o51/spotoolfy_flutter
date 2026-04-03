@@ -13,3 +13,7 @@
 ## 2024-05-19 - [Optimize Flutter Provider Selector for High-Frequency Streams]
 **Learning:** When using `Selector` in Flutter with high-frequency streams (like audio playback `progressMs`), passing the raw rapidly changing value into the `builder` causes excessive widget rebuilds.
 **Action:** Calculate the stable derived state (e.g., `currentLineIndex`) *inside* the `selector` callback and return a snapshot containing only the derived state. Update `shouldRebuild` to compare this derived state, ensuring the UI only rebuilds when visually necessary (e.g., when the lyric line changes, not on every millisecond tick).
+
+## 2025-04-03 - [Performance: Parallelize Pagination Search in Library Scans]
+**Learning:** Sequential `await` statements inside pagination loops (`for` or `while`) create severe waterfall latency bottlenecks, especially when scanning large Spotify libraries backwards in time.
+**Action:** When scanning or searching across multiple paginated endpoints (like fetching track offsets), batch the futures using `Future.wait` (e.g., chunk size of 5) inside the loop, and iteratively evaluate early-exit conditions on the resulting batch array. Scale any artificial rate-limiting delays proportionally to the batch size to maintain stability while drastically reducing latency.
