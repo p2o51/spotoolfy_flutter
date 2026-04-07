@@ -65,7 +65,7 @@ dependencies:
   html_unescape: ^2.0.0
   dynamic_color: ^1.1.0
   flutter_markdown: ^0.7.4+3
-  material_color_utilities: ^0.11.1
+  material_color_utilities: ^0.13.0
   image_gallery_saver_plus: ^4.0.1
   animations: ^2.0.11
 dev_dependencies:
