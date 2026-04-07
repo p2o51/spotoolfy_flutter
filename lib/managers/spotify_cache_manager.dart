@@ -19,12 +19,15 @@ class SpotifyCacheManager {
   static const int playlistCacheMaxSize = 30;
 
   // 使用 LRU 缓存限制内存使用
-  final LruCache<String, String> _imageCache =
-      LruCache(maxSize: imageCacheMaxSize);
-  final LruCache<String, Map<String, dynamic>> _albumCache =
-      LruCache(maxSize: albumCacheMaxSize);
-  final LruCache<String, Map<String, dynamic>> _playlistCache =
-      LruCache(maxSize: playlistCacheMaxSize);
+  final LruCache<String, String> _imageCache = LruCache(
+    maxSize: imageCacheMaxSize,
+  );
+  final LruCache<String, Map<String, dynamic>> _albumCache = LruCache(
+    maxSize: albumCacheMaxSize,
+  );
+  final LruCache<String, Map<String, dynamic>> _playlistCache = LruCache(
+    maxSize: playlistCacheMaxSize,
+  );
 
   // ============ 图片缓存 ============
 
@@ -54,12 +57,10 @@ class SpotifyCacheManager {
     List<String> imageUrls,
     BuildContext context,
   ) async {
-    final uncachedUrls =
-        imageUrls.where((url) => !isImageCached(url)).toList();
+    final uncachedUrls = imageUrls.where((url) => !isImageCached(url)).toList();
 
-    for (final url in uncachedUrls) {
-      await preloadImage(url, context);
-    }
+    // ⚡ Bolt: 性能优化 - 并发预加载图片，显著减少批量缓存时的整体耗时
+    await Future.wait(uncachedUrls.map((url) => preloadImage(url, context)));
   }
 
   /// 清除图片缓存
