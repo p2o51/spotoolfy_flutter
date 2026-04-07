@@ -51,21 +51,31 @@ class LibraryProvider extends ChangeNotifier {
     final items = <Map<String, dynamic>>[];
 
     if (_showPlaylists) {
-      items.addAll(_userPlaylists.where((p) {
-        final hasImage = p['images'] != null &&
-            p['images'].isNotEmpty &&
-            p['images'][0]['url'] != null;
-        return hasImage;
-      }).map((p) => ({...p, 'type': 'playlist'})));
+      items.addAll(
+        _userPlaylists
+            .where((p) {
+              final hasImage =
+                  p['images'] != null &&
+                  p['images'].isNotEmpty &&
+                  p['images'][0]['url'] != null;
+              return hasImage;
+            })
+            .map((p) => ({...p, 'type': 'playlist'})),
+      );
     }
 
     if (_showAlbums) {
-      items.addAll(_userSavedAlbums.where((a) {
-        final hasImage = a['images'] != null &&
-            a['images'].isNotEmpty &&
-            a['images'][0]['url'] != null;
-        return hasImage;
-      }).map((a) => ({...a, 'type': 'album'})));
+      items.addAll(
+        _userSavedAlbums
+            .where((a) {
+              final hasImage =
+                  a['images'] != null &&
+                  a['images'].isNotEmpty &&
+                  a['images'][0]['url'] != null;
+              return hasImage;
+            })
+            .map((a) => ({...a, 'type': 'album'})),
+      );
     }
 
     return items;
@@ -104,7 +114,7 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   LibraryProvider(this._spotifyProvider, {LibraryCacheService? cacheService})
-      : _cacheService = cacheService ?? LibraryCacheService() {
+    : _cacheService = cacheService ?? LibraryCacheService() {
     _spotifyProvider.addListener(_handleSpotifyProviderChange);
     _syncActiveUser();
   }
@@ -201,7 +211,8 @@ class LibraryProvider extends ChangeNotifier {
       _userPlaylists = results[0];
       _userSavedAlbums = results[1];
       logger.i(
-          "Loaded ${_userPlaylists.length} playlists and ${_userSavedAlbums.length} albums");
+        "Loaded ${_userPlaylists.length} playlists and ${_userSavedAlbums.length} albums",
+      );
 
       _isFirstLoad = false;
       _errorMessage = null;
@@ -254,7 +265,8 @@ class LibraryProvider extends ChangeNotifier {
       _userPlaylists = cache.playlists;
       _userSavedAlbums = cache.albums;
       logger.i(
-          "Library cache loaded: ${_userPlaylists.length} playlists, ${_userSavedAlbums.length} albums");
+        "Library cache loaded: ${_userPlaylists.length} playlists, ${_userSavedAlbums.length} albums",
+      );
       return true;
     } catch (e) {
       logger.w("Error loading library from cache: $e");
@@ -279,7 +291,8 @@ class LibraryProvider extends ChangeNotifier {
         albums: _userSavedAlbums,
       );
       logger.i(
-          "Library cache saved: ${_userPlaylists.length} playlists, ${_userSavedAlbums.length} albums");
+        "Library cache saved: ${_userPlaylists.length} playlists, ${_userSavedAlbums.length} albums",
+      );
     } catch (e) {
       logger.w("Error saving library to cache: $e");
     }
@@ -343,17 +356,32 @@ class LibraryProvider extends ChangeNotifier {
       final playlistOffset = _userPlaylists.length;
       final albumOffset = _userSavedAlbums.length;
 
-      // Load more data based on filters
+      // Load more data based on filters using concurrent requests
+      Future<List<Map<String, dynamic>>> playlistsFuture = Future.value(
+        <Map<String, dynamic>>[],
+      );
+      Future<List<Map<String, dynamic>>> albumsFuture = Future.value(
+        <Map<String, dynamic>>[],
+      );
+
       if (_showPlaylists) {
-        final morePlaylists =
-            await _spotifyProvider.getUserPlaylists(offset: playlistOffset);
-        _userPlaylists.addAll(morePlaylists);
+        playlistsFuture = _spotifyProvider.getUserPlaylists(
+          offset: playlistOffset,
+        );
       }
 
       if (_showAlbums) {
-        final moreAlbums =
-            await _spotifyProvider.getUserSavedAlbums(offset: albumOffset);
-        _userSavedAlbums.addAll(moreAlbums);
+        albumsFuture = _spotifyProvider.getUserSavedAlbums(offset: albumOffset);
+      }
+
+      final results = await Future.wait([playlistsFuture, albumsFuture]);
+
+      if (_showPlaylists) {
+        _userPlaylists.addAll(results[0]);
+      }
+
+      if (_showAlbums) {
+        _userSavedAlbums.addAll(results[1]);
       }
 
       await _saveToCache();
@@ -382,7 +410,8 @@ class LibraryProvider extends ChangeNotifier {
       _cacheService.setActiveUser(null);
       _activeUsername = null;
       logger.i(
-          "Auth state changed to logged out - keeping cache for faster re-login");
+        "Auth state changed to logged out - keeping cache for faster re-login",
+      );
       // OPTIMIZATION: Keep cache across login sessions to improve re-login experience
       // Only clear cache if explicitly requested (e.g., in settings)
       // _clearCache(); // Don't clear cache on logout by default
