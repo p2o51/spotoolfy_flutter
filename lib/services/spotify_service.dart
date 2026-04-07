@@ -1571,46 +1571,84 @@ class SpotifyAuthService {
     void Function(int loaded, int? total)? onProgress,
   }) async {
     final allTracks = <Map<String, dynamic>>[];
-    int offset = 0;
     const limit = 50;
-    int? totalTracks;
 
-    while (true) {
-      try {
-        final headers = await _authHeaders(hasBody: false);
-        final response = await http.get(
-          Uri.parse(
-              'https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit'),
-          headers: headers,
+    try {
+      final headers = await _authHeaders(hasBody: false);
+
+      // 1. Fetch the first page to get total tracks count
+      final initialResponse = await http.get(
+        Uri.parse(
+            'https://api.spotify.com/v1/me/tracks?offset=0&limit=$limit'),
+        headers: headers,
+      );
+
+      if (initialResponse.statusCode != 200) {
+        throw SpotifyAuthException(
+          '获取收藏曲目失败: ${initialResponse.body}',
+          code: initialResponse.statusCode.toString(),
         );
+      }
 
-        if (response.statusCode != 200) {
-          throw SpotifyAuthException(
-            '获取收藏曲目失败: ${response.body}',
-            code: response.statusCode.toString(),
+      final initialData = json.decode(initialResponse.body);
+      final totalTracks = initialData['total'] as int? ?? 0;
+      final initialItems = List<Map<String, dynamic>>.from(initialData['items'] ?? []);
+
+      allTracks.addAll(initialItems);
+      onProgress?.call(allTracks.length, totalTracks);
+
+      // If we got everything or reached max limit, return early
+      if (initialData['next'] == null || allTracks.length >= maxTracks) {
+         return allTracks;
+      }
+
+      // Calculate how many offsets are remaining to be fetched
+      final remainingOffsets = <int>[];
+      for (int offset = limit; offset < totalTracks && offset < maxTracks; offset += limit) {
+         remainingOffsets.add(offset);
+      }
+
+      // 2. Fetch the rest in batches of up to 5 requests concurrently
+      const int batchSize = 5;
+      for (int i = 0; i < remainingOffsets.length; i += batchSize) {
+        final end = (i + batchSize < remainingOffsets.length) ? i + batchSize : remainingOffsets.length;
+        final batchOffsets = remainingOffsets.sublist(i, end);
+
+        final batchFutures = batchOffsets.map((offset) async {
+           final response = await http.get(
+            Uri.parse(
+                'https://api.spotify.com/v1/me/tracks?offset=$offset&limit=$limit'),
+            headers: headers,
           );
+          if (response.statusCode != 200) {
+             throw SpotifyAuthException(
+              '获取收藏曲目失败: ${response.body}',
+              code: response.statusCode.toString(),
+            );
+          }
+          final data = json.decode(response.body);
+          return List<Map<String, dynamic>>.from(data['items'] ?? []);
+        });
+
+        // Execute batch concurrently
+        final results = await Future.wait(batchFutures);
+
+        // Accumulate results synchronously to prevent race conditions
+        for (final items in results) {
+           allTracks.addAll(items);
         }
 
-        final data = json.decode(response.body);
-        totalTracks ??= data['total'] as int?;
-        final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
-
-        if (items.isEmpty) break;
-
-        allTracks.addAll(items);
         onProgress?.call(allTracks.length, totalTracks);
 
-        if (allTracks.length >= maxTracks || data['next'] == null) break;
-
-        offset += limit;
-
-        // 添加延迟防止触发 Spotify API 速率限制（180次/30秒）
-        // 每次请求后等待 200ms，确保不会超过限额
-        await Future.delayed(const Duration(milliseconds: 200));
-      } catch (e) {
-        if (e is SpotifyAuthException) rethrow;
-        throw SpotifyAuthException('获取收藏曲目时出错: $e');
+        // Apply rate limit delay between batches instead of individual requests
+        if (end < remainingOffsets.length) {
+          await Future.delayed(Duration(milliseconds: 200 * batchSize));
+        }
       }
+
+    } catch (e) {
+      if (e is SpotifyAuthException) rethrow;
+      throw SpotifyAuthException('获取收藏曲目时出错: $e');
     }
 
     return allTracks;
