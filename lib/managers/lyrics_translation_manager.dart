@@ -81,7 +81,7 @@ class LyricsTranslationManager {
 
     // 网易云翻译特殊处理
     if (effectiveStyle == TranslationStyle.neteaseProvider) {
-      return _loadNeteaseTranslation(trackId, originalLines);
+      return _loadProviderTranslation(trackId, originalLines);
     }
 
     // 首先检查缓存
@@ -93,7 +93,7 @@ class LyricsTranslationManager {
       );
 
       if (cached != null) {
-        final parsed = parseStructuredTranslation(
+        final parsed = parseLyricsTranslationText(
           cached.translatedLyrics,
           originalLines: originalLines,
         );
@@ -110,16 +110,14 @@ class LyricsTranslationManager {
       }
     }
 
-    // 构建结构化歌词
-    final structuredLyrics = buildStructuredLyrics(originalLines);
-
     // 调用翻译服务
     final translationData = await _translationService.translateLyrics(
-      structuredLyrics,
+      originalLines,
       trackId,
+      trackTitle: trackItem?['name']?.toString(),
+      artistName: trackItem != null ? _extractArtistNames(trackItem) : null,
       targetLanguage: currentLanguage,
       forceRefresh: forceRefresh,
-      originalLines: originalLines,
       style: effectiveStyle,
     );
 
@@ -155,7 +153,7 @@ class LyricsTranslationManager {
     }
 
     if (perLineTranslations.isEmpty) {
-      final parsed = parseStructuredTranslation(
+      final parsed = parseLyricsTranslationText(
         rawText,
         originalLines: originalLines,
       );
@@ -364,7 +362,7 @@ class LyricsTranslationManager {
   }
 
   /// 加载网易云翻译
-  Future<TranslationLoadResult> _loadNeteaseTranslation(
+  Future<TranslationLoadResult> _loadProviderTranslation(
     String trackId,
     List<String> originalLines,
   ) async {

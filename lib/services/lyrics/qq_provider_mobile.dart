@@ -130,8 +130,98 @@ class QQProvider extends LyricProvider {
 
   @override
   Future<String?> fetchLyric(String songId) async {
+    final withTranslation = await fetchLyricWithTranslation(songId);
+    if (withTranslation != null) {
+      return withTranslation.lyric;
+    }
     final payload = await fetchLyricPayload(songId);
     return payload?.lyric;
+  }
+
+  /// 获取歌词及 QQ 自带翻译（与 Yoin 同步）。
+  ///
+  /// 走 `music.musichallSong.PlayLyricInfo.GetPlayLyricInfo`（`trans=1`）——
+  /// 旧的 `fcg_query_lyric_new.fcg` 接口 `trans` 字段实测已基本为空，
+  /// 只保留作原文兜底。
+  @override
+  Future<LyricResult?> fetchLyricWithTranslation(String songId) async {
+    final requestBody = jsonEncode({
+      'comm': {
+        'cv': 4747474,
+        'ct': 24,
+        'format': 'json',
+        'inCharset': 'utf-8',
+        'outCharset': 'utf-8',
+        'notice': 0,
+        'platform': 'yqq.json',
+        'needNewCode': 1,
+        'uin': 0,
+        'g_tk_new_20200303': 5381,
+        'g_tk': 5381,
+      },
+      'req_1': {
+        'module': 'music.musichallSong.PlayLyricInfo',
+        'method': 'GetPlayLyricInfo',
+        'param': {
+          'songMID': songId,
+          'trans': 1,
+        },
+      },
+    });
+
+    try {
+      final response = await _client
+          .post(
+        Uri.parse(_baseSearchUrl),
+        headers: _searchHeaders,
+        body: requestBody,
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('获取歌词请求超时');
+        },
+      );
+
+      if (response.statusCode != 200) {
+        _logger.w('QQ音乐 PlayLyricInfo 请求失败，状态码: ${response.statusCode}');
+        return null;
+      }
+
+      final decodedBody = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final data = json.decode(decodedBody) as Map<String, dynamic>;
+      final lyricData = data['req_1']?['data'];
+      if (lyricData is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final lyric = _decodeMaybeBase64(lyricData['lyric']);
+      if (lyric == null || lyric.trim().isEmpty) {
+        return null;
+      }
+      final translation = _decodeMaybeBase64(lyricData['trans']);
+
+      return LyricResult(lyric: lyric, translation: translation);
+    } catch (e) {
+      _logger.w('QQ音乐 PlayLyricInfo 获取失败: $e');
+      return null;
+    }
+  }
+
+  /// PlayLyricInfo 的 lyric/trans 字段可能是 base64，也可能已是明文 LRC。
+  String? _decodeMaybeBase64(dynamic value) {
+    if (value is! String) return null;
+    final normalized = QQEncoding.normalizeNullable(value)?.trim();
+    if (normalized == null || normalized.isEmpty) return null;
+    if (normalized.startsWith('[')) return normalized;
+    try {
+      final sanitized = normalized.replaceAll(RegExp(r'\s'), '');
+      final decoded = utf8.decode(base64.decode(sanitized));
+      final cleaned = QQEncoding.normalizeNullable(decoded)?.trim();
+      return (cleaned == null || cleaned.isEmpty) ? null : cleaned;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Fetches the raw QQ lyric payload with additional metadata such as

@@ -8,13 +8,13 @@ class LyricsResult {
   /// 歌词提供者名称：'netease', 'qq', 'lrclib'
   final String provider;
 
-  /// 是否有网易云翻译可用
-  final bool hasNeteaseTranslation;
+  /// 是否有提供者自带翻译可用（网易云 / QQ）
+  final bool hasProviderTranslation;
 
   const LyricsResult({
     required this.lyric,
     required this.provider,
-    this.hasNeteaseTranslation = false,
+    this.hasProviderTranslation = false,
   });
 
   /// 歌词是否来自网易云
@@ -28,5 +28,5 @@ class LyricsResult {
 
   @override
   String toString() =>
-      'LyricsResult(provider: $provider, hasNeteaseTranslation: $hasNeteaseTranslation, lyric: ${lyric.length} chars)';
+      'LyricsResult(provider: $provider, hasProviderTranslation: $hasProviderTranslation, lyric: ${lyric.length} chars)';
 }

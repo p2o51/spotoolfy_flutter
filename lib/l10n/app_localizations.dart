@@ -1115,6 +1115,12 @@ abstract class AppLocalizations {
   /// **'Failed to get translation.'**
   String get failedToGetTranslation;
 
+  /// No description provided for @lyricsAlreadyInTargetLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics already appear to be in the target language.'**
+  String get lyricsAlreadyInTargetLanguage;
+
   /// No description provided for @copyLyricsModeHint.
   ///
   /// In en, this message translates to:
@@ -2475,7 +2481,7 @@ abstract class AppLocalizations {
   /// No description provided for @translationStyleNetease.
   ///
   /// In en, this message translates to:
-  /// **'NetEase Cloud'**
+  /// **'Source translation'**
   String get translationStyleNetease;
 
   /// No description provided for @neteaseTranslationChineseOnly.
@@ -2490,10 +2496,34 @@ abstract class AppLocalizations {
   /// **'Not available for this track'**
   String get neteaseTranslationUnavailable;
 
+  /// No description provided for @providerSwitchOfferTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'NetEase translation found'**
+  String get providerSwitchOfferTitle;
+
+  /// No description provided for @providerSwitchOfferMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The current QQ Music lyrics have no translation, but NetEase has translated lyrics for this track. Switch the lyrics source to NetEase?'**
+  String get providerSwitchOfferMessage;
+
+  /// No description provided for @providerSwitchAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch'**
+  String get providerSwitchAccept;
+
+  /// No description provided for @providerSwitchDecline.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get providerSwitchDecline;
+
   /// No description provided for @neteaseTranslationSaved.
   ///
   /// In en, this message translates to:
-  /// **'NetEase translation saved'**
+  /// **'Source translation saved'**
   String get neteaseTranslationSaved;
 
   /// No description provided for @pressAgainToExit.

@@ -24,12 +24,12 @@ class LyricsSearchResult {
 class LyricsSearchSelection {
   final String lyrics;
   final String provider;
-  final bool hasNeteaseTranslation;
+  final bool hasProviderTranslation;
 
   const LyricsSearchSelection({
     required this.lyrics,
     required this.provider,
-    this.hasNeteaseTranslation = false,
+    this.hasProviderTranslation = false,
   });
 }
 
@@ -267,11 +267,10 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     try {
       _notificationService.showSnackBar(l10n.lyricsFetching);
 
-      // 网易云特殊处理：获取翻译并保存
-      if (result.provider is NetEaseProvider) {
-        final neteaseProvider = result.provider as NetEaseProvider;
-        final lyricResult =
-            await neteaseProvider.fetchLyricWithTranslation(result.match.songId);
+      // 网易云 / QQ：获取歌词及自带翻译并保存
+      if (result.provider.name == 'netease' || result.provider.name == 'qq') {
+        final lyricResult = await result.provider
+            .fetchLyricWithTranslation(result.match.songId);
 
         if (!mounted) return;
 
@@ -284,7 +283,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
 
             // 如果有翻译，单独保存供后续使用
             if (lyricResult.hasTranslation) {
-              await _cacheNeteaseTranslation(
+              await _cacheProviderTranslation(
                   widget.trackId, lyricResult.translation!);
               _notificationService.showSnackBar(l10n.neteaseTranslationSaved);
             }
@@ -294,7 +293,7 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
             navigator.pop(LyricsSearchSelection(
               lyrics: normalizedLyric,
               provider: result.provider.name,
-              hasNeteaseTranslation: lyricResult.hasTranslation,
+              hasProviderTranslation: lyricResult.hasTranslation,
             ));
             return;
           }
@@ -340,16 +339,17 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     }
   }
 
-  /// 缓存网易云翻译歌词（供翻译风格切换使用）
-  Future<void> _cacheNeteaseTranslation(
+  /// 缓存提供者自带翻译歌词（供翻译风格切换使用）。
+  /// 键名保留 netease 前缀是为了兼容旧缓存。
+  Future<void> _cacheProviderTranslation(
       String trackId, String translation) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = 'netease_translation_$trackId';
       await prefs.setString(cacheKey, translation);
-      _logger.d("网易云翻译已缓存: $trackId");
+      _logger.d("提供者翻译已缓存: $trackId");
     } catch (e) {
-      _logger.d('缓存网易云翻译失败: $e');
+      _logger.d('缓存提供者翻译失败: $e');
     }
   }
 

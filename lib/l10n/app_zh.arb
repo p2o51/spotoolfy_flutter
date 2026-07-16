@@ -177,6 +177,7 @@
   "noLyricsToTranslate": "没有可翻译的歌词。",
   "failedToSaveTranslation": "保存获取的翻译失败: {error}",
   "failedToGetTranslation": "获取翻译失败。",
+  "lyricsAlreadyInTargetLanguage": "歌词似乎已经是目标语言，无需翻译。",
   "translationFailed": "翻译失败: {error}",
   "copyLyricsModeHint": "歌词复制模式：单曲重复已激活，自动滚动已禁用。",
   "exitCopyMode": "退出复制模式并恢复滚动",
@@ -420,9 +421,13 @@
   "useNeteaseTranslation": "这首歌有网易云音乐的翻译歌词，是否使用？",
   "originalOnly": "仅原文",
   "useTranslation": "使用翻译",
-  "translationStyleNetease": "网易云",
+  "translationStyleNetease": "音源翻译",
   "neteaseTranslationChineseOnly": "仅中文",
   "neteaseTranslationUnavailable": "此歌曲不可用",
-  "neteaseTranslationSaved": "网易云翻译已保存",
+  "providerSwitchOfferTitle": "找到网易云翻译",
+  "providerSwitchOfferMessage": "当前 QQ 音乐歌词没有自带翻译，但网易云有这首歌的翻译歌词。要切换歌词源到网易云吗？",
+  "providerSwitchAccept": "切换",
+  "providerSwitchDecline": "暂不",
+  "neteaseTranslationSaved": "音源翻译已保存",
   "pressAgainToExit": "再按一次退出"
 }

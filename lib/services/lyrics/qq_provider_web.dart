@@ -134,6 +134,56 @@ class QQProvider extends LyricProvider {
     return _extractLyric(result);
   }
 
+  /// 获取歌词及 QQ 自带翻译（Worker 代理版）。
+  @override
+  Future<LyricResult?> fetchLyricWithTranslation(String songId) async {
+    final result = await _postJson(
+      '/qq/lyrics',
+      {
+        'songId': songId,
+        'includeTranslation': true,
+        'includeRomanized': true,
+      },
+    );
+
+    final lyric = _extractLyric(result);
+    if (lyric == null || lyric.trim().isEmpty) {
+      return null;
+    }
+    return LyricResult(
+      lyric: lyric,
+      translation: _extractTranslation(result),
+    );
+  }
+
+  String? _extractTranslation(Map<String, dynamic>? payload) {
+    if (payload == null) {
+      return null;
+    }
+
+    final direct = payload['translation'] ?? payload['translatedLyric'];
+    if (direct is String && direct.trim().isNotEmpty) {
+      return QQEncoding.normalize(direct);
+    }
+
+    final raw = payload['raw'];
+    if (raw is Map<String, dynamic>) {
+      final trans = raw['trans'];
+      if (trans is String && trans.trim().isNotEmpty) {
+        // trans 可能是 base64，也可能已是明文 LRC
+        if (trans.trim().startsWith('[')) {
+          return QQEncoding.normalize(trans);
+        }
+        final decoded = _decodeBase64Lyric(trans);
+        if (decoded != null && decoded.trim().isNotEmpty) {
+          return decoded;
+        }
+      }
+    }
+
+    return null;
+  }
+
   @override
   Future<String?> getLyric(String title, String artist) async {
     final payload = await _postJson(

@@ -32,6 +32,8 @@ class LyricsService {
     try {
       // 使用 trackId 作为缓存键
       final cacheKey = _cacheKeyPrefix + trackId;
+      // 历史键名：现在存放任意提供者（网易云/QQ）自带的翻译 LRC，
+      // 键名保留 netease 前缀是为了兼容旧缓存。
       final translationCacheKey = 'netease_translation_$trackId';
 
       // 尝试从缓存获取
@@ -46,13 +48,14 @@ class LyricsService {
           final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
           if (now - cacheData.timestamp < _cacheTtlDays * 24 * 60 * 60) {
             _logger.i('从缓存获取歌词: $trackId (来源: ${cacheData.provider})');
-            // 检查是否有网易云翻译缓存
-            final hasNeteaseTranslation = cacheData.provider == 'netease' &&
-                prefs.getString(translationCacheKey) != null;
+            // 检查是否有提供者自带翻译缓存
+            final hasProviderTranslation =
+                _providerSupportsTranslation(cacheData.provider) &&
+                    prefs.getString(translationCacheKey) != null;
             return LyricsResult(
               lyric: cacheData.lyric,
               provider: cacheData.provider,
-              hasNeteaseTranslation: hasNeteaseTranslation,
+              hasProviderTranslation: hasProviderTranslation,
             );
           } else {
             _logger.i('缓存已过期: $trackId');
@@ -85,16 +88,16 @@ class LyricsService {
         await prefs.setString(cacheKey, json.encode(cacheData.toJson()));
         _logger.i('歌词已缓存: $trackId (来源: $provider)');
 
-        // 如果有网易云翻译，单独缓存
+        // 如果提供者自带翻译，单独缓存
         if (hasTranslation) {
           await prefs.setString(translationCacheKey, translation);
-          _logger.i('网易云翻译已缓存: $trackId');
+          _logger.i('提供者翻译已缓存: $trackId (来源: $provider)');
         }
 
         return LyricsResult(
           lyric: lyricText,
           provider: provider,
-          hasNeteaseTranslation: hasTranslation,
+          hasProviderTranslation: hasTranslation,
         );
       }
 
@@ -105,38 +108,54 @@ class LyricsService {
     }
   }
 
+  /// 支持自带翻译的提供者（与 Yoin 的 PROVIDER_TRANSLATION_NAMES 对应）
+  static bool _providerSupportsTranslation(String providerName) =>
+      providerName == 'netease' || providerName == 'qq';
+
+  /// 从单个提供者获取歌词（带翻译提供者会一并抓取翻译）
+  Future<Map<String, String>?> _fetchFromProvider(
+      LyricProvider provider, String title, String artist) async {
+    if (_providerSupportsTranslation(provider.name)) {
+      final match = await provider.search(title, artist);
+      if (match == null) return null;
+
+      final result = await provider.fetchLyricWithTranslation(match.songId);
+      if (result == null) return null;
+
+      final normalized = provider.normalizeLyric(result.lyric);
+      if (normalized.isEmpty) return null;
+
+      final map = <String, String>{
+        'provider': provider.name,
+        'lyric': normalized,
+      };
+      // 如果有翻译，也加入返回
+      if (result.hasTranslation) {
+        map['translation'] = result.translation!;
+      }
+      return map;
+    }
+
+    // 其他提供者使用标准流程
+    final lyric = await provider.getLyric(title, artist);
+    return lyric != null ? {'provider': provider.name, 'lyric': lyric} : null;
+  }
+
   /// 从多个提供者并行获取歌词
-  /// 返回 Map 包含 provider, lyric, 以及可选的 translation（仅网易云）
+  /// 返回 Map 包含 provider, lyric, 以及可选的 translation（网易云/QQ）
   Future<Map<String, String>?> _getFromProviders(String title, String artist) async {
     try {
       // 创建所有提供者的Future
-      final futures = _providers.map((provider) async {
-        // 网易云特殊处理：获取歌词和翻译
-        if (provider is NetEaseProvider) {
-          final match = await provider.search(title, artist);
-          if (match == null) return null;
-
-          final result = await provider.fetchLyricWithTranslation(match.songId);
-          if (result == null) return null;
-
-          final normalized = provider.normalizeLyric(result.lyric);
-          if (normalized.isEmpty) return null;
-
-          final map = <String, String>{
-            'provider': provider.name,
-            'lyric': normalized,
-          };
-          // 如果有翻译，也加入返回
-          if (result.hasTranslation) {
-            map['translation'] = result.translation!;
-          }
-          return map;
-        }
-
-        // 其他提供者使用标准流程
-        final lyric = await provider.getLyric(title, artist);
-        return lyric != null ? {'provider': provider.name, 'lyric': lyric} : null;
-      }).toList();
+      final futures = _providers
+          .map((provider) async {
+            try {
+              return await _fetchFromProvider(provider, title, artist);
+            } catch (e) {
+              _logger.w('从 ${provider.name} 获取歌词失败: $e');
+              return null;
+            }
+          })
+          .toList();
 
       // 并行执行所有Future，返回第一个非空结果
       final results = await Future.wait(futures);
@@ -144,38 +163,15 @@ class LyricsService {
 
       if (validResults.isNotEmpty) {
         // 返回第一个有效结果
-        return validResults.first as Map<String, String>;
+        return validResults.first;
       }
 
       // 如果并行获取都失败，尝试顺序获取（增加超时时间）
       for (final provider in _providers) {
         _logger.i('尝试从 ${provider.name} 获取歌词（延长超时）');
-
-        // 网易云特殊处理
-        if (provider is NetEaseProvider) {
-          final match = await provider.search(title, artist);
-          if (match != null) {
-            final result = await provider.fetchLyricWithTranslation(match.songId);
-            if (result != null) {
-              final normalized = provider.normalizeLyric(result.lyric);
-              if (normalized.isNotEmpty) {
-                final map = <String, String>{
-                  'provider': provider.name,
-                  'lyric': normalized,
-                };
-                if (result.hasTranslation) {
-                  map['translation'] = result.translation!;
-                }
-                return map;
-              }
-            }
-          }
-          continue;
-        }
-
-        final lyric = await provider.getLyric(title, artist);
-        if (lyric != null) {
-          return {'provider': provider.name, 'lyric': lyric};
+        final result = await _fetchFromProvider(provider, title, artist);
+        if (result != null) {
+          return result;
         }
       }
 

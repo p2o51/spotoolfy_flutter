@@ -554,6 +554,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get failedToGetTranslation => '获取翻译失败。';
 
   @override
+  String get lyricsAlreadyInTargetLanguage => '歌词似乎已经是目标语言，无需翻译。';
+
+  @override
   String get copyLyricsModeHint => '歌词复制模式：单曲重复已激活，自动滚动已禁用。';
 
   @override
@@ -1302,7 +1305,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get useTranslation => '使用翻译';
 
   @override
-  String get translationStyleNetease => '网易云';
+  String get translationStyleNetease => '音源翻译';
 
   @override
   String get neteaseTranslationChineseOnly => '仅中文';
@@ -1311,7 +1314,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get neteaseTranslationUnavailable => '此歌曲不可用';
 
   @override
-  String get neteaseTranslationSaved => '网易云翻译已保存';
+  String get providerSwitchOfferTitle => '找到网易云翻译';
+
+  @override
+  String get providerSwitchOfferMessage =>
+      '当前 QQ 音乐歌词没有自带翻译，但网易云有这首歌的翻译歌词。要切换歌词源到网易云吗？';
+
+  @override
+  String get providerSwitchAccept => '切换';
+
+  @override
+  String get providerSwitchDecline => '暂不';
+
+  @override
+  String get neteaseTranslationSaved => '音源翻译已保存';
 
   @override
   String get pressAgainToExit => '再按一次退出';
@@ -1865,6 +1881,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get failedToGetTranslation => '擷取翻譯失敗。';
+
+  @override
+  String get lyricsAlreadyInTargetLanguage => '歌詞似乎已經是目標語言，無需翻譯。';
 
   @override
   String get copyLyricsModeHint => '歌詞複製模式：單曲循環已啟用，自動捲動已停用。';
@@ -2615,16 +2634,29 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get useTranslation => '使用翻譯';
 
   @override
-  String get translationStyleNetease => '網易雲翻譯';
+  String get translationStyleNetease => '音源翻譯';
 
   @override
-  String get neteaseTranslationChineseOnly => '網易雲翻譯僅提供中文';
+  String get neteaseTranslationChineseOnly => '音源翻譯僅提供中文';
 
   @override
   String get neteaseTranslationUnavailable => '此歌曲不可用';
 
   @override
-  String get neteaseTranslationSaved => '網易雲翻譯已儲存';
+  String get providerSwitchOfferTitle => '找到網易雲翻譯';
+
+  @override
+  String get providerSwitchOfferMessage =>
+      '目前的 QQ 音樂歌詞沒有自帶翻譯，但網易雲有這首歌的翻譯歌詞。要切換歌詞來源到網易雲嗎？';
+
+  @override
+  String get providerSwitchAccept => '切換';
+
+  @override
+  String get providerSwitchDecline => '暫不';
+
+  @override
+  String get neteaseTranslationSaved => '音源翻譯已儲存';
 
   @override
   String get pressAgainToExit => '再按一次退出';

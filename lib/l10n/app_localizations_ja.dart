@@ -556,6 +556,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get failedToGetTranslation => '翻訳の取得に失敗した。';
 
   @override
+  String get lyricsAlreadyInTargetLanguage => '歌詞はすでにターゲット言語のようです。翻訳は不要です。';
+
+  @override
   String get copyLyricsModeHint => '歌詞コピー モード：単曲リピート有効、自動スクロール無効。';
 
   @override
@@ -1307,16 +1310,29 @@ class AppLocalizationsJa extends AppLocalizations {
   String get useTranslation => '翻訳を使用';
 
   @override
-  String get translationStyleNetease => '網易雲翻訳';
+  String get translationStyleNetease => '音源の翻訳';
 
   @override
-  String get neteaseTranslationChineseOnly => '網易雲翻訳は中国語のみ対応';
+  String get neteaseTranslationChineseOnly => '音源の翻訳は中国語のみ対応';
 
   @override
   String get neteaseTranslationUnavailable => 'この曲には利用できません';
 
   @override
-  String get neteaseTranslationSaved => '網易雲翻訳を保存しました';
+  String get providerSwitchOfferTitle => '網易雲の翻訳が見つかりました';
+
+  @override
+  String get providerSwitchOfferMessage =>
+      '現在の QQ 音楽の歌詞には翻訳がありませんが、網易雲にはこの曲の翻訳歌詞があります。歌詞ソースを網易雲に切り替えますか？';
+
+  @override
+  String get providerSwitchAccept => '切り替える';
+
+  @override
+  String get providerSwitchDecline => '今はしない';
+
+  @override
+  String get neteaseTranslationSaved => '音源の翻訳を保存しました';
 
   @override
   String get pressAgainToExit => 'もう一度押すと終了します';

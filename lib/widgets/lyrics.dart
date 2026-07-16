@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -15,6 +16,9 @@ import '../models/translation.dart';
 import '../models/translation_load_result.dart';
 import '../providers/local_database_provider.dart';
 import '../providers/spotify_provider.dart';
+import '../services/lyrics/lyric_provider.dart';
+import '../services/lyrics/netease_provider.dart';
+import '../services/lyrics/qq_provider.dart';
 import '../services/lyrics_service.dart';
 import '../services/notification_service.dart';
 import '../services/settings_service.dart';
@@ -94,7 +98,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
   bool _isLyricsLoading = false;
   // 歌词来源信息
   String? _currentLyricsProvider;
-  bool _hasNeteaseTranslation = false;
+  bool _hasProviderTranslation = false;
+  // 本次会话内已确认查不到音源翻译的曲目，避免重复现场查询
+  final Set<String> _providerTranslationLookupFailed = <String>{};
 
   @override
   bool get wantKeepAlive => true;
@@ -140,7 +146,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _nextTrackPreloadFuture = null;
       _activeTranslationStyle = null;
       _currentLyricsProvider = null;
-      _hasNeteaseTranslation = false;
+      _hasProviderTranslation = false;
       // If no track is playing, clear lyrics and reset state
       if (_lyrics.isNotEmpty || _lastTrackId != null) {
         _quickActionsHideTimer?.cancel();
@@ -157,7 +163,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _lyricsAreSynced = true;
           _manualQuickActionsVisible = false;
           _currentLyricsProvider = null;
-          _hasNeteaseTranslation = false;
+          _hasProviderTranslation = false;
         });
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0);
@@ -205,7 +211,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       _manualQuickActionsVisible = false;
       _isLyricsLoading = true;
       _currentLyricsProvider = null;
-      _hasNeteaseTranslation = false;
+      _hasProviderTranslation = false;
     });
 
     final lyricsResult =
@@ -228,7 +234,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
       // 保存歌词来源信息
       _currentLyricsProvider = lyricsResult.provider;
-      _hasNeteaseTranslation = lyricsResult.hasNeteaseTranslation;
+      _hasProviderTranslation = lyricsResult.hasProviderTranslation;
 
       if (summary.hasTimestamps && parsedLyrics.isNotEmpty) {
         _quickActionsHideTimer?.cancel();
@@ -383,17 +389,21 @@ class _LyricsWidgetState extends State<LyricsWidget>
     return normalized == 'zh' || normalized.startsWith('zh-');
   }
 
-  Future<bool> _canUseNeteaseTranslation({
-    bool? hasNeteaseTranslation,
+  /// 支持自带翻译的歌词源（网易云 / QQ，与 Yoin 同步）
+  bool _isProviderWithTranslation(String? provider) =>
+      provider == 'netease' || provider == 'qq';
+
+  Future<bool> _canUseProviderTranslation({
+    bool? hasProviderTranslation,
     String? languageCode,
     String? provider,
   }) async {
-    final hasTranslation = hasNeteaseTranslation ?? _hasNeteaseTranslation;
+    final hasTranslation = hasProviderTranslation ?? _hasProviderTranslation;
     if (!hasTranslation) {
       return false;
     }
     final resolvedProvider = provider ?? _currentLyricsProvider;
-    if (resolvedProvider != 'netease') {
+    if (!_isProviderWithTranslation(resolvedProvider)) {
       return false;
     }
     final resolvedLanguage =
@@ -403,7 +413,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
   Future<TranslationStyle> _resolveTranslationStyle({
     TranslationStyle? requestedStyle,
-    bool? hasNeteaseTranslation,
+    bool? hasProviderTranslation,
     String? languageCode,
     String? provider,
   }) async {
@@ -413,8 +423,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
       return desiredStyle;
     }
 
-    final allowNetease = await _canUseNeteaseTranslation(
-      hasNeteaseTranslation: hasNeteaseTranslation,
+    final allowNetease = await _canUseProviderTranslation(
+      hasProviderTranslation: hasProviderTranslation,
       languageCode: languageCode,
       provider: provider,
     );
@@ -431,8 +441,10 @@ class _LyricsWidgetState extends State<LyricsWidget>
     Map<String, dynamic>? trackItem,
     bool forceRefresh = false,
     TranslationStyle? style,
-    bool? hasNeteaseTranslation,
+    bool? hasProviderTranslation,
     String? lyricsProvider,
+    bool allowProviderTranslationLookup = false,
+    bool allowProviderSwitchOffer = false,
   }) async {
     final spotifyProvider =
         Provider.of<SpotifyProvider>(context, listen: false);
@@ -442,15 +454,35 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final currentLanguage = await _settingsService.getTargetLanguage();
     final effectiveStyle = await _resolveTranslationStyle(
       requestedStyle: style,
-      hasNeteaseTranslation: hasNeteaseTranslation,
+      hasProviderTranslation: hasProviderTranslation,
       languageCode: currentLanguage,
       provider: lyricsProvider,
     );
     final styleString = translationStyleToString(effectiveStyle);
 
-    // 网易云翻译特殊处理：从缓存加载而非调用 Gemini
+    // 音源翻译特殊处理：从缓存加载而非调用 Gemini
     if (effectiveStyle == TranslationStyle.neteaseProvider) {
-      return _loadNeteaseTranslation(trackId);
+      return _loadProviderTranslation(trackId);
+    }
+
+    final item = trackItem ?? spotifyProvider.currentTrack?['item'];
+    final resolvedTrackItem = item is Map<String, dynamic> ? item : null;
+
+    // Yoin-synced：目标语言为中文且歌词来自网易云/QQ 时，优先使用音源
+    // 自带翻译，再考虑 Gemini。仅在未显式指定 AI 风格时生效。
+    if (style == null &&
+        allowProviderTranslationLookup &&
+        !forceRefresh &&
+        _isChineseLanguageCode(currentLanguage) &&
+        _isProviderWithTranslation(lyricsProvider ?? _currentLyricsProvider)) {
+      final providerResult = await _tryProviderTranslationFlow(
+        trackId: trackId,
+        trackItem: resolvedTrackItem,
+        allowSwitchOffer: allowProviderSwitchOffer,
+      );
+      if (providerResult != null) {
+        return providerResult;
+      }
     }
 
     if (!forceRefresh) {
@@ -461,7 +493,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       );
 
       if (cached != null) {
-        final parsed = parseStructuredTranslation(
+        final parsed = parseLyricsTranslationText(
           cached.translatedLyrics,
           originalLines: originalLines,
         );
@@ -476,14 +508,15 @@ class _LyricsWidgetState extends State<LyricsWidget>
       }
     }
 
-    final structuredLyrics = buildStructuredLyrics(originalLines);
-
     final translationData = await _translationService.translateLyrics(
-      structuredLyrics,
+      originalLines,
       trackId,
+      trackTitle: resolvedTrackItem?['name']?.toString(),
+      artistName: resolvedTrackItem != null
+          ? _extractArtistNames(resolvedTrackItem)
+          : null,
       targetLanguage: currentLanguage,
       forceRefresh: forceRefresh,
-      originalLines: originalLines,
       style: effectiveStyle,
     );
 
@@ -518,7 +551,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     }
 
     if (perLineTranslations.isEmpty) {
-      final parsed = parseStructuredTranslation(
+      final parsed = parseLyricsTranslationText(
         rawText,
         originalLines: originalLines,
       );
@@ -527,18 +560,15 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     try {
       final existingTrack = await localDbProvider.getTrack(trackId);
-      if (existingTrack == null) {
-        final item = trackItem ?? spotifyProvider.currentTrack?['item'];
-        if (item is Map<String, dynamic>) {
-          final trackToAdd = Track(
-            trackId: trackId,
-            trackName: item['name']?.toString() ?? '',
-            artistName: _extractArtistNames(item),
-            albumName: _extractAlbumName(item),
-            albumCoverUrl: _extractAlbumCover(item),
-          );
-          await localDbProvider.addTrack(trackToAdd);
-        }
+      if (existingTrack == null && resolvedTrackItem != null) {
+        final trackToAdd = Track(
+          trackId: trackId,
+          trackName: resolvedTrackItem['name']?.toString() ?? '',
+          artistName: _extractArtistNames(resolvedTrackItem),
+          albumName: _extractAlbumName(resolvedTrackItem),
+          albumCoverUrl: _extractAlbumCover(resolvedTrackItem),
+        );
+        await localDbProvider.addTrack(trackToAdd);
       }
 
       final translationToSave = Translation(
@@ -566,6 +596,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     bool forceRefresh = false,
     TranslationStyle? style,
     List<String>? overrideOriginalLines,
+    bool allowProviderSwitchOffer = false,
   }) async {
     final spotifyProvider =
         Provider.of<SpotifyProvider>(context, listen: false);
@@ -585,13 +616,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
       trackItem: trackItem is Map<String, dynamic> ? trackItem : null,
       forceRefresh: forceRefresh,
       style: style,
-      hasNeteaseTranslation: _hasNeteaseTranslation,
+      hasProviderTranslation: _hasProviderTranslation,
       lyricsProvider: _currentLyricsProvider,
+      // 当前播放曲目才允许现场查音源翻译（_lyrics 与该曲目对应）
+      allowProviderTranslationLookup: true,
+      allowProviderSwitchOffer: allowProviderSwitchOffer,
     );
   }
 
   /// 加载网易云翻译（从 SharedPreferences 缓存）
-  Future<TranslationLoadResult> _loadNeteaseTranslation(String trackId) async {
+  Future<TranslationLoadResult> _loadProviderTranslation(String trackId) async {
     final prefs = await SharedPreferences.getInstance();
     final cacheKey = 'netease_translation_$trackId';
     final cachedTranslation = prefs.getString(cacheKey);
@@ -654,8 +688,183 @@ class _LyricsWidgetState extends State<LyricsWidget>
       cleanedTranslatedLyrics: translationMap.values.join('\n'),
       perLineTranslations: perLineTranslations,
       style: TranslationStyle.neteaseProvider,
-      languageCode: 'zh-CN', // 网易云翻译只有中文
+      languageCode: 'zh-CN', // 音源翻译只有中文
     );
+  }
+
+  /// Yoin-synced 音源翻译优先链（对应 YoinRepository.translateLyricsWithProvider）：
+  /// 1. 已缓存的音源翻译；
+  /// 2. 现场向当前歌词源（网易云/QQ）补抓一次翻译；
+  /// 3. 当前是 QQ 且无翻译时，搜网易云——找到翻译则询问是否切换歌词源。
+  /// 任一步失败都返回 null，让调用方继续走 Gemini。
+  Future<TranslationLoadResult?> _tryProviderTranslationFlow({
+    required String trackId,
+    Map<String, dynamic>? trackItem,
+    required bool allowSwitchOffer,
+  }) async {
+    // 1. 缓存命中（能匹配上时间戳才算成功）
+    final cachedResult = await _loadProviderTranslationOrNull(trackId);
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final title = trackItem?['name']?.toString().trim();
+    final artist =
+        trackItem != null ? _extractArtistNames(trackItem).trim() : '';
+    if (title == null || title.isEmpty) {
+      return null;
+    }
+
+    final currentProvider = _currentLyricsProvider;
+
+    // 2. 现场补抓当前歌词源的翻译（覆盖旧缓存里没抓过 QQ 翻译的情况）。
+    //    同一曲目查过没有就不再反复打网络。
+    if (_isProviderWithTranslation(currentProvider) &&
+        !_providerTranslationLookupFailed.contains(trackId)) {
+      final refreshed = await _fetchProviderTranslationOnDemand(
+        currentProvider!,
+        title,
+        artist,
+      );
+      if (refreshed != null) {
+        await _cacheProviderTranslation(trackId, refreshed.translation!);
+        if (mounted) {
+          setState(() {
+            _hasProviderTranslation = true;
+          });
+        }
+        final result = await _loadProviderTranslationOrNull(trackId);
+        if (result != null) {
+          return result;
+        }
+      } else {
+        _providerTranslationLookupFailed.add(trackId);
+      }
+    }
+
+    // 3. QQ 无翻译 → 搜网易云，找到翻译则询问是否切换歌词源
+    if (allowSwitchOffer && currentProvider == 'qq' && mounted) {
+      final netease = await _fetchProviderTranslationOnDemand(
+        'netease',
+        title,
+        artist,
+      );
+      if (netease != null && mounted) {
+        final accepted = await _showProviderSwitchDialog();
+        if (accepted == true && mounted) {
+          await _applyProviderSwitch(trackId, 'netease', netease);
+          final result = await _loadProviderTranslationOrNull(trackId);
+          if (result != null) {
+            return result;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// 加载音源翻译；无缓存或与当前歌词时间戳完全对不上时返回 null。
+  Future<TranslationLoadResult?> _loadProviderTranslationOrNull(
+      String trackId) async {
+    try {
+      final result = await _loadProviderTranslation(trackId);
+      return result.perLineTranslations.isEmpty ? null : result;
+    } on LyricsTranslationException {
+      return null;
+    }
+  }
+
+  /// 按曲名/歌手现场搜索某个歌词源，返回带翻译的歌词；无翻译返回 null。
+  Future<LyricResult?> _fetchProviderTranslationOnDemand(
+    String providerName,
+    String title,
+    String artist,
+  ) async {
+    try {
+      final LyricProvider provider =
+          providerName == 'netease' ? NetEaseProvider() : QQProvider();
+      final match = await provider.search(title, artist);
+      if (match == null) return null;
+      final result = await provider.fetchLyricWithTranslation(match.songId);
+      if (result == null || !result.hasTranslation) return null;
+      final normalized = provider.normalizeLyric(result.lyric);
+      if (normalized.isEmpty) return null;
+      return LyricResult(
+        lyric: normalized,
+        translation: result.translation,
+      );
+    } catch (e) {
+      _logger.d('On-demand provider translation fetch failed: $e');
+      return null;
+    }
+  }
+
+  /// 写入音源翻译缓存（键名保留 netease 前缀以兼容旧缓存）。
+  Future<void> _cacheProviderTranslation(
+      String trackId, String translation) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('netease_translation_$trackId', translation);
+  }
+
+  /// 询问是否切换到网易云歌词源（对应 Yoin 的 ProviderSwitchAvailable 流程）。
+  Future<bool?> _showProviderSwitchDialog() {
+    final l10n = AppLocalizations.of(context)!;
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.providerSwitchOfferTitle),
+        content: Text(l10n.providerSwitchOfferMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.providerSwitchDecline),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.providerSwitchAccept),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 应用歌词源切换：持久化新歌词与翻译，并替换当前显示的歌词。
+  Future<void> _applyProviderSwitch(
+    String trackId,
+    String providerName,
+    LyricResult result,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheData = LyricCacheData(
+      provider: providerName,
+      lyric: result.lyric,
+      timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
+    await prefs.setString(
+        'lyrics_cache_$trackId', json.encode(cacheData.toJson()));
+    await _cacheProviderTranslation(trackId, result.translation!);
+
+    if (!mounted) return;
+    final parsed = _parseLyrics(result.lyric);
+    final synced = parsed.isNotEmpty;
+    final newLyrics = synced ? parsed : _buildUnsyncedLyrics(result.lyric);
+    setState(() {
+      _lyrics = newLyrics;
+      _lyricsAreSynced = synced;
+      _previousLineIndex = -1;
+      _syncLineKeys(_lyrics.length);
+      _currentLyricsProvider = providerName;
+      _hasProviderTranslation = true;
+      // 进行中的翻译加载对应的就是切换后的歌词——
+      // 同步预加载标记，避免结果因 provider 变化被判定过期而丢弃。
+      if (_preloadingLyricsProvider != null) {
+        _preloadingLyricsProvider = providerName;
+      }
+      if (_preloadedLyricsProvider != null) {
+        _preloadedLyricsProvider = providerName;
+      }
+    });
   }
 
   bool get _hasTranslationsLoaded {
@@ -681,6 +890,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
     required bool triggerDisplayWhenReady,
     bool forceRefresh = false,
     TranslationStyle? overrideStyle,
+    bool isAutoTriggered = false,
   }) async {
     if (!mounted || _lyrics.isEmpty) {
       return;
@@ -688,8 +898,6 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
     final spotifyProvider =
         Provider.of<SpotifyProvider>(context, listen: false);
-    final notificationService =
-        Provider.of<NotificationService>(context, listen: false);
     final currentTrackId = spotifyProvider.currentTrack?['item']?['id'];
 
     if (currentTrackId == null) {
@@ -773,10 +981,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           setState(() {
             _isTranslationLoading = false;
           });
-          final l10n = AppLocalizations.of(context)!;
-          notificationService.showSnackBar(
-            l10n.translationFailed(e.toString()),
-          );
+          _showTranslationErrorSnackBar(e, isAutoTriggered: isAutoTriggered);
         } else {
           _logger.d('Translation preload failed: $e');
         }
@@ -795,6 +1000,8 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final future = _loadTranslationData(
       forceRefresh: forceRefresh,
       style: overrideStyle,
+      // 仅手动点按翻译时允许弹出「切换歌词源」的询问
+      allowProviderSwitchOffer: triggerDisplayWhenReady && !isAutoTriggered,
     );
     _translationPreloadFuture = future;
 
@@ -837,14 +1044,33 @@ class _LyricsWidgetState extends State<LyricsWidget>
         setState(() {
           _isTranslationLoading = false;
         });
-        final l10n = AppLocalizations.of(context)!;
-        notificationService.showSnackBar(
-          l10n.translationFailed(e.toString()),
-        );
+        _showTranslationErrorSnackBar(e, isAutoTriggered: isAutoTriggered);
       } else {
         _logger.d('Translation preload failed: $e');
       }
     }
+  }
+
+  /// 翻译错误提示：已是目标语言时给出专门文案（与 Yoin 行为同步）。
+  /// 自动翻译触发时对该情况保持静默，避免每首中文歌都弹提示。
+  void _showTranslationErrorSnackBar(
+    Object error, {
+    bool isAutoTriggered = false,
+  }) {
+    if (!mounted) return;
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
+    if (error is LyricsTranslationException &&
+        error.code == LyricsTranslationErrorCode.alreadyTargetLanguage) {
+      if (!isAutoTriggered) {
+        notificationService.showSnackBar(l10n.lyricsAlreadyInTargetLanguage);
+      }
+      return;
+    }
+    notificationService.showSnackBar(
+      l10n.translationFailed(error.toString()),
+    );
   }
 
   /// 预加载下一首歌曲的歌词和翻译（当启用自动翻译时）
@@ -924,14 +1150,14 @@ class _LyricsWidgetState extends State<LyricsWidget>
 
         if (shouldPreloadTranslation) {
           final targetLanguage = await _settingsService.getTargetLanguage();
-          final allowNeteaseTranslation = await _canUseNeteaseTranslation(
-            hasNeteaseTranslation: lyricsResult.hasNeteaseTranslation,
+          final allowProviderTranslation = await _canUseProviderTranslation(
+            hasProviderTranslation: lyricsResult.hasProviderTranslation,
             languageCode: targetLanguage,
             provider: lyricsResult.provider,
           );
 
           TranslationStyle? preferredStyle;
-          if (lyricsResult.isFromNetease && allowNeteaseTranslation) {
+          if (allowProviderTranslation) {
             preferredStyle = TranslationStyle.neteaseProvider;
           }
 
@@ -941,7 +1167,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
               originalLines: originalLines,
               trackItem: nextTrack,
               style: preferredStyle,
-              hasNeteaseTranslation: lyricsResult.hasNeteaseTranslation,
+              hasProviderTranslation: lyricsResult.hasProviderTranslation,
               lyricsProvider: lyricsResult.provider,
             );
             _logger.d('Preloaded translation for next track: $trackId');
@@ -983,16 +1209,17 @@ class _LyricsWidgetState extends State<LyricsWidget>
     _autoTranslationRequestedForTrack = true;
 
     // 根据歌词来源决定翻译风格
-    // 仅在网易云翻译可用且目标语言为中文时使用网易云翻译
+    // 仅在提供者自带翻译可用且目标语言为中文时使用（网易云 / QQ）
     TranslationStyle? preferredStyle;
-    final allowNeteaseTranslation = await _canUseNeteaseTranslation();
-    if (_currentLyricsProvider == 'netease' && allowNeteaseTranslation) {
+    final allowProviderTranslation = await _canUseProviderTranslation();
+    if (allowProviderTranslation) {
       preferredStyle = TranslationStyle.neteaseProvider;
     }
 
     unawaited(_startTranslationPreload(
       triggerDisplayWhenReady: true,
       overrideStyle: preferredStyle,
+      isAutoTriggered: true,
     ));
     // 注意：下一首歌的预加载已在 _loadLyrics 中触发，这里不需要重复调用
     // _preloadNextTrackResources() 会根据自动翻译设置自动决定是否预加载翻译
@@ -1144,13 +1371,13 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final originalLines = _lyrics.map((line) => line.text).toList();
     final originalLyricsJoined = originalLines.join('\n');
     final targetLanguage = await _settingsService.getTargetLanguage();
-    final allowNeteaseTranslation = await _canUseNeteaseTranslation(
+    final allowProviderTranslation = await _canUseProviderTranslation(
       languageCode: targetLanguage,
       provider: _currentLyricsProvider,
     );
     final currentStyle = await _resolveTranslationStyle(
       requestedStyle: _activeTranslationStyle,
-      hasNeteaseTranslation: _hasNeteaseTranslation,
+      hasProviderTranslation: _hasProviderTranslation,
       languageCode: targetLanguage,
       provider: _currentLyricsProvider,
     );
@@ -1206,7 +1433,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
       child: TranslationResultPage(
         originalLyrics: originalLyricsJoined,
         initialStyle: currentStyle,
-        allowNeteaseStyle: allowNeteaseTranslation,
+        allowNeteaseStyle: allowProviderTranslation,
         loadTranslation: ({
           bool forceRefresh = false,
           TranslationStyle? style,
@@ -2193,8 +2420,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
             synced ? parsed : _buildUnsyncedLyrics(selection.lyrics);
         final resolvedProvider =
             selection.provider.isNotEmpty ? selection.provider : null;
-        final hasNeteaseTranslation =
-            resolvedProvider == 'netease' && selection.hasNeteaseTranslation;
+        final hasProviderTranslation =
+            _isProviderWithTranslation(resolvedProvider) &&
+                selection.hasProviderTranslation;
         _quickActionsHideTimer?.cancel();
         _autoTranslationRequestedForTrack = false;
         setState(() {
@@ -2214,7 +2442,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           _syncLineKeys(_lyrics.length);
           _manualQuickActionsVisible = false;
           _currentLyricsProvider = resolvedProvider;
-          _hasNeteaseTranslation = hasNeteaseTranslation;
+          _hasProviderTranslation = hasProviderTranslation;
 
           // Restore auto-scroll if it was enabled before searching
           if (wasAutoScrollEnabled && synced) {
@@ -2329,13 +2557,13 @@ class _LyricsWidgetState extends State<LyricsWidget>
     final originalLines = _lyrics.map((line) => line.text).toList();
     final originalLyricsJoined = originalLines.join('\n');
     final targetLanguage = await _settingsService.getTargetLanguage();
-    final allowNeteaseTranslation = await _canUseNeteaseTranslation(
+    final allowProviderTranslation = await _canUseProviderTranslation(
       languageCode: targetLanguage,
       provider: _currentLyricsProvider,
     );
     final currentStyle = await _resolveTranslationStyle(
       requestedStyle: _activeTranslationStyle,
-      hasNeteaseTranslation: _hasNeteaseTranslation,
+      hasProviderTranslation: _hasProviderTranslation,
       languageCode: targetLanguage,
       provider: _currentLyricsProvider,
     );
@@ -2371,7 +2599,7 @@ class _LyricsWidgetState extends State<LyricsWidget>
           );
         },
         originalLyrics: originalLyricsJoined,
-        canUseNeteaseTranslation: allowNeteaseTranslation,
+        canUseNeteaseTranslation: allowProviderTranslation,
       ),
       preferredMode: SecondaryPageMode.sideSheet,
       maxWidth: 520,

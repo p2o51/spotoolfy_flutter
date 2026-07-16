@@ -316,6 +316,7 @@
   "noLyricsToTranslate": "No lyrics to translate.",
   "failedToSaveTranslation": "Failed to save fetched translation: {error}",
   "failedToGetTranslation": "Failed to get translation.",
+  "lyricsAlreadyInTargetLanguage": "Lyrics already appear to be in the target language.",
   "translationFailed": "Translation failed: {error}",
   "translateLyrics": "Translate Lyrics",
   "copyLyricsModeHint": "Copy Lyrics Mode: Single repeat active, auto-scroll disabled.",
@@ -836,9 +837,13 @@
   "useNeteaseTranslation": "This song has a NetEase Cloud Music translation. Would you like to include it?",
   "originalOnly": "Original Only",
   "useTranslation": "Include Translation",
-  "translationStyleNetease": "NetEase Cloud",
+  "translationStyleNetease": "Source translation",
   "neteaseTranslationChineseOnly": "Chinese only",
   "neteaseTranslationUnavailable": "Not available for this track",
-  "neteaseTranslationSaved": "NetEase translation saved",
+  "providerSwitchOfferTitle": "NetEase translation found",
+  "providerSwitchOfferMessage": "The current QQ Music lyrics have no translation, but NetEase has translated lyrics for this track. Switch the lyrics source to NetEase?",
+  "providerSwitchAccept": "Switch",
+  "providerSwitchDecline": "Not now",
+  "neteaseTranslationSaved": "Source translation saved",
   "pressAgainToExit": "Press again to exit"
 }

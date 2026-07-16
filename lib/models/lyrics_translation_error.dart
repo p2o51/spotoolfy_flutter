@@ -5,6 +5,7 @@ enum LyricsTranslationErrorCode {
   invalidResponse('LT004'),
   apiError('LT005'),
   apiUnreachable('LT006'),
+  alreadyTargetLanguage('LT007'),
   unknown('LT999');
 
   final String code;

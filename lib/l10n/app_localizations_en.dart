@@ -571,6 +571,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get failedToGetTranslation => 'Failed to get translation.';
 
   @override
+  String get lyricsAlreadyInTargetLanguage =>
+      'Lyrics already appear to be in the target language.';
+
+  @override
   String get copyLyricsModeHint =>
       'Copy Lyrics Mode: Single repeat active, auto-scroll disabled.';
 
@@ -1354,7 +1358,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get useTranslation => 'Include Translation';
 
   @override
-  String get translationStyleNetease => 'NetEase Cloud';
+  String get translationStyleNetease => 'Source translation';
 
   @override
   String get neteaseTranslationChineseOnly => 'Chinese only';
@@ -1363,7 +1367,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get neteaseTranslationUnavailable => 'Not available for this track';
 
   @override
-  String get neteaseTranslationSaved => 'NetEase translation saved';
+  String get providerSwitchOfferTitle => 'NetEase translation found';
+
+  @override
+  String get providerSwitchOfferMessage =>
+      'The current QQ Music lyrics have no translation, but NetEase has translated lyrics for this track. Switch the lyrics source to NetEase?';
+
+  @override
+  String get providerSwitchAccept => 'Switch';
+
+  @override
+  String get providerSwitchDecline => 'Not now';
+
+  @override
+  String get neteaseTranslationSaved => 'Source translation saved';
 
   @override
   String get pressAgainToExit => 'Press again to exit';

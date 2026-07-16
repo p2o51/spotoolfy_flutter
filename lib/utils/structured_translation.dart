@@ -169,6 +169,123 @@ List<int> _findMissingIndices(
   return missing;
 }
 
+/// --- Yoin-synced tagged line-translation format ---
+///
+/// The prompt asks the model to return one `[L0]translation[/L0]` block per
+/// source line (indices refer to the original lyric line order). The parser
+/// tolerates case/whitespace variants and falls back to plain-line mapping
+/// when the model ignores the schema but keeps the line count intact.
+
+/// Matches any `[TAG]` / `[/TAG]` marker (e.g. `[L0]`, `[ / L12 ]`).
+final RegExp _tagMarkerRegex = RegExp(
+  r'\[\s*/?\s*[A-Z][A-Z0-9_]*\s*\]',
+  caseSensitive: false,
+);
+
+final RegExp _lineTranslationRegex = RegExp(
+  r'\[\s*L(\d+)\s*\](.*?)\[\s*/\s*L\1\s*\]',
+  caseSensitive: false,
+  dotAll: true,
+);
+
+/// Leading list markers the model sometimes prepends: `- `, `[1] `, `【2】`,
+/// `(3)`, `4.`, `5、` etc.
+final RegExp _leadingLineMarkerRegex = RegExp(
+  r'^(?:[-*•]\s*)?(?:(?:[\[【(]\s*\d+\s*[\]】)])(?:[.)：:、])?|\d+[.)：:、])\s*',
+);
+
+/// Strip any leftover `[TAG]` / `[/TAG]` markers from prose so a malformed
+/// or truncated response still renders as clean text.
+String stripTagMarkers(String text) =>
+    text.replaceAll(_tagMarkerRegex, '').trim();
+
+/// Sanitize a single translated line: drop tag markers and leading
+/// bullet/number markers the model sometimes echoes.
+String cleanLineTranslation(String text) {
+  var cleaned = stripTagMarkers(text);
+  for (var i = 0; i < 3; i++) {
+    cleaned = cleaned.replaceFirst(_leadingLineMarkerRegex, '').trim();
+  }
+  return cleaned;
+}
+
+/// Parses `[L<i>]...[/L<i>]` blocks into an index → translation map.
+/// Indices outside `[0, lineCount)` are dropped when [lineCount] is given.
+Map<int, String> parseTaggedLineTranslations(
+  String rawText, {
+  int? lineCount,
+}) {
+  final tagged = <int, String>{};
+  for (final match in _lineTranslationRegex.allMatches(rawText)) {
+    final index = int.tryParse(match.group(1) ?? '');
+    if (index == null || index < 0) continue;
+    if (lineCount != null && index >= lineCount) continue;
+    final text = cleanLineTranslation(match.group(2) ?? '');
+    if (text.isNotEmpty) {
+      tagged[index] = text;
+    }
+  }
+  return tagged;
+}
+
+/// Indices of the lines that are actually sent to the model (blank lines
+/// stay behind but keep their original index in the result map).
+List<int> nonBlankLineIndices(List<String> originalLines) => [
+      for (var i = 0; i < originalLines.length; i++)
+        if (originalLines[i].trim().isNotEmpty) i,
+    ];
+
+/// Parses a lyric translation payload, trying (in order):
+/// 1. the Yoin-style tagged `[L0]...[/L0]` format,
+/// 2. the legacy `__L0001__ <<< ` structured format (older cache entries),
+/// 3. plain lines mapped onto the non-blank source lines when counts match.
+StructuredTranslationParserResult parseLyricsTranslationText(
+  String rawText, {
+  List<String>? originalLines,
+}) {
+  final tagged = parseTaggedLineTranslations(
+    rawText,
+    lineCount: originalLines?.length,
+  );
+  if (tagged.isNotEmpty) {
+    return StructuredTranslationParserResult(
+      translations: tagged,
+      missingLineIndices: _findMissingIndices(originalLines, tagged),
+      cleanedText: _buildCleanedText(
+        originalLines: originalLines,
+        translations: tagged,
+      ),
+    );
+  }
+
+  final legacy = parseStructuredTranslation(rawText, originalLines: originalLines);
+  if (legacy.translations.isNotEmpty || originalLines == null) {
+    return legacy;
+  }
+
+  final sentIndices = nonBlankLineIndices(originalLines);
+  final plainLines = rawText
+      .split('\n')
+      .map(cleanLineTranslation)
+      .where((line) => line.isNotEmpty)
+      .toList();
+  if (plainLines.isNotEmpty && plainLines.length == sentIndices.length) {
+    final translations = <int, String>{
+      for (var i = 0; i < plainLines.length; i++) sentIndices[i]: plainLines[i],
+    };
+    return StructuredTranslationParserResult(
+      translations: translations,
+      missingLineIndices: _findMissingIndices(originalLines, translations),
+      cleanedText: _buildCleanedText(
+        originalLines: originalLines,
+        translations: translations,
+      ),
+    );
+  }
+
+  return legacy;
+}
+
 String _cleanMarkersFromText(String value) {
   return value
       .replaceAll(

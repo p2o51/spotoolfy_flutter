@@ -11,7 +11,16 @@ abstract class LyricProvider {
 
   /// 获取歌词，只返回原文LRC
   Future<String?> fetchLyric(String songId);
-  
+
+  /// 获取歌词及提供者自带的翻译（若有）。
+  /// 默认实现只取原文；支持翻译的提供者（网易云、QQ）应覆写。
+  Future<LyricResult?> fetchLyricWithTranslation(String songId) async {
+    final lyric = await fetchLyric(songId);
+    if (lyric == null) return null;
+    return LyricResult(lyric: lyric);
+  }
+
+
   /// 提供者名称
   String get name;
   

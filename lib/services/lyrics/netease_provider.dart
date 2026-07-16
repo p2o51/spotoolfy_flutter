@@ -103,6 +103,7 @@ class NetEaseProvider extends LyricProvider {
   }
 
   /// 获取歌词（包含翻译信息）
+  @override
   Future<LyricResult?> fetchLyricWithTranslation(String songId) async {
     try {
       final uri = Uri.parse('$_baseUrl/lyric/new').replace(

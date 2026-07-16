@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:logger/logger.dart';
 import '../models/lyrics_translation_error.dart';
 import '../services/settings_service.dart';
+import '../utils/lyrics_language.dart';
 import '../utils/structured_translation.dart';
 
 final logger = Logger();
@@ -15,27 +16,29 @@ class TranslationService {
       'translation_cache_'; // Cache key prefix
 
   Future<Map<String, dynamic>> translateLyrics(
-    String lyricsText,
+    List<String> originalLines,
     String trackId, {
+    String? trackTitle,
+    String? artistName,
     String? targetLanguage,
     bool forceRefresh = false,
-    List<String>? originalLines,
     TranslationStyle? style,
   }) async {
-    final apiKey = await _settingsService.getGeminiApiKey();
-    if (apiKey == null || apiKey.isEmpty) {
-      throw const LyricsTranslationException(
-        code: LyricsTranslationErrorCode.missingApiKey,
-        message: 'Gemini API Key not configured.',
-      );
-    }
-
     final languageCodeUsed = targetLanguage ??
         await _settingsService.getTargetLanguage(); // Capture the language used
     final languageName = _getLanguageName(languageCodeUsed);
     final styleUsed = style ?? await _settingsService.getTranslationStyle();
     final styleNameUsed = translationStyleToString(
         styleUsed); // Get style name for cache key and return value
+
+    // Yoin-synced: skip the API round-trip entirely when the lyrics already
+    // appear to be in the target language (currently Chinese targets only).
+    if (lyricsAlreadyInTargetLanguage(originalLines, languageCodeUsed)) {
+      throw const LyricsTranslationException(
+        code: LyricsTranslationErrorCode.alreadyTargetLanguage,
+        message: 'Lyrics already appear to be in the target language.',
+      );
+    }
 
     // Generate cache key including language and style
     final cacheKey =
@@ -55,7 +58,7 @@ class TranslationService {
       final cachedTranslation = prefs.getString(cacheKey);
       if (cachedTranslation != null) {
         logger.d('Translation cache hit for $cacheKey');
-        final parsed = parseStructuredTranslation(
+        final parsed = parseLyricsTranslationText(
           cachedTranslation,
           originalLines: originalLines,
         );
@@ -81,6 +84,14 @@ class TranslationService {
       logger.d('Forcing refresh: Removed cache for $cacheKey');
     }
 
+    final apiKey = await _settingsService.getGeminiApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw const LyricsTranslationException(
+        code: LyricsTranslationErrorCode.missingApiKey,
+        message: 'Gemini API Key not configured.',
+      );
+    }
+
     // 使用统一的模型配置
     final modelUrl = await _settingsService.getGeminiApiUrl();
     final generationConfig = await _settingsService.getGeminiGenerationConfig();
@@ -88,7 +99,13 @@ class TranslationService {
     final url = Uri.parse('$modelUrl:generateContent?key=$apiKey');
 
     // Get the prompt based on the selected style
-    final prompt = _getPromptForStyle(styleUsed, languageName, lyricsText);
+    final prompt = _buildLyricsTranslationPrompt(
+      style: styleUsed,
+      languageName: languageName,
+      trackTitle: trackTitle,
+      artistName: artistName,
+      originalLines: originalLines,
+    );
 
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -128,10 +145,20 @@ class TranslationService {
             logger.d('Raw result from AI:\n$rawResult');
 
             final normalized = rawResult.trim();
-            final parsed = parseStructuredTranslation(
+            final parsed = parseLyricsTranslationText(
               normalized,
               originalLines: originalLines,
             );
+
+            // Yoin-synced: a response with no usable per-line translations is
+            // an error, not a silent success.
+            if (parsed.translations.values
+                .every((value) => value.trim().isEmpty)) {
+              throw const LyricsTranslationException(
+                code: LyricsTranslationErrorCode.invalidResponse,
+                message: 'No usable lyric translations in response.',
+              );
+            }
 
             final lineTranslations = <String, String>{};
             parsed.translations.forEach((index, value) {
@@ -201,9 +228,15 @@ class TranslationService {
     }
   }
 
-  // Helper function to generate the prompt based on the selected style
-  String _getPromptForStyle(
-      TranslationStyle style, String languageName, String lyricsText) {
+  // Yoin-synced prompt: indexed source lines in, one tagged block per line
+  // out. Blank lines keep their original index but are not sent.
+  String _buildLyricsTranslationPrompt({
+    required TranslationStyle style,
+    required String languageName,
+    required List<String> originalLines,
+    String? trackTitle,
+    String? artistName,
+  }) {
     String tone;
     switch (style) {
       case TranslationStyle.faithful:
@@ -221,15 +254,31 @@ class TranslationService {
         break;
     }
 
+    final title = trackTitle?.trim().isNotEmpty == true
+        ? trackTitle!.trim()
+        : 'Unknown song';
+    final artist = artistName?.trim().isNotEmpty == true
+        ? artistName!.trim()
+        : 'Unknown artist';
+    final indexedLines = nonBlankLineIndices(originalLines)
+        .map((index) => '[$index] ${originalLines[index]}')
+        .join('\n');
+
     return '''
-Translate lyrics to $languageName. Tone: $tone.
+Translate these lyric lines into $languageName.
 
-FORMAT: __LXXXX__${kStructuredOutputDelimiter}translation
-- One line in = one line out
-- Output translation only, no original text
-- Blank/instrumental → empty after delimiter
+Song: $title
+Artist: $artist
 
-$lyricsText
+Preserve line count and meaning. Keep imagery natural, concise, and singable.
+Tone: $tone.
+Return strictly one tagged block per source line, keeping each line's index:
+
+[L0]translation for line 0[/L0]
+[L1]translation for line 1[/L1]
+
+Lines:
+$indexedLines
 ''';
   }
 
