@@ -109,10 +109,21 @@ class LyricsParser {
       return -1;
     }
 
-    // 从后向前查找最后一个时间戳小于等于当前位置的行
-    for (int i = lyrics.length - 1; i >= 0; i--) {
-      if (lyrics[i].timestamp <= currentPosition) {
-        return i;
+    // 二分查找最后一个时间戳小于等于当前位置的行
+    int low = 0;
+    int high = lyrics.length - 1;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      final midTimestamp = lyrics[mid].timestamp;
+      if (midTimestamp <= currentPosition) {
+        final isLastMatch = mid == lyrics.length - 1 ||
+            lyrics[mid + 1].timestamp > currentPosition;
+        if (isLastMatch) {
+          return mid;
+        }
+        low = mid + 1;
+      } else {
+        high = mid - 1;
       }
     }
 
