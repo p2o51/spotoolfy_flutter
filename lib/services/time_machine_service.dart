@@ -18,13 +18,10 @@ class _SamplePoint {
 
 /// 稀疏索引检查点 - "路标"系统的核心数据结构
 class IndexCheckpoint {
-  final int offset;      // 在资料库中的位置
-  final DateTime date;   // 该位置的时间戳
+  final int offset; // 在资料库中的位置
+  final DateTime date; // 该位置的时间戳
 
-  IndexCheckpoint({
-    required this.offset,
-    required this.date,
-  });
+  IndexCheckpoint({required this.offset, required this.date});
 
   Map<String, dynamic> toJson() => {
     'offset': offset,
@@ -62,15 +59,15 @@ class TimeMachineMemory {
   });
 
   Map<String, dynamic> toJson() => {
-        'trackId': trackId,
-        'trackName': trackName,
-        'artistName': artistName,
-        'albumName': albumName,
-        'albumCoverUrl': albumCoverUrl,
-        'addedAt': addedAt.toIso8601String(),
-        'yearsAgo': yearsAgo,
-        'trackUri': trackUri,
-      };
+    'trackId': trackId,
+    'trackName': trackName,
+    'artistName': artistName,
+    'albumName': albumName,
+    'albumCoverUrl': albumCoverUrl,
+    'addedAt': addedAt.toIso8601String(),
+    'yearsAgo': yearsAgo,
+    'trackUri': trackUri,
+  };
 
   factory TimeMachineMemory.fromJson(Map<String, dynamic> json) {
     return TimeMachineMemory(
@@ -118,13 +115,19 @@ class TimeMachineService {
 
   String get _resolvedCacheFileName {
     if (_activeUserId == null) return _cacheFileName;
-    final sanitizedId = _activeUserId!.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    final sanitizedId = _activeUserId!.replaceAll(
+      RegExp(r'[^a-zA-Z0-9_-]'),
+      '_',
+    );
     return 'saved_tracks_cache_$sanitizedId.json';
   }
 
   String get _resolvedIndexCacheFileName {
     if (_activeUserId == null) return _indexCacheFileName;
-    final sanitizedId = _activeUserId!.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    final sanitizedId = _activeUserId!.replaceAll(
+      RegExp(r'[^a-zA-Z0-9_-]'),
+      '_',
+    );
     return 'sparse_index_cache_$sanitizedId.json';
   }
 
@@ -171,7 +174,9 @@ class TimeMachineService {
           .toList();
       _cacheTimestamp = timestamp;
 
-      _logger.i('Loaded ${_cachedTracks!.length} tracks from time machine cache');
+      _logger.i(
+        'Loaded ${_cachedTracks!.length} tracks from time machine cache',
+      );
       return true;
     } catch (e) {
       _logger.w('Failed to load time machine cache: $e');
@@ -246,7 +251,8 @@ class TimeMachineService {
     List<Map<String, dynamic>> tracks;
 
     // 检查是否有完整缓存
-    final hasCache = !forceRefresh &&
+    final hasCache =
+        !forceRefresh &&
         _cachedTracks != null &&
         _cacheTimestamp != null &&
         DateTime.now().difference(_cacheTimestamp!) < _cacheMaxAge;
@@ -335,7 +341,8 @@ class TimeMachineService {
       if (trackId == null || trackName == null) continue;
 
       final artistName = artists?.isNotEmpty == true
-          ? (artists!.first as Map<String, dynamic>)['name'] as String? ?? 'Unknown'
+          ? (artists!.first as Map<String, dynamic>)['name'] as String? ??
+                'Unknown'
           : 'Unknown';
 
       final albumName = album?['name'] as String? ?? 'Unknown Album';
@@ -344,16 +351,18 @@ class TimeMachineService {
           ? (albumImages!.first as Map<String, dynamic>)['url'] as String?
           : null;
 
-      memories.add(TimeMachineMemory(
-        trackId: trackId,
-        trackName: trackName,
-        artistName: artistName,
-        albumName: albumName,
-        albumCoverUrl: albumCoverUrl,
-        addedAt: addedAt,
-        yearsAgo: currentYear - addedAt.year,
-        trackUri: 'spotify:track:$trackId',
-      ));
+      memories.add(
+        TimeMachineMemory(
+          trackId: trackId,
+          trackName: trackName,
+          artistName: artistName,
+          albumName: albumName,
+          albumCoverUrl: albumCoverUrl,
+          addedAt: addedAt,
+          yearsAgo: currentYear - addedAt.year,
+          trackUri: 'spotify:track:$trackId',
+        ),
+      );
     }
 
     // 按年份排序（最近的年份优先）
@@ -428,7 +437,8 @@ class TimeMachineService {
       if (trackId == null || trackName == null) continue;
 
       final artistName = artists?.isNotEmpty == true
-          ? (artists!.first as Map<String, dynamic>)['name'] as String? ?? 'Unknown'
+          ? (artists!.first as Map<String, dynamic>)['name'] as String? ??
+                'Unknown'
           : 'Unknown';
 
       final albumName = album?['name'] as String? ?? 'Unknown Album';
@@ -437,16 +447,18 @@ class TimeMachineService {
           ? (albumImages!.first as Map<String, dynamic>)['url'] as String?
           : null;
 
-      memories.add(TimeMachineMemory(
-        trackId: trackId,
-        trackName: trackName,
-        artistName: artistName,
-        albumName: albumName,
-        albumCoverUrl: albumCoverUrl,
-        addedAt: addedAt,
-        yearsAgo: now.year - addedAt.year,
-        trackUri: 'spotify:track:$trackId',
-      ));
+      memories.add(
+        TimeMachineMemory(
+          trackId: trackId,
+          trackName: trackName,
+          artistName: artistName,
+          albumName: albumName,
+          albumCoverUrl: albumCoverUrl,
+          addedAt: addedAt,
+          yearsAgo: now.year - addedAt.year,
+          trackUri: 'spotify:track:$trackId',
+        ),
+      );
     }
 
     // 按添加时间排序（最新的优先）
@@ -532,7 +544,9 @@ class TimeMachineService {
 
       _sparseIndex = checkpointsRaw
           .whereType<Map>()
-          .map((item) => IndexCheckpoint.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => IndexCheckpoint.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
       _indexTimestamp = timestamp;
 
@@ -574,27 +588,57 @@ class TimeMachineService {
     try {
       _logger.i('开始构建稀疏索引：间隔 $interval 首歌');
 
-      for (int offset = 0; offset < 10000; offset += interval) {
-        if (checkpoints.length >= maxCheckpoints) break;
+      int currentOffset = 0;
+      bool done = false;
+      const int batchSize = 5;
 
-        final tracks = await _spotifyService.getUserSavedTracks(
-          offset: offset,
-          limit: 1,
-        );
+      while (currentOffset < 10000 &&
+          !done &&
+          checkpoints.length < maxCheckpoints) {
+        final futures = <Future<List<Map<String, dynamic>>>>[];
+        final batchOffsets = <int>[];
 
-        if (tracks.isEmpty) break;
+        for (int i = 0; i < batchSize; i++) {
+          final offset = currentOffset + (i * interval);
+          if (offset >= 10000 || checkpoints.length + i >= maxCheckpoints)
+            break;
 
-        final addedAtStr = tracks.first['added_at'] as String?;
-        if (addedAtStr == null) continue;
+          batchOffsets.add(offset);
+          futures.add(
+            _spotifyService.getUserSavedTracks(offset: offset, limit: 1),
+          );
+        }
 
-        final date = DateTime.tryParse(addedAtStr);
-        if (date == null) continue;
+        if (futures.isEmpty) break;
 
-        checkpoints.add(IndexCheckpoint(offset: offset, date: date));
-        _logger.d('索引点 ${checkpoints.length}: offset=$offset, date=${date.toIso8601String()}');
+        final batchResults = await Future.wait(futures);
 
-        // 防止速率限制
-        await Future.delayed(const Duration(milliseconds: 150));
+        for (int i = 0; i < batchResults.length; i++) {
+          final tracks = batchResults[i];
+          final offset = batchOffsets[i];
+
+          if (tracks.isEmpty) {
+            done = true;
+            break;
+          }
+
+          final addedAtStr = tracks.first['added_at'] as String?;
+          if (addedAtStr != null) {
+            final date = DateTime.tryParse(addedAtStr);
+            if (date != null) {
+              checkpoints.add(IndexCheckpoint(offset: offset, date: date));
+              _logger.d(
+                '索引点 ${checkpoints.length}: offset=$offset, date=${date.toIso8601String()}',
+              );
+            }
+          }
+        }
+
+        currentOffset += batchSize * interval;
+        if (!done) {
+          // 防止速率限制
+          await Future.delayed(Duration(milliseconds: 150 * futures.length));
+        }
       }
 
       _logger.i('稀疏索引构建完成：${checkpoints.length} 个检查点');
@@ -655,8 +699,16 @@ class TimeMachineService {
 
     try {
       // 二分查找：找到目标日期范围的起始位置
-      int leftBound = _binarySearchCheckpoint(index, targetEnd, searchForStart: true);
-      int rightBound = _binarySearchCheckpoint(index, targetStart, searchForStart: false);
+      int leftBound = _binarySearchCheckpoint(
+        index,
+        targetEnd,
+        searchForStart: true,
+      );
+      int rightBound = _binarySearchCheckpoint(
+        index,
+        targetStart,
+        searchForStart: false,
+      );
 
       if (leftBound == -1 || rightBound == -1 || leftBound > rightBound) {
         _logger.w('索引中未找到目标范围');
@@ -669,41 +721,70 @@ class TimeMachineService {
           ? index[rightBound + 1].offset
           : index[rightBound].offset + 200;
 
-      _logger.i('索引定位：检查点 [$leftBound, $rightBound], offset [$startOffset, $endOffset]');
+      _logger.i(
+        '索引定位：检查点 [$leftBound, $rightBound], offset [$startOffset, $endOffset]',
+      );
 
       // 扫描这个范围内的所有歌曲
       final results = <Map<String, dynamic>>[];
 
-      for (int offset = startOffset; offset <= endOffset && offset < 10000; offset += 50) {
-        final tracks = await _spotifyService.getUserSavedTracks(
-          offset: offset,
-          limit: 50,
-        );
+      int currentOffset = startOffset;
+      bool done = false;
+      const int batchSize = 5;
 
-        if (tracks.isEmpty) break;
+      while (currentOffset <= endOffset && currentOffset < 10000 && !done) {
+        final futures = <Future<List<Map<String, dynamic>>>>[];
 
-        for (final track in tracks) {
-          final addedAtStr = track['added_at'] as String?;
-          if (addedAtStr == null) continue;
+        for (int i = 0; i < batchSize; i++) {
+          final offset = currentOffset + (i * 50);
+          if (offset > endOffset || offset >= 10000) break;
 
-          final addedAt = DateTime.tryParse(addedAtStr);
-          if (addedAt == null) continue;
-
-          // 只添加在目标范围内的歌曲
-          if (addedAt.isAfter(targetStart.subtract(const Duration(days: 1))) &&
-              addedAt.isBefore(targetEnd.add(const Duration(days: 1)))) {
-            results.add(track);
-          }
-
-          // 提前退出：如果已经太早了
-          if (addedAt.isBefore(targetStart.subtract(const Duration(days: 30)))) {
-            _logger.d('已超出范围，提前结束扫描');
-            return results;
-          }
+          futures.add(
+            _spotifyService.getUserSavedTracks(offset: offset, limit: 50),
+          );
         }
 
-        onProgress?.call(results.length, null);
-        await Future.delayed(const Duration(milliseconds: 200));
+        if (futures.isEmpty) break;
+
+        final batchResults = await Future.wait(futures);
+
+        for (final tracks in batchResults) {
+          if (tracks.isEmpty) {
+            done = true;
+            break;
+          }
+
+          for (final track in tracks) {
+            final addedAtStr = track['added_at'] as String?;
+            if (addedAtStr == null) continue;
+
+            final addedAt = DateTime.tryParse(addedAtStr);
+            if (addedAt == null) continue;
+
+            // 只添加在目标范围内的歌曲
+            if (addedAt.isAfter(
+                  targetStart.subtract(const Duration(days: 1)),
+                ) &&
+                addedAt.isBefore(targetEnd.add(const Duration(days: 1)))) {
+              results.add(track);
+            }
+
+            // 提前退出：如果已经太早了
+            if (addedAt.isBefore(
+              targetStart.subtract(const Duration(days: 30)),
+            )) {
+              _logger.d('已超出范围，提前结束扫描');
+              return results;
+            }
+          }
+
+          onProgress?.call(results.length, null);
+        }
+
+        currentOffset += batchSize * 50;
+        if (!done) {
+          await Future.delayed(Duration(milliseconds: 200 * futures.length));
+        }
       }
 
       _logger.i('稀疏索引查询完成：找到 ${results.length} 首歌');
@@ -717,7 +798,11 @@ class TimeMachineService {
   /// 二分查找检查点
   /// [searchForStart] = true: 找第一个 >= target 的位置
   /// [searchForStart] = false: 找最后一个 <= target 的位置
-  int _binarySearchCheckpoint(List<IndexCheckpoint> checkpoints, DateTime target, {required bool searchForStart}) {
+  int _binarySearchCheckpoint(
+    List<IndexCheckpoint> checkpoints,
+    DateTime target, {
+    required bool searchForStart,
+  }) {
     if (checkpoints.isEmpty) return -1;
 
     int left = 0;
@@ -774,25 +859,54 @@ class TimeMachineService {
     try {
       _logger.d('开始采样资料库：采样 $sampleSize 首歌，间隔 $sampleInterval');
 
-      for (int offset = 0; offset < sampleSize; offset += sampleInterval) {
-        final tracks = await _spotifyService.getUserSavedTracks(
-          offset: offset,
-          limit: 1, // 只需要第一首歌的时间戳
-        );
+      int currentOffset = 0;
+      bool done = false;
+      const int batchSize = 5;
 
-        if (tracks.isEmpty) break;
+      while (currentOffset < sampleSize && !done) {
+        final futures = <Future<List<Map<String, dynamic>>>>[];
+        final batchOffsets = <int>[];
 
-        final addedAtStr = tracks.first['added_at'] as String?;
-        if (addedAtStr == null) continue;
+        for (int i = 0; i < batchSize; i++) {
+          final offset = currentOffset + (i * sampleInterval);
+          if (offset >= sampleSize) break;
 
-        final addedAt = DateTime.tryParse(addedAtStr);
-        if (addedAt == null) continue;
+          batchOffsets.add(offset);
+          futures.add(
+            _spotifyService.getUserSavedTracks(offset: offset, limit: 1),
+          );
+        }
 
-        samples.add(_SamplePoint(offset, addedAt));
-        _logger.d('采样点 ${samples.length}: offset=$offset, date=${addedAt.toIso8601String()}');
+        if (futures.isEmpty) break;
 
-        // 防止速率限制
-        await Future.delayed(const Duration(milliseconds: 100));
+        final batchResults = await Future.wait(futures);
+
+        for (int i = 0; i < batchResults.length; i++) {
+          final tracks = batchResults[i];
+          final offset = batchOffsets[i];
+
+          if (tracks.isEmpty) {
+            done = true;
+            break;
+          }
+
+          final addedAtStr = tracks.first['added_at'] as String?;
+          if (addedAtStr != null) {
+            final addedAt = DateTime.tryParse(addedAtStr);
+            if (addedAt != null) {
+              samples.add(_SamplePoint(offset, addedAt));
+              _logger.d(
+                '采样点 ${samples.length}: offset=$offset, date=${addedAt.toIso8601String()}',
+              );
+            }
+          }
+        }
+
+        currentOffset += batchSize * sampleInterval;
+        if (!done) {
+          // 防止速率限制
+          await Future.delayed(Duration(milliseconds: 100 * futures.length));
+        }
       }
 
       _logger.i('采样完成：获得 ${samples.length} 个数据点');
@@ -825,7 +939,9 @@ class TimeMachineService {
       final tracksDiff = last.offset - first.offset;
       final tracksPerDay = tracksDiff / daysDiff;
 
-      _logger.d('计算速率：$tracksDiff 首歌 / $daysDiff 天 ≈ ${tracksPerDay.toStringAsFixed(2)} 首/天');
+      _logger.d(
+        '计算速率：$tracksDiff 首歌 / $daysDiff 天 ≈ ${tracksPerDay.toStringAsFixed(2)} 首/天',
+      );
 
       // 预测目标日期的位置
       final daysFromNow = DateTime.now().difference(targetDate).inDays;
@@ -852,11 +968,16 @@ class TimeMachineService {
 
     try {
       // 步骤 1: 采样资料库
-      final samples = await _sampleLibrary(sampleSize: 200, sampleInterval: 100);
+      final samples = await _sampleLibrary(
+        sampleSize: 200,
+        sampleInterval: 100,
+      );
 
       if (samples.isEmpty) {
         _logger.w('采样失败，降级到全量获取');
-        return await _spotifyService.getAllUserSavedTracks(onProgress: onProgress);
+        return await _spotifyService.getAllUserSavedTracks(
+          onProgress: onProgress,
+        );
       }
 
       // 步骤 2: 预测目标位置
@@ -864,7 +985,9 @@ class TimeMachineService {
 
       if (predictedOffset == null) {
         _logger.w('预测失败，降级到全量获取');
-        return await _spotifyService.getAllUserSavedTracks(onProgress: onProgress);
+        return await _spotifyService.getAllUserSavedTracks(
+          onProgress: onProgress,
+        );
       }
 
       // 步骤 3: 在预测位置附近搜索
@@ -876,44 +999,72 @@ class TimeMachineService {
 
       final results = <Map<String, dynamic>>[];
 
-      for (int offset = startOffset; offset <= endOffset; offset += 50) {
-        final tracks = await _spotifyService.getUserSavedTracks(
-          offset: offset,
-          limit: 50,
-        );
+      int currentOffset = startOffset;
+      bool done = false;
+      const int batchSize = 5;
 
-        if (tracks.isEmpty) break;
+      while (currentOffset <= endOffset && !done) {
+        final futures = <Future<List<Map<String, dynamic>>>>[];
 
-        // 检查是否在目标时间范围内
-        for (final track in tracks) {
-          final addedAtStr = track['added_at'] as String?;
-          if (addedAtStr == null) continue;
+        for (int i = 0; i < batchSize; i++) {
+          final offset = currentOffset + (i * 50);
+          if (offset > endOffset) break;
 
-          final addedAt = DateTime.tryParse(addedAtStr);
-          if (addedAt == null) continue;
-
-          // 如果歌曲在目标范围内，添加到结果
-          if (addedAt.isAfter(targetStart.subtract(const Duration(days: 1))) &&
-              addedAt.isBefore(targetEnd.add(const Duration(days: 1)))) {
-            results.add(track);
-          }
-
-          // 如果已经超出范围（太早），可以提前退出
-          if (addedAt.isBefore(targetStart.subtract(const Duration(days: 30)))) {
-            _logger.d('已超出搜索范围，提前结束');
-            return results;
-          }
+          futures.add(
+            _spotifyService.getUserSavedTracks(offset: offset, limit: 50),
+          );
         }
 
-        onProgress?.call(results.length, null);
-        await Future.delayed(const Duration(milliseconds: 200));
+        if (futures.isEmpty) break;
+
+        final batchResults = await Future.wait(futures);
+
+        for (final tracks in batchResults) {
+          if (tracks.isEmpty) {
+            done = true;
+            break;
+          }
+
+          for (final track in tracks) {
+            final addedAtStr = track['added_at'] as String?;
+            if (addedAtStr == null) continue;
+
+            final addedAt = DateTime.tryParse(addedAtStr);
+            if (addedAt == null) continue;
+
+            // 如果歌曲在目标范围内，添加到结果
+            if (addedAt.isAfter(
+                  targetStart.subtract(const Duration(days: 1)),
+                ) &&
+                addedAt.isBefore(targetEnd.add(const Duration(days: 1)))) {
+              results.add(track);
+            }
+
+            // 如果已经超出范围（太早），可以提前退出
+            if (addedAt.isBefore(
+              targetStart.subtract(const Duration(days: 30)),
+            )) {
+              _logger.d('已超出搜索范围，提前结束');
+              return results;
+            }
+          }
+
+          onProgress?.call(results.length, null);
+        }
+
+        currentOffset += batchSize * 50;
+        if (!done) {
+          await Future.delayed(Duration(milliseconds: 200 * futures.length));
+        }
       }
 
       _logger.i('智能搜索完成：找到 ${results.length} 首歌');
       return results;
     } catch (e) {
       _logger.w('智能搜索失败: $e，降级到全量获取');
-      return await _spotifyService.getAllUserSavedTracks(onProgress: onProgress);
+      return await _spotifyService.getAllUserSavedTracks(
+        onProgress: onProgress,
+      );
     }
   }
 }
