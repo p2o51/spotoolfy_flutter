@@ -1839,8 +1839,11 @@ class SpotifyProvider extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Refresh state after initiating play
-      await refreshCurrentTrack();
-      await refreshPlaybackQueue();
+      // ⚡ Bolt: 性能优化 - 并发刷新当前曲目和播放队列状态，减少 API 延迟串联造成的等待时间
+      await Future.wait([
+        refreshCurrentTrack(),
+        refreshPlaybackQueue(),
+      ]);
     } catch (e) {
       // debugPrint('播放 $type 失败: $e');
       await _handleApiError(e,
@@ -1897,8 +1900,11 @@ class SpotifyProvider extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Refresh state after initiating play
-      await refreshCurrentTrack();
-      await refreshPlaybackQueue();
+      // ⚡ Bolt: 性能优化 - 并发刷新当前曲目和播放队列状态，减少 API 延迟串联造成的等待时间
+      await Future.wait([
+        refreshCurrentTrack(),
+        refreshPlaybackQueue(),
+      ]);
     } catch (e) {
       // debugPrint('播放歌曲失败: $e');
       await _handleApiError(e, contextMessage: '播放歌曲', isUserInitiated: true);
@@ -1946,8 +1952,11 @@ class SpotifyProvider extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Refresh state after initiating play
-      await refreshCurrentTrack();
-      await refreshPlaybackQueue();
+      // ⚡ Bolt: 性能优化 - 并发刷新当前曲目和播放队列状态，减少 API 延迟串联造成的等待时间
+      await Future.wait([
+        refreshCurrentTrack(),
+        refreshPlaybackQueue(),
+      ]);
     } catch (e) {
       // debugPrint('在上下文中播放歌曲时出错: $e');
       await _handleApiError(e,
@@ -1992,8 +2001,11 @@ class SpotifyProvider extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Refresh state after initiating play
-      await refreshCurrentTrack();
-      await refreshPlaybackQueue();
+      // ⚡ Bolt: 性能优化 - 并发刷新当前曲目和播放队列状态，减少 API 延迟串联造成的等待时间
+      await Future.wait([
+        refreshCurrentTrack(),
+        refreshPlaybackQueue(),
+      ]);
     } catch (e) {
       await _handleApiError(e, contextMessage: '播放歌曲列表', isUserInitiated: true);
       if (e is SpotifyAuthException && e.code == 'RESTRICTED_DEVICE') {

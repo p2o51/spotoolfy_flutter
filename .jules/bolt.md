@@ -13,3 +13,7 @@
 ## 2024-05-19 - [Optimize Flutter Provider Selector for High-Frequency Streams]
 **Learning:** When using `Selector` in Flutter with high-frequency streams (like audio playback `progressMs`), passing the raw rapidly changing value into the `builder` causes excessive widget rebuilds.
 **Action:** Calculate the stable derived state (e.g., `currentLineIndex`) *inside* the `selector` callback and return a snapshot containing only the derived state. Update `shouldRebuild` to compare this derived state, ensuring the UI only rebuilds when visually necessary (e.g., when the lyric line changes, not on every millisecond tick).
+
+## 2024-05-20 - Concurrent State Refresh After Action Triggers
+**Learning:** When user actions (e.g., triggering `playContext` or `playTrack`) require multiple independent state updates (e.g., refreshing both current track and playback queue) afterward, running those state fetchers sequentially compounds latency and delays UI responsiveness.
+**Action:** Always batch independent state refresh API calls triggered after mutations using `Future.wait` to reduce the total wait time by parallelizing network operations.
