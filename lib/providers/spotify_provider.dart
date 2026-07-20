@@ -1552,23 +1552,34 @@ class SpotifyProvider extends ChangeNotifier {
     ];
 
     final total = (tracksSection['total'] as int?) ?? allTracks.length;
-    var offset = allTracks.length;
+    final int limit = 50; // Default limit for getAlbumTracks
+    int currentOffset = allTracks.length;
 
-    while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getAlbumTracks(albumId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      final extracted = <Map<String, dynamic>>[
-        for (final item in pageItems)
-          if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
-      ];
-      if (extracted.isEmpty) {
-        break;
+    if (currentOffset < total) {
+      final List<int> offsetsToFetch = [];
+      for (int i = currentOffset; i < total; i += limit) {
+        offsetsToFetch.add(i);
       }
-      allTracks.addAll(extracted);
-      offset = allTracks.length;
-      if (page['next'] == null) {
-        break;
+
+      final int batchSize = 5;
+      for (int i = 0; i < offsetsToFetch.length; i += batchSize) {
+        final batchOffsets = offsetsToFetch.skip(i).take(batchSize).toList();
+
+        // ⚡ Bolt: 性能优化 - 使用 Future.wait 并发获取 API 分页数据，静态计算 offsets 以避免竞态条件
+        final batchFutures = batchOffsets.map((offset) {
+          return _guard(() => _spotifyService.getAlbumTracks(albumId, offset: offset, limit: limit));
+        });
+
+        final pages = await Future.wait(batchFutures);
+
+        for (final page in pages) {
+          final pageItems = page['items'] as List? ?? const [];
+          final extracted = <Map<String, dynamic>>[
+            for (final item in pageItems)
+              if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
+          ];
+          allTracks.addAll(extracted);
+        }
       }
     }
 
@@ -1614,23 +1625,34 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     final total = (tracksSection['total'] as int?) ?? allTracks.length;
-    var offset = initialItems.length;
+    final int limit = 100; // Default limit for getPlaylistTracks
+    int currentOffset = initialItems.length;
 
-    while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getPlaylistTracks(playlistId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      if (pageItems.isEmpty) {
-        break;
+    if (currentOffset < total) {
+      final List<int> offsetsToFetch = [];
+      for (int i = currentOffset; i < total; i += limit) {
+        offsetsToFetch.add(i);
       }
-      for (final item in pageItems) {
-        if (item is Map<String, dynamic>) {
-          addTrackFromContainer(item);
+
+      final int batchSize = 5;
+      for (int i = 0; i < offsetsToFetch.length; i += batchSize) {
+        final batchOffsets = offsetsToFetch.skip(i).take(batchSize).toList();
+
+        // ⚡ Bolt: 性能优化 - 使用 Future.wait 并发获取 API 分页数据，静态计算 offsets 以避免竞态条件
+        final batchFutures = batchOffsets.map((offset) {
+          return _guard(() => _spotifyService.getPlaylistTracks(playlistId, offset: offset, limit: limit));
+        });
+
+        final pages = await Future.wait(batchFutures);
+
+        for (final page in pages) {
+          final pageItems = page['items'] as List? ?? const [];
+          for (final item in pageItems) {
+            if (item is Map<String, dynamic>) {
+              addTrackFromContainer(item);
+            }
+          }
         }
-      }
-      offset += pageItems.length;
-      if (page['next'] == null) {
-        break;
       }
     }
 
