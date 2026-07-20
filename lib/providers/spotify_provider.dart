@@ -1552,23 +1552,36 @@ class SpotifyProvider extends ChangeNotifier {
     ];
 
     final total = (tracksSection['total'] as int?) ?? allTracks.length;
-    var offset = allTracks.length;
+    final int limit = 50;
 
-    while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getAlbumTracks(albumId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      final extracted = <Map<String, dynamic>>[
-        for (final item in pageItems)
-          if (item is Map<String, dynamic>) Map<String, dynamic>.from(item)
-      ];
-      if (extracted.isEmpty) {
-        break;
-      }
-      allTracks.addAll(extracted);
-      offset = allTracks.length;
-      if (page['next'] == null) {
-        break;
+    // Batch fetch remaining tracks concurrently
+    if (total > allTracks.length) {
+      final initialLength = allTracks.length;
+      final remaining = total - initialLength;
+      final pages = (remaining / limit).ceil();
+
+      // Execute in chunks to avoid rate limiting
+      const chunkSize = 5;
+      for (var i = 0; i < pages; i += chunkSize) {
+        final chunkFutures = <Future<Map<String, dynamic>>>[];
+        final endIndex = (i + chunkSize > pages) ? pages : i + chunkSize;
+
+        for (var j = i; j < endIndex; j++) {
+          final nextOffset = initialLength + (j * limit);
+          chunkFutures.add(_guard(
+              () => _spotifyService.getAlbumTracks(albumId, offset: nextOffset, limit: limit)));
+        }
+
+        final results = await Future.wait(chunkFutures);
+
+        for (final page in results) {
+          final pageItems = page['items'] as List? ?? const [];
+          for (final item in pageItems) {
+            if (item is Map<String, dynamic>) {
+              allTracks.add(Map<String, dynamic>.from(item));
+            }
+          }
+        }
       }
     }
 
@@ -1614,23 +1627,35 @@ class SpotifyProvider extends ChangeNotifier {
     }
 
     final total = (tracksSection['total'] as int?) ?? allTracks.length;
-    var offset = initialItems.length;
+    final int limit = 50;
 
-    while (offset < total) {
-      final page = await _guard(
-          () => _spotifyService.getPlaylistTracks(playlistId, offset: offset));
-      final pageItems = page['items'] as List? ?? const [];
-      if (pageItems.isEmpty) {
-        break;
-      }
-      for (final item in pageItems) {
-        if (item is Map<String, dynamic>) {
-          addTrackFromContainer(item);
+    // Batch fetch remaining tracks concurrently
+    if (total > initialItems.length) {
+      final remaining = total - initialItems.length;
+      final pages = (remaining / limit).ceil();
+
+      // Execute in chunks to avoid rate limiting
+      const chunkSize = 5;
+      for (var i = 0; i < pages; i += chunkSize) {
+        final chunkFutures = <Future<Map<String, dynamic>>>[];
+        final endIndex = (i + chunkSize > pages) ? pages : i + chunkSize;
+
+        for (var j = i; j < endIndex; j++) {
+          final nextOffset = initialItems.length + (j * limit);
+          chunkFutures.add(_guard(
+              () => _spotifyService.getPlaylistTracks(playlistId, offset: nextOffset, limit: limit)));
         }
-      }
-      offset += pageItems.length;
-      if (page['next'] == null) {
-        break;
+
+        final results = await Future.wait(chunkFutures);
+
+        for (final page in results) {
+          final pageItems = page['items'] as List? ?? const [];
+          for (final item in pageItems) {
+            if (item is Map<String, dynamic>) {
+              addTrackFromContainer(item);
+            }
+          }
+        }
       }
     }
 
