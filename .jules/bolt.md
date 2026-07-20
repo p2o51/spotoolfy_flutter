@@ -13,3 +13,7 @@
 ## 2024-05-19 - [Optimize Flutter Provider Selector for High-Frequency Streams]
 **Learning:** When using `Selector` in Flutter with high-frequency streams (like audio playback `progressMs`), passing the raw rapidly changing value into the `builder` causes excessive widget rebuilds.
 **Action:** Calculate the stable derived state (e.g., `currentLineIndex`) *inside* the `selector` callback and return a snapshot containing only the derived state. Update `shouldRebuild` to compare this derived state, ensuring the UI only rebuilds when visually necessary (e.g., when the lyric line changes, not on every millisecond tick).
+
+## 2024-05-19 - [Avoid 'Hot' Futures During API Rate Limit Chunking]
+**Learning:** In Dart, `Future`s are "hot"—execution begins immediately when the async function is called. When refactoring loops to chunk concurrent requests (e.g., batching Spotify API pagination to respect rate limits), pre-populating a list with all futures and then `await Future.wait(chunk)` actually fires ALL requests immediately at creation, defeating the rate limit and potentially causing network exhaustion.
+**Action:** To properly chunk concurrent requests, you must instantiate the `Future` (call the async method) *inside* the batch execution loop for that specific chunk, rather than generating them all upfront.
