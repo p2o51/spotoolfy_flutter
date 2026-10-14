@@ -18,11 +18,14 @@ class LyricsService {
 
   // 缓存键的前缀
   static const String _cacheKeyPrefix = 'lyrics_cache_';
+  // 用户亲手选的歌词（搜索页选中、接受换源）。与 Yoin 一致：永不过期，优先于自动匹配。
+  static const String _manualCacheKeyPrefix = 'manual_lyrics_cache_';
   // 缓存有效期（30天）
   static const int _cacheTtlDays = 30;
 
   LyricsService({List<LyricProvider>? providers, SharedPreferences? prefs})
-      : _providers = providers ?? [NetEaseProvider(), QQProvider(), LRCLibProvider()],
+      // 自动匹配顺序与 Yoin 一致：QQ → 网易云 → LRCLIB。
+      : _providers = providers ?? [QQProvider(), NetEaseProvider(), LRCLibProvider()],
         _prefsCache = prefs;
 
   /// 获取歌词
@@ -36,8 +39,28 @@ class LyricsService {
       // 键名保留 netease 前缀是为了兼容旧缓存。
       final translationCacheKey = 'netease_translation_$trackId';
 
-      // 尝试从缓存获取
       final prefs = await _getPrefs();
+
+      // 用户亲手选的歌词永不过期，也不被自动匹配覆盖。
+      final manualJson = prefs.getString(_manualCacheKeyPrefix + trackId);
+      if (manualJson != null) {
+        try {
+          final manual = LyricCacheData.fromJson(json.decode(manualJson));
+          if (manual.lyric.trim().isNotEmpty) {
+            _logger.i('使用手动选择的歌词: $trackId (来源: ${manual.provider})');
+            return LyricsResult(
+              lyric: manual.lyric,
+              provider: manual.provider,
+              hasProviderTranslation: _providerSupportsTranslation(manual.provider) &&
+                  prefs.getString(translationCacheKey) != null,
+            );
+          }
+        } catch (e) {
+          _logger.w('解析手动歌词缓存失败: $e');
+        }
+      }
+
+      // 尝试从缓存获取
       final cachedLyricsJson = prefs.getString(cacheKey);
 
       if (cachedLyricsJson != null) {
@@ -88,10 +111,12 @@ class LyricsService {
         await prefs.setString(cacheKey, json.encode(cacheData.toJson()));
         _logger.i('歌词已缓存: $trackId (来源: $provider)');
 
-        // 如果提供者自带翻译，单独缓存
+        // 如果提供者自带翻译，单独缓存；没有就清掉旧歌词留下的翻译，免得对不上。
         if (hasTranslation) {
           await prefs.setString(translationCacheKey, translation);
           _logger.i('提供者翻译已缓存: $trackId (来源: $provider)');
+        } else {
+          await prefs.remove(translationCacheKey);
         }
 
         return LyricsResult(
@@ -141,7 +166,7 @@ class LyricsService {
     return lyric != null ? {'provider': provider.name, 'lyric': lyric} : null;
   }
 
-  /// 从多个提供者并行获取歌词
+  /// 从多个提供者并行获取歌词，按 [_providers] 的优先级取第一个有结果的。
   /// 返回 Map 包含 provider, lyric, 以及可选的 translation（网易云/QQ）
   Future<Map<String, String>?> _getFromProviders(String title, String artist) async {
     try {
@@ -161,21 +186,8 @@ class LyricsService {
       final results = await Future.wait(futures);
       final validResults = results.where((result) => result != null).toList();
 
-      if (validResults.isNotEmpty) {
-        // 返回第一个有效结果
-        return validResults.first;
-      }
-
-      // 如果并行获取都失败，尝试顺序获取（增加超时时间）
-      for (final provider in _providers) {
-        _logger.i('尝试从 ${provider.name} 获取歌词（延长超时）');
-        final result = await _fetchFromProvider(provider, title, artist);
-        if (result != null) {
-          return result;
-        }
-      }
-
-      return null;
+      // 返回优先级最高的有效结果。全部失败时不再顺序重跑一遍（超时相同，只会再等一轮）。
+      return validResults.isNotEmpty ? validResults.first : null;
     } catch (e) {
       _logger.e('从提供者获取歌词失败: $e');
       return null;
@@ -190,9 +202,12 @@ class LyricsService {
       final prefs = await _getPrefs();
       final keys = prefs.getKeys();
 
-      // 只清除歌词缓存的键
+      // 清除歌词缓存的键。手动选的歌词平时永不过期，但"清除缓存"是用户的明确操作，
+      // 一并清掉，连同音源翻译，回到自动匹配。
       for (var key in keys) {
-        if (key.startsWith(_cacheKeyPrefix)) {
+        if (key.startsWith(_cacheKeyPrefix) ||
+            key.startsWith(_manualCacheKeyPrefix) ||
+            key.startsWith('netease_translation_')) {
           await prefs.remove(key);
         }
       }

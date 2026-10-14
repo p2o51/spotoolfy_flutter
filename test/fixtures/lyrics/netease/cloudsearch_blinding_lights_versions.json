@@ -1,0 +1,67 @@
+{
+ "result": {
+  "songs": [
+   {
+    "id": 1500412585,
+    "name": "Blinding Lights (Remix)",
+    "ar": [
+     {
+      "id": 185858,
+      "name": "The Weeknd"
+     },
+     {
+      "id": 320153,
+      "name": "ROSALÍA"
+     }
+    ],
+    "al": {
+     "name": "Blinding Lights (Remix)"
+    },
+    "dt": 216123
+   },
+   {
+    "id": 2027162148,
+    "name": "Blinding Lights (Live)",
+    "ar": [
+     {
+      "id": 185858,
+      "name": "The Weeknd"
+     }
+    ],
+    "al": {
+     "name": "After Hours (Live At SoFi Stadium)"
+    },
+    "dt": 253365
+   },
+   {
+    "id": 1478647776,
+    "name": "Blinding Lights (Instrumental)",
+    "ar": [
+     {
+      "id": 185858,
+      "name": "The Weeknd"
+     }
+    ],
+    "al": {
+     "name": "Blinding Lights"
+    },
+    "dt": 202104
+   },
+   {
+    "id": 1433194293,
+    "name": "Blinding Lights",
+    "ar": [
+     {
+      "id": 185858,
+      "name": "The Weeknd"
+     }
+    ],
+    "al": {
+     "name": "After Hours (Deluxe)"
+    },
+    "dt": 200045
+   }
+  ]
+ },
+ "code": 200
+}

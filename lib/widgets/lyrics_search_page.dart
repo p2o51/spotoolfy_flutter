@@ -112,8 +112,8 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
     // 初始化提供者
     _providers = [
       QQProvider(),
-      LRCLibProvider(),
       NetEaseProvider(),
+      LRCLibProvider(),
     ];
 
     // 初始化每个提供者的状态
@@ -374,6 +374,9 @@ class _LyricsSearchPageState extends State<LyricsSearchPage> {
       // 不直接使用私有变量
       final regularCacheKey = 'lyrics_cache_$trackId'; // 使用插值
       await prefs.setString(regularCacheKey, json.encode(cacheData.toJson()));
+
+      // 换了歌词就清掉旧歌词的音源翻译；新歌词自带翻译时随后会重新写入。
+      await prefs.remove('netease_translation_$trackId');
     } catch (e) {
       _logger.d('缓存歌词失败: $e');
     }

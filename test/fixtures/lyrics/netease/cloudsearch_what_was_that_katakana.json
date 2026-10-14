@@ -1,0 +1,21 @@
+{
+ "result": {
+  "songs": [
+   {
+    "id": 2079173646,
+    "name": "Bittersweet",
+    "ar": [
+     {
+      "id": 16195,
+      "name": "BONNIE PINK"
+     }
+    ],
+    "al": {
+     "name": "Infinity"
+    },
+    "dt": 219932
+   }
+  ]
+ },
+ "code": 200
+}
