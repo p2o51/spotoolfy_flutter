@@ -9,17 +9,28 @@ void main() {
   LyricCandidate c(String title, List<String> artists, {String? album}) =>
       LyricCandidate(title, artists, album: album);
 
-  String fakeTraditionalToSimplified(String value) =>
-      value.replaceAll('愛', '爱').replaceAll('楊', '杨').replaceAll('艷', '艳');
-
   test('matches simplified candidate when request is traditional Chinese', () {
-    final folding = LyricCandidateMatcher(fold: fakeTraditionalToSimplified);
     final candidates = [
       c('雨爱', ['杨丞琳']),
       c('雨爱 (DJ 阿若版)', ['杨丞琳']),
       c('雨爱', ['张德伊玲']),
     ];
-    expect(folding.pick(candidates, '雨愛', '楊丞琳'), 0);
+    expect(matcher.pick(candidates, '雨愛', '楊丞琳'), 0);
+  });
+
+  test('matches traditional candidate when request is simplified Chinese', () {
+    expect(matcher.pick([c('雨愛', ['楊丞琳'])], '雨爱', '杨丞琳'), 0);
+  });
+
+  test('normalizes traditional artist when the title is already identical', () {
+    final candidates = [c('晴天', ['周杰伦']), c('晴天', ['林俊杰'])];
+    expect(matcher.pick(candidates, '晴天', '周杰倫'), 0);
+    expect(matcher.pick(candidates, '晴天', '陳奕迅'), isNull);
+  });
+
+  test('keeps an explicitly supplied folding function', () {
+    final custom = LyricCandidateMatcher(fold: (text) => text.replaceAll('Alias', 'Band'));
+    expect(custom.pick([c('Song', ['Band'])], 'Song', 'Alias'), 0);
   });
 
   test('prefers plain title when decorated version comes first', () {
@@ -76,7 +87,6 @@ void main() {
   });
 
   test('accepts dominant performer when unverifiable artist has most cuts', () {
-    final folding = LyricCandidateMatcher(fold: fakeTraditionalToSimplified);
     final candidates = [
       c('痛快的哀艳 (苏打绿版)', ['苏打绿']),
       c('痛快的哀艳 (Live)', ['苏诗丁']),
@@ -89,7 +99,7 @@ void main() {
       c('痛快的哀艳', ['泪零Namida']),
       c('痛快的哀艳', ['比利凯']),
     ];
-    expect(folding.pick(candidates, '痛快的哀艷', 'ソーダグリーン'), 3);
+    expect(matcher.pick(candidates, '痛快的哀艷', 'ソーダグリーン'), 3);
   });
 
   test("picks studio cut when dominant performer also has Taylor's Version", () {

@@ -30,6 +30,20 @@ void main() {
   });
 
   group('automatic matching', () {
+    test('matches traditional metadata with the default matcher', () async {
+      queue.add(ok('''{"result":{"songs":[
+        {"id":1,"name":"雨爱","ar":[{"name":"张德伊玲"}]},
+        {"id":2,"name":"雨爱","ar":[{"name":"杨丞琳"}]}
+      ]}}'''));
+
+      final match = await provider.search('雨愛', '楊丞琳');
+
+      expect(match?.songId, '2');
+      expect(match?.title, '雨爱');
+      expect(match?.artist, '杨丞琳');
+      expect(seen.single.url.queryParameters['keywords'], '雨愛 楊丞琳');
+    });
+
     test('reads ar first name and album from cloudsearch', () async {
       queue.add(ok('{"result":{"songs":[{"id":123456,"name":"晴天","ar":[{"name":"周杰伦"}]}]}}'));
 

@@ -45,6 +45,16 @@ void main() {
   }
 
   group('search', () {
+    test('matches traditional metadata with the default matcher', () async {
+      on('/web1/soso/', (_) => ok('''{"code":0,"data":{"song":{"list":[
+        {"id":1,"title":"雨爱","singer":[{"name":"张德伊玲"}]},
+        {"id":2,"title":"雨爱","singer":[{"name":"杨丞琳"}]}
+      ]}}}'''));
+
+      expectMatch(await provider.search('雨愛', '楊丞琳'), '2', '雨爱', '杨丞琳');
+      expect(seen.single.url.queryParameters['w'], '雨愛 楊丞琳');
+    });
+
     test('returns artist-matched song when web search answers', () async {
       on('/web1/soso/', (_) => ok(fixture('search_cp_qingtian.json')));
 

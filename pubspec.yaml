@@ -35,6 +35,7 @@ dependencies:
   logger: ^2.4.0
   intl: ^0.20.2
   path: ^1.9.0
+  pinyin: ^3.3.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -78,6 +79,8 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  config:
+    enable-swift-package-manager: false
   generate: true
   uses-material-design: true
 

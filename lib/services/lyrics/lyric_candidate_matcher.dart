@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:pinyin/pinyin.dart' show ChineseHelper;
+
 /// 一条搜索结果：标题、全部演唱者、所在专辑（歌词源没给就是 null），顺序即歌词源给出的排位。
 class LyricCandidate {
   final String title;
@@ -14,7 +16,7 @@ class LyricCandidate {
 ///
 /// 移植自 Yoin 的 `LyricCandidateMatcher`（2026-10），规则一致：
 ///
-/// **标题。** 比较前先归一：全角转半角、[fold]（可注入，默认原样）、忽略大小写、
+/// **标题。** 比较前先归一：全角转半角、[fold]（可注入，默认繁体转简体）、忽略大小写、
 /// 标点和空白，拉丁字母去掉变音符。结尾注记——括号段（`(Live)`、`(Explicit)`）、
 /// ` - 后缀`、`feat.` 子句——从外往里一层层剥。双方去掉"同一母带"注记后相同，算"原版"；
 /// 双方去掉全部注记后才相同，算"注记版"。伴奏 / 纯音乐类注记取不到歌词，除非请求本身
@@ -35,11 +37,10 @@ class LyricCandidate {
 /// 的候选里看排位第一的那位艺人：他至少有 2 条同名录音并且比其余任何艺人都多，才认定是他；
 /// 否则返回 null。
 class LyricCandidateMatcher {
-  LyricCandidateMatcher({String Function(String)? fold}) : _fold = fold ?? _identity;
+  LyricCandidateMatcher({String Function(String)? fold})
+      : _fold = fold ?? ChineseHelper.convertToSimplifiedChinese;
 
   final String Function(String) _fold;
-
-  static String _identity(String value) => value;
 
   /// 返回 [candidates] 里选中的下标；没有可信的匹配时返回 null。
   int? pick(List<LyricCandidate> candidates, String title, String artist) {
