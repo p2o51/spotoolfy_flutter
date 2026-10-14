@@ -1,0 +1,147 @@
+{
+ "result": {
+  "songs": [
+   {
+    "id": 26289183,
+    "name": "Hotel California (2013 Remaster)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "The Studio Albums 1972-1979 (2013 Remaster)"
+    },
+    "dt": 391376
+   },
+   {
+    "id": 4049399,
+    "name": "Hotel California (Live on MTV, 1994)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "Hell Freezes Over"
+    },
+    "dt": 432040
+   },
+   {
+    "id": 1318509823,
+    "name": "Hotel California (1999 Remaster)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "Selected Works 1972-1999"
+    },
+    "dt": 390266
+   },
+   {
+    "id": 1302701468,
+    "name": "Hotel California",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "Unplugged 1994 - The Second Night"
+    },
+    "dt": 446560
+   },
+   {
+    "id": 1461046602,
+    "name": "Hotel California (Live From The Forum, Inglewood, CA, 9/12, 14, 15/2018)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "Hotel California (Live From The Forum, Inglewood, CA, 9/12, 14, 15/2018)"
+    },
+    "dt": 507373
+   },
+   {
+    "id": 1963423447,
+    "name": "Hotel California (live)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "Unplugged 1994 (live)"
+    },
+    "dt": 440706
+   },
+   {
+    "id": 2698477673,
+    "name": "Hotel California (Live, 1976)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "5ive of a Kind - Hotel California (Live)"
+    },
+    "dt": 390373
+   },
+   {
+    "id": 2698479305,
+    "name": "Hotel California (Live, 1994)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "5ive of a Kind - Hotel California (Live)"
+    },
+    "dt": 339847
+   },
+   {
+    "id": 531954630,
+    "name": "Hotel California",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "The Summit, Houston, 1976 (Hd Remastered Edition)"
+    },
+    "dt": 422320
+   },
+   {
+    "id": 514158843,
+    "name": "Hotel California (Live at The Forum, Los Angeles, CA, 10/20-22/1976)",
+    "ar": [
+     {
+      "id": 91725,
+      "name": "Eagles"
+     }
+    ],
+    "al": {
+     "name": "Hotel California (40th Anniversary Expanded Edition)"
+    },
+    "dt": 409520
+   }
+  ]
+ },
+ "code": 200
+}

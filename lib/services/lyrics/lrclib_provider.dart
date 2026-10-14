@@ -9,6 +9,12 @@ import 'lyric_provider.dart';
 class LRCLibProvider extends LyricProvider {
   static const String _baseUrl = 'https://lrclib.net';
 
+  /// LRCLIB 的限流文档建议带可识别的 User-Agent。
+  static const Map<String, String> _headers = {
+    'user-agent': 'Spotoolfy (https://github.com/p2o51/spotoolfy_flutter)',
+    'accept': 'application/json',
+  };
+
   final Logger _logger = Logger();
   final http.Client _client;
 
@@ -44,14 +50,15 @@ class LRCLibProvider extends LyricProvider {
       }
 
       final uri = Uri.parse('$_baseUrl/api/search').replace(queryParameters: params);
-      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+      final response =
+          await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         _logger.w('LRCLIB 搜索请求失败，状态码: ${response.statusCode}');
         return [];
       }
 
-      final data = json.decode(response.body);
+      final data = json.decode(utf8.decode(response.bodyBytes, allowMalformed: true));
       if (data is! List) {
         _logger.w('LRCLIB 搜索响应格式异常');
         return [];
@@ -87,14 +94,15 @@ class LRCLibProvider extends LyricProvider {
   Future<String?> fetchLyric(String songId) async {
     try {
       final uri = Uri.parse('$_baseUrl/api/get/$songId');
-      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+      final response =
+          await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         _logger.w('LRCLIB 获取歌词失败，状态码: ${response.statusCode}');
         return null;
       }
 
-      final data = json.decode(response.body);
+      final data = json.decode(utf8.decode(response.bodyBytes, allowMalformed: true));
       if (data is! Map<String, dynamic>) {
         _logger.w('LRCLIB 获取歌词响应格式异常');
         return null;

@@ -23,7 +23,9 @@ import '../services/lyrics_service.dart';
 import '../services/notification_service.dart';
 import '../services/settings_service.dart';
 import '../services/translation_service.dart';
+import '../utils/lrc_parser.dart';
 import '../utils/lyric_timing_utils.dart';
+import '../utils/provider_translation_pairing.dart';
 import '../utils/responsive.dart';
 import '../utils/structured_translation.dart';
 import 'lyrics_search_page.dart';
@@ -637,55 +639,16 @@ class _LyricsWidgetState extends State<LyricsWidget>
       );
     }
 
-    // 解析网易云翻译（LRC 格式）
-    final timeRegex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)');
-    final translationMap = <Duration, String>{};
-
-    for (final line in cachedTranslation.split('\n')) {
-      final match = timeRegex.firstMatch(line);
-      if (match != null) {
-        final minutes = int.parse(match.group(1)!);
-        final seconds = int.parse(match.group(2)!);
-        final millisecondsStr = match.group(3)!;
-        int milliseconds = millisecondsStr.length == 2
-            ? int.parse(millisecondsStr) * 10
-            : int.parse(millisecondsStr);
-
-        final timestamp = Duration(
-          minutes: minutes,
-          seconds: seconds,
-          milliseconds: milliseconds,
-        );
-        final text = match.group(4)?.trim() ?? '';
-        if (text.isNotEmpty) {
-          translationMap[timestamp] = text;
-        }
-      }
-    }
-
-    // 基于时间戳匹配原文和翻译
-    final perLineTranslations = <int, String>{};
-    final sortedTimestamps = translationMap.keys.toList()..sort();
-
-    for (var i = 0; i < _lyrics.length; i++) {
-      final lyricTimestamp = _lyrics[i].timestamp;
-      // 找到最接近的翻译时间戳（允许 500ms 误差）
-      String? matchedTranslation;
-      for (final transTimestamp in sortedTimestamps) {
-        final diff = (lyricTimestamp - transTimestamp).inMilliseconds.abs();
-        if (diff <= 500) {
-          matchedTranslation = translationMap[transTimestamp];
-          break;
-        }
-      }
-      if (matchedTranslation != null && matchedTranslation.isNotEmpty) {
-        perLineTranslations[i] = matchedTranslation;
-      }
-    }
+    // 与 Yoin 同一套配对：按时间戳分组逐行对应，`//` 不算译文；
+    // 时间轴完全对不上时退回 500ms 以内就近一一配对。
+    final perLineTranslations = pairProviderTranslations(
+      _lyrics.map((line) => line.timestamp).toList(),
+      cachedTranslation,
+    );
 
     return TranslationLoadResult(
       rawTranslatedLyrics: cachedTranslation,
-      cleanedTranslatedLyrics: translationMap.values.join('\n'),
+      cleanedTranslatedLyrics: providerTranslationText(cachedTranslation),
       perLineTranslations: perLineTranslations,
       style: TranslationStyle.neteaseProvider,
       languageCode: 'zh-CN', // 音源翻译只有中文
@@ -843,6 +806,9 @@ class _LyricsWidgetState extends State<LyricsWidget>
     );
     await prefs.setString(
         'lyrics_cache_$trackId', json.encode(cacheData.toJson()));
+    // 接受换源 = 用户的选择：和搜索页选中一样，永不过期、优先于自动匹配。
+    await prefs.setString(
+        'manual_lyrics_cache_$trackId', json.encode(cacheData.toJson()));
     await _cacheProviderTranslation(trackId, result.translation!);
 
     if (!mounted) return;
@@ -2211,71 +2177,20 @@ class _LyricsWidgetState extends State<LyricsWidget>
     return result;
   }
 
+  /// 多时间戳行、1–3 位小数、`[ti:]` 等标签的处理见 [LrcParser]（与 Yoin 同步）。
   List<LyricLine> _parseLyrics(String rawLyrics) {
-    final lines = rawLyrics.split('\n');
-    final List<LyricLine> result = [];
-
-    final RegExp timeTagRegex = RegExp(r'^\[(\d{2,}):(\d{2})\.?(\d{2,3})?\]');
-
-    for (var line in lines) {
-      final match = timeTagRegex.firstMatch(line);
-      if (match != null) {
-        try {
-          final minutes = int.parse(match.group(1)!);
-          final seconds = int.parse(match.group(2)!);
-          // Handle optional milliseconds (2 or 3 digits)
-          final millisecondsStr = match.group(3);
-          int milliseconds = 0;
-          if (millisecondsStr != null) {
-            if (millisecondsStr.length == 2) {
-              milliseconds = int.parse(millisecondsStr) *
-                  10; // 2 digits -> centiseconds to milliseconds
-            } else {
-              milliseconds =
-                  int.parse(millisecondsStr); // 3 digits -> milliseconds
-            }
-          }
-
-          final timestamp = Duration(
-            minutes: minutes,
-            seconds: seconds,
-            milliseconds: milliseconds,
-          );
-
-          var text = line.substring(match.end).trim();
-          // Decode common HTML entities
-          text = text
-              .replaceAll('&apos;', "'")
-              .replaceAll('&quot;', '"')
-              .replaceAll('&amp;', '&')
-              .replaceAll('&lt;', '<')
-              .replaceAll('&gt;', '>');
-
-          // Add line only if the text part is not empty
-          if (text.isNotEmpty) {
-            result.add(LyricLine(timestamp, text));
-          }
-        } catch (e) {
-          // Log parsing errors for specific lines if needed
-          // _logger.d('Failed to parse lyric line: $line, Error: $e');
-        }
-      } else if (line.trim().isNotEmpty && !line.trim().startsWith('[')) {
-        // Handle lines without timestamps (e.g., for unsynced lyrics)
-        // Assign a zero timestamp or handle differently? For now, assign zero.
-        // Or maybe filter them out if only synced lyrics are desired.
-        // Let's add them with a zero timestamp for now.
-        // result.add(LyricLine(Duration.zero, line.trim()));
-        // --> Let's actually SKIP lines without valid timestamps for synced lyrics.
-      }
-    }
-
-    // Sort lines by timestamp just in case they weren't ordered
-    result.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-
-    // Optional: Merge consecutive lines with the same timestamp?
-    // For now, keep them separate.
-
-    return result;
+    return LrcParser.parse(rawLyrics)
+        .map((line) => LyricLine(
+              line.timestamp,
+              // Decode common HTML entities
+              line.text
+                  .replaceAll('&apos;', "'")
+                  .replaceAll('&quot;', '"')
+                  .replaceAll('&amp;', '&')
+                  .replaceAll('&lt;', '<')
+                  .replaceAll('&gt;', '>'),
+            ))
+        .toList();
   }
 
   void _toggleCopyLyricsMode() {

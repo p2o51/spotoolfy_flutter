@@ -2,107 +2,110 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
+import 'lyric_candidate_matcher.dart';
 import 'lyric_provider.dart';
 
-/// 基于第三方代理 API 的网易云歌词提供者
+/// 基于第三方代理 API 的网易云歌词提供者。
+///
+/// 自动匹配（[search]）多要几条，交给 [LyricCandidateMatcher] 校验（与 Yoin 同一套规则）：
+/// 标题必须对上，艺人能比就必须对上，原版优先于 Live / Remix，伴奏不算。认不出就返回
+/// null 让下一个 provider 试——网易云的第一条常是翻唱、同名的别人，甚至标题都不对的歌。
+/// 手动搜索（[searchMultiple]）保持网易云自己的排序。
 class NetEaseProvider extends LyricProvider {
   /// 第三方代理服务基础 URL
-  static const String _baseUrl = 'https://api.spotoolfy.gojyuplus.com';
+  static const String _defaultBaseUrl = 'https://api.spotoolfy.gojyuplus.com';
+
+  /// 自动匹配时一次要的候选数。
+  static const int _searchPageSize = 10;
 
   final Logger _logger = Logger();
   final http.Client _client;
+  final String _baseUrl;
+  final LyricCandidateMatcher _matcher;
 
-  NetEaseProvider({http.Client? httpClient}) : _client = httpClient ?? http.Client();
+  NetEaseProvider({http.Client? httpClient, String? baseUrl, LyricCandidateMatcher? matcher})
+      : _client = httpClient ?? http.Client(),
+        _baseUrl = baseUrl ?? _defaultBaseUrl,
+        _matcher = matcher ?? LyricCandidateMatcher();
 
   @override
   String get name => 'netease';
 
-  /// 搜索歌曲，返回首条匹配
   @override
   Future<SongMatch?> search(String title, String artist) async {
-    final results = await searchMultiple(title, artist, limit: 1);
-    return results.isNotEmpty ? results.first : null;
+    final songs = await _findSongs(title, artist, _searchPageSize);
+    if (songs == null) return null;
+    final picked = _matcher.pick(
+      songs.map((s) => LyricCandidate(s.title ?? '', s.artists, album: s.album)).toList(),
+      title,
+      artist,
+    );
+    return picked == null ? null : songs[picked].toMatch(title, artist);
   }
 
   @override
   Future<List<SongMatch>> searchMultiple(String title, String artist, {int limit = 3}) async {
+    if (limit <= 0) return [];
+    final songs = await _findSongs(title, artist, limit) ?? const <_NetEaseSong>[];
+    return songs.take(limit).map((s) => s.toMatch(title, artist)).toList();
+  }
+
+  /// `cloudsearch`，按网易云的原序返回。null = 没答上（网络、非 2xx、解析失败）；
+  /// 空列表是真实的"搜不到"。没有 id 的条目取不了词，直接跳过。
+  Future<List<_NetEaseSong>?> _findSongs(String title, String artist, int pageSize) async {
     try {
-      final keyword = '$title $artist';
       final uri = Uri.parse('$_baseUrl/cloudsearch').replace(
         queryParameters: {
-          'keywords': keyword,
-          'limit': limit.toString(),
+          'keywords': '$title $artist',
+          'limit': pageSize.toString(),
         },
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
         _logger.w('搜索请求失败: ${response.statusCode}');
-        return [];
-      }
-
-      final data = json.decode(response.body);
-      final songs = data['result']?['songs'] as List<dynamic>?;
-      if (songs == null || songs.isEmpty) {
-        return [];
-      }
-
-      final results = <SongMatch>[];
-      for (var i = 0; i < songs.length && i < limit; i++) {
-        final song = songs[i] as Map<String, dynamic>;
-        // cloudsearch 使用 'ar' 而不是 'artists'
-        final artists = song['ar'] as List<dynamic>?;
-        final artistName = (artists != null && artists.isNotEmpty)
-            ? artists[0]['name'] as String
-            : artist;
-        results.add(SongMatch(
-          songId: song['id'].toString(),
-          title: song['name'] as String? ?? title,
-          artist: artistName,
-        ));
-      }
-      return results;
-    } catch (e, st) {
-      _logger.e('搜索失败', error: e, stackTrace: st);
-      return [];
-    }
-  }
-
-  /// 获取歌词（使用新版 API，支持翻译歌词）
-  @override
-  Future<String?> fetchLyric(String songId) async {
-    try {
-      final uri = Uri.parse('$_baseUrl/lyric/new').replace(
-        queryParameters: {'id': songId},
-      );
-      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) {
-        _logger.w('获取歌词失败: ${response.statusCode}');
         return null;
       }
 
-      final data = json.decode(response.body) as Map<String, dynamic>;
-
-      // 获取原文歌词
-      final lrc = data['lrc'] as Map<String, dynamic>?;
-      String? lrcText = lrc?['lyric'] as String?;
-
-      if (lrcText == null || lrcText.isEmpty) {
-        return null;
-      }
-
-      // 检查是否是 JSON 格式的逐字歌词（新版 API 特性）
-      if (lrcText.trim().startsWith('{')) {
-        lrcText = _parseJsonLyric(lrcText);
-      }
-
-      return lrcText;
-    } catch (e, st) {
-      _logger.e('获取歌词失败', error: e, stackTrace: st);
+      final data = json.decode(utf8.decode(response.bodyBytes, allowMalformed: true));
+      final result = data is Map<String, dynamic> ? data['result'] : null;
+      final songs = result is Map<String, dynamic> ? result['songs'] : null;
+      if (songs is! List) return [];
+      return songs.map(_parseSong).whereType<_NetEaseSong>().toList();
+    } catch (e) {
+      _logger.w('网易云搜索失败: $e');
       return null;
     }
   }
 
-  /// 获取歌词（包含翻译信息）
+  _NetEaseSong? _parseSong(dynamic element) {
+    if (element is! Map<String, dynamic>) return null;
+    final id = element['id'];
+    if (id == null) return null;
+    final artists = <String>[];
+    final ar = element['ar'];
+    if (ar is List) {
+      for (final artist in ar) {
+        final name = artist is Map<String, dynamic> ? artist['name'] : null;
+        if (name is String && name.trim().isNotEmpty) artists.add(name.trim());
+      }
+    }
+    final al = element['al'];
+    final album = al is Map<String, dynamic> ? al['name'] : null;
+    final name = element['name'];
+    return _NetEaseSong(
+      id: id.toString(),
+      title: name is String ? name : null,
+      artists: artists,
+      album: album is String && album.trim().isNotEmpty ? album.trim() : null,
+    );
+  }
+
+  /// 获取歌词（只要原文）
+  @override
+  Future<String?> fetchLyric(String songId) async =>
+      (await fetchLyricWithTranslation(songId))?.lyric;
+
+  /// 获取歌词（包含翻译信息，使用新版 API）
   @override
   Future<LyricResult?> fetchLyricWithTranslation(String songId) async {
     try {
@@ -115,37 +118,29 @@ class NetEaseProvider extends LyricProvider {
         return null;
       }
 
-      final data = json.decode(response.body) as Map<String, dynamic>;
+      final data = json.decode(utf8.decode(response.bodyBytes, allowMalformed: true));
+      if (data is! Map<String, dynamic>) return null;
 
-      // 获取原文歌词
-      final lrc = data['lrc'] as Map<String, dynamic>?;
-      String? lrcText = lrc?['lyric'] as String?;
-
-      if (lrcText == null || lrcText.isEmpty) {
-        return null;
-      }
-
-      // 检查是否是 JSON 格式的逐字歌词
-      if (lrcText.trim().startsWith('{')) {
-        lrcText = _parseJsonLyric(lrcText);
-      }
-
-      if (lrcText == null || lrcText.isEmpty) {
-        return null;
-      }
-
-      // 获取翻译歌词
-      final tlyric = data['tlyric'] as Map<String, dynamic>?;
-      final tlyricText = tlyric?['lyric'] as String?;
+      final lrcText = _providerLyric(data['lrc']);
+      if (lrcText == null) return null;
 
       return LyricResult(
         lyric: lrcText,
-        translation: tlyricText,
+        // 翻译与原文同样可能是逐字 JSON 行，一并转换。
+        translation: _providerLyric(data['tlyric']),
       );
     } catch (e, st) {
       _logger.e('获取歌词失败', error: e, stackTrace: st);
       return null;
     }
+  }
+
+  /// `{lyric: "..."}` → LRC 文本；逐字 JSON 行转成标准 LRC；空的返回 null。
+  String? _providerLyric(dynamic field) {
+    final text = field is Map<String, dynamic> ? field['lyric'] : null;
+    if (text is! String || text.trim().isEmpty) return null;
+    final converted = text.trim().startsWith('{') ? _parseJsonLyric(text) : text;
+    return converted == null || converted.trim().isEmpty ? null : converted;
   }
 
   /// 解析 JSON 格式的逐字歌词，转换为标准 LRC 格式
@@ -203,4 +198,22 @@ class NetEaseProvider extends LyricProvider {
       lowerText.contains('：$keyword')
     );
   }
+}
+
+/// 一条搜索结果。[title] 缺失时不拿请求的歌名顶替去比对——那样任何一条没名字的
+/// 结果都会被当成"标题对上了"；只在交给界面时（[toMatch]）才回退。[album] 只给匹配器
+/// 认现场 / 访谈专辑用。
+class _NetEaseSong {
+  final String id;
+  final String? title;
+  final List<String> artists;
+  final String? album;
+
+  _NetEaseSong({required this.id, required this.title, required this.artists, this.album});
+
+  SongMatch toMatch(String fallbackTitle, String fallbackArtist) => SongMatch(
+        songId: id,
+        title: title ?? fallbackTitle,
+        artist: artists.isNotEmpty ? artists.first : fallbackArtist,
+      );
 }

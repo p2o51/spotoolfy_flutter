@@ -1,0 +1,21 @@
+{
+ "result": {
+  "songs": [
+   {
+    "id": 2157493114,
+    "name": "Stupid love (PARTY HITS EDIT)",
+    "ar": [
+     {
+      "id": 53111686,
+      "name": "Party Town"
+     }
+    ],
+    "al": {
+     "name": "オシャレな人がランニングで聴いてそうな アップテンポな洋楽"
+    },
+    "dt": 194780
+   }
+  ]
+ },
+ "code": 200
+}

@@ -1,0 +1,70 @@
+{
+ "code": 0,
+ "data": {
+  "keyword": "晴天 周杰伦",
+  "song": {
+   "curnum": 3,
+   "curpage": 1,
+   "totalnum": 2763,
+   "list": [
+    {
+     "id": 97773,
+     "mid": "0039MnYb0qxYhV",
+     "name": "晴天",
+     "title": "晴天",
+     "interval": 269,
+     "singer": [
+      {
+       "id": 4558,
+       "mid": "0025NhlN2yWrP4",
+       "name": "周杰伦"
+      }
+     ],
+     "album": {
+      "id": 8220,
+      "mid": "000MkMni19ClKG",
+      "name": "叶惠美"
+     }
+    },
+    {
+     "id": 244115385,
+     "mid": "004Fs2FP1EvZYc",
+     "name": "晴天",
+     "title": "晴天 (Live)",
+     "interval": 249,
+     "singer": [
+      {
+       "id": 4558,
+       "mid": "0025NhlN2yWrP4",
+       "name": "周杰伦"
+      }
+     ],
+     "album": {
+      "id": 9040723,
+      "mid": "004fXSyj3bWTMN",
+      "name": "周杰伦地表最强世界巡回演唱会"
+     }
+    },
+    {
+     "id": 4962974,
+     "mid": "001398Rf3gykz8",
+     "name": "晴天",
+     "title": "晴天 (Live)",
+     "interval": 299,
+     "singer": [
+      {
+       "id": 4558,
+       "mid": "0025NhlN2yWrP4",
+       "name": "周杰伦"
+      }
+     ],
+     "album": {
+      "id": 14323,
+      "mid": "0032ezFm3F53yO",
+      "name": "周杰伦 2004 无与伦比 演唱会 Live CD"
+     }
+    }
+   ]
+  }
+ }
+}
