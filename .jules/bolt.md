@@ -13,3 +13,7 @@
 ## 2024-05-19 - [Optimize Flutter Provider Selector for High-Frequency Streams]
 **Learning:** When using `Selector` in Flutter with high-frequency streams (like audio playback `progressMs`), passing the raw rapidly changing value into the `builder` causes excessive widget rebuilds.
 **Action:** Calculate the stable derived state (e.g., `currentLineIndex`) *inside* the `selector` callback and return a snapshot containing only the derived state. Update `shouldRebuild` to compare this derived state, ensuring the UI only rebuilds when visually necessary (e.g., when the lyric line changes, not on every millisecond tick).
+
+## 2024-05-19 - Concurrent Preloading of Images
+**Learning:** Sequential preloading of image URLs in a loop (using `await precacheImage()`) creates a network waterfall, significantly delaying UI rendering when multiple images are involved.
+**Action:** When preloading a batch of images (e.g., in a manager like `SpotifyCacheManager`), always map the requests to Futures and execute them concurrently with `Future.wait()`.
